@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jhk-plugins",
+  "description": "Personal Claude Code plugins collection",
+  "owner": {
+    "name": "jhk",
+    "email": "jhk@local"
+  },
+  "plugins": [
+    {
+      "name": "orchestrator-guide",
+      "description": "Multi-agent orchestration framework for complex tasks with 5-element delegation protocol. Use /orchestrator for task coordination, /planner for spec generation, /delegator for delegation prompts.",
+      "version": "1.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/orchestrator-guide",
+      "category": "development"
+    }
+  ]
+}
