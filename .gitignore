@@ -1,0 +1,15 @@
+# Serena MCP server config (local IDE settings)
+.serena/
+
+# Claude Code local state
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
