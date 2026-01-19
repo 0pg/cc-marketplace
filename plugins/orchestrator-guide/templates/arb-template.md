@@ -412,6 +412,69 @@ recommendation: proceed
 ---end-agent-result---
 ```
 
+### test-quality-reviewer ARB
+
+```yaml
+---agent-result---
+status: success | partial | blocked | failed
+agent: test-quality-reviewer
+task_ref: {task_id}
+
+files:
+  created: []
+  modified: []
+
+verification:
+  tests: pass
+  lint: skip
+
+test_quality:
+  mapping_summary:
+    total_reqs: {number}           # spec.md의 전체 REQ 수
+    mapped_to_verify: {number}     # VERIFY로 매핑된 REQ 수
+    tested_verifies: {number}      # 테스트로 커버된 VERIFY 수
+
+  req_coverage:
+    - req: REQ-001
+      status: covered | partial | missing
+      verifies:
+        - verify: VERIFY-001.1
+          status: covered | partial | missing
+          tests: [{test_name}]     # 이 VERIFY를 검증하는 테스트 목록
+          gaps: []                 # 누락된 검증 항목
+
+  quality_issues:
+    - severity: high | medium | low
+      type: mapping_gap | weak_assertion | missing_edge_case | orphan_test
+      location: {file:line 또는 REQ/VERIFY ID}
+      description: "{description}"
+      suggestion: "{suggestion}"
+
+  assessment:
+    overall_coverage: "{평가}"
+    confidence: high | medium | low
+    recommendation: approve | needs_work | block
+
+issues:
+  - severity: high | medium | low
+    description: "{issue_description}"
+    action: "{recommended_action}"
+
+followup:
+  - task: "{next_task_description}"
+    priority: high | medium | low
+---end-agent-result---
+```
+
+#### test_quality.quality_issues type 분류
+
+| type | 설명 |
+|------|------|
+| `mapping_gap` | REQ→VERIFY 또는 VERIFY→Test 매핑 누락 |
+| `weak_assertion` | assertion이 VERIFY를 충분히 검증하지 않음 |
+| `missing_edge_case` | VERIFY에 명시된 엣지 케이스 테스트 누락 |
+| `orphan_test` | VERIFY와 연결되지 않은 테스트 |
+
 ---
 
 ## 파싱 가이드

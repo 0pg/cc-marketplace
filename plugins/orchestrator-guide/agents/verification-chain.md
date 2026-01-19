@@ -33,8 +33,13 @@ description: |
 │  2. Tests      │ → 단위/통합 테스트 (project-config 참조)
 └───────┬────────┘
         ↓ (통과 시)
+┌─────────────────────┐
+│  3. Test Quality    │ → REQ→VERIFY→Test 매핑 검증 (조건부)
+│     Review          │
+└───────┬─────────────┘
+        ↓ (통과 시 또는 skip)
 ┌────────────────┐
-│  3. Code Review│ → Review 역할 에이전트
+│  4. Code Review│ → Review 역할 에이전트
 └───────┬────────┘
         ↓
 ┌────────────────┐
@@ -326,7 +331,41 @@ retry_summary:
 - 모든 테스트 통과
 - 테스트 커버리지 (권장)
 
-### Stage 3: 코드 리뷰
+### Stage 3: 테스트 품질 리뷰 (조건부)
+
+> spec.md와 task.md가 존재할 때만 실행
+
+```yaml
+test_quality_review:
+  enabled_when:
+    - tests_passed: true       # 테스트가 통과해야 함
+    - spec_exists: true        # spec/spec.md 존재해야 함
+    - task_exists: true        # spec/task.md 존재해야 함
+```
+
+```typescript
+Task({
+  subagent_type: "test-quality-reviewer",
+  prompt: "[5요소 위임 프로토콜]"
+})
+```
+
+**검사 항목**:
+- REQ → VERIFY 매핑 완전성
+- VERIFY → Test 커버리지
+- 테스트 assertion 적합성
+- 누락된 검증 항목
+
+**통과 기준**:
+- 모든 REQ가 VERIFY로 매핑됨
+- 모든 VERIFY가 테스트로 커버됨
+- Critical/High 품질 이슈 없음
+
+**Skip 조건**:
+- spec.md 또는 task.md가 존재하지 않음
+- 테스트가 실패한 경우
+
+### Stage 4: 코드 리뷰
 
 ```typescript
 Task({
@@ -376,7 +415,32 @@ on_failure:
   - 체인 중단 및 보고
 ```
 
-### Step 3: 코드 리뷰
+### Step 3: 테스트 품질 리뷰 (조건부)
+
+```yaml
+condition: |
+  spec.md 존재 AND task.md 존재
+
+action: |
+  Task(test-quality-reviewer)
+
+on_success:
+  - 다음 단계로 진행
+
+on_skip:
+  - spec.md 또는 task.md 없음
+  - 다음 단계로 진행
+
+on_failure:
+  - 매핑 누락/품질 이슈 수집
+  - severity 분류
+  - recommendation에 따라 처리:
+    - approve: 다음 단계로 진행
+    - needs_work: 이슈 보고 후 진행
+    - block: 체인 중단
+```
+
+### Step 4: 코드 리뷰
 
 ```yaml
 action: |
@@ -442,6 +506,13 @@ stages:
     skipped: 0
     duration: 12.3s
 
+  test_quality_review:
+    status: pass | skip
+    skipped_reason: null | "spec.md 없음" | "task.md 없음"
+    req_coverage: "100%" | "80%" | null
+    recommendation: approve | needs_work | block | null
+    issues_found: 0
+
   code_review:
     status: pass
     reviewer: Review 역할 에이전트
@@ -491,7 +562,24 @@ files:
 verification:
   lint: pass
   tests: pass
+  test_quality: pass | skip
   review: pass
+
+verification_stages:
+  lint:
+    status: pass
+    warnings: 0
+  tests:
+    status: pass
+    total: 45
+    passed: 45
+  test_quality_review:
+    status: pass | skip
+    skipped_reason: null
+    recommendation: approve
+  review:
+    status: pass
+    issues: 2
 
 decisions:
   - key: "verification_result"
@@ -530,15 +618,34 @@ Verification Chain:
    (project-config test 명령어)
    → 45/45 통과 ✓
 
-3. 코드 리뷰:
+3. 테스트 품질 리뷰:
+   - spec.md, task.md 확인 → 존재 ✓
+   - Task(test-quality-reviewer)
+   → REQ 5개 중 5개 커버됨
+   → recommendation: approve ✓
+
+4. 코드 리뷰:
    Task(Review 역할 에이전트)
    → 2개 이슈 발견 (medium 1, low 1)
 
-4. 최종 보고:
+5. 최종 보고:
    ---verification-report---
    overall_status: pass
    recommendation: proceed
    ---end-verification-report---
+```
+
+### 테스트 품질 리뷰 Skip 예시
+
+```
+Verification Chain:
+1. Lint 실행: 통과 ✓
+2. 테스트 실행: 45/45 통과 ✓
+3. 테스트 품질 리뷰:
+   - spec.md 확인 → 없음
+   - Skip (spec.md 없음)
+4. 코드 리뷰: 2개 이슈 발견
+5. 최종 보고: overall_status: pass
 ```
 
 ---
