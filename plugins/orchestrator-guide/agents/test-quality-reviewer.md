@@ -131,6 +131,64 @@ test_quality_review:
 
 ---
 
+## 트리거 조건 (호출 시점)
+
+### Phase 완료 트리거 (기본)
+
+> Phase 내 모든 TASK가 완료되면 호출해야 한다
+
+```yaml
+trigger:
+  event: phase_complete
+  condition:
+    - task.md의 Phase 섹션 내 모든 TASK `[x]`
+    - 또는 "완료 기준" Phase 체크박스 `[x]`
+
+scope:
+  req: 해당 Phase와 연결된 REQ만
+  verify: 해당 Phase의 VERIFY만
+  tests: 해당 VERIFY 검증 테스트만
+```
+
+**Phase 완료 감지 흐름**:
+
+```
+┌──────────────────────────────────────────┐
+│ TASK-001.1 [x] ─┐                        │
+│ TASK-001.2 [x] ─┼─→ Phase 1 완료 감지    │
+│ TASK-001.3 [x] ─┘          │             │
+└────────────────────────────┼─────────────┘
+                             ↓
+┌──────────────────────────────────────────┐
+│ test-quality-reviewer 호출               │
+│ - scope: Phase 1의 REQ/VERIFY만          │
+│ - 결과: ARB 반환                         │
+└──────────────────────────────────────────┘
+```
+
+### verification-chain 트리거 (대안)
+
+> 전체 테스트 통과 후 전체 범위 검증
+
+```yaml
+trigger:
+  event: tests_passed
+  condition: verification-chain Stage 2 통과
+
+scope: 전체 (모든 REQ/VERIFY/Test)
+```
+
+### 트리거 선택 가이드
+
+| 트리거 | 시점 | 범위 | 용도 |
+|--------|------|------|------|
+| `phase_complete` | Phase 완료 시 | Phase 단위 | 점진적 검증 |
+| `verification-chain` | 테스트 통과 후 | 전체 | 최종 검증 |
+
+기본값: `phase_complete` (점진적 검증)
+
+---
+
 ## Agent Result Block (ARB)
 
 ```yaml

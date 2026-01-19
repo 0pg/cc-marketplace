@@ -343,6 +343,18 @@ test_quality_review:
     - task_exists: true        # spec/task.md 존재해야 함
 ```
 
+#### 트리거 옵션
+
+| 트리거 | 시점 | 범위 | 용도 |
+|--------|------|------|------|
+| `phase_complete` | Phase 완료 시 | Phase 단위 | 점진적 검증 |
+| `verification-chain` | 테스트 통과 후 | 전체 | 최종 검증 |
+
+기본값: `phase_complete` (점진적 검증)
+
+- **phase_complete**: task.md의 Phase 내 모든 TASK가 `[x]`로 변경되면 해당 Phase 범위만 검증
+- **verification-chain**: Stage 2 테스트 통과 후 전체 범위 검증
+
 ```typescript
 Task({
   subagent_type: "test-quality-reviewer",
