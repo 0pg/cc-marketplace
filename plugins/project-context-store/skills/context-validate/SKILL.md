@@ -1,13 +1,15 @@
 ---
 name: context-validate
 description: |
-  CLAUDE.md와 실제 코드의 일치 여부를 검증합니다.
-  오래된 정보, 누락된 컨텍스트, 불일치 항목을 찾아 보고합니다.
+  CLAUDE.md의 품질을 종합 검증합니다.
+  Drift 검증(코드-문서 일치)과 재현성 검증(AI 시뮬레이션)을
+  병렬로 수행하여 통합 보고서를 생성합니다.
 trigger:
   - /context-validate
   - 컨텍스트 검증
   - CLAUDE.md 검증
   - 문서 검증
+  - 재현성 검증
 tools:
   - Read
   - Glob
@@ -19,31 +21,147 @@ tools:
 
 ## 목적
 
-CLAUDE.md와 실제 코드 간의 drift(불일치)를 탐지하고 보고합니다.
+CLAUDE.md의 품질을 종합 검증합니다.
+
+1. **Drift 검증**: 코드와 문서가 일치하는가?
+2. **재현성 검증**: 문서만으로 코드를 재현할 수 있는가?
+
+## 검증 방식 비교
+
+| 구분 | Drift 검증 | 재현성 검증 |
+|------|-----------|------------|
+| Agent | drift-validator | reproducibility-validator |
+| 목적 | 코드-문서 **불일치** 탐지 | **재현 가능성** 검증 |
+| 방법 | 문서 내용과 코드 직접 비교 | AI가 문서만 보고 코드 구조 예측 |
+| 질문 | "문서와 코드가 일치하는가?" | "문서만으로 코드를 재현할 수 있는가?" |
+| 탐지 대상 | 오래된 값, 삭제된 항목, 새 항목 | 컨텍스트 누락, 설명 부족 |
 
 ## 워크플로우
 
 ### 1. CLAUDE.md 수집
 
 ```
-1. Glob으로 모든 CLAUDE.md 파일 탐지
+1. Glob으로 대상 경로의 모든 CLAUDE.md 파일 탐지
 2. 각 파일의 위치와 담당 디렉토리 매핑
 ```
 
-### 2. 코드와 비교
+### 2. 병렬 검증 실행
 
-각 CLAUDE.md에 대해:
+**모든 CLAUDE.md에 대해 모든 Task를 한번에 병렬 실행**:
+
+```python
+# 모든 Task를 단일 메시지에서 호출하여 전체 병렬 실행
+tasks = []
+for claude_md in target_claude_mds:
+    tasks.append(Task(
+        subagent_type="project-context-store:drift-validator",
+        prompt=f"검증 대상: {claude_md}"
+    ))
+    tasks.append(Task(
+        subagent_type="project-context-store:reproducibility-validator",
+        prompt=f"검증 대상: {claude_md}"
+    ))
+# 모든 Task 동시 호출 (단일 메시지)
+```
+
+**중요**: 모든 Task 호출은 반드시 **단일 메시지**에서 수행하여 전체 병렬 실행
+
+### 3. 결과 취합
+
+두 에이전트의 결과를 수집하여 통합:
 
 ```
-1. 문서화된 상수가 코드에 존재하는지 확인
-2. 문서화된 값이 코드와 일치하는지 확인
-3. 코드에 새로운 컨텍스트 필요 항목이 있는지 확인
-4. 참조된 파일이 존재하는지 확인
+1. Drift 검증 결과 수집 (STALE, MISMATCH, MISSING, ORPHAN)
+2. 재현성 검증 결과 수집 (예측 정확도, 누락 항목)
+3. 심각도별 분류 및 정렬
+4. 권장 조치 통합
 ```
 
-### 3. Drift 탐지
+### 4. 통합 보고서 생성
 
-불일치 유형:
+```markdown
+=== Context Validation Report ===
+
+## 요약
+| 항목 | 결과 |
+|------|------|
+| 검증된 CLAUDE.md | 5개 |
+| Drift 문제 | 3개 |
+| 재현성 문제 | 2개 |
+| 전체 상태 | 개선 필요 |
+
+---
+
+## Part 1: Drift 검증 (코드-문서 일치)
+
+drift-validator 에이전트의 결과
+
+### src/auth/CLAUDE.md
+
+#### [HIGH] MISMATCH
+| 항목 | 문서 값 | 코드 값 | 위치 |
+|------|---------|---------|------|
+| TOKEN_EXPIRY | 3600 | 7200 | token.rs:15 |
+
+#### [MEDIUM] MISSING
+| 항목 | 코드 값 | 위치 |
+|------|---------|------|
+| MAX_REFRESH_COUNT | 5 | token.rs:18 |
+
+---
+
+## Part 2: 재현성 검증 (AI 시뮬레이션)
+
+reproducibility-validator 에이전트의 결과
+
+### src/auth/CLAUDE.md
+
+예측 정확도: 85%
+
+#### 예측 실패 항목
+
+| 예측 실패 항목 | 실제 코드 | 원인 |
+|---------------|----------|------|
+| REFRESH_INTERVAL | 300 | 컨텍스트 누락 |
+| cleanup_expired() | session.rs:45 | 함수 역할 설명 없음 |
+
+---
+
+## 권장 조치
+
+### 즉시 조치 필요 (High)
+1. TOKEN_EXPIRY 값 업데이트 (3600 → 7200)
+
+### 권장 (Medium)
+2. MAX_REFRESH_COUNT 문서화 추가
+3. REFRESH_INTERVAL의 근거 추가
+4. cleanup_expired() 함수 설명 추가
+
+### 실행 명령
+/context-update src/auth
+```
+
+## 성공 기준
+
+| 상태 | 조건 |
+|------|------|
+| 양호 | Drift 문제 0개 AND 재현성 90% 이상 |
+| 개선 권장 | Drift 문제 1-2개 OR 재현성 70-89% |
+| 개선 필요 | Drift 문제 3개 이상 OR 재현성 70% 미만 |
+
+## 사용 예시
+
+### 전체 프로젝트 검증
+```
+/context-validate
+```
+
+### 특정 경로 검증
+```
+/context-validate src/auth
+```
+
+## Drift 유형 참조
 
 | 유형 | 설명 | 심각도 |
 |------|------|--------|
@@ -51,95 +169,3 @@ CLAUDE.md와 실제 코드 간의 drift(불일치)를 탐지하고 보고합니�
 | MISMATCH | 값이 다름 | High |
 | MISSING | 코드에 있지만 문서화되지 않음 | Medium |
 | ORPHAN | 참조 파일 없음 | Low |
-
-### 4. 보고서 생성
-
-```markdown
-=== Context Validation Report ===
-
-## Summary
-- 검증된 CLAUDE.md: 5개
-- 정상: 3개
-- 문제 발견: 2개
-
-## Issues
-
-### src/auth/CLAUDE.md
-
-[HIGH] MISMATCH: TOKEN_EXPIRY
-  - 문서: 3600
-  - 코드: 7200
-  - 위치: src/auth/token.rs:15
-
-[MEDIUM] MISSING: New constant
-  - MAX_REFRESH_COUNT = 5
-  - 위치: src/auth/token.rs:18
-  - 컨텍스트 필요
-
-### src/api/CLAUDE.md
-
-[HIGH] STALE: Removed constant
-  - API_VERSION = "v1" (코드에서 삭제됨)
-
-[LOW] ORPHAN: Referenced file missing
-  - legacy_handler.rs (삭제됨)
-
-## Recommendations
-
-1. /context-update 실행하여 src/auth/CLAUDE.md 업데이트
-2. src/api/CLAUDE.md에서 삭제된 항목 정리
-```
-
-## 검증 기준
-
-### 상수/Magic Number 검증
-
-```python
-# CLAUDE.md에서 추출
-documented = {
-    "TOKEN_EXPIRY": {"value": 3600, "file": "token.rs"}
-}
-
-# 코드에서 추출
-actual = grep_constants("src/auth/")
-
-# 비교
-for name, info in documented.items():
-    if name not in actual:
-        report_stale(name)
-    elif actual[name] != info["value"]:
-        report_mismatch(name, info["value"], actual[name])
-```
-
-### 파일 참조 검증
-
-```python
-# CLAUDE.md의 Key Files 섹션에서 추출
-referenced_files = ["auth.rs", "session.rs", "token.rs"]
-
-# 실제 존재 확인
-for file in referenced_files:
-    if not exists(f"src/auth/{file}"):
-        report_orphan(file)
-```
-
-### 누락 컨텍스트 탐지
-
-```python
-# 코드에서 컨텍스트 필요 패턴 탐지
-patterns = [
-    r"const\s+\w+\s*=\s*\d+",      # 상수 선언
-    r"if\s+.*[<>=]+\s*\d+",        # 조건문의 매직 넘버
-    r"https?://[^\s]+",             # 외부 URL
-]
-
-# 문서화 여부 확인
-for match in grep_patterns("src/auth/", patterns):
-    if not documented_in_claude_md(match):
-        report_missing(match)
-```
-
-## 출력 형식
-
-검증 결과는 마크다운 형식으로 출력됩니다.
-심각도별로 정렬되어 가장 중요한 문제가 먼저 표시됩니다.

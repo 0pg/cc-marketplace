@@ -11,9 +11,7 @@ trigger:
 tools:
   - Read
   - Glob
-  - Grep
   - Task
-  - Write
   - AskUserQuestion
 ---
 
@@ -25,56 +23,46 @@ tools:
 
 ## 워크플로우
 
-### 1. 소스 코드 디렉토리 탐지
+### 1. 시작점 결정
 
 ```
-1. Glob으로 소스 파일 탐지
-   - 확장자: .rs, .py, .ts, .js, .tsx, .jsx, .go, .java, .cpp, .c, .h
-
-2. 제외 디렉토리:
-   - node_modules, target, dist, build, vendor, .git
-   - __pycache__, .venv, venv, .tox
-   - coverage, .next, .nuxt
-
-3. CLAUDE.md 생성 대상 결정:
-   - 소스 코드가 있는 모든 디렉토리에 각각 CLAUDE.md 생성
-   - 각 CLAUDE.md는 해당 디렉토리의 파일만 담당
+1. 사용자가 특정 경로를 지정했다면 해당 경로 사용
+2. 지정하지 않았다면 프로젝트 루트에서 시작
+3. 시작점에서 context-generator 에이전트 단일 Task 생성
 ```
 
-### 2. 디렉토리별 Task 생성
+### 2. 에이전트 시작
 
-각 대상 디렉토리에 대해 독립된 Task를 생성합니다.
+루트 디렉토리에서 단일 Task를 시작합니다. 에이전트가 재귀적으로 하위 디렉토리를 탐색합니다.
 
 ```python
-# 병렬 처리를 위해 여러 Task 동시 생성
-for directory in target_directories:
-    Task(
-        subagent_type="context-generator",
-        prompt=f"대상: {directory} ({file_list})"
-    )
+Task(
+    subagent_type="project-context-store:context-generator",
+    prompt=f"대상: {start_directory}"
+)
 ```
 
-**병렬 처리의 장점:**
-- 여러 디렉토리 동시 작업
-- 컨텍스트 격리 (디렉토리 간 간섭 방지)
-- 개별 실패 격리 (하나 실패해도 다른 작업 계속)
+**재귀 패턴의 장점:**
+- Skill이 전체 디렉토리 구조를 미리 파악할 필요 없음
+- Agent가 트리 구조를 자연스럽게 탐색
+- 각 Agent가 자신의 컨텍스트에만 집중
+- 실패 격리 (한 브랜치 실패해도 다른 브랜치 계속)
+- 병렬 처리 자동 최적화
 
-### 3. 결과 수집 및 보고
+### 3. 결과 보고
+
+에이전트가 완료되면 결과를 요약합니다:
 
 ```
 === Context Generation Report ===
 
-성공: 5개 CLAUDE.md 생성
+생성된 CLAUDE.md 파일들:
+  - src/CLAUDE.md
   - src/auth/CLAUDE.md
   - src/api/CLAUDE.md
-  - src/utils/CLAUDE.md
-  - src/models/CLAUDE.md
-  - src/services/CLAUDE.md
+  - lib/CLAUDE.md
 
-실패: 1개
-  - src/legacy: [사유]
-
-사용자 질문: 12개 응답됨
+사용자 질문: N개 응답됨
 ```
 
 ## 사용자 상호작용

@@ -33,30 +33,62 @@
 
 ```
 Skills (사용자 진입점)          Agents (Task로 실행)
-├── context-generate ────────→ context-generator
+├── context-generate ────────→ context-generator (재귀)
 ├── context-update ──────────→ context-generator
-└── context-validate ────────→ (직접 처리)
+└── context-validate ────────→ drift-validator (병렬)
+                              → reproducibility-validator (병렬)
+                              → 결과 취합 및 통합 보고
 ```
 
 ### Skill vs Agent 관계
 
 | 구분 | 역할 |
 |------|------|
-| Skill | 사용자 진입점, 디렉토리 탐지, Task 생성/조율 |
-| Agent | 단일 디렉토리 분석, 사용자 질의, CLAUDE.md 작성 |
+| Skill | 사용자 진입점, 루트에서 Agent 시작 |
+| Agent | 재귀적 디렉토리 탐색, 하위 Task 생성, CLAUDE.md 작성 |
 
-## 워크플로우
+## 워크플로우 (재귀 패턴)
+
+```
+Skill → 루트 디렉토리에서 Agent 시작
+Agent → 1. 하위 디렉토리 탐지 (소스 코드 존재 여부)
+        2. 소스 코드 있는 하위 디렉토리에 Task 먼저 트리거 (병렬)
+        3. 현재 디렉토리 분석 및 CLAUDE.md 생성
+        4. 모듈 구조 요약 포함 (하위 디렉토리 역할 테이블)
+```
 
 1. 사용자가 `/context-generate` 호출
-2. Skill이 소스 코드 디렉토리 탐지
-3. 디렉토리별 독립 Task 생성 (병렬 처리)
-4. 각 Task에서 context-generator 에이전트 실행
-5. 불명확한 부분은 AskUserQuestion으로 질의
+2. Skill이 루트 디렉토리에서 context-generator Agent 시작
+3. Agent가 하위 디렉토리 탐지 후 재귀적으로 Task 생성 (병렬)
+4. 각 Agent가 현재 디렉토리 분석, 사용자 질의, CLAUDE.md 작성
+5. 상위 CLAUDE.md에 하위 모듈 구조 요약 포함
 6. 결과 수집 및 보고
+
+**재귀 패턴의 장점:**
+- Skill이 전체 디렉토리 구조를 미리 파악할 필요 없음
+- Agent가 트리 구조를 자연스럽게 탐색
+- 각 Agent가 자신의 컨텍스트에만 집중
+- 실패 격리 (한 브랜치 실패해도 다른 브랜치 계속)
+
+## 검증 방식 비교
+
+`/context-validate` skill이 두 가지 검증을 통합하여 수행합니다:
+
+| 구분 | Drift 검증 | 재현성 검증 |
+|------|-----------|------------|
+| Agent | drift-validator | reproducibility-validator |
+| 목적 | 코드-문서 **불일치** 탐지 | **재현 가능성** 검증 |
+| 방법 | 문서 내용과 코드 직접 비교 | AI가 문서만 보고 코드 구조 예측 |
+| 질문 | "문서와 코드가 일치하는가?" | "문서만으로 코드를 재현할 수 있는가?" |
+| 탐지 대상 | 오래된 값, 삭제된 항목, 새 항목 | 컨텍스트 누락, 설명 부족 |
+
+두 에이전트는 **병렬로 실행**되며, 결과가 통합 보고서로 취합됩니다.
 
 ## 성공 기준
 
 **테스트**: 코드를 모두 삭제하고 CLAUDE.md만 주었을 때, Claude가 동일한 코드를 작성할 수 있어야 함.
+
+이를 검증하는 것이 `/context-validate`의 목적입니다.
 
 ## 파일 구조
 
@@ -68,11 +100,13 @@ plugins/project-context-store/
 ├── CLAUDE.md                # 이 파일 (개발 가이드)
 ├── README.md                # 사용자 문서
 ├── skills/
-│   ├── context-generate/    # 컨텍스트 생성 진입점
+│   ├── context-generate/    # 컨텍스트 생성 (재귀적 CLAUDE.md 생성)
 │   ├── context-update/      # 변경 감지 및 업데이트
-│   └── context-validate/    # 검증
+│   └── context-validate/    # 통합 검증 (Drift + 재현성)
 ├── agents/
-│   └── context-generator.md # 핵심 분석/문서화 에이전트
+│   ├── context-generator.md      # 분석/문서화 에이전트 (재귀)
+│   ├── drift-validator.md        # Drift 검증 에이전트 (코드-문서 일치)
+│   └── reproducibility-validator.md # 재현성 검증 에이전트
 ├── hooks/
 │   ├── hooks.json           # 변경 감지 훅
 │   └── detect-code-changes.md
