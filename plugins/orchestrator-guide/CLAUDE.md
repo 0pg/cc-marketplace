@@ -66,11 +66,16 @@ orchestrator-guide/
 │   ├── session-start.sh      # SessionStart 스크립트
 │   └── *.md                  # 훅 문서
 ├── agents/                   # 에이전트 패턴 문서
-│   ├── parallel-coordinator.md
-│   └── verification-chain.md
+│   ├── worker.md             # Worker Agent (Phase 단위 위임)
+│   ├── verification-chain.md
+│   └── test-quality-reviewer.md
 └── templates/                # 위임 템플릿
     ├── delegation-prompt.md
-    └── arb-template.md
+    ├── arb-template.md
+    ├── owi-template.md       # Orchestrator-Worker Instruction
+    ├── wrb-template.md       # Worker Result Block
+    ├── spec-format.md
+    └── task-format.md
 ```
 
 ## Core Interfaces
@@ -102,6 +107,54 @@ followup: []
 ---verification-plan---
 target_modules: [{module_1}, {module_2}]
 ---end-verification-plan---
+```
+
+### 4. OWI (Orchestrator-Worker Instruction)
+Orchestrator가 Worker에게 Phase를 위임할 때 사용:
+```yaml
+---orchestrator-instruction---
+phase: {phase_name}
+phase_ref: {phase_id}
+context_scope: |
+  # 맥락 범위
+objective: |
+  # Phase 목표
+constraints: |
+  # 제약 사항
+expected_agents: |
+  # 예상 에이전트 역할
+---end-orchestrator-instruction---
+```
+
+### 5. WRB (Worker Result Block)
+Worker가 Phase 완료 후 Orchestrator에 보고:
+```yaml
+---worker-result---
+status: success | partial | blocked | failed
+worker: worker
+phase_ref: {phase_id}
+execution_summary:
+  total_tasks: {number}
+  completed: {number}
+  failed: {number}
+  strategy: parallel | sequential | hybrid
+tasks_executed:
+  - agent: {agent_name}
+    task_ref: {task_id}
+    status: success
+    arb_summary: "{summary}"
+files:
+  created: []
+  modified: []
+verification:
+  lint: pass | fail
+  tests: pass | fail
+context_notes: |
+  # 다음 Phase 전달 맥락
+issues: []
+recommendations: |
+  # Orchestrator 권장사항
+---end-worker-result---
 ```
 
 ## Adding New Skills

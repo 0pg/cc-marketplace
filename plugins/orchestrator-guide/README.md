@@ -33,7 +33,7 @@ orchestrator-guide/
 │   ├── session-start.md      # SessionStart documentation
 │   └── task-continuation.md
 ├── agents/                   # Agent pattern documentation
-│   ├── parallel-coordinator.md   # Parallel execution patterns
+│   ├── worker.md                 # Worker Agent (Phase delegation)
 │   └── verification-chain.md     # Verification workflow
 └── templates/                # Templates for delegation
     ├── delegation-prompt.md  # Role-based delegation templates

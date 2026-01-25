@@ -3,7 +3,7 @@ name: orchestrator
 description: |
   메인 오케스트레이터. 복잡한 작업을 분해하고 전문 에이전트에 위임합니다.
   트리거: "/orchestrator", "구현해줘", "작업 시작", "전체 flow"
-allowed-tools: [Task, TodoWrite, Read, AskUserQuestion, Skill]
+allowed-tools: [Task, Read, AskUserQuestion, Skill]
 ---
 
 # Orchestrator Skill
@@ -70,6 +70,7 @@ target_modules: [{module_1}, {module_2}]  # 검증 대상
 - TASK-001 → VERIFY-001 (1:1 필수)
 - 검증 없는 task 생성 금지
 - task와 verification은 하나의 블록으로 작성
+- **VERIFY는 동작 기반으로 작성** (`templates/task-format.md` 참조)
 
 ---
 
@@ -150,16 +151,221 @@ target_modules: [{module_1}, {module_2}]  # 검증 대상
 ## 핵심 원칙
 
 1. **절대 직접 구현하지 않음** - 모든 코드 작업은 에이전트에 위임
-2. **작업 분해 우선** - TodoWrite로 작업을 분해한 후 위임
+2. **작업 분해 우선** - task.md를 참조하여 작업 분해 후 위임
 3. **검증 필수** - 에이전트 결과를 항상 검증 에이전트에 위임
 4. **병렬 실행 최적화** - 독립적인 작업은 병렬로 실행
 5. **작업 크기 관리** - 위임 전 크기 평가, 필요시 분할
+6. **Phase 단위 위임** - 복잡한 작업은 Worker에게 Phase 단위로 위임
+
+---
+
+## Phase 위임 워크플로우 (Worker 사용)
+
+> 복잡한 작업을 Phase 단위로 Worker에게 위임
+
+### 언제 Worker를 사용하는가
+
+| 상황 | 위임 방식 |
+|------|----------|
+| 단일 task, 단순 구현 | Domain Agent 직접 위임 |
+| 복잡한 작업, 여러 Phase | **Worker에 Phase 단위 위임** |
+| 여러 Agent 조율 필요 | **Worker에 위임** |
+
+### Phase 위임 구조
+
+```
+Orchestrator (메인 세션)
+    │
+    │ Phase 위임 (OWI)
+    │ Task(subagent_type="worker", prompt=OWI)
+    ↓
+Worker Agent (Phase별 독립 세션)
+    │
+    │ 1. Phase 맥락 파악
+    │ 2. Task 분해
+    │ 3. Agent 위임 (5요소 프로토콜)
+    │ 4. 결과 수집 (ARB)
+    │ 5. 결과 보고 (WRB)
+    ↓
+Domain Specific Agents
+    - Implementation Agent(s)
+    - Exploration Agent
+    - Review Agent
+```
+
+### OWI (Orchestrator-Worker Instruction)
+
+Worker에게 Phase를 위임할 때 사용하는 형식:
+
+```yaml
+---orchestrator-instruction---
+phase: {phase_name}
+phase_ref: {phase_id}
+
+context_scope: |
+  # 맥락 범위
+  - spec/task.md 참조
+  - 관련 모듈/파일 범위
+
+objective: |
+  # 이 Phase에서 달성할 목표
+
+constraints: |
+  # 제약 사항
+
+expected_agents: |
+  # 예상 에이전트 역할 (선택)
+---end-orchestrator-instruction---
+```
+
+상세 형식: `templates/owi-template.md` 참조
+
+### WRB (Worker Result Block)
+
+Worker가 Phase 완료 후 반환하는 형식:
+
+```yaml
+---worker-result---
+status: success | partial | blocked | failed
+worker: worker
+phase_ref: {phase_id}
+
+execution_summary:
+  total_tasks: {number}
+  completed: {number}
+  failed: {number}
+  strategy: parallel | sequential | hybrid
+
+tasks_executed:
+  - agent: {agent_name}
+    task_ref: {task_id}
+    status: success
+    arb_summary: "{summary}"
+
+files:
+  created: []
+  modified: []
+
+verification:
+  lint: pass | fail
+  tests: pass | fail
+
+context_notes: |
+  # 다음 Phase에 전달할 맥락
+
+issues: []
+
+recommendations: |
+  # Orchestrator에 대한 권장
+---end-worker-result---
+```
+
+상세 형식: `templates/wrb-template.md` 참조
+
+### Phase 위임 예시
+
+```typescript
+// Phase 1 위임
+Task({
+  subagent_type: "worker",
+  prompt: `
+---orchestrator-instruction---
+phase: "Phase 1: 핵심 모듈 구현"
+phase_ref: PHASE-001
+
+context_scope: |
+  - spec/task.md: TASK-001 ~ TASK-005
+  - module_a/src/, module_b/src/
+
+objective: |
+  module_a와 module_b의 기본 구조 구현
+  - 데이터 모델 정의
+  - CRUD API 구현
+  - 테스트 통과
+
+constraints: |
+  - 기존 API 변경 금지
+  - 범위 내 작업만
+
+expected_agents: |
+  - Implementation: module_a, module_b
+  - Review: 통합 리뷰
+---end-orchestrator-instruction---
+`
+})
+
+// WRB 수신 후 처리
+// status에 따라 다음 Phase 진행 또는 에스컬레이션
+```
+
+### WRB 처리
+
+| status | 처리 |
+|--------|------|
+| `success` | 다음 Phase 진행, context_notes 참조 |
+| `partial` | 미완료 항목 분석, 재위임 또는 에스컬레이션 |
+| `blocked` | 블로커 해결 후 재실행 |
+| `failed` | 원인 분석, 수동 개입 또는 계획 재검토 |
 
 ---
 
 ## 실행 워크플로우
 
-### Step 1: 컨텍스트 파악
+### Step 0: Spec 정의 (plan mode)
+
+spec/spec.md가 없거나 불명확한 경우:
+
+1. **EnterPlanMode 호출**하여 plan mode 진입
+2. 코드베이스 탐색 (Explore agent 활용)
+3. AskUserQuestion으로 요구사항 명확화
+4. spec.md 작성 (plan 파일 형식)
+5. **ExitPlanMode로 사용자 승인** 요청
+6. spec/spec.md로 저장
+
+**장점:**
+- plan mode의 탐색 단계에서 코드베이스 파악
+- 설계 단계에서 요구사항 구체화
+- 승인 워크플로우로 사용자 확인
+
+**상세 가이드**: `templates/spec-format.md` 참조
+
+### Step 0.5: Task 정의 (plan mode)
+
+task.md가 없는 경우:
+
+1. **EnterPlanMode 호출**하여 plan mode 진입
+2. spec.md 기반 구현 계획 수립
+3. TASK-VERIFY 1:1 매핑으로 task.md 작성
+4. **ExitPlanMode로 사용자 승인** 요청
+5. spec/task.md로 저장
+
+**필수 준수:**
+- 모든 TASK에는 대응하는 VERIFY 존재 (1:1)
+- VERIFY는 동작 기반으로 작성
+
+**상세 가이드**: `templates/task-format.md` 참조
+
+### Step 1: 구현 시작 (모드 선택)
+
+task.md 기반 구현 시작 시 모드를 선택:
+
+| 상황 | 권장 모드 |
+|------|----------|
+| task가 명확하고 단순 | 일반 모드 |
+| 구현 접근법이 불확실 | plan mode |
+| 여러 파일/모듈 수정 | plan mode |
+| 단일 파일 수정 | 일반 모드 |
+
+**plan mode로 구현 시:**
+- plan mode 시작 시 task.md 내용을 plan 파일에 포함
+- TASK-XXX를 구현 대상으로 참조
+- plan 완료 후 task.md 상태 업데이트 ([~] → [x])
+
+**일반 모드로 구현 시:**
+- task.md를 직접 참조하여 구현
+- 에이전트 위임 시 5요소 프로토콜 사용
+
+### Step 2: 컨텍스트 파악
 ```
 1. 대상 모듈 확인
 2. spec/task.md 읽기
@@ -167,9 +373,9 @@ target_modules: [{module_1}, {module_2}]  # 검증 대상
 4. 불명확하면 AskUserQuestion으로 질문
 ```
 
-### Step 2: 작업 분해 및 크기 평가
+### Step 3: 작업 분해 및 크기 평가
 ```
-TodoWrite를 사용하여:
+task.md를 참조하여:
 - 작업을 세부 항목으로 분해
 - 각 항목의 크기 평가 (분할 필요 여부)
 - 적절한 역할 할당
@@ -184,7 +390,7 @@ TodoWrite를 사용하여:
 | `[parallel: X]` | X와 병렬 실행 가능 |
 | `[blocks: X]` | 이 작업이 X를 블로킹 |
 
-### Step 3: 에이전트 위임
+### Step 4: 에이전트 위임
 ```
 Task 도구 사용:
 - subagent_type: 역할에 맞는 에이전트 선택
@@ -193,14 +399,14 @@ Task 도구 사용:
 - prompt: 5요소 위임 프로토콜 사용
 ```
 
-### Step 4: 검증 계획 수립
+### Step 5: 검증 계획 수립
 ```
 검증 시작 전 Verification Plan 명시:
 - target_modules: 검증 대상 모듈 목록
 - 나머지 세부사항은 모델이 상황에 맞게 판단
 ```
 
-### Step 5: 결과 수집 및 검증
+### Step 6: 결과 수집 및 검증
 ```
 1. ARB(Agent Result Block) 수집
 2. Verification Plan에 따라 검증 체인 실행
@@ -276,7 +482,7 @@ Phase 2 (순차):
    - failed: 원인 분석 및 재시도
 
 2. **followup 처리**
-   - 후속 작업 TodoWrite에 추가
+   - 후속 작업 task.md에 추가
    - 우선순위에 따라 실행
 
 3. **issues 처리**
@@ -295,7 +501,7 @@ Orchestrator:
 2. 작업 크기 평가:
    - 예상 파일 수, 복잡도 검토
    - 필요시 분할
-3. TodoWrite로 작업 분해:
+3. task.md 참조하여 작업 분해:
    - [ ] 데이터 구조 정의
    - [ ] 비즈니스 로직 구현
    - [ ] API 엔드포인트 작성

@@ -67,7 +67,7 @@ followup:
 - Implementation 역할 에이전트
 - Exploration 역할 에이전트
 - Review 역할 에이전트
-- 특수 에이전트 (parallel-coordinator, verification-chain)
+- 특수 에이전트 (verification-chain)
 
 ### task_ref
 
@@ -318,53 +318,6 @@ followup:
 ---
 
 ## 특수 에이전트 ARB
-
-### parallel-coordinator ARB
-
-```yaml
----agent-result---
-status: success
-agent: parallel-coordinator
-task_ref: PARALLEL-001
-
-parallel_execution:
-  total: 3
-  success: 3
-  failed: 0
-
-agents:
-  - name: {implementation_agent_1}
-    status: success
-    task_ref: TASK-002
-  - name: {implementation_agent_2}
-    status: success
-    task_ref: TASK-003
-  - name: {exploration_agent}
-    status: success
-    task_ref: TASK-001
-
-files:
-  created: []
-  modified:
-    - {module_a}/src/routes/entity.rs
-    - {module_b}/src/pages/entity.rs
-
-verification:
-  tests: pass
-  lint: pass
-
-conflicts: []
-
-dependencies:
-  provides: ["entity_api", "entity_ui"]
-  requires: []
-  blocks: []
-
-followup:
-  - task: "통합 리뷰"
-    priority: high
----end-agent-result---
-```
 
 ### verification-chain ARB
 
