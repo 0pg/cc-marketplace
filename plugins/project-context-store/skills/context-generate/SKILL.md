@@ -35,6 +35,16 @@ tools:
 
 루트 디렉토리에서 단일 Task를 시작합니다. 에이전트가 재귀적으로 하위 디렉토리를 탐색합니다.
 
+**최종 결과**: 소스 코드가 있는 **모든** 하위 디렉터리에 각각 CLAUDE.md가 생성됩니다.
+예시:
+- src/CLAUDE.md
+- src/auth/CLAUDE.md
+- src/auth/jwt/CLAUDE.md
+- src/api/CLAUDE.md
+- lib/CLAUDE.md
+
+각 CLAUDE.md는 해당 디렉터리의 직접 파일만 담당합니다.
+
 ```python
 Task(
     subagent_type="project-context-store:context-generator",
