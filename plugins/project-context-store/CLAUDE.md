@@ -119,3 +119,13 @@ plugins/project-context-store/
 1. **추측 금지**: 확신 없으면 반드시 사용자에게 질문
 2. **격리**: 각 에이전트는 자신의 담당 디렉토리만 처리
 3. **재현성**: 생성된 문서만으로 코드 재현 가능해야 함
+
+## 버전 관리
+
+**플러그인 수정 시 반드시 버전을 올려야 합니다.**
+
+- 버전 파일: `.claude-plugin/plugin.json`
+- 형식: [SemVer](https://semver.org/) (MAJOR.MINOR.PATCH)
+  - PATCH: 버그 수정, 문서 오타
+  - MINOR: 기능 추가, 기존 기능 개선
+  - MAJOR: 호환성 깨지는 변경
