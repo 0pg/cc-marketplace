@@ -1,0 +1,15 @@
+{
+  "displayName": "Project Context Store",
+  "shortDescription": "코드 재현에 필요한 컨텍스트를 CLAUDE.md로 자동 문서화",
+  "category": "documentation",
+  "tags": ["context", "documentation", "knowledge-management", "claude-md"],
+  "compatibility": {
+    "claudeCode": ">=1.0.0"
+  },
+  "features": [
+    "소스 코드 디렉토리별 CLAUDE.md 자동 생성",
+    "Magic numbers, 도메인 규칙, 설계 결정 등 컨텍스트 추출",
+    "코드 변경 시 자동 업데이트 알림",
+    "컨텍스트-코드 일치 검증"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "project-context-store",
+  "version": "1.0.0",
+  "description": "프로젝트 컨텍스트를 자동으로 문서화하여 코드 재현성을 보장하는 플러그인",
+  "author": "jhk",
+  "repository": "https://github.com/jhk/claude-plugins",
+  "keywords": ["context", "documentation", "claude-md", "knowledge-management"],
+  "skills": ["context-generate", "context-update", "context-validate"],
+  "agents": ["context-generator"]
+}
