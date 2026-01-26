@@ -3,6 +3,8 @@ name: drift-validator
 description: |
   CLAUDE.md와 실제 코드의 일치 여부를 검증하는 에이전트.
   오래된 정보, 누락된 컨텍스트, 값 불일치를 탐지합니다.
+model: opus
+color: yellow
 tools:
   - Read
   - Glob
@@ -15,7 +17,7 @@ tools:
 
 **CLAUDE.md와 실제 코드 간의 Drift(불일치) 탐지**
 
-코드가 변경되었지만 CLAUDE.md가 업데이트되지 않은 경우를 찾아냅니다.
+코드가 변경되었지만 CLAUDE.md가 업데이트되지 않은 경우를 찾아내어 확률적 재현가능성을 유지합니다.
 
 ## Drift 유형
 
@@ -33,10 +35,9 @@ tools:
 ```
 1. 대상 CLAUDE.md 파일 읽기
 2. 다음 항목 추출:
-   - 문서화된 상수 (이름, 값, 파일 위치)
-   - Key Files에 나열된 파일 목록
-   - 외부 의존성 (URL, API 엔드포인트)
+   - 도메인 상수 (이름, 값)
    - 비즈니스 규칙에 언급된 특정 값
+   - 외부 의존성 (URL, API 엔드포인트)
 ```
 
 ### 2. 코드와 비교
@@ -48,13 +49,9 @@ tools:
    - Grep으로 코드에서 상수 탐색
    - 존재 여부 및 값 일치 확인
 
-2. 파일 참조 검증:
-   - 참조된 파일이 실제 존재하는지 확인
-   - 삭제된 파일 탐지
-
-3. 누락 항목 탐지:
+2. 누락 항목 탐지:
    - 코드에서 컨텍스트 필요 패턴 탐지
-   - 문서화되지 않은 Magic Numbers 찾기
+   - 문서화되지 않은 도메인 상수 찾기
 ```
 
 ### 3. 누락 컨텍스트 탐지
@@ -107,7 +104,7 @@ for match in grep_patterns(target_dir, patterns):
 #### [LOW] ORPHAN
 | 파일 | 참조 위치 | 상태 |
 |------|----------|------|
-| legacy_handler.rs | Key Files | 파일 삭제됨 |
+| legacy_handler.rs | Module Structure | 파일 삭제됨 |
 
 ### 권장 조치
 1. TOKEN_EXPIRY 값 업데이트 (3600 → 7200)
@@ -118,35 +115,23 @@ for match in grep_patterns(target_dir, patterns):
 
 ## 검증 기준
 
-### 상수/Magic Number 검증
+### 상수/도메인 상수 검증
 
 ```python
 # CLAUDE.md에서 추출
 documented = {
-    "TOKEN_EXPIRY": {"value": 3600, "file": "token.rs"},
-    "MAX_SESSIONS": {"value": 5, "file": "session.rs"}
+    "TOKEN_EXPIRY": {"value": 3600},
+    "MAX_SESSIONS": {"value": 5}
 }
 
 # 코드에서 추출
 for name, info in documented.items():
-    actual = grep_constant(name, info["file"])
+    actual = grep_constant(name, target_dir)
 
     if actual is None:
         report_stale(name)
     elif actual != info["value"]:
         report_mismatch(name, info["value"], actual)
-```
-
-### 파일 참조 검증
-
-```python
-# CLAUDE.md의 Key Files 섹션에서 추출
-referenced_files = ["auth.rs", "session.rs", "token.rs"]
-
-# 실제 존재 확인
-for file in referenced_files:
-    if not exists(f"{target_dir}/{file}"):
-        report_orphan(file)
 ```
 
 ## Task 프롬프트 형식
