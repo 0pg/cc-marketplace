@@ -123,9 +123,6 @@ plugins/project-context-store/
 │   ├── context-generator.md      # 분석/문서화 에이전트 (재귀)
 │   ├── drift-validator.md        # Drift 검증 에이전트 (코드-문서 일치)
 │   └── reproducibility-validator.md # 재현성 검증 에이전트
-├── hooks/
-│   ├── hooks.json           # 변경 감지 훅
-│   └── detect-code-changes.md
 └── templates/
     └── claude-md-template.md # CLAUDE.md 구조 템플릿
 ```

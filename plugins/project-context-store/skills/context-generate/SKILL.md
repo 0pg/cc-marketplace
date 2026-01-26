@@ -1,8 +1,8 @@
 ---
 name: context-generate
 description: |
-  context-generator 에이전트를 시작하여 프로젝트에 CLAUDE.md를 생성합니다.
-  Skill은 시작점에서 단일 Task만 시작하고, 재귀 탐색은 Agent가 담당합니다.
+  소스 코드 진입점을 탐지하여 각 진입점마다 context-generator 에이전트를 실행합니다.
+  test/, scripts/, docs/ 등은 자동으로 제외되고 실제 소스 디렉토리만 처리합니다.
 trigger:
   - /context-generate
   - 컨텍스트 생성해줘
@@ -23,17 +23,50 @@ tools:
 
 ## 워크플로우
 
-### 1. 시작점 결정
+### 1. 소스 코드 진입점 탐지
 
+프로젝트 루트에서 소스 코드 진입점을 탐지합니다.
+
+**진입점 판정 기준** (우선순위 순):
+
+1. **표준 소스 디렉토리**: `src/`, `lib/`, `app/`, `pkg/`, `internal/`, `cmd/`
+2. **언어별 컨벤션**:
+   - Rust: `src/` (Cargo.toml 존재 시)
+   - Go: `cmd/`, `pkg/`, `internal/`
+   - Python: 패키지 디렉토리 (`__init__.py` 존재)
+   - Node.js: `src/`, `lib/` (package.json 존재 시)
+   - JVM (Java/Kotlin/Scala):
+     - Maven/Gradle: `src/main/java/`, `src/main/kotlin/`, `src/main/scala/`
+     - 단순 구조: `src/`
+     - 멀티모듈: 각 모듈의 `src/main/` 하위
+3. **폴백**: 루트에 소스 파일이 직접 있으면 루트 자체
+
+**탐지 절차:**
 ```
-1. 사용자가 특정 경로를 지정했다면 해당 경로 사용
-2. 지정하지 않았다면 프로젝트 루트에서 시작
-3. 시작점에서 context-generator 에이전트 단일 Task 생성
+1. Glob으로 표준 디렉토리 존재 확인
+2. 각 후보 디렉토리에 소스 파일 존재 확인
+3. 탐지된 진입점 목록 생성
 ```
 
-### 2. 에이전트 시작
+**자동 제외 (진입점으로 선택 안됨):**
+- test/, tests/, spec/, __tests__/
+- scripts/, tools/, bin/
+- docs/, documentation/
+- examples/, samples/
+- fixtures/, mocks/
 
-루트 디렉토리에서 단일 Task를 시작합니다. 에이전트가 재귀적으로 하위 디렉토리를 탐색합니다.
+### 2. 각 진입점마다 Agent 실행
+
+탐지된 각 진입점에 대해 병렬로 Task 생성:
+
+```python
+for entry_point in detected_entry_points:
+    Task(
+        subagent_type="project-context-store:context-generator",
+        prompt=f"대상: {entry_point}",
+        description=f"Generate context for {entry_point}"
+    )
+```
 
 **최종 결과**: 소스 코드가 있는 **모든** 하위 디렉터리에 각각 CLAUDE.md가 생성됩니다.
 예시:
@@ -45,19 +78,16 @@ tools:
 
 각 CLAUDE.md는 해당 디렉터리의 직접 파일만 담당합니다.
 
-```python
-Task(
-    subagent_type="project-context-store:context-generator",
-    prompt=f"대상: {start_directory}"
-)
-```
+### 3. 결과 취합 및 보고
 
-### 3. 결과 보고
-
-에이전트가 완료되면 결과를 요약합니다:
+모든 Agent가 완료되면 결과를 요약합니다:
 
 ```
 === Context Generation Report ===
+
+탐지된 진입점:
+  - src/
+  - lib/
 
 생성된 CLAUDE.md 파일들:
   - src/CLAUDE.md

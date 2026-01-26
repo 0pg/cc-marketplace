@@ -44,28 +44,31 @@ tools:
 
 ## 워크플로우
 
-### 1. 하위 디렉토리 탐지 및 Task 트리거 (우선)
+### 1. 하위 디렉토리 Task 생성 (필수 - 건너뛸 수 없음)
 
 **병렬 효율 최적화**: 하위 디렉토리 Task를 먼저 트리거하여 현재 디렉토리 작업과 병렬 진행
 
+**절차:**
 ```
-1. 현재 디렉토리의 직접 하위 디렉토리 탐지
-2. 각 하위 디렉토리에 소스 코드 존재 여부 확인
-   - 소스 확장자: .rs, .py, .ts, .js, .tsx, .jsx, .go, .java, .cpp, .c, .h
-3. 제외 디렉토리 필터링:
-   - node_modules, target, dist, build, vendor, .git
-   - __pycache__, .venv, venv, .tox
-   - coverage, .next, .nuxt
-4. 소스 코드 있는 각 하위 디렉토리에 대해 Task 생성 (병렬)
+1. Glob으로 하위 디렉토리 목록 조회: {대상경로}/*/
+2. 각 하위 디렉토리에 대해:
+   a. 제외 목록 체크 (빌드/캐시만)
+   b. Glob으로 소스 파일 존재 확인: {subdir}/*.{rs,py,ts,js,tsx,jsx,go,java,kt,scala,cpp,c,h}
+3. 소스 코드 있는 각 디렉토리에 Task 도구 호출
 ```
 
+**제외 디렉토리 (빌드/캐시만):**
+- node_modules, target, dist, build, vendor, .git
+- __pycache__, .venv, venv, .tox
+- coverage, .next, .nuxt, .cache
+
+**Task 호출 (반드시 이 형식으로):**
 ```python
-# 하위 디렉토리에 대한 Task 먼저 트리거 (병렬 실행)
-for subdir in source_subdirectories:
-    Task(
-        subagent_type="project-context-store:context-generator",
-        prompt=f"대상: {subdir}"
-    )
+Task(
+    subagent_type="project-context-store:context-generator",
+    prompt="대상: {하위 디렉토리 절대 경로}",
+    description="Generate context for {디렉토리명}"
+)
 ```
 
 ### 2. 현재 디렉토리 코드 분석
@@ -84,28 +87,38 @@ for subdir in source_subdirectories:
    - 주석으로 힌트된 복잡성
 ```
 
-### 3. 사용자 질의
+### 3. 자가 탐색 및 질의
 
-불명확한 부분은 **반드시** 사용자에게 질문합니다.
+불명확한 부분 발견 시, 먼저 직접 정보를 탐색합니다.
 
-**추측 금지 원칙**: 확신이 없으면 질문합니다.
+**탐색 순서:**
+1. README.md, CLAUDE.md 등 문서
+2. 코드 주석 및 docstring
+3. 관련 테스트 코드 (의도 파악)
+4. 커밋 메시지 (git log)
+5. 설정 파일 (package.json, Cargo.toml 등)
+
+**탐색 결과 판정:**
+
+| 결과 | 행동 |
+|------|------|
+| 명확한 답 발견 | 그대로 사용 (출처 명시) |
+| 추론 가능 (높은 확신) | 사용하되 `[추론]` 표시 |
+| 모호하거나 답 없음 | 사용자에게 질문 |
+
+**사용자 질문은 최후 수단**: 탐색 후에도 모호한 경우에만 질문합니다.
 
 질문 형식:
 ```
 [파일명:라인] 코드 컨텍스트
 
-발견한 내용:
-- [무엇을 발견했는지]
+탐색 결과:
+- [어디서 무엇을 찾았는지]
+- [왜 모호한지]
 
 질문:
 - [구체적인 질문]
 ```
-
-예시 질문들:
-- "`Session`이라는 개념의 비즈니스 정의는 무엇인가요?"
-- "`TIMEOUT = 30`의 30은 어디서 온 값인가요? (스펙, 실험 결과, 외부 제약 등)"
-- "`if age < 19` 조건의 19는 어떤 법규나 정책에 기반한 것인가요?"
-- "이 라이브러리를 선택한 이유와 검토했던 대안이 있다면 알려주세요."
 
 ### 4. CLAUDE.md 작성
 
@@ -143,10 +156,29 @@ for subdir in source_subdirectories:
 
 ## 재귀 종료 조건
 
-다음 조건에서 하위 Task를 생성하지 않습니다:
-- 하위 디렉토리에 소스 코드가 없음
-- 하위 디렉토리가 제외 목록에 해당
-- 하위 디렉토리가 없음 (leaf 디렉토리)
+다음 **모든 조건**이 충족되면 하위 Task를 생성하지 않습니다:
+
+1. 하위 디렉토리가 없음 (leaf 디렉토리)
+2. 또는 모든 하위 디렉토리가 제외 목록에 해당
+3. 또는 어떤 하위 디렉토리에도 소스 파일(*.rs, *.py, *.ts 등)이 없음
+
+**중요**: 종료 조건에 해당해도 현재 디렉토리의 CLAUDE.md는 반드시 생성
+
+### 종료 예시
+
+```
+src/auth/jwt/ (leaf)
+├── token.rs
+└── claims.rs
+→ 하위 디렉토리 없음 → Task 생성 안함
+→ CLAUDE.md는 생성함
+```
+
+## 체크리스트 (Task 완료 전 확인)
+
+- [ ] Glob으로 하위 디렉토리를 탐지했는가?
+- [ ] 소스 코드 있는 하위 디렉토리에 Task를 생성했는가?
+- [ ] 현재 디렉토리의 CLAUDE.md를 생성했는가?
 
 ## 격리 원칙
 
