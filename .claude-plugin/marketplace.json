@@ -26,6 +26,16 @@
       },
       "source": "./plugins/project-context-store",
       "category": "documentation"
+    },
+    {
+      "name": "tdd-dev",
+      "description": "TDD/ATDD 원칙 가이드. Outside-In TDD로 테스트가 컴포넌트 인터페이스를 정의합니다. /tdd-impl로 Red-Green-Refactor 사이클 실행.",
+      "version": "1.1.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/tdd-dev",
+      "category": "development"
     }
   ]
 }

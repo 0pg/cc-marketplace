@@ -1,16 +1,13 @@
+---
+name: tdd-impl
+description: |
+  TDD/ATDD 기반으로 코드를 구현합니다. Outside-In TDD로 테스트가 컴포넌트 인터페이스를 정의합니다.
+  "TDD로 구현해줘", "테스트 주도 개발", "테스트 먼저 작성", "Red-Green-Refactor" 요청 시 사용됩니다.
+---
+
 # TDD Implementation Skill
 
 TDD/ATDD 원칙에 따라 테스트 주도 개발을 수행합니다.
-
----
-description: TDD/ATDD 기반으로 코드를 구현합니다. Outside-In TDD로 테스트가 컴포넌트 인터페이스를 정의합니다.
-trigger: /tdd-impl
-use_when:
-  - TDD로 구현해줘
-  - 테스트 주도 개발
-  - 테스트 먼저 작성
-  - Red-Green-Refactor
----
 
 ## Overview
 
@@ -125,6 +122,7 @@ User Story / Requirement
 
 ## Output
 
+- `.claude/tdd-spec.md` (요구사항 명세)
 - 테스트 코드 (각 레벨별)
 - 구현 코드 (테스트 통과하는)
 - (선택) 인터페이스 정의 문서

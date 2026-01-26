@@ -85,7 +85,7 @@
 ### Verification Criteria 섹션
 
 각 요구사항에 대한 테스트 완료 체크리스트입니다.
-test-reviewer 에이전트가 이 섹션을 업데이트합니다.
+test-reviewer 에이전트가 이 섹션의 상태를 리포트에 포함합니다.
 
 ## 예시
 
