@@ -1,5 +1,3 @@
-# Test Quality Reviewer Agent
-
 ---
 name: test-reviewer
 description: |
@@ -11,6 +9,8 @@ tools:
   - Glob
   - Grep
 ---
+
+# Test Quality Reviewer Agent
 
 ## Purpose
 
