@@ -4,6 +4,7 @@ description: |
   Orchestrator로부터 Phase를 위임받아 세부 task로 분해하고
   Domain Agent에 위임하는 Worker.
   트리거: Phase 단위 위임 시 Orchestrator가 호출
+model: opus
 ---
 
 # Worker Agent

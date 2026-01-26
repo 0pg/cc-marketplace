@@ -3,6 +3,7 @@ name: verification-chain
 description: |
   검증 워크플로우 체인을 관리하는 에이전트.
   구현 완료 후 lint, test, code review를 순차적으로 수행합니다.
+model: opus
 ---
 
 # Verification Chain Agent
