@@ -30,11 +30,31 @@
     {
       "name": "tdd-dev",
       "description": "TDD/ATDD 원칙 가이드. Outside-In TDD로 테스트가 컴포넌트 인터페이스를 정의합니다. /test-design으로 테스트 설계, /tdd-impl로 구현.",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "author": {
         "name": "jhk"
       },
       "source": "./plugins/tdd-dev",
+      "category": "development"
+    },
+    {
+      "name": "rust-convention",
+      "description": "Rust 코드 컨벤션 가이드. 네이밍, 에러 처리, 모듈 구조, 테스트 패턴 제공. tdd-dev와 함께 사용하세요.",
+      "version": "1.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/rust-convention",
+      "category": "development"
+    },
+    {
+      "name": "tdd-workflow",
+      "description": "orchestrator-guide용 TDD 워크플로우 어댑터. Red-Green-Refactor 기반 테스트 주도 개발 워크플로우 제공.",
+      "version": "1.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/tdd-workflow",
       "category": "development"
     }
   ]
