@@ -80,6 +80,8 @@ tdd-spec.md 생성
 
 상세 내용은 [code-impl.md](references/code-impl.md) 참조
 
+**언어별 가이드**: Rust 프로젝트는 [rust.md](references/rust.md) 참조
+
 각 요구사항(REQ-XXX)에 대해:
 
 ### Red-Green-Refactor Cycle
