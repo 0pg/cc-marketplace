@@ -1,0 +1,46 @@
+# {{workflow_display_name}}
+
+> orchestrator-guide용 {{workflow_name}} adapter 플러그인
+
+## 개요
+
+{{description}}
+
+## 트리거
+
+다음 키워드로 이 워크플로우가 선택됩니다:
+{{#each triggers}}
+- "{{this}}"
+{{/each}}
+
+## 워크플로우
+
+{{#each phases}}
+### Phase {{add @index 1}}: {{name}}
+```
+Skill("{{skill}}")
+```
+- 산출물: {{output}}
+- 완료 조건: {{criteria}}
+
+{{/each}}
+
+## 설치 및 설정
+
+```bash
+# 프로젝트에 워크플로우 등록
+/{{workflow_name}}:setup
+```
+
+## 사용 예시
+
+```
+User: "{{triggers.[0]}} 구현해줘"
+
+Orchestrator:
+1. "{{triggers.[0]}}" 키워드 감지 → {{workflow_name}} 선택
+{{#each phases}}
+2. Phase {{add @index 1}}: Skill("{{skill}}")
+{{/each}}
+3. Verification 실행
+```

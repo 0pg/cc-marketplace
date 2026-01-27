@@ -1,0 +1,20 @@
+# {{workflow_display_name}} Verification Chain
+
+## 검증 단계
+
+### Stage 1: Lint 분석
+- **실행**: `{project-config.verification.lint}`
+- **통과 기준**: 경고 0개
+- **실패 시**: delegate_fix
+
+### Stage 2: 테스트 실행
+- **의존성**: Stage 1 통과
+- **실행**: `{project-config.verification.test}`
+- **통과 기준**: 모든 테스트 통과
+- **실패 시**: delegate_fix (최대 2회)
+
+### Stage 3: 코드 리뷰
+- **의존성**: Stage 2 통과
+- **실행**: `Task(review_role)`
+- **통과 기준**: Critical/High 이슈 없음
+- **실패 시**: delegate_fix

@@ -1,0 +1,20 @@
+{
+  "name": "{{workflow_name}}",
+  "version": "1.0.0",
+  "type": "workflow",
+  {{#if requires}}
+  "requires": {
+    {{#each requires}}
+    "{{@key}}": {
+      "optional": {{optional}},
+      "fallback": "{{fallback}}"
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  },
+  {{/if}}
+  "description": "{{description}}",
+  "keywords": ["workflow", "orchestrator"{{#each keywords}}, "{{this}}"{{/each}}],
+  "author": {
+    "name": "{{author}}"
+  }
+}

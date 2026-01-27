@@ -1,0 +1,31 @@
+---
+name: {{workflow_name}}-orchestration
+description: |
+  {{description}}
+  {{#each triggers}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}} 요청 시 활성화.
+---
+
+# {{workflow_display_name}} Orchestration
+
+> {{description}}
+
+## Phases
+
+{{#each phases}}
+### Phase {{add @index 1}}: {{name}}
+
+- **호출**: `Skill("{{skill}}")`
+- **산출물**: `{{output}}`
+- **완료 조건**: {{criteria}}
+
+{{/each}}
+
+## Verification
+
+검증 체인: `references/verification-chain.md` 참조
+
+### 검증 단계
+
+1. **Lint**: project-config.verification.lint 실행
+2. **Tests**: project-config.verification.test 실행
+3. **Code Review**: review_role 에이전트 호출

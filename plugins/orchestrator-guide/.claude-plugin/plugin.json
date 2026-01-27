@@ -1,7 +1,7 @@
 {
   "name": "orchestrator-guide",
-  "version": "1.2.0",
-  "description": "Multi-agent orchestration framework for complex tasks with 5-element delegation protocol. Use /orchestrator for task coordination, /planner for spec generation, /delegator for delegation prompts.",
+  "version": "1.4.0",
+  "description": "Multi-agent orchestration framework with pluggable workflow architecture. Default workflow (spec+task) built-in. Install workflow adapters for alternatives (e.g., tdd-workflow).",
   "author": {
     "name": "jhk"
   }

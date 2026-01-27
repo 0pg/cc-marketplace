@@ -1,0 +1,36 @@
+---
+description: {{workflow_display_name}}를 현재 프로젝트에 등록합니다.
+---
+
+# {{workflow_display_name}} Setup
+
+## 수행 작업
+
+1. `.claude/project-config.md` 파일 확인 (없으면 생성)
+2. `workflows:` 섹션에 `{{workflow_name}}` 추가 (중복 방지)
+3. 등록 완료 확인 메시지 출력
+
+## project-config 수정 예시
+
+Before:
+```yaml
+workflows:
+  - default
+```
+
+After:
+```yaml
+workflows:
+  - default
+  - {{workflow_name}}
+```
+
+## 완료 메시지
+
+```
+{{workflow_name}}이(가) 프로젝트에 등록되었습니다.
+
+사용 방법:
+- /orchestrator 실행 시 워크플로우 선택 가능
+- 또는 "{{triggers.[0]}}" 요청 시 자동 선택
+```
