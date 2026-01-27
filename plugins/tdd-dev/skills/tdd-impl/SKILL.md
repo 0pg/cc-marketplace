@@ -162,6 +162,22 @@ User Story / Requirement
 - **최소 구현**: GREEN 단계에서는 테스트 통과에 필요한 최소한의 코드만 작성
 - **지속적 검증**: 각 단계 후 테스트 실행하여 상태 확인
 
+## 코드 작성 규칙
+
+코드 작성 시 프로젝트에 설치된 **Convention 플러그인**의 규칙을 따릅니다.
+
+Convention 플러그인이 제공하는 항목:
+- 네이밍 규칙
+- 에러 처리 패턴
+- 모듈 구조
+- 테스트 패턴
+
+사용 가능한 Convention 플러그인:
+- `rust-convention`: Rust 코드 컨벤션
+- (추가 가능): typescript-convention, python-convention 등
+
+> Convention 플러그인이 없는 경우, 언어의 표준 스타일 가이드를 따릅니다.
+
 ## Output
 
 - 테스트 코드 (각 레벨별)

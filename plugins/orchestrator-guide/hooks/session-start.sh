@@ -278,6 +278,51 @@ detect_incomplete_tasks() {
 }
 
 # ============================================================================
+# Post-Compaction Core Principles Injection
+# ============================================================================
+
+# Inject core orchestrator principles after compaction to restore lost context
+inject_core_principles() {
+    cat << 'PRINCIPLES'
+## Orchestrator Core Principles (Post-Compaction Refresh)
+
+### 1. 5요소 위임 프로토콜
+에이전트에 작업 위임 시 반드시 5요소를 포함:
+- **GOAL**: 달성할 목표
+- **CONTEXT**: 필요한 맥락
+- **CONSTRAINTS**: 제약 조건
+- **SUCCESS**: 성공 기준
+- **HANDOFF**: 후속 처리
+
+### 2. 에이전트 불신 원칙
+- 에이전트 출력은 항상 검증
+- ARB 형식으로 구조화된 결과 요구
+- 실패 시 재시도 또는 대안 탐색
+
+### 3. 병렬 실행 전략
+- 독립적 작업은 병렬로 위임
+- 의존성 있는 작업은 순차 실행
+
+### 4. ARB 형식 (Agent Result Block)
+```yaml
+---agent-result---
+status: success | partial | blocked | failed
+agent: {agent_name}
+task_ref: {task_id}
+files:
+  created: []
+  modified: []
+verification:
+  tests: pass | fail
+  lint: pass | fail
+issues: []
+followup: []
+---end-agent-result---
+```
+PRINCIPLES
+}
+
+# ============================================================================
 # Main Execution
 # ============================================================================
 
@@ -313,6 +358,12 @@ GOAL → CONTEXT → CONSTRAINTS → SUCCESS → HANDOFF
 
 ---
 "
+
+# Inject core principles after compaction (to restore lost detailed instructions)
+if [[ "$source" == "compact" ]]; then
+    context_msg="$context_msg
+$(inject_core_principles)"
+fi
 
 # Output context (will be added to Claude's context)
 echo "$context_msg"

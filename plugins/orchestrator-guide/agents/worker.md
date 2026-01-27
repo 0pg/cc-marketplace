@@ -164,12 +164,17 @@ Domain Agent 위임 시 반드시 5요소 포함:
 ### Step 3: Agent 위임
 
 ```
-1. 파일 단위로 Agent 할당 (작업 분할 원칙)
-2. 5요소 위임 프로토콜로 프롬프트 작성
-3. Task 도구로 에이전트 호출:
+1. OWI의 expected_agents 확인 (있으면 해당 Agent 사용)
+2. 파일 단위로 Agent 할당 (작업 분할 원칙)
+3. 5요소 위임 프로토콜로 프롬프트 작성
+4. Task 도구로 에이전트 호출:
    - run_in_background: true (모든 Agent 병렬 실행)
    - model: 작업 복잡도에 따라 선택
 ```
+
+**Agent 선택 우선순위:**
+1. OWI `expected_agents`에 명시된 Agent (예: `tdd-impl`)
+2. 작업 유형에 맞는 기본 Agent (예: `code-impl`, `code-reviewer`)
 
 **병렬 실행 기본 원칙**:
 - 파일 단위 분할로 충돌 방지

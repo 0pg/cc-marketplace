@@ -309,6 +309,95 @@ expected_agents: |
 
 ---
 
+## 워크플로우 선택
+
+> Pluggable Workflow: 프로젝트에 맞는 워크플로우 선택
+
+### 지원 워크플로우
+
+| 워크플로우 | 유형 | 설명 |
+|------------|------|------|
+| `default` | 내장 | spec.md + task.md, 에이전트 위임 |
+| `tdd-workflow` | adapter | Red-Green-Refactor (설치 필요) |
+| (기타) | adapter | workflow.yaml 제공 플러그인 |
+
+### 워크플로우 선택 프로토콜
+
+> project-config는 **활성화된 워크플로우 목록**만 제공하고, 실제 선택은 사용자에게 위임
+
+#### project-config 역할
+
+```yaml
+# .claude/project-config.md
+workflows:
+  - default           # 내장 (항상 사용 가능)
+  - tdd-workflow      # setup 커맨드로 등록됨
+```
+
+- project-config는 사용 가능한 워크플로우를 **나열**만 함
+- 어떤 워크플로우를 **사용할지**는 project-config가 결정하지 않음
+
+#### 선택 규칙
+
+| 상황 | 동작 |
+|------|------|
+| 워크플로우 1개 (default만) | default 자동 사용 |
+| 워크플로우 2개+ | **반드시 AskUserQuestion** |
+| 명시적 요청 ("TDD로") | 해당 워크플로우 직접 사용 |
+
+**핵심 규칙**: 등록된 워크플로우가 2개 이상이면 **무조건 사용자에게 선택 질문**
+
+```
+AskUserQuestion:
+  question: "어떤 워크플로우를 사용하시겠습니까?"
+  options:
+    - label: "Default (spec+task)"
+      description: "spec.md + task.md 기반 에이전트 위임"
+    - label: "TDD Workflow"
+      description: "Red-Green-Refactor 기반 테스트 주도 개발"
+```
+
+### Workflow 등록 메커니즘
+
+> 명시적 setup 커맨드로 project-config에 등록
+
+#### `/plugin-name:setup` 커맨드 (권장)
+
+워크플로우 플러그인 설치 후 setup 커맨드 실행:
+
+```bash
+# 사용자가 실행
+/tdd-workflow:setup
+```
+
+setup 커맨드가 하는 일:
+1. project-config.md에 workflows 목록에 자신 추가
+2. 필요한 초기 설정 수행
+
+#### Skill 직접 호출 (등록 없이)
+
+워크플로우 등록 없이도 스킬 직접 호출 가능:
+```
+Skill("tdd-dev:test-design")
+Skill("tdd-dev:tdd-impl")
+```
+이 경우 orchestrator 워크플로우 선택을 우회하고 스킬을 직접 실행
+
+### External Workflow 실행
+
+Orchestration Skill의 phases를 순서대로 실행:
+
+```
+1. phase.entry_skill 호출 (Skill 도구 사용)
+2. expected_output 확인
+3. success_criteria 충족 여부 판단
+4. 다음 phase로 진행 또는 에러 처리
+```
+
+상세 프로토콜: `workflow-protocol.md` 참조
+
+---
+
 ## 실행 워크플로우
 
 ### Step 0: Spec 정의 (plan mode)

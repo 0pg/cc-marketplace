@@ -1,0 +1,16 @@
+{
+  "name": "tdd-workflow",
+  "version": "1.0.0",
+  "type": "workflow",
+  "requires": {
+    "code-convention": {
+      "optional": true,
+      "fallback": "language-standard"
+    }
+  },
+  "description": "TDD workflow adapter for orchestrator-guide. Red-Green-Refactor 기반 테스트 주도 개발 워크플로우.",
+  "keywords": ["tdd", "workflow", "orchestrator", "red-green-refactor"],
+  "author": {
+    "name": "jhk"
+  }
+}

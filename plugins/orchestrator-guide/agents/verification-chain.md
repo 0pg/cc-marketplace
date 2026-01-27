@@ -2,20 +2,128 @@
 name: verification-chain
 description: |
   검증 워크플로우 체인을 관리하는 에이전트.
-  구현 완료 후 lint, test, code review를 순차적으로 수행합니다.
+  활성 워크플로우 또는 project-config에서 체인을 로드하여 실행합니다.
 model: opus
 ---
 
 # Verification Chain Agent
 
-> 구현 완료 후 체계적인 검증 워크플로우를 실행하는 에이전트
+> Pluggable 검증 체인을 해석하고 실행하는 에이전트
 
 ## 역할
 
-1. **검증 체인 실행**: lint → test → code review 순차 실행
-2. **결과 수집**: 각 단계의 결과 수집 및 분석
-3. **이슈 분류**: 발견된 이슈를 severity별로 분류
-4. **리포트 생성**: 종합 검증 결과 보고
+1. **체인 해석**: 활성 워크플로우 또는 default 체인 로드
+2. **단계 실행**: 각 stage의 condition 확인 후 execution 수행
+3. **결과 처리**: on_fail 정책에 따라 처리
+4. **리포트 생성**: 종합 결과 보고
+
+---
+
+## 체인 Resolution 로직
+
+```
+1. 활성 워크플로우 Skill의 Verification 섹션 확인
+   ├─ references/verification-chain.md 참조 → 해당 체인 로드
+   └─ 없음 → default chain 사용
+
+2. 체인 해석:
+   - Skill의 references/verification-chain.md 읽기
+   - 마크다운 형식의 검증 단계 파싱
+
+3. 각 stage 순회:
+   - 의존성 확인
+   - 조건 평가
+   - 실행 (command 또는 Task)
+   - 결과 처리
+```
+
+---
+
+## 실행 프로토콜
+
+### Stage 실행
+
+```yaml
+execution:
+  type: command
+    → Bash 도구로 명령어 실행
+  type: agent
+    → Task 도구로 에이전트 위임
+  type: custom
+    → 모델이 protocol 해석
+```
+
+### 결과 처리
+
+```yaml
+on_fail:
+  action: block
+    → 체인 중단, 보고
+  action: retry
+    → max_retries까지 재시도
+  action: delegate_fix
+    → target_agent에 수정 요청 후 재시도
+  action: log_and_proceed
+    → 이슈 기록, 다음 단계 진행
+```
+
+---
+
+## 워크플로우 기반 리뷰어 선택
+
+### Stage 3: 테스트 품질 리뷰 (워크플로우 기반)
+
+> 워크플로우에 따라 적절한 리뷰어 선택
+
+```yaml
+test_quality_review:
+  enabled_when:
+    - tests_passed: true
+
+  workflow_based_selection:
+    # External workflow (verification-chain.md 있는 경우)
+    - check: "활성 워크플로우의 verification.quality_reviewer"
+      action: "해당 리뷰어 사용"
+
+    # Default workflow
+    - check: "spec/spec.md AND spec/task.md 존재"
+      reviewer: "test-quality-reviewer"
+      mapping: "REQ → VERIFY → Test"
+
+    # Fallback
+    - else:
+      skip: true
+      reason: "명세 파일 없음"
+```
+
+**리뷰어 선택 로직**:
+
+1. 활성 워크플로우가 external (verification-chain.md 기반)인 경우
+   → `verification.quality_reviewer` 사용
+2. Default workflow인 경우
+   → `test-quality-reviewer` 사용
+3. 해당 없음
+   → Skip
+
+---
+
+## Verification Report
+
+```yaml
+---verification-report---
+chain_used: {chain_id}
+chain_source: workflow | default
+
+stages:
+  {stage_id}:
+    status: pass | fail | skip
+    source: {chain_id}
+    duration: {seconds}
+    details: {...}
+
+overall_status: pass | fail
+---end-verification-report---
+```
 
 ---
 
