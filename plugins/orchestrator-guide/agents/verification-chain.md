@@ -85,7 +85,7 @@ test_quality_review:
     - check: "활성 워크플로우의 verification.quality_reviewer"
       action: "해당 리뷰어 사용"
 
-    # Default workflow
+    # Fallback workflow
     - check: "spec/spec.md AND spec/task.md 존재"
       reviewer: "test-quality-reviewer"
       mapping: "REQ → VERIFY → Test"
@@ -100,7 +100,7 @@ test_quality_review:
 
 1. 활성 워크플로우가 external (verification-chain.md 기반)인 경우
    → `verification.quality_reviewer` 사용
-2. Default workflow인 경우
+2. Fallback workflow인 경우
    → `test-quality-reviewer` 사용
 3. 해당 없음
    → Skip

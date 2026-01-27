@@ -58,6 +58,7 @@ orchestrator-guide/
 │   └── project-config.template.md  # 사용자용 설정 템플릿
 ├── skills/                   # 스킬 정의 (Claude Code 자동 감지)
 │   ├── orchestrator/SKILL.md # 메인 오케스트레이션
+│   ├── fallback-orchestration/SKILL.md # Fallback 워크플로우 (spec+task 기반)
 │   ├── planner/SKILL.md      # 계획 및 스펙 생성
 │   ├── delegator/SKILL.md    # 위임 프롬프트 생성
 │   └── rust-code-convention/SKILL.md

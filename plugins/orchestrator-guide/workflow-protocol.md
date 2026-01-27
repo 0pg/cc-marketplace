@@ -5,7 +5,7 @@
 ## 개요
 
 Orchestrator는 pluggable workflow를 지원합니다:
-- **Default workflow**: spec.md + task.md 기반 (orchestrator 내장)
+- **Fallback workflow**: spec.md + task.md 기반 (내장 Skill)
 - **External workflow**: Skill 기반 adapter 플러그인
 
 ## Workflow Adapter 요구사항
@@ -102,7 +102,7 @@ description: |
 ```yaml
 # .claude/project-config.md
 workflows:
-  - default           # 항상 존재 (내장)
+  - fallback          # 항상 존재 (내장 Skill)
   - tdd-workflow      # setup으로 등록됨
   - custom-workflow   # setup으로 등록됨
 ```
