@@ -59,6 +59,20 @@
 - **내용**: [암묵적 지식 설명]
 - **주의사항**: [이것을 모르면 발생할 수 있는 문제]
 
+## Files Covered
+[이 node의 모든 직접 파일 커버리지]
+
+| 파일 | 역할 | Context 포함 |
+|------|------|-------------|
+| token.rs | JWT 토큰 생성/검증 | ✅ Domain Constants, Business Rules |
+| session.rs | 세션 관리 | ✅ Business Rules |
+| types.rs | 타입 정의 | ⬜ 타입만 정의, 추가 context 없음 |
+| mod.rs | 모듈 export | ⬜ 구조적 파일 |
+
+**범례:**
+- ✅: 위 섹션에 context 포함됨
+- ⬜: context 불필요 (이유 명시)
+
 ## Module Structure
 [하위 디렉토리가 있는 경우]
 
@@ -92,3 +106,8 @@
 
 5. **확률적 재현가능성 검증**
    - "이 문서로 도메인을 파악하여 여러 번 시도하면 동일한 코드를 작성할 수 있는가?"
+
+6. **직접 파일 전체 커버리지**
+   - 이 node의 모든 직접 파일은 "Files Covered" 섹션에 나열
+   - context 포함 파일: 관련 섹션 명시
+   - context 불필요 파일: 이유 명시 (타입 정의, 구조적 파일 등)

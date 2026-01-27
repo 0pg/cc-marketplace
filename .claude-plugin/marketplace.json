@@ -20,7 +20,7 @@
     {
       "name": "project-context-store",
       "description": "코드 재현에 필요한 컨텍스트를 CLAUDE.md로 자동 문서화. /context-generate로 생성, /context-update로 업데이트, /context-validate로 검증.",
-      "version": "1.0.0",
+      "version": "1.5.0",
       "author": {
         "name": "jhk"
       },

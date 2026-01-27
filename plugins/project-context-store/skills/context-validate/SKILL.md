@@ -75,10 +75,11 @@ for claude_md in target_claude_mds:
 두 에이전트의 결과를 수집하여 통합:
 
 ```
-1. Drift 검증 결과 수집 (STALE, MISMATCH, MISSING, ORPHAN)
+1. Drift 검증 결과 수집 (STALE, MISMATCH, UNCOVERED, MISSING, ORPHAN)
 2. 재현성 검증 결과 수집 (도메인 이해도, 누락 항목)
-3. 심각도별 분류 및 정렬
-4. 권장 조치 통합
+3. 직접 파일 커버리지 통계 계산
+4. 심각도별 분류 및 정렬
+5. 권장 조치 통합
 ```
 
 ### 4. 통합 보고서 생성
@@ -171,5 +172,27 @@ reproducibility-validator 에이전트의 결과
 |------|------|--------|
 | STALE | 문서화된 항목이 코드에 없음 | High |
 | MISMATCH | 값이 다름 | High |
+| UNCOVERED | 직접 파일이 커버되지 않음 | High |
 | MISSING | 코드에 있지만 문서화되지 않음 | Medium |
 | ORPHAN | 참조 파일 없음 | Low |
+
+## 커버리지 검증 결과 형식
+
+```markdown
+### 직접 파일 커버리지
+
+| Node | 직접 파일 수 | 커버된 파일 | 커버리지 |
+|------|------------|------------|----------|
+| src/auth/ | 5 | 5 | 100% ✅ |
+| src/api/ | 8 | 6 | 75% ⚠️ |
+| src/utils/ | 3 | 1 | 33% ❌ |
+
+### UNCOVERED 파일 상세
+
+| 파일 | Node | 필요 조치 |
+|------|------|----------|
+| handler.rs | src/api/ | Files Covered에 추가 |
+| logger.rs | src/api/ | Files Covered에 추가 |
+| format.rs | src/utils/ | Files Covered에 추가 |
+| parse.rs | src/utils/ | Files Covered에 추가 |
+```

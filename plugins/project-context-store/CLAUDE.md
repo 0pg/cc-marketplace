@@ -63,6 +63,29 @@ Skills (사용자 진입점)          Agents (Task로 실행)
 | Skill | 사용자 진입점, 루트에서 Agent 시작 |
 | Agent | 재귀적 디렉토리 탐색, 하위 Task 생성, CLAUDE.md 작성 |
 
+## Node Tree 아키텍처
+
+### 용어 정의
+
+| 용어 | 정의 |
+|------|------|
+| Node | Context tree에서 단일 디렉토리 |
+| Node Tree | 주어진 루트 디렉토리를 Root로 하는 전체 트리 구조 |
+| Root Node | context-generate가 시작하는 진입점 디렉토리 |
+| Leaf Node | 소스 코드가 있는 하위 디렉토리가 없는 디렉토리 |
+| 직접 파일 | node에 직접 포함된 파일 (하위 디렉토리 제외) |
+
+### 핵심 정책
+
+#### 1. Node당 CLAUDE.md 필수
+소스 코드가 있는 모든 node에는 반드시 CLAUDE.md가 존재해야 합니다.
+
+#### 2. 직접 파일 전체 커버리지
+각 node의 CLAUDE.md는 해당 디렉토리의 **모든 직접 파일**에 대한 context를 포함해야 합니다.
+- 모든 소스 파일의 도메인 의미와 역할 문서화
+- context 불필요 파일(utils, types 등)은 명시적으로 표기
+- 커버되지 않은 파일은 UNCOVERED drift로 탐지
+
 ## 워크플로우 (재귀 패턴)
 
 ```

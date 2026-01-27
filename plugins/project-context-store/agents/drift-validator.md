@@ -25,6 +25,7 @@ tools:
 |------|------|--------|
 | STALE | 문서화된 항목이 코드에 없음 | High |
 | MISMATCH | 값이 다름 | High |
+| UNCOVERED | 직접 파일이 커버되지 않음 | High |
 | MISSING | 코드에 있지만 문서화되지 않음 | Medium |
 | ORPHAN | 참조 파일 없음 | Low |
 
@@ -54,7 +55,26 @@ tools:
    - 문서화되지 않은 도메인 상수 찾기
 ```
 
-### 3. 누락 컨텍스트 탐지
+### 3. 직접 파일 커버리지 검증
+
+CLAUDE.md의 "Files Covered" 섹션과 실제 디렉토리의 직접 파일을 비교:
+
+```
+1. CLAUDE.md에서 "Files Covered" 섹션 추출
+2. Glob으로 해당 디렉토리의 직접 파일 목록 수집
+3. 비교하여 누락된 파일 탐지 → UNCOVERED로 보고
+```
+
+**UNCOVERED 보고 형식:**
+```markdown
+#### [HIGH] UNCOVERED
+| 파일 | 위치 | 상태 |
+|------|------|------|
+| helper.rs | src/auth/ | Files Covered에 없음 |
+| types.rs | src/auth/ | Files Covered에 없음 |
+```
+
+### 4. 누락 컨텍스트 탐지
 
 코드에서 문서화되지 않은 컨텍스트 탐지:
 
@@ -72,7 +92,7 @@ for match in grep_patterns(target_dir, patterns):
         report_missing(match)
 ```
 
-### 4. 결과 보고
+### 5. 결과 보고
 
 ```markdown
 ## Drift 검증 결과: [CLAUDE.md 경로]
@@ -81,10 +101,16 @@ for match in grep_patterns(target_dir, patterns):
 | 항목 | 결과 |
 |------|------|
 | 검증된 항목 | 10개 |
+| 직접 파일 커버리지 | 8/10 (80%) |
 | 정상 | 7개 |
 | 문제 발견 | 3개 |
 
 ### 발견된 문제
+
+#### [HIGH] UNCOVERED
+| 파일 | 위치 | 상태 |
+|------|------|------|
+| helper.rs | src/auth/ | Files Covered에 없음 |
 
 #### [HIGH] MISMATCH
 | 항목 | 문서 값 | 코드 값 | 위치 |
