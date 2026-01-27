@@ -44,20 +44,9 @@ plugins/tdd-dev/
 │       ├── SKILL.md             # TDD 구현 스킬 (R-G-R 사이클)
 │       └── references/
 │           ├── requirement-validation.md  # 요구사항 검증 가이드
-│           └── code-impl.md     # Red-Green-Refactor 구현 가이드
+│           ├── code-impl.md     # Red-Green-Refactor 구현 가이드
+│           └── rust.md          # Rust 테스트 패턴
 ```
-
-## Convention Plugin 연동
-
-코드 작성 규칙은 별도의 Convention 플러그인을 통해 제공됩니다:
-
-| 언어 | Convention 플러그인 | 제공 내용 |
-|------|---------------------|----------|
-| Rust | `rust-convention` | 네이밍, 에러 처리, 모듈 구조, 테스트 패턴 |
-| (추가 가능) | `typescript-convention` | TypeScript/Jest 패턴 |
-| (추가 가능) | `python-convention` | Python/pytest 패턴 |
-
-tdd-dev 플러그인은 TDD 프로토콜(WHAT)을 정의하고, Convention 플러그인은 언어별 구현 방식(HOW)을 제공합니다.
 
 ## Workflow
 
@@ -105,33 +94,20 @@ tdd-dev 플러그인은 TDD 프로토콜(WHAT)을 정의하고, Convention 플�
 
 ## 확장 가이드
 
-### Convention 플러그인 추가
+### 언어별 가이드 추가
 
-새로운 언어를 지원하려면 Convention 플러그인을 생성합니다:
+`skills/tdd-impl/references/` 디렉터리에 언어별 가이드를 추가할 수 있습니다:
 
 ```
-plugins/{lang}-convention/
-├── .claude-plugin/
-│   └── plugin.json
-└── CLAUDE.md
+skills/tdd-impl/references/
+├── rust.md        # Rust 테스트 패턴
+├── typescript.md  # TypeScript/Jest 패턴
+├── python.md      # Python/pytest 패턴
+└── go.md          # Go testing 패턴
 ```
 
-**plugin.json 필수 필드:**
-```json
-{
-  "type": "convention",
-  "scope": {
-    "languages": ["언어명"],
-    "filePatterns": ["*.확장자"]
-  },
-  "provides": ["code-convention"]
-}
-```
-
-**CLAUDE.md 포함 내용:**
+가이드 작성 시 포함할 내용:
 - 테스트 프레임워크 사용법
 - Mocking 라이브러리
 - 언어별 테스트 패턴
 - 디렉터리 구조 권장사항
-- 네이밍 규칙
-- 에러 처리 패턴

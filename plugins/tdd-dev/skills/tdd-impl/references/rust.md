@@ -176,46 +176,6 @@ for item in optional_value {
 }
 ```
 
-## 테스트 패턴
-
-### 테스트 모듈 구조
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_basic() {
-        // Arrange
-        let input = ...;
-
-        // Act
-        let result = function(input);
-
-        // Assert
-        assert_eq!(result, expected);
-    }
-}
-```
-
-### 비동기 테스트
-```rust
-#[tokio::test]
-async fn test_async_operation() {
-    let result = async_function().await;
-    assert!(result.is_ok());
-}
-```
-
-### 에러 테스트
-```rust
-#[test]
-fn test_error_case() {
-    let result = function_that_fails(invalid_input);
-    assert!(matches!(result, Err(MyError::NotFound(_))));
-}
-```
-
 ## Private Dependencies
 
 ```toml
