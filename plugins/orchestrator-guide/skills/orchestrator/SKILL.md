@@ -12,6 +12,24 @@ allowed-tools: [Task, Read, AskUserQuestion, Skill]
 
 ---
 
+## Step 0: 프로젝트 설정 로드
+
+`.claude/project-config.md` 파일이 있으면 **Read 도구로 읽어** 설정을 로드합니다.
+
+```
+project-config.md 포함 내용:
+- workflows: 사용 가능한 워크플로우 목록
+- verification: 검증 명령어 (lint, test, build)
+- roles: 에이전트 역할 매핑
+```
+
+파일이 없으면 기본값 사용:
+- workflows: `[default]`
+- verification: 프로젝트 언어/프레임워크에서 추론
+- roles: 기본 에이전트 사용
+
+---
+
 ## 설계 원칙
 
 이 플러그인은 **프로토콜**을 정의하고, **구체적 판단**은 모델에 위임합니다:
