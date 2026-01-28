@@ -1,8 +1,9 @@
 ---
 name: orchestrator
+aliases: [orch]
 description: |
   메인 오케스트레이터. 복잡한 작업을 분해하고 전문 에이전트에 위임합니다.
-  트리거: "/orchestrator", "구현해줘", "작업 시작", "전체 flow"
+  트리거: "/orchestrator", "/orch", "구현해줘", "작업 시작", "전체 flow"
 allowed-tools: [Task, Read, AskUserQuestion, Skill]
 ---
 
