@@ -15,6 +15,7 @@ tools:
   - Glob
   - Grep
   - Task
+  - Bash
 ---
 
 # Context Validate Skill
@@ -70,17 +71,35 @@ for claude_md in target_claude_mds:
 
 **중요**: 모든 Task 호출은 반드시 **단일 메시지**에서 수행하여 전체 병렬 실행
 
-### 3. 결과 취합
+### 3. 결과 취합 (파일 기반)
 
-두 에이전트의 결과를 수집하여 통합:
+에이전트들은 결과를 파일로 저장하고 경로만 반환합니다.
+
+**결과 수집 절차:**
 
 ```
-1. Drift 검증 결과 수집 (STALE, MISMATCH, UNCOVERED, MISSING, ORPHAN)
-2. 재현성 검증 결과 수집 (도메인 이해도, 누락 항목)
-3. 직접 파일 커버리지 통계 계산
-4. 심각도별 분류 및 정렬
-5. 권장 조치 통합
+1. 각 Task 완료 시 반환된 result_file 경로 수집
+   - drift-validator: ---drift-validator-result--- 블록에서 result_file 추출
+   - reproducibility-validator: ---reproducibility-validator-result--- 블록에서 result_file 추출
+
+2. 모든 Task 완료 후 결과 파일 읽기:
+   a. 각 result_file을 순차적으로 Read
+   b. 결과 내용 파싱 및 취합
+
+3. 통합 보고서 작성:
+   - Drift 검증 결과 수집 (STALE, MISMATCH, UNCOVERED, MISSING, ORPHAN)
+   - 재현성 검증 결과 수집 (도메인 이해도, 누락 항목)
+   - 직접 파일 커버리지 통계 계산
+   - 심각도별 분류 및 정렬
+   - 권장 조치 통합
+
+4. 임시 파일 삭제:
+   Bash: rm -rf .claude/validate-results/
 ```
+
+**결과 파일 위치:**
+- Drift 결과: `.claude/validate-results/drift-{dir}.md`
+- 재현성 결과: `.claude/validate-results/repro-{dir}.md`
 
 ### 4. 통합 보고서 생성
 

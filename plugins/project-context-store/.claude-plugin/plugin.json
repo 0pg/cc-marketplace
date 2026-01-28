@@ -1,6 +1,6 @@
 {
   "name": "project-context-store",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "description": "프로젝트 컨텍스트를 자동으로 문서화하여 도메인 이해와 확률적 재현가능성을 보장하는 플러그인",
   "author": {
     "name": "jhk"

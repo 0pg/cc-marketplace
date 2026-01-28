@@ -9,6 +9,7 @@ tools:
   - Read
   - Glob
   - Grep
+  - Write
 ---
 
 # Drift Validator Agent
@@ -185,3 +186,45 @@ for name, info in documented.items():
 
 3. **권장 조치 명확히**
    - 각 문제에 대한 구체적인 해결 방안 제시
+
+## 결과 파일 저장 (Context 폭발 방지)
+
+**중요**: 결과 보고서를 직접 반환하지 않고 파일로 저장합니다.
+
+### 저장 절차
+
+1. 결과 보고서 작성 (위의 형식 유지)
+2. Write 도구로 파일 저장
+3. 파일 경로만 반환
+
+### 저장 경로
+
+`.claude/validate-results/drift-{디렉토리명}.md`
+
+예시:
+- `src/auth/CLAUDE.md` → `.claude/validate-results/drift-src-auth.md`
+- `src/api/users/CLAUDE.md` → `.claude/validate-results/drift-src-api-users.md`
+
+디렉토리명 변환: `/`를 `-`로 대체
+
+### 반환 형식
+
+결과 보고서 본문을 반환하지 않고, 아래 형식만 반환:
+
+```
+---drift-validator-result---
+status: success | failed
+result_file: .claude/validate-results/drift-src-auth.md
+directory: src/auth
+issues_count: 3
+---end-drift-validator-result---
+```
+
+### 필드 설명
+
+| 필드 | 설명 |
+|------|------|
+| status | 검증 성공 여부 (success/failed) |
+| result_file | 결과 파일 경로 |
+| directory | 검증한 디렉토리 |
+| issues_count | 발견된 문제 수 (HIGH + MEDIUM + LOW)

@@ -98,7 +98,7 @@ Task(
 불명확한 부분 발견 시, 먼저 직접 정보를 탐색합니다.
 
 **탐색 순서:**
-1. README.md, CLAUDE.md 등 문서
+1. CLAUDE.md 및 기타 문서 (README.md 등)
 2. 코드 주석 및 docstring
 3. 관련 테스트 코드 (의도 파악)
 4. 커밋 메시지 (git log)
@@ -142,6 +142,18 @@ CLAUDE.md 작성 전, 현재 node의 모든 직접 파일을 열거하고 커버
 **중요**: 모든 직접 파일은 CLAUDE.md의 "Files Covered" 섹션에 나열되어야 함
 
 ### 5. CLAUDE.md 작성
+
+**출력 파일명: `CLAUDE.md`** (README.md 아님)
+
+- 파일명: `CLAUDE.md`
+- 경로: `{현재 디렉토리}/CLAUDE.md`
+- Write 도구 호출 예시:
+  ```
+  Write(
+      file_path="{절대경로}/CLAUDE.md",
+      content="..."
+  )
+  ```
 
 확정된 정보를 구조화하여 CLAUDE.md를 생성합니다.
 
@@ -202,6 +214,7 @@ src/auth/jwt/ (leaf)
 - [ ] 소스 코드 있는 하위 디렉토리에 Task를 생성했는가?
 - [ ] 현재 node의 모든 직접 파일을 열거했는가?
 - [ ] 모든 직접 파일이 "Files Covered" 섹션에 포함되었는가?
+- [ ] 출력 파일명이 CLAUDE.md인가? (README.md 아님)
 - [ ] 현재 디렉토리의 CLAUDE.md를 생성했는가?
 
 ## 격리 원칙

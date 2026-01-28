@@ -155,3 +155,35 @@ plugins/project-context-store/
 1. **추측 금지**: 확신 없으면 반드시 사용자에게 질문
 2. **격리**: 각 에이전트는 자신의 담당 디렉토리만 처리
 3. **확률적 재현가능성**: 생성된 문서로 도메인을 이해하여 코드 작성 가능해야 함
+
+## 파일 기반 결과 전달 패턴
+
+### 문제
+
+병렬 Agent 실행 시 각 Agent가 거대한 결과 보고서를 반환하면 Skill context가 폭발합니다.
+- 10개 CLAUDE.md × 2개 validator = 20개 결과
+- 각 결과 300-500 토큰 → 10,000+ 토큰이 context에 누적
+- Compact 불가능 상태까지 도달
+
+### 해결
+
+Agent가 결과를 **파일로 저장**하고 **경로만 반환**합니다.
+
+```
+Before: Agent → 거대한 결과 텍스트 반환 → Skill context에 누적 → 폭발
+After:  Agent → 결과를 파일로 저장 → 파일 경로만 반환 (~50 토큰)
+```
+
+### 적용 대상
+
+| Agent | 결과 파일 경로 | 반환 형식 |
+|-------|--------------|----------|
+| drift-validator | `.claude/validate-results/drift-{dir}.md` | `---drift-validator-result---` 블록 |
+| reproducibility-validator | `.claude/validate-results/repro-{dir}.md` | `---reproducibility-validator-result---` 블록 |
+
+### Skill 처리
+
+1. 모든 Task 완료 후 result_file 경로 수집
+2. 각 파일을 순차적으로 Read
+3. 통합 보고서 작성
+4. 임시 파일 삭제: `rm -rf .claude/validate-results/`
