@@ -10,7 +10,7 @@
     {
       "name": "orchestrator-guide",
       "description": "Multi-agent orchestration framework for complex tasks with 5-element delegation protocol. Use /orchestrator for task coordination, /planner for spec generation, /delegator for delegation prompts.",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "author": {
         "name": "jhk"
       },

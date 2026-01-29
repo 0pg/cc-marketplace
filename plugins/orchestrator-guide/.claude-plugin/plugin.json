@@ -1,6 +1,6 @@
 {
   "name": "orchestrator-guide",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Multi-agent orchestration framework with pluggable workflow architecture. Fallback workflow (spec+task) built-in. Install workflow adapters for alternatives (e.g., tdd-workflow).",
   "author": {
     "name": "jhk"
