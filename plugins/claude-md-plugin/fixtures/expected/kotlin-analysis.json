@@ -1,0 +1,73 @@
+{
+  "path": "fixtures/kotlin",
+  "exports": {
+    "functions": [
+      {
+        "name": "validateToken",
+        "signature": "fun validateToken(token: String): Result<TokenClaims>",
+        "description": "Validates a JWT token and returns the claims"
+      },
+      {
+        "name": "generateToken",
+        "signature": "fun generateToken(userId: String, role: Role): Result<String>",
+        "description": "Generates a new JWT token"
+      }
+    ],
+    "types": [
+      {
+        "name": "Role",
+        "definition": "enum class Role { ADMIN, USER, GUEST }",
+        "description": "User role enumeration"
+      },
+      {
+        "name": "TokenClaims",
+        "definition": "data class TokenClaims(userId: String, role: Role, exp: Long, iat: Long)",
+        "description": "JWT token claims structure"
+      },
+      {
+        "name": "TokenConfig",
+        "definition": "data class TokenConfig(secret: String, expiresInSeconds: Long, issuer: String?)",
+        "description": "Token configuration settings"
+      }
+    ],
+    "classes": [
+      {
+        "name": "TokenService",
+        "signature": "class TokenService(config: TokenConfig)",
+        "description": "Service for JWT token operations"
+      },
+      {
+        "name": "TokenExpiredException",
+        "signature": "class TokenExpiredException(message: String, cause: Throwable?) : Exception",
+        "description": "Exception thrown when token has expired"
+      },
+      {
+        "name": "InvalidTokenException",
+        "signature": "class InvalidTokenException(message: String, cause: Throwable?) : Exception",
+        "description": "Exception thrown when token is invalid"
+      }
+    ]
+  },
+  "dependencies": {
+    "external": ["io.jsonwebtoken"],
+    "internal": []
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "Result.success(TokenClaims)",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "Result.failure(TokenExpiredException)",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "Result.failure(InvalidTokenException)",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["TokenService.kt", "TokenClaims.kt", "TokenConfig.kt", "Role.kt", "Exceptions.kt"]
+}

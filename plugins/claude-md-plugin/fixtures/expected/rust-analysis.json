@@ -1,0 +1,62 @@
+{
+  "path": "fixtures/rust",
+  "exports": {
+    "functions": [
+      {
+        "name": "validate_token",
+        "signature": "pub fn validate_token(token: &str, secret: &str) -> Result<Claims, TokenError>",
+        "description": "Validates a JWT token and returns the claims"
+      },
+      {
+        "name": "generate_token",
+        "signature": "pub fn generate_token(user_id: &str, role: Role, config: &TokenConfig) -> Result<String, TokenError>",
+        "description": "Generates a new JWT token"
+      }
+    ],
+    "types": [
+      {
+        "name": "Claims",
+        "definition": "pub struct Claims { user_id: String, role: Role, exp: u64, iat: u64 }",
+        "description": "JWT claims structure"
+      },
+      {
+        "name": "Role",
+        "definition": "pub enum Role { Admin, User, Guest }",
+        "description": "User role enumeration"
+      },
+      {
+        "name": "TokenConfig",
+        "definition": "pub struct TokenConfig { secret: String, expires_in_secs: u64 }",
+        "description": "Token configuration"
+      },
+      {
+        "name": "TokenError",
+        "definition": "pub enum TokenError { Expired, Invalid(String) }",
+        "description": "Token validation errors"
+      }
+    ],
+    "classes": []
+  },
+  "dependencies": {
+    "external": ["jsonwebtoken", "serde", "thiserror"],
+    "internal": []
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "Ok(Claims)",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "Err(TokenError::Expired)",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "Err(TokenError::Invalid)",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["lib.rs"]
+}

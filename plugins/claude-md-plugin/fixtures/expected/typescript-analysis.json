@@ -1,0 +1,73 @@
+{
+  "path": "fixtures/typescript",
+  "exports": {
+    "functions": [
+      {
+        "name": "validateToken",
+        "signature": "validateToken(token: string): Promise<Claims>",
+        "description": "Validates a JWT token and returns the claims"
+      },
+      {
+        "name": "generateToken",
+        "signature": "generateToken(userId: string, role: string): string",
+        "description": "Generates a JWT token"
+      }
+    ],
+    "types": [
+      {
+        "name": "Claims",
+        "definition": "interface Claims { userId: string; role: Role; exp: number; iat: number; }",
+        "description": "JWT token claims structure"
+      },
+      {
+        "name": "Role",
+        "definition": "type Role = 'admin' | 'user' | 'guest'",
+        "description": "User role type"
+      },
+      {
+        "name": "TokenConfig",
+        "definition": "interface TokenConfig { secret: string; expiresIn: string; issuer?: string; }",
+        "description": "Token configuration"
+      },
+      {
+        "name": "TokenPayload",
+        "definition": "type TokenPayload = Omit<Claims, 'exp' | 'iat'>",
+        "description": "Token payload type"
+      }
+    ],
+    "classes": [
+      {
+        "name": "TokenExpiredError",
+        "signature": "class TokenExpiredError extends Error",
+        "description": "Error thrown when token is expired"
+      },
+      {
+        "name": "InvalidTokenError",
+        "signature": "class InvalidTokenError extends Error",
+        "description": "Error thrown when token is invalid"
+      }
+    ]
+  },
+  "dependencies": {
+    "external": ["jsonwebtoken"],
+    "internal": ["./types", "../utils/crypto"]
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "Claims object",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "TokenExpiredError",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "InvalidTokenError",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["index.ts", "types.ts"]
+}

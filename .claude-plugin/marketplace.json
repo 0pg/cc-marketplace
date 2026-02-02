@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md를 Source of Truth로. Agent-Skill 아키텍처로 소스코드에서 CLAUDE.md 추출. /extract로 추출.",
-      "version": "0.3.0",
+      "version": "0.5.0",
       "author": {
         "name": "jhk"
       },

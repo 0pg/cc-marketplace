@@ -1,0 +1,73 @@
+{
+  "path": "fixtures/java",
+  "exports": {
+    "functions": [
+      {
+        "name": "validateToken",
+        "signature": "public TokenClaims validateToken(String token) throws TokenExpiredException, InvalidTokenException",
+        "description": "Validates a JWT token and returns the claims"
+      },
+      {
+        "name": "generateToken",
+        "signature": "public String generateToken(String userId, Role role)",
+        "description": "Generates a new JWT token"
+      }
+    ],
+    "types": [
+      {
+        "name": "Role",
+        "definition": "public enum Role { ADMIN, USER, GUEST }",
+        "description": "User role enumeration"
+      },
+      {
+        "name": "TokenClaims",
+        "definition": "public class TokenClaims { userId: String, role: Role, exp: long, iat: long }",
+        "description": "JWT token claims structure"
+      },
+      {
+        "name": "TokenConfig",
+        "definition": "public class TokenConfig { secret: String, expiresInSeconds: long, issuer: String }",
+        "description": "Token configuration settings"
+      }
+    ],
+    "classes": [
+      {
+        "name": "TokenService",
+        "signature": "public class TokenService",
+        "description": "Service for JWT token operations"
+      },
+      {
+        "name": "TokenExpiredException",
+        "signature": "public class TokenExpiredException extends Exception",
+        "description": "Exception thrown when token has expired"
+      },
+      {
+        "name": "InvalidTokenException",
+        "signature": "public class InvalidTokenException extends Exception",
+        "description": "Exception thrown when token is invalid"
+      }
+    ]
+  },
+  "dependencies": {
+    "external": ["io.jsonwebtoken"],
+    "internal": []
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "TokenClaims object",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "TokenExpiredException",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "InvalidTokenException",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["TokenService.java", "TokenClaims.java", "TokenConfig.java", "Role.java", "TokenExpiredException.java", "InvalidTokenException.java"]
+}

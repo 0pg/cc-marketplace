@@ -1,0 +1,53 @@
+{
+  "path": "fixtures/python",
+  "exports": {
+    "functions": [
+      {
+        "name": "validate_token",
+        "signature": "validate_token(token: str, secret: str) -> Claims",
+        "description": "Validate a JWT token and return claims"
+      },
+      {
+        "name": "generate_token",
+        "signature": "generate_token(user_id: str, role: str, config: TokenConfig) -> str",
+        "description": "Generate a new JWT token for a user"
+      }
+    ],
+    "types": [
+      {
+        "name": "AuthResult",
+        "definition": "@dataclass AuthResult { success: bool, user_id: Optional[str], error: Optional[str] }",
+        "description": "Result of authentication attempt"
+      }
+    ],
+    "classes": [
+      {
+        "name": "TokenManager",
+        "signature": "class TokenManager",
+        "description": "Manages token lifecycle"
+      }
+    ]
+  },
+  "dependencies": {
+    "external": ["jwt"],
+    "internal": [".types"]
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "Claims object",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "jwt.ExpiredSignatureError",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "jwt.InvalidTokenError",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["__init__.py", "auth.py"]
+}

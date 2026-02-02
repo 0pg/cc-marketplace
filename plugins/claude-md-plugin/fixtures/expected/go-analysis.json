@@ -1,0 +1,52 @@
+{
+  "path": "fixtures/go",
+  "exports": {
+    "functions": [
+      {
+        "name": "ValidateToken",
+        "signature": "ValidateToken(tokenString string, secret string) (*Claims, error)",
+        "description": "Validates a JWT token and returns claims"
+      },
+      {
+        "name": "GenerateToken",
+        "signature": "GenerateToken(userID, role string, config Config) (string, error)",
+        "description": "Creates a new JWT token"
+      }
+    ],
+    "types": [
+      {
+        "name": "Claims",
+        "definition": "type Claims struct { UserID string; Role string; jwt.RegisteredClaims }",
+        "description": "JWT claims structure"
+      },
+      {
+        "name": "Config",
+        "definition": "type Config struct { Secret string; ExpiresIn time.Duration; Issuer string }",
+        "description": "Token configuration"
+      }
+    ],
+    "classes": []
+  },
+  "dependencies": {
+    "external": ["github.com/golang-jwt/jwt/v5"],
+    "internal": []
+  },
+  "behaviors": [
+    {
+      "input": "Valid JWT token",
+      "output": "*Claims",
+      "category": "success"
+    },
+    {
+      "input": "Expired token",
+      "output": "ErrExpiredToken",
+      "category": "error"
+    },
+    {
+      "input": "Invalid token",
+      "output": "ErrInvalidToken",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["token.go"]
+}
