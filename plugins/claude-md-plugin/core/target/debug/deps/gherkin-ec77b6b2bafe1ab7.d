@@ -1,0 +1,14 @@
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/gherkin-ec77b6b2bafe1ab7.d: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/keywords.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/parser.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/tagexpr.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/match.gen.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/keywords.gen.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/libgherkin-ec77b6b2bafe1ab7.rlib: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/keywords.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/parser.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/tagexpr.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/match.gen.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/keywords.gen.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/libgherkin-ec77b6b2bafe1ab7.rmeta: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/keywords.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/parser.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/tagexpr.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/match.gen.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/keywords.gen.rs
+
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/lib.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/keywords.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/parser.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gherkin-0.14.0/src/tagexpr.rs:
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/match.gen.rs:
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out/keywords.gen.rs:
+
+# env-dep:OUT_DIR=/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/build/gherkin-1822e008e889031d/out

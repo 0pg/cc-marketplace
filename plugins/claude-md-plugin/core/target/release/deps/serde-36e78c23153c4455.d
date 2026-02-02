@@ -1,0 +1,14 @@
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/deps/serde-36e78c23153c4455.d: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/build/serde-4135d59f04efbdca/out/private.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/deps/libserde-36e78c23153c4455.rlib: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/build/serde-4135d59f04efbdca/out/private.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/deps/libserde-36e78c23153c4455.rmeta: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/build/serde-4135d59f04efbdca/out/private.rs
+
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/build/serde-4135d59f04efbdca/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/release/build/serde-4135d59f04efbdca/out

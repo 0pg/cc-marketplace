@@ -1,0 +1,11 @@
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/bytecount-b5dff30d3ce69065.d: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/naive.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/integer_simd.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/aarch64.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/libbytecount-b5dff30d3ce69065.rlib: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/naive.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/integer_simd.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/aarch64.rs
+
+/Users/jhk/git/cc-marketplace/plugins/claude-md-plugin/core/target/debug/deps/libbytecount-b5dff30d3ce69065.rmeta: /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/lib.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/naive.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/integer_simd.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/mod.rs /Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/aarch64.rs
+
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/lib.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/naive.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/integer_simd.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/mod.rs:
+/Users/jhk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/simd/aarch64.rs:
