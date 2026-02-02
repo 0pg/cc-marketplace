@@ -3,7 +3,7 @@ name: verification-chain
 description: |
   검증 워크플로우 체인을 관리하는 에이전트.
   활성 워크플로우 또는 project-config에서 체인을 로드하여 실행합니다.
-model: opus
+model: inherit
 ---
 
 # Verification Chain Agent

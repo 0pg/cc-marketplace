@@ -3,7 +3,7 @@ name: test-reviewer
 description: |
   요구사항 기반 테스트 품질을 검증하는 에이전트.
   .claude/tdd-spec.md의 요구사항이 테스트 코드로 올바르게 커버되는지 확인합니다.
-model: opus
+model: inherit
 tools:
   - Read
   - Glob

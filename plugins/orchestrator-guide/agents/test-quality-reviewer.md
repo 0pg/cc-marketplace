@@ -3,7 +3,7 @@ name: test-quality-reviewer
 description: |
   REQ → VERIFY → Test 매핑 품질을 검증하는 에이전트.
   spec.md의 요구사항이 task.md의 검증 기준을 거쳐 테스트 코드로 올바르게 매핑되었는지 확인합니다.
-model: opus
+model: inherit
 ---
 
 # Test Quality Reviewer Agent

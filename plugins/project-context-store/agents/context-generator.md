@@ -4,7 +4,7 @@ description: |
   단일 디렉토리를 분석하여 도메인 파악과 확률적 재현에 필요한 컨텍스트를 추출하고 CLAUDE.md를 생성하는 에이전트.
   코드에서 읽을 수 없는 "왜?"를 문서화합니다.
   소스 코드가 있는 하위 디렉토리에 대해 재귀적으로 Task를 생성합니다.
-model: opus
+model: inherit
 color: green
 tools:
   - Read

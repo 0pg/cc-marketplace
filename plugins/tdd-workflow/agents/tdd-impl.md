@@ -4,7 +4,7 @@ description: |
   TDD Red-Green-Refactor 사이클로 코드를 구현하는 에이전트.
   tdd-spec.md를 읽고 테스트 주도 개발을 수행합니다.
   트리거: Worker가 TDD 기반 구현 위임 시
-model: sonnet
+model: inherit
 ---
 
 # TDD Implementation Agent

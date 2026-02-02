@@ -3,7 +3,7 @@ name: drift-validator
 description: |
   CLAUDE.md와 실제 코드의 일치 여부를 검증하는 에이전트.
   오래된 정보, 누락된 컨텍스트, 값 불일치를 탐지합니다.
-model: opus
+model: inherit
 color: yellow
 tools:
   - Read

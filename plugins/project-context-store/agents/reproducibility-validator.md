@@ -3,7 +3,7 @@ name: reproducibility-validator
 description: |
   CLAUDE.md만 읽고 도메인을 이해한 후 코드 구조를 예측하고, 실제 코드와 비교하여
   확률적 재현가능성을 검증하는 에이전트. 도메인 컨텍스트 누락 부분을 식별합니다.
-model: opus
+model: inherit
 color: cyan
 tools:
   - Read
