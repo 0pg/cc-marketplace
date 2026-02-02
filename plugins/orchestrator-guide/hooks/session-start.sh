@@ -6,7 +6,13 @@
 # This script is designed to be project-agnostic.
 # Path patterns and module structure are detected dynamically or from project config.
 
-set -e
+set -euo pipefail
+
+# Dependency check - jq is required for JSON parsing
+if ! command -v jq &> /dev/null; then
+  echo "Warning: jq not installed, skipping orchestrator context injection" >&2
+  exit 0  # Don't block session start
+fi
 
 # Read JSON input from stdin
 input=$(cat)
@@ -115,9 +121,9 @@ find_all_task_files() {
         echo "$PROJECT_ROOT/spec/task.md"
     fi
 
-    # If module pattern exists, find module-specific task files
-    if [[ -n "$MODULE_PATTERN" ]]; then
-        find "$PROJECT_ROOT/$MODULE_PATTERN" -path "*/spec/task.md" -type f 2>/dev/null || true
+    # If module pattern exists and directory exists, find module-specific task files
+    if [[ -n "$MODULE_PATTERN" && -d "$PROJECT_ROOT/$MODULE_PATTERN" ]]; then
+        find "$PROJECT_ROOT/$MODULE_PATTERN" -maxdepth 4 -path "*/spec/task.md" -type f 2>/dev/null || true
     fi
 }
 
@@ -132,13 +138,11 @@ count_incomplete_tasks() {
         return
     fi
 
-    # Count pending [ ] tasks (tr -d removes any whitespace/newlines)
-    _pending_count=$(grep -cE '^\s*-\s*\[\s*\]' "$task_file" 2>/dev/null | tr -d '[:space:]' || true)
-    [[ -z "$_pending_count" ]] && _pending_count=0
+    # Count pending [ ] tasks
+    _pending_count=$(grep -cE '^\s*-\s*\[\s*\]' "$task_file" 2>/dev/null || echo "0")
 
     # Count in-progress [~] tasks
-    _in_progress_count=$(grep -cE '^\s*-\s*\[~\]' "$task_file" 2>/dev/null | tr -d '[:space:]' || true)
-    [[ -z "$_in_progress_count" ]] && _in_progress_count=0
+    _in_progress_count=$(grep -cE '^\s*-\s*\[~\]' "$task_file" 2>/dev/null || echo "0")
 }
 
 # Function to read task.md summary
