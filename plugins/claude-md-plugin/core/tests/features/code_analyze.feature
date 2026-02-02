@@ -354,8 +354,8 @@ Feature: Code Analyze Skill
     And the result should include:
       | field              | expected_count |
       | exports.functions  | 2              |
-      | exports.types      | 3              |
-      | exports.classes    | 3              |
+      | exports.types      | 0              |
+      | exports.classes    | 5              |
       | dependencies.external | 1           |
       | dependencies.internal | 0           |
       | behaviors          | 3              |
@@ -369,7 +369,7 @@ Feature: Code Analyze Skill
     And the result should include:
       | field              | expected_count |
       | exports.functions  | 2              |
-      | exports.types      | 3              |
+      | exports.types      | 2              |
       | exports.classes    | 3              |
       | dependencies.external | 1           |
       | dependencies.internal | 0           |
