@@ -3,8 +3,37 @@ name: extractor
 description: |
   단일 디렉토리의 소스 코드를 분석하여 CLAUDE.md 초안을 생성합니다.
   내부 Skill을 조합하여 워크플로우를 실행합니다.
-model: sonnet
-color: "#4CAF50"
+
+  <example>
+  <context>
+  사용자가 /extract를 실행하여 extract Skill이 트리를 파싱한 후,
+  각 디렉토리에 대해 extractor Agent를 호출하는 상황입니다.
+  </context>
+  <user_request>
+  대상 디렉토리: src/auth
+  직접 파일 수: 4
+  하위 디렉토리 수: 1
+  자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]
+  결과 파일: .claude/extract-results/src-auth.md
+  </user_request>
+  <assistant_response>
+  src/auth 디렉토리의 CLAUDE.md 초안을 생성합니다.
+  1. Boundary Resolve - 바운더리 분석 완료
+  2. Code Analyze - exports 3개, behaviors 5개 발견
+  3. Draft Generate - CLAUDE.md 초안 생성
+  4. Schema Validate - 검증 통과
+  ---extractor-result---
+  result_file: .claude/extract-results/src-auth.md
+  status: success
+  ---end-extractor-result---
+  </assistant_response>
+  <commentary>
+  extract Skill이 leaf-first 순서로 디렉토리를 처리할 때 호출됩니다.
+  직접 사용자에게 노출되지 않으며 extract Skill을 통해서만 호출됩니다.
+  </commentary>
+  </example>
+model: inherit
+color: green
 tools:
   - Bash
   - Read

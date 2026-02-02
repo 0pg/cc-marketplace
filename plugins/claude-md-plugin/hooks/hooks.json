@@ -1,3 +1,16 @@
 {
-  "hooks": {}
+  "description": "CLAUDE.md 작성/수정 시 자동 검증 훅",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "If the written file path ends with 'CLAUDE.md': validate it has Purpose, Exports, Behavior sections. Check Exports format (Name(params): ReturnType) and Behavior format (input → output). Verify no parent references (../). Return 'approve' if valid, or specific feedback if issues found."
+          }
+        ]
+      }
+    ]
+  }
 }

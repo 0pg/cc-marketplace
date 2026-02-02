@@ -1,0 +1,52 @@
+{
+  "path": "src/auth",
+  "exports": {
+    "functions": [
+      {
+        "name": "validateToken",
+        "signature": "validateToken(token: string): Promise<Claims>",
+        "description": "JWT 토큰 검증"
+      },
+      {
+        "name": "generateToken",
+        "signature": "generateToken(payload: TokenPayload): string",
+        "description": "JWT 토큰 생성"
+      }
+    ],
+    "types": [
+      {
+        "name": "Claims",
+        "definition": "interface Claims { userId: string, role: Role, exp: number }",
+        "description": "토큰 클레임"
+      },
+      {
+        "name": "TokenPayload",
+        "definition": "type TokenPayload = { userId: string, role: Role }",
+        "description": "토큰 페이로드"
+      }
+    ],
+    "classes": []
+  },
+  "dependencies": {
+    "external": ["jsonwebtoken"],
+    "internal": ["./types", "../utils/crypto"]
+  },
+  "behaviors": [
+    {
+      "input": "유효한 JWT 토큰",
+      "output": "Claims 객체 반환",
+      "category": "success"
+    },
+    {
+      "input": "만료된 토큰",
+      "output": "TokenExpiredError",
+      "category": "error"
+    },
+    {
+      "input": "잘못된 형식의 토큰",
+      "output": "JsonWebTokenError",
+      "category": "error"
+    }
+  ],
+  "analyzed_files": ["index.ts", "middleware.ts", "types.ts", "constants.ts"]
+}

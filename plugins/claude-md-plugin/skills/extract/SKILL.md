@@ -2,9 +2,16 @@
 name: extract
 aliases: [ext, claude-md]
 description: |
-  소스 코드를 분석하여 각 디렉토리에 CLAUDE.md를 생성합니다.
-  tree-parse Skill로 대상을 파악하고, extractor Agent로 각 디렉토리를 처리합니다.
-  트리거: "/extract", "/ext", "CLAUDE.md 추출", "소스코드 문서화", "claude-md 생성"
+  This skill should be used when the user wants to generate CLAUDE.md files
+  for an existing codebase. It analyzes source code structure and creates
+  CLAUDE.md documentation for each directory containing source files.
+
+  Trigger keywords:
+  - "/extract", "/ext"
+  - "CLAUDE.md 추출"
+  - "소스코드 문서화"
+  - "claude-md 생성"
+  - "Extract CLAUDE.md from code"
 allowed-tools: [Bash, Read, Task, Skill, AskUserQuestion]
 ---
 
