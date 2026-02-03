@@ -115,27 +115,6 @@ User: /validate
 | **Internal Skill** | 단일 기능 (SRP) | 없음, Stateless |
 | **Agent** | 비즈니스 로직 | 복잡 (N개 Skill, 재시도, 상태) |
 
-## Structure
-
-```
-plugins/claude-md-plugin/
-├── CLAUDE.md                # 이 파일
-├── core/                    # Rust CLI (Core Engine) - 별도 CLAUDE.md 참조
-├── skills/
-│   ├── extract/             # Entry Point
-│   ├── generate/            # Entry Point
-│   ├── incremental-generate/# Entry Point
-│   ├── validate/            # Entry Point
-│   └── *-internal/          # Internal Skills (tree-parse, boundary-resolve 등)
-├── agents/
-│   ├── extractor.md
-│   ├── generator.md
-│   ├── drift-validator.md
-│   └── reproducibility-validator.md
-└── templates/
-    └── claude-md-schema.md  # CLAUDE.md 스키마 정의
-```
-
 ## 불변식
 
 ### INV-1: 트리 구조 의존성
