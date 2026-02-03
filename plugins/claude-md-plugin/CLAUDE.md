@@ -275,8 +275,8 @@ claude-md-core validate-schema --file CLAUDE.md --output validation.json
 claude-md-core parse-claude-md --file CLAUDE.md --output spec.json
 
 # 시그니처 변환 (NEW)
-claude-md-core convert-signature --signature "validateToken(token: string): Promise<Claims>" --target-lang python
-# 출력: async def validate_token(token: str) -> Claims
+claude-md-core convert-signature --signature "<시그니처>" --target-lang <언어>
+# 입력 시그니처를 대상 언어의 관용적 표현으로 변환
 ```
 
 ## Workflow
@@ -342,16 +342,13 @@ validate(node) = validate(node.claude_md, node.direct_files)
    - 파일 경로, 실패 원인, 가능한 해결책 포함
    - `thiserror` 크레이트로 구조화된 에러 타입 사용
 
-## 지원 언어
+## 언어 지원
 
-| 언어 | 파일 확장자 | 테스트 프레임워크 | 네이밍 규칙 |
-|------|------------|------------------|-------------|
-| TypeScript | `.ts`, `.tsx` | Jest / Vitest | camelCase |
-| Python | `.py` | pytest | snake_case |
-| Go | `.go` | testing | PascalCase (exported) |
-| Rust | `.rs` | #[test] | snake_case |
-| Java | `.java` | JUnit 5 | camelCase |
-| Kotlin | `.kt` | JUnit 5 | camelCase |
+**프로젝트에서 사용하는 언어와 테스트 프레임워크를 자동 감지합니다.**
+
+- 언어 감지: 파일 확장자 기반
+- 테스트 프레임워크 감지: 프로젝트 설정 파일 분석 (package.json, pyproject.toml, Cargo.toml, build.gradle 등)
+- 네이밍 규칙: 프로젝트 root CLAUDE.md의 코딩 컨벤션을 따름
 
 ## 향후 계획 (현재 범위 아님)
 

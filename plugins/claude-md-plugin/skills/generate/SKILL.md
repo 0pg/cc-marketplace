@@ -13,21 +13,21 @@ description: |
   프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
   발견된 CLAUDE.md 파일:
-  1. src/auth/CLAUDE.md (TypeScript 감지)
-  2. src/utils/CLAUDE.md (TypeScript 감지)
+  1. src/auth/CLAUDE.md
+  2. src/utils/CLAUDE.md
 
   코드 생성을 시작합니다...
 
   [1/2] src/auth/CLAUDE.md
   ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
-  ✓ 테스트 생성 → index.test.ts
-  ✓ 구현 생성 → index.ts, types.ts, errors.ts
+  ✓ 테스트 생성
+  ✓ 구현 생성
   ✓ 테스트 실행: 5 passed
 
   [2/2] src/utils/CLAUDE.md
   ✓ CLAUDE.md 파싱 완료 - 함수 3개
-  ✓ 테스트 생성 → index.test.ts
-  ✓ 구현 생성 → index.ts
+  ✓ 테스트 생성
+  ✓ 구현 생성
   ✓ 테스트 실행: 3 passed
 
   === 생성 완료 ===
@@ -87,28 +87,18 @@ find {path} -name "CLAUDE.md" -type f | sort
 
 ```python
 def detect_language(directory):
-    # 1. 기존 파일 확장자 기반
+    # 1. 기존 파일 확장자 기반 (동적 감지)
     extensions = get_file_extensions(directory)
-
-    if ".ts" in extensions or ".tsx" in extensions:
-        return "TypeScript"
-    if ".py" in extensions:
-        return "Python"
-    if ".go" in extensions:
-        return "Go"
-    if ".rs" in extensions:
-        return "Rust"
-    if ".java" in extensions:
-        return "Java"
-    if ".kt" in extensions:
-        return "Kotlin"
+    language = infer_language_from_extensions(extensions)
+    if language:
+        return language
 
     # 2. 부모 디렉토리 참조
     parent_lang = detect_from_parent(directory)
     if parent_lang:
         return parent_lang
 
-    # 3. 사용자 질문
+    # 3. 사용자 질문 (프로젝트에서 사용 중인 언어 목록으로 옵션 생성)
     return ask_user_for_language()
 ```
 
@@ -157,16 +147,13 @@ print(f"""
 """)
 ```
 
-## 지원 언어
+## 언어 및 테스트 프레임워크
 
-| 언어 | 파일 확장자 | 테스트 프레임워크 |
-|------|------------|------------------|
-| TypeScript | `.ts`, `.tsx` | Jest / Vitest |
-| Python | `.py` | pytest |
-| Go | `.go` | testing |
-| Rust | `.rs` | #[test] |
-| Java | `.java` | JUnit 5 |
-| Kotlin | `.kt` | JUnit 5 |
+**프로젝트에서 사용 중인 언어와 테스트 프레임워크를 자동 감지합니다.**
+
+감지 방법:
+- 언어: 파일 확장자 기반
+- 테스트 프레임워크: 프로젝트 설정 파일 분석 (package.json, pyproject.toml, Cargo.toml 등)
 
 ## 내부 TDD 워크플로우
 
@@ -216,21 +203,21 @@ if file_exists(target_path):
 프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
 발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md (TypeScript 감지)
-2. src/utils/CLAUDE.md (TypeScript 감지)
+1. src/auth/CLAUDE.md
+2. src/utils/CLAUDE.md
 
 코드 생성을 시작합니다...
 
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
-✓ 테스트 생성 → index.test.ts (5 test cases)
-✓ 구현 생성 → index.ts, types.ts, errors.ts
+✓ 테스트 생성 (5 test cases)
+✓ 구현 생성
 ✓ 테스트 실행: 5 passed
 
 [2/2] src/utils/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
-✓ 테스트 생성 → index.test.ts (3 test cases)
-✓ 구현 생성 → index.ts
+✓ 테스트 생성 (3 test cases)
+✓ 구현 생성
 ✓ 테스트 실행: 3 passed
 
 === 생성 완료 ===

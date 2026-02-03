@@ -43,58 +43,24 @@ ConversionResult JSON:
 }
 ```
 
+## 변환 원칙
+
+입력 시그니처를 대상 언어의 관용적 표현으로 변환합니다:
+
+- **네이밍 컨벤션**: 대상 언어의 표준 네이밍 규칙 적용
+- **타입 매핑**: 언어별 기본 타입으로 변환
+- **비동기 패턴**: 언어별 async/await 또는 에러 처리 패턴 적용
+
 ## 변환 예시
 
-### TypeScript → Python
-
 ```
-입력: validateToken(token: string): Promise<Claims>
-출력: async def validate_token(token: str) -> Claims:
-```
+입력: functionName(param: string): Promise<Result>
 
-### TypeScript → Go
-
-```
-입력: validateToken(token: string): Promise<Claims>
-출력: func ValidateToken(token string) (Claims, error)
+→ 각 대상 언어의 관용적 표현으로 변환됨
+  (async/await, 에러 튜플, Result 타입 등)
 ```
 
-### TypeScript → Rust
-
-```
-입력: validateToken(token: string): Promise<Claims>
-출력: pub async fn validate_token(token: &str) -> Result<Claims, Error>
-```
-
-### TypeScript → Java
-
-```
-입력: validateToken(token: string): Promise<Claims>
-출력: public CompletableFuture<Claims> validateToken(String token)
-```
-
-### TypeScript → Kotlin
-
-```
-입력: validateToken(token: string): Promise<Claims>
-출력: suspend fun validateToken(token: String): Claims
-```
-
-## 네이밍 컨벤션 변환
-
-| 원본 | TypeScript | Python | Go | Rust | Java | Kotlin |
-|------|------------|--------|-----|------|------|--------|
-| validateToken | validateToken | validate_token | ValidateToken | validate_token | validateToken | validateToken |
-| TokenExpired | TokenExpired | token_expired | TokenExpired | token_expired | TokenExpired | TokenExpired |
-
-## 타입 매핑
-
-| 원본 | TypeScript | Python | Go | Rust | Java | Kotlin |
-|------|------------|--------|-----|------|------|--------|
-| string | string | str | string | String | String | String |
-| number | number | int | int64 | i64 | long | Long |
-| boolean | boolean | bool | bool | bool | boolean | Boolean |
-| void | void | None | (없음) | () | void | Unit |
+**참고**: 구체적인 변환 결과는 대상 언어의 표준 컨벤션을 따릅니다.
 
 ## 워크플로우
 

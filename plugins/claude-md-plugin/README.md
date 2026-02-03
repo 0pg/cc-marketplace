@@ -153,16 +153,12 @@ claude-md-core resolve-boundary --path src/auth --output boundary.json
 claude-md-core validate-schema --file CLAUDE.md --output validation.json
 ```
 
-## 지원 언어
+## 언어 지원
 
-| 언어 | 파일 확장자 | 테스트 프레임워크 |
-|------|------------|------------------|
-| TypeScript | `.ts`, `.tsx` | Jest / Vitest |
-| Python | `.py` | pytest |
-| Go | `.go` | testing |
-| Rust | `.rs` | #[test] |
-| Java | `.java` | JUnit 5 |
-| Kotlin | `.kt` | JUnit 5 |
+**프로젝트에서 사용하는 언어와 테스트 프레임워크를 자동 감지합니다.**
+
+- 언어 감지: 파일 확장자 기반
+- 테스트 프레임워크 감지: 프로젝트 설정 파일 분석
 
 ## 향후 계획
 

@@ -49,58 +49,22 @@
 - 파라미터 타입과 반환 타입 필수
 - 언어별 관용 표현 허용
 
-#### 언어별 예시
+#### 형식 예시
 
-**TypeScript:**
 ```markdown
 ### Functions
-- `validateToken(token: string): Promise<Claims>`
-- `refreshToken(token: string, options?: RefreshOptions): Promise<TokenPair>`
+- `functionName(param: Type, param2: Type) -> ReturnType`
+- `anotherFunction(param: Type) -> ReturnType`
 
 ### Types
-- `Claims { userId: string, role: Role, exp: number }`
-- `TokenPair { accessToken: string, refreshToken: string }`
-```
-
-**Python:**
-```markdown
-### Functions
-- `validate_token(token: str) -> Claims`
-- `refresh_token(token: str, options: RefreshOptions | None = None) -> TokenPair`
+- `TypeName { field: Type, field2: Type }`
 
 ### Classes
-- `TokenManager(secret: str, algorithm: str = "HS256")`
+- `ClassName(param: Type)`
 ```
 
-**Go:**
-```markdown
-### Functions
-- `ValidateToken(token string) (Claims, error)`
-- `RefreshToken(token string, opts ...Option) (TokenPair, error)`
-
-### Types
-- `Claims struct { UserID string; Role Role; Exp int64 }`
-```
-
-**Rust:**
-```markdown
-### Functions
-- `validate_token(token: &str) -> Result<Claims, AuthError>`
-- `refresh_token(token: &str, options: Option<RefreshOptions>) -> Result<TokenPair, AuthError>`
-
-### Structs
-- `Claims { user_id: String, role: Role, exp: i64 }`
-```
-
-**Java/Kotlin:**
-```markdown
-### Methods
-- `Claims validateToken(String token) throws AuthException`
-- `TokenPair refreshToken(String token, RefreshOptions options)`
-
-### Classes
-- `TokenManager(String secret, Algorithm algorithm)`
-```
+**참고**: 시그니처 형식은 프로젝트에서 사용하는 언어의 관용적 표현을 따릅니다.
+프로젝트 root CLAUDE.md에 명시된 코딩 컨벤션을 참조하세요.
 
 ### 4. Dependencies (조건부)
 외부 의존성이 있는 경우 명시합니다.
