@@ -2,13 +2,40 @@
 name: generate
 description: |
   CLAUDE.md를 기반으로 소스 코드를 생성합니다.
-  내부적으로 TDD 워크플로우(테스트 먼저 → 구현)를 자동 수행합니다.
+  기본 동작은 incremental (변경분만 처리), --all 옵션으로 전체 처리.
 
   <example>
   <context>
-  사용자가 src/auth에 CLAUDE.md를 작성한 후 코드 생성을 요청합니다.
+  사용자가 feature 브랜치에서 src/auth/CLAUDE.md를 수정한 후 코드 생성을 요청합니다.
+  프로젝트에는 총 5개의 CLAUDE.md가 있습니다.
   </context>
   <user_request>/generate</user_request>
+  <assistant_response>
+  브랜치 base commit 기준 변경 감지 중...
+
+  === 변경 감지 결과 ===
+  기준: abc1234 (main 브랜치 분기점)
+  - 변경됨: 1개
+  - 변경 없음: 4개 (건너뜀)
+
+  코드 생성을 시작합니다...
+
+  [1/1] src/auth/CLAUDE.md (modified)
+  ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
+  ✓ 테스트 생성
+  ✓ 구현 생성
+  ✓ 테스트 실행: 5 passed
+
+  === 생성 완료 ===
+  처리: 1개 | 건너뜀: 4개 | 테스트: 5 passed
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  사용자가 프로젝트의 모든 CLAUDE.md를 처리하려고 합니다.
+  </context>
+  <user_request>/generate --all</user_request>
   <assistant_response>
   프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
@@ -33,11 +60,10 @@ description: |
   === 생성 완료 ===
   총 CLAUDE.md: 2개
   생성된 파일: 7개
-  건너뛴 파일: 0개
   테스트: 8 passed, 0 failed
   </assistant_response>
   </example>
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
 # Generate Skill
@@ -47,16 +73,24 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 CLAUDE.md 파일을 기반으로 소스 코드를 생성합니다.
 CLAUDE.md가 명세(specification)가 되고, 소스 코드가 산출물이 됩니다.
 
+**기본 동작은 incremental** - 변경된 CLAUDE.md만 처리하여 시간을 절약합니다.
+
 ## 사용법
 
 ```bash
-# 기본 사용 (프로젝트 전체)
+# 기본 사용 (변경분만 처리 - incremental)
 /generate
+
+# 전체 CLAUDE.md 처리
+/generate --all
 
 # 특정 경로만 처리
 /generate --path src/auth
 
-# 충돌 시 덮어쓰기
+# 특정 commit 기준으로 변경 감지
+/generate --base abc1234
+
+# 기존 파일 덮어쓰기
 /generate --conflict overwrite
 ```
 
@@ -64,16 +98,69 @@ CLAUDE.md가 명세(specification)가 되고, 소스 코드가 산출물이 됩�
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--path` | `.` | 처리할 디렉토리 경로 |
-| `--conflict` | `skip` | 기존 파일과 충돌 시 처리 방식 (`skip` \| `overwrite`) |
+| `--all` | `false` | 전체 CLAUDE.md 처리 (변경 감지 무시) |
+| `--path` | `.` | 처리 대상 경로 |
+| `--base` | `auto` | 비교 기준 (`--all` 시 무시) |
+| `--include-untracked` | `true` | untracked 포함 (`--all` 시 무시) |
+| `--conflict` | `skip` | 기존 파일과 충돌 시 처리 (`skip` \| `overwrite`) |
 
 ## 워크플로우
 
-### 1. CLAUDE.md 파일 검색
+```
+/generate
+    │
+    ├─ --all 플래그? ─ Yes ─→ 모든 CLAUDE.md 검색
+    │                           │
+    └─ No ─→ Skill("diff-analyze")
+               │
+               ├─ 변경 없음 → 조기 종료
+               └─ 변경 있음 → 변경된 파일만
+                               │
+    ←───────────────────────────┘
+    │
+    ▼
+병렬 처리 (run_in_background=True)
+    │
+    ▼
+결과 수집 및 보고
+```
+
+### 1. 대상 파일 결정
+
+#### --all 모드 (전체 처리)
 
 ```bash
 # 지정 경로 하위의 모든 CLAUDE.md 찾기
 find {path} -name "CLAUDE.md" -type f | sort
+```
+
+#### 기본 모드 (incremental)
+
+```python
+# diff-analyze Skill 호출
+Skill("claude-md-plugin:diff-analyze",
+      path=path,
+      base=base,
+      include_untracked=include_untracked)
+
+# 결과 읽기
+diff_result = read_json(".claude/diff-analyze-result.json")
+
+# 변경 없으면 조기 종료
+if len(diff_result["changed_files"]) == 0:
+    print("변경된 CLAUDE.md가 없습니다.")
+    print(f"전체 CLAUDE.md: {diff_result['total_claude_md_count']}개")
+    print(f"기준: {diff_result['base_ref'][:8]} ({diff_result['base_description']})")
+    print("\n💡 Tip: 모든 CLAUDE.md를 처리하려면 /generate --all을 사용하세요.")
+    return  # 조기 종료
+
+# 변경 내역 보고
+print(f"""
+=== 변경 감지 결과 ===
+기준: {diff_result['base_ref'][:8]} ({diff_result['base_description']})
+- 변경됨: {len(diff_result['changed_files'])}개
+- 변경 없음: {diff_result['unchanged_count']}개 (건너뜀)
+""")
 ```
 
 ### 2. 언어 자동 감지
@@ -102,16 +189,25 @@ def detect_language(directory):
     return ask_user_for_language()
 ```
 
-### 3. generator Agent 호출
+### 3. generator Agent 호출 (병렬 처리)
 
 ```python
-for claude_md_path in claude_md_files:
+# 결과 디렉토리 준비
+mkdir -p .claude/generate-results
+
+# 모든 generator Task를 병렬로 실행
+tasks = []
+for file_info in target_files:
+    claude_md_path = file_info["path"] if isinstance(file_info, dict) else file_info
+    status = file_info.get("status", "all") if isinstance(file_info, dict) else "all"
     target_dir = dirname(claude_md_path)
     detected_language = detect_language(target_dir)
-    output_name = target_dir.replace("/", "-")
+    output_name = target_dir.replace("/", "-").replace(".", "root")
 
-    # generator Agent 호출
-    Task(
+    print(f"  • {claude_md_path} ({status}) - 시작")
+
+    # generator Agent 병렬 실행 (run_in_background=True)
+    task = Task(
         prompt=f"""
         CLAUDE.md 경로: {claude_md_path}
         대상 디렉토리: {target_dir}
@@ -119,8 +215,10 @@ for claude_md_path in claude_md_files:
         충돌 처리: {conflict_mode}
         결과 파일: .claude/generate-results/{output_name}.json
         """,
-        subagent_type="generator"
+        subagent_type="generator",
+        run_in_background=True
     )
+    tasks.append(task)
 ```
 
 ### 4. 결과 수집 및 보고
@@ -138,12 +236,21 @@ for result_file in result_files:
     total_tests_passed += result["tests"]["passed"]
     total_tests_failed += result["tests"]["failed"]
 
-print(f"""
+# --all 모드
+if all_mode:
+    print(f"""
 === 생성 완료 ===
-총 CLAUDE.md: {len(claude_md_files)}개
+총 CLAUDE.md: {len(target_files)}개
 생성된 파일: {total_files}개
 건너뛴 파일: {total_skipped}개
 테스트: {total_tests_passed} passed, {total_tests_failed} failed
+""")
+# incremental 모드
+else:
+    print(f"""
+=== 생성 완료 ===
+처리: {len(target_files)}개 | 건너뜀: {unchanged_count}개 | 테스트: {total_tests_passed} passed
+생성된 파일: {total_files}개
 """)
 ```
 
@@ -199,6 +306,36 @@ if file_exists(target_path):
 
 ## 출력 예시
 
+### Incremental 모드 (기본)
+
+```
+브랜치 base commit 기준 변경 감지 중...
+
+=== 변경 감지 결과 ===
+기준: abc1234 (main 브랜치 분기점)
+- 변경됨: 2개
+- 변경 없음: 5개 (건너뜀)
+
+  • src/auth/CLAUDE.md (modified)
+  • src/new/CLAUDE.md (added)
+
+코드 생성을 시작합니다...
+
+병렬로 2개 처리 중...
+  • src/auth/CLAUDE.md (modified) - 시작
+  • src/new/CLAUDE.md (added) - 시작
+
+결과 수집 중...
+✓ src/auth/CLAUDE.md - 5 tests passed
+✓ src/new/CLAUDE.md - 3 tests passed
+
+=== 생성 완료 ===
+처리: 2개 | 건너뜀: 5개 | 테스트: 8 passed
+생성된 파일: 6개
+```
+
+### --all 모드
+
 ```
 프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
@@ -229,6 +366,18 @@ if file_exists(target_path):
 상세 결과: .claude/generate-results/
 ```
 
+### 변경 없는 경우 (incremental 모드)
+
+```
+브랜치 base commit 기준 변경 감지 중...
+
+변경된 CLAUDE.md가 없습니다.
+전체 CLAUDE.md: 7개
+기준: abc1234 (main 브랜치 분기점)
+
+💡 Tip: 모든 CLAUDE.md를 처리하려면 /generate --all을 사용하세요.
+```
+
 ## 오류 처리
 
 | 상황 | 대응 |
@@ -238,12 +387,16 @@ if file_exists(target_path):
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | 테스트 실패 | 경고 표시, 수동 수정 필요 안내 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
+| Git 저장소 아님 (incremental) | "Git 저장소에서만 incremental 모드를 사용할 수 있습니다. --all 옵션을 사용하세요." |
+| base ref 없음 | "지정된 기준을 찾을 수 없습니다: {base}" 오류 |
 
 ## 출력 파일
 
 ```
-.claude/generate-results/
-├── src-auth.json       # generator Agent 결과
-├── src-utils.json      # generator Agent 결과
-└── summary.json        # 전체 요약
+.claude/
+├── diff-analyze-result.json    # diff 분석 결과 (incremental 모드)
+└── generate-results/
+    ├── src-auth.json           # generator Agent 결과
+    ├── src-utils.json          # generator Agent 결과
+    └── summary.json            # 전체 요약
 ```

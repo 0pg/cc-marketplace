@@ -70,16 +70,28 @@ User: /init
 
 ### /generate (CLAUDE.md → 소스코드)
 
+기본 동작은 **incremental** (변경분만 처리), `--all` 옵션으로 전체 처리.
+
 ```
-User: /generate
+User: /generate [--all]
+        │
+        ├─ --all? ─ Yes ─→ 모든 CLAUDE.md 검색
+        │                    │
+        └─ No ─→ Skill("diff-analyze")
+                   │
+                   ├─ 변경 없음 → 조기 종료
+                   └─ 변경 있음 → 변경된 파일만
+                                   │
+        ←───────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────┐
 │ generate SKILL (Entry Point)                │
 │                                             │
-│ 1. CLAUDE.md 파일 검색                      │
+│ 1. Skill("diff-analyze") → 변경 감지        │
+│    (--all 시 전체 CLAUDE.md 검색)           │
 │ 2. 언어 자동 감지                           │
-│ 3. For each CLAUDE.md:                      │
+│ 3. For each CLAUDE.md (병렬):               │
 │    Task(generator) 호출                     │
 └────────────────────┬────────────────────────┘
                      │
@@ -91,21 +103,6 @@ User: /generate
 │ [RED] Skill("signature-convert") → 테스트   │
 │ [GREEN] 구현 생성 (최대 5회 재시도)          │
 │ [REFACTOR] 프로젝트 컨벤션 적용             │
-└─────────────────────────────────────────────┘
-```
-
-### /incremental-generate (변경분만 처리)
-
-```
-User: /incremental-generate
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│ incremental-generate SKILL (Entry Point)    │
-│                                             │
-│ 1. Skill("diff-analyze") → 변경 감지        │
-│ 2. For each 변경된 CLAUDE.md:               │
-│    Task(generator) 호출                     │
 └─────────────────────────────────────────────┘
 ```
 

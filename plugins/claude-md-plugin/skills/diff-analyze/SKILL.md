@@ -15,7 +15,7 @@ Git diff를 기반으로 변경된 CLAUDE.md 파일을 감지합니다.
 
 ## 내부 전용
 
-이 Skill은 `incremental-generate` Skill에서 내부적으로 호출됩니다.
+이 Skill은 `generate` Skill에서 내부적으로 호출됩니다 (incremental 모드).
 사용자가 직접 호출하지 않습니다.
 
 ## 입력 파라미터
@@ -185,7 +185,7 @@ print(f"변경 없음: {result['unchanged_count']}개")
 ## 사용 예시
 
 ```bash
-# incremental-generate에서 호출
+# generate에서 호출 (incremental 모드)
 Skill("claude-md-plugin:diff-analyze")
 
 # 특정 경로만 분석
