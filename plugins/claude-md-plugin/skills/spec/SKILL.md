@@ -4,7 +4,7 @@ description: |
   This skill should be used when the user asks to "define requirements", "write spec",
   "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
   Analyzes natural language requirements and generates CLAUDE.md without implementing code.
-  Follows ATDD principle: specification first, then code generation via /generate.
+  Follows ATDD principle: specification first, then code generation via /compile.
 allowed-tools: [Read, Glob, Task, Skill, AskUserQuestion]
 ---
 
@@ -24,31 +24,21 @@ User: /spec "요구사항"
 ┌─────────────────────────────────────────────┐
 │ spec SKILL (Entry Point)                    │
 │                                             │
-│ 1. Task(spec-clarifier) → 스펙 명확화       │
-│ 2. Task(spec-writer) → CLAUDE.md 작성       │
+│ Task(spec-agent) → 요구사항 분석 및         │
+│                    CLAUDE.md 작성           │
 └─────────────────────────────────────────────┘
 
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ spec-clarifier AGENT                        │
+│ spec-agent AGENT                            │
 │                                             │
-│ - 요구사항 분석                             │
-│ - 모호한 부분 AskUserQuestion              │
-│ - 구조화된 스펙 도출                        │
-│ - 대상 CLAUDE.md 위치 결정                  │
-│ → scratchpad에 결과 저장                     │
-└─────────────────────────────────────────────┘
-
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│ spec-writer AGENT                           │
-│                                             │
-│ - 기존 CLAUDE.md 존재 여부 확인             │
-│ - 존재: Skill("claude-md-parse") + 병합     │
-│ - 신규: 템플릿 기반 생성                    │
-│ - Skill("schema-validate") → 검증           │
+│ 1. 요구사항 분석                            │
+│ 2. 모호한 부분 AskUserQuestion             │
+│ 3. 대상 CLAUDE.md 위치 결정                 │
+│ 4. 기존 CLAUDE.md 존재시 병합               │
+│ 5. CLAUDE.md 생성                           │
+│ 6. Skill("schema-validate") → 검증          │
 │ → 최종 CLAUDE.md 저장                       │
 └─────────────────────────────────────────────┘
 ```
@@ -63,91 +53,34 @@ User: /spec "요구사항"
 - Feature 목록
 - 기능 요청
 
-### 2. 스펙 명확화 (spec-clarifier Agent)
+### 2. CLAUDE.md 생성 (spec-agent)
 
 ```python
-# spec-clarifier Agent 호출
+# spec-agent Agent 호출
 Task(
-    subagent_type="claude-md-plugin:spec-clarifier",
+    subagent_type="claude-md-plugin:spec-agent",
     prompt=f"""
 사용자 요구사항:
 {user_requirement}
 
 프로젝트 루트: {project_root}
 
-요구사항을 분석하고 CLAUDE.md 스펙을 명확화해주세요.
-결과는 scratchpad에 저장하고 경로만 반환해주세요.
+요구사항을 분석하고 CLAUDE.md를 생성해주세요.
 """,
-    description="Clarify specification"
+    description="Generate CLAUDE.md from requirements"
 )
 ```
 
-**spec-clarifier 출력** (scratchpad의 clarified.json):
-```json
-{
-  "clarified_spec": {
-    "purpose": "인증 토큰 검증 및 발급",
-    "exports": [
-      { "name": "validateToken", "signature": "validateToken(token: string): Promise<Claims>" },
-      { "name": "Claims", "kind": "type", "definition": "{ userId: string, role: Role }" }
-    ],
-    "behaviors": [
-      { "input": "valid JWT token", "output": "Claims object" },
-      { "input": "expired token", "output": "TokenExpiredError" }
-    ],
-    "contracts": [
-      { "function": "validateToken", "preconditions": ["token is non-empty"], "postconditions": ["returns valid Claims"] }
-    ],
-    "protocol": null
-  },
-  "target_path": "src/auth",
-  "action": "create"
-}
-```
+**spec-agent 워크플로우:**
+1. 요구사항에서 Purpose, Exports, Behaviors, Contracts 추출
+2. 모호한 부분은 AskUserQuestion으로 명확화
+3. 대상 경로 결정 (명시적 경로, 모듈명 추론, 사용자 선택)
+4. 기존 CLAUDE.md 존재시 smart merge
+5. 템플릿 기반 CLAUDE.md 생성
+6. 스키마 검증 (1회)
+7. 최종 저장
 
-### 3. 스펙 명확화 결과 확인
-
-```python
-# scratchpad에서 clarified.json 읽기
-clarified = read_json(clarified_result_file)
-
-# 사용자에게 결과 표시
-print(f"""
-=== 스펙 명확화 완료 ===
-
-대상 위치: {clarified["target_path"]}
-액션: {clarified["action"]}
-
-Purpose: {clarified["clarified_spec"]["purpose"]}
-
-Exports:
-{format_exports(clarified["clarified_spec"]["exports"])}
-
-Behaviors:
-{format_behaviors(clarified["clarified_spec"]["behaviors"])}
-
-계속하시겠습니까?
-""")
-```
-
-### 4. CLAUDE.md 작성 (spec-writer Agent)
-
-```python
-# spec-writer Agent 호출
-Task(
-    subagent_type="claude-md-plugin:spec-writer",
-    prompt=f"""
-명확화된 스펙: {clarified_result_file}
-대상 경로: {clarified["target_path"]}
-액션: {clarified["action"]}
-
-CLAUDE.md를 생성/업데이트해주세요.
-""",
-    description="Write CLAUDE.md"
-)
-```
-
-### 5. 최종 결과 보고
+### 3. 최종 결과 보고
 
 ```
 === /spec 완료 ===
@@ -164,31 +97,23 @@ CLAUDE.md를 생성/업데이트해주세요.
 검증 결과: 스키마 검증 통과
 
 다음 단계:
-  - /generate로 코드 구현 가능
+  - /compile로 코드 구현 가능
   - /validate로 문서-코드 일치 검증 가능
 ```
-
-## 결과 파일
-
-| 파일 | 생성자 | 설명 |
-|------|--------|------|
-| scratchpad의 clarified.json | spec-clarifier | 명확화된 스펙 |
-| scratchpad의 validation.json | spec-writer | 스키마 검증 결과 |
-| `{target_path}/CLAUDE.md` | spec-writer | 최종 CLAUDE.md |
 
 ## 오류 처리
 
 | 상황 | 대응 |
 |------|------|
-| 요구사항 불명확 | spec-clarifier가 AskUserQuestion으로 명확화 |
-| 대상 경로 모호 | spec-clarifier가 후보 목록 제시 후 선택 요청 |
-| 기존 CLAUDE.md와 충돌 | spec-writer가 병합 전략 제안 |
-| 스키마 검증 실패 | spec-writer가 최대 5회 재시도 |
+| 요구사항 불명확 | spec-agent가 AskUserQuestion으로 명확화 |
+| 대상 경로 모호 | 후보 목록 제시 후 선택 요청 |
+| 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
+| 스키마 검증 실패 | 경고와 함께 이슈 보고 |
 
-## /init과의 차이점
+## /decompile과의 차이점
 
-| 측면 | /init | /spec |
-|------|-------|-------|
+| 측면 | /decompile | /spec |
+|------|------------|-------|
 | 입력 | 기존 소스 코드 | 사용자 요구사항 |
 | 방향 | Code → CLAUDE.md | Requirements → CLAUDE.md |
 | 목적 | 기존 코드 문서화 | 새 기능 명세 정의 |
@@ -198,7 +123,7 @@ CLAUDE.md를 생성/업데이트해주세요.
 
 ```
 전통적 개발:        요구사항 → 코드 → (문서)
-ATDD with /spec:    요구사항 → CLAUDE.md → /generate → 코드
+ATDD with /spec:    요구사항 → CLAUDE.md → /compile → 코드
                               ↑
                           Source of Truth
 ```

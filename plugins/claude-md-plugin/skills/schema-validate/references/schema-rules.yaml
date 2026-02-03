@@ -58,6 +58,17 @@ sections:
       - state_machine
       - lifecycle
 
+  domain_context:
+    name: "Domain Context"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "compile 시 동일한 코드 재현을 보장하기 위한 맥락 (결정 근거, 제약 조건, 호환성 요구)"
+    subsections:
+      - decision_rationale
+      - constraints
+      - compatibility
+
   structure:
     name: "Structure"
     required: false

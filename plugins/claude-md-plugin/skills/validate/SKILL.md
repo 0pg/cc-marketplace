@@ -2,7 +2,7 @@
 name: validate
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
-  "verify spec matches implementation", or uses "/validate". Runs drift-validator and reproducibility-validator in parallel.
+  "verify spec matches implementation", or uses "/validate". Runs drift-validator and export-validator in parallel.
 
   <example>
   <user_request>/validate</user_request>
@@ -29,7 +29,7 @@ description: |
   ---------
   src/auth (양호)
     Drift: 0개 이슈
-    재현성: 95% (18/19 예측 성공)
+    Export 커버리지: 95% (18/19 예측 성공)
   </assistant_response>
   </example>
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
@@ -71,7 +71,7 @@ For each claude_md_file:
   directory = dirname(claude_md_file)
 
   Task(drift-validator, prompt="검증 대상: {directory}")
-  Task(reproducibility-validator, prompt="검증 대상: {directory}")
+  Task(export-validator, prompt="검증 대상: {directory}")
 ```
 
 **중요**: 성능 최적화를 위해 모든 Task를 하나의 응답에서 호출해야 합니다.
@@ -90,12 +90,12 @@ issues_count: {N}
 ```
 
 ```
----reproducibility-validator-result---
+---export-validator-result---
 status: success | failed
-result_file: {scratchpad}/repro-{dir-safe-name}.md
+result_file: {scratchpad}/export-{dir-safe-name}.md
 directory: {directory}
-understanding_score: {0-100}
----end-reproducibility-validator-result---
+export_coverage: {0-100}
+---end-export-validator-result---
 ```
 
 ### 4. 통합 보고서 생성
@@ -107,7 +107,7 @@ understanding_score: {0-100}
 
 ## 요약
 
-| 디렉토리 | Drift 이슈 | 재현성 점수 | 상태 |
+| 디렉토리 | Drift 이슈 | Export 커버리지 점수 | 상태 |
 |----------|-----------|------------|------|
 | src/auth | 0 | 95% | 양호 |
 | src/utils | 2 | 72% | 개선 권장 |
@@ -118,8 +118,8 @@ understanding_score: {0-100}
 #### Drift 검증
 (drift-validator 결과 파일 내용)
 
-#### 재현성 검증
-(reproducibility-validator 결과 파일 내용)
+#### Export 커버리지 검증
+(export-validator 결과 파일 내용)
 
 ### src/utils
 ...
@@ -133,9 +133,9 @@ scratchpad의 임시 파일은 세션 종료 시 자동으로 정리됩니다.
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | Drift 이슈 0개 AND 재현성 점수 90% 이상 |
-| **개선 권장** | Drift 1-2개 OR 재현성 점수 70-89% |
-| **개선 필요** | Drift 3개 이상 OR 재현성 점수 70% 미만 |
+| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 90% 이상 |
+| **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 70-89% |
+| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 70% 미만 |
 
 ## 출력 예시
 
@@ -157,22 +157,22 @@ CLAUDE.md 검증 보고서
 
 src/auth (양호)
   Drift: 0개 이슈
-  재현성: 95% (18/19 예측 성공)
+  Export 커버리지: 95% (18/19 예측 성공)
 
 src/utils (개선 권장)
   Drift: 2개 이슈
     - STALE: formatDate export가 코드에 없음
     - MISSING: parseNumber export가 문서에 없음
-  재현성: 78% (14/18 예측 성공)
+  Export 커버리지: 78% (14/18 예측 성공)
 
 src/legacy (개선 필요)
   Drift: 5개 이슈
     - UNCOVERED: 3개 파일이 Structure에 없음
     - MISMATCH: 2개 시그니처 불일치
-  재현성: 45% (9/20 예측 성공)
+  Export 커버리지: 45% (9/20 예측 성공)
 ```
 
 ## 관련 컴포넌트
 
 - `agents/drift-validator.md`: 코드-문서 일치 검증
-- `agents/reproducibility-validator.md`: 재현성 검증
+- `agents/export-validator.md`: Export 커버리지 검증

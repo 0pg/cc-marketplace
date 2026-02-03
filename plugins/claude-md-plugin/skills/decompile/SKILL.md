@@ -56,8 +56,8 @@ User: /decompile
 │ │ 불명확한 부분 질문                      │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("draft-generate") ──────────────┐  │
-│ │ CLAUDE.md 초안 생성                     │  │
+│ ┌─ CLAUDE.md 생성 (인라인) ──────────────┐  │
+│ │ CLAUDE.md 초안 직접 생성                │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
 │ ┌─ Skill("schema-validate") ─────────────┐  │
@@ -204,7 +204,6 @@ cp {scratchpad_result_file} src/auth/CLAUDE.md
 | `tree-parse` | 디렉토리 트리 파싱 | decompile Skill |
 | `boundary-resolve` | 바운더리 분석 | decompiler Agent |
 | `code-analyze` | 코드 분석 | decompiler Agent |
-| `draft-generate` | CLAUDE.md 생성 | decompiler Agent |
 | `schema-validate` | 스키마 검증 | decompiler Agent |
 
 내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨집니다.

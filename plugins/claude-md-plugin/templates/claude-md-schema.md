@@ -7,7 +7,7 @@
 
 이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
 
-## 필수 섹션 요약 (5개)
+## 필수 섹션 요약 (6개)
 
 | 섹션 | 필수 | "None" 허용 | 설명 |
 |------|------|-------------|------|
@@ -16,6 +16,7 @@
 | Behavior | ✓ | ✓ | 동작 시나리오 |
 | Contract | ✓ | ✓ | 사전/사후조건 |
 | Protocol | ✓ | ✓ | 상태 전이/호출 순서 |
+| Domain Context | ✓ | ✓ | compile 재현성 보장 맥락 |
 
 > 규칙 상세: `skills/schema-validate/references/schema-rules.yaml` 참조
 
@@ -195,16 +196,68 @@ Protocol 정보는 다음에서 자동 추출됩니다:
    - 예: `@lifecycle 1` → 첫 번째 호출
    - 예: `@lifecycle 2` → 두 번째 호출
 
+### 9. Domain Context (필수, "None" 허용)
+compile 시 동일한 코드 재현을 보장하기 위한 맥락 정보입니다.
+이 정보가 없으면 compile 결과가 달라질 수 있습니다.
+
+**두 가지 역할:**
+1. **자체 compile 재현성**: 해당 CLAUDE.md를 compile할 때 동일한 코드 생성
+2. **의존자 compile 영향**: 이 모듈을 의존하는 다른 CLAUDE.md compile 시 필요한 맥락
+
+도메인 맥락이 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Domain Context
+None
+```
+
+도메인 맥락이 있는 경우:
+
+```markdown
+## Domain Context
+
+### Decision Rationale
+- TOKEN_EXPIRY: 7일 (PCI-DSS 컴플라이언스 요구사항)
+- MAX_RETRY: 3회 (외부 API SLA 기준)
+- TIMEOUT: 2000ms (IdP 평균 응답 500ms × 4)
+
+### Constraints
+- 금융감독원 가이드라인: 비밀번호 재설정 주기 90일
+- 라이선스 계약: 동시 세션 최대 5개
+- 내부 정책: 민감 데이터 로깅 금지
+
+### Compatibility
+- 레거시 UUID v1 형식 지원 필요 (2023 마이그레이션)
+- Node.js 18+ 필수 (native fetch 사용)
+```
+
+#### 하위 섹션
+
+| 섹션 | 용도 | 예시 |
+|------|------|------|
+| **Decision Rationale** | 특정 값/설계를 선택한 이유 | `TOKEN_EXPIRY: 7일 (PCI-DSS)` |
+| **Constraints** | 반드시 지켜야 할 외부 제약 | `비밀번호 재설정 90일 (금융감독원)` |
+| **Compatibility** | 레거시/환경 호환성 요구 | `UUID v1 지원 (2023 마이그레이션)` |
+
+#### compile 시 반영 방식
+
+| Domain Context | compile 결과 |
+|----------------|-------------|
+| `TOKEN_EXPIRY: 7일 (PCI-DSS)` | `const TOKEN_EXPIRY_DAYS = 7; // PCI-DSS` |
+| `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
+| `UUID v1 지원 필요` | UUID v1 파싱 함수 포함 |
+
 ## 검증 규칙
 
 > 규칙의 Single Source of Truth: `skills/schema-validate/references/schema-rules.yaml`
 
-### 필수 섹션 검증 (5개)
+### 필수 섹션 검증 (6개)
 - Purpose: 반드시 존재, "None" 불가
 - Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
 - Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
 - Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
 - Protocol: 반드시 존재, 프로토콜이 없는 경우 "None" 명시
+- Domain Context: 반드시 존재, 도메인 맥락이 없는 경우 "None" 명시
 
 ### Exports 형식 검증
 ```regex

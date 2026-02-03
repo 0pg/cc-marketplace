@@ -14,14 +14,26 @@
   - boundary_resolver: 바운더리 결정, 참조 검증
   - schema_validator: 스키마 검증
 - [x] Extractor Agent: 소스코드 → CLAUDE.md 추출
-- [x] Skills: tree-parse, boundary-resolve, code-analyze, draft-generate, schema-validate
-- [x] /extract 명령어
+- [x] Skills: tree-parse, boundary-resolve, code-analyze, schema-validate
+- [x] /decompile 명령어
+
+### v0.18.0 - Compile/Decompile 패러다임
+- [x] `/init` → `/decompile` 리네임
+- [x] `/generate` → `/compile` 리네임
+- [x] Core Philosophy 문서화 (CLAUDE.md = Source Code)
+
+### v0.19.0 - 아키텍처 단순화
+- [x] Agent 통합: spec-clarifier + spec-writer → spec-agent
+- [x] decompiler 간소화: draft-generate Skill 인라인화
+- [x] signature-convert 제거: LLM 직접 해석으로 대체
+- [x] 재시도 정책 변경: 스키마 검증 1회, 테스트 3회
+- [x] 삭제된 파일: 10개 (3,124줄), 추가된 파일: 1개 (234줄)
 
 ---
 
 ## 다음 마일스톤
 
-### Phase 1: Generator Agent
+### Phase 1: Generator Agent ✅ 완료
 
 CLAUDE.md를 읽고 소스코드를 생성하는 Agent.
 
@@ -31,10 +43,10 @@ Output: 소스코드 파일들
 ```
 
 #### 구현 범위
-- [ ] generator Agent 정의
-- [ ] /generate 명령어 (사용자 진입점)
-- [ ] 언어별 코드 생성 템플릿
-- [ ] 생성 결과 리포트
+- [x] compiler Agent 정의
+- [x] /compile 명령어 (사용자 진입점)
+- [x] TDD 워크플로우 (RED → GREEN → REFACTOR)
+- [x] LLM 기반 시그니처 해석 (signature-convert 제거)
 
 #### 생성 규칙
 - Exports 섹션의 시그니처를 정확히 구현
@@ -43,54 +55,33 @@ Output: 소스코드 파일들
 
 ---
 
-### Phase 2: Validator Agent
+### Phase 2: Validator Agent ✅ 완료 (단순화)
 
-CLAUDE.md의 품질을 검증하는 Agent. 해당 CLAUDE.md만 읽고 소스코드를 재생성했을 때 기존과 동일한 결과가 나오는지 확인.
+CLAUDE.md의 품질을 검증하는 Agent.
 
 ```
 Input: CLAUDE.md + 현재 소스코드
 Output: Pass/Fail + 불일치 리포트
 ```
 
-#### 검증 프로세스
+#### 구현된 검증 방식
 
-```
-CLAUDE.md ──────┬──────────────────────────────────►
-     │          │
-     │     [Generator Agent]
-     │          │
-     ▼          ▼
-현재 소스코드   생성된 소스코드
-(ground truth)  (prediction)
-     │          │
-     └────┬─────┘
-          │
-          ▼
-   [Validator Agent]
-          │
-          ▼
-   ┌─────────────────────┐
-   │ 1. 구조 검증         │ 파일명/디렉터리명 일치 여부
-   │ 2. 인터페이스 검증   │ Export 시그니처 일치 여부
-   │ 3. 동작 검증         │ Behavior 시나리오 충족 여부
-   └─────────────────────┘
-          │
-          ▼
-   Pass (≥80%) / Fail
-```
+**v0.19.0에서 단순화됨**: 원래 계획된 복잡한 3단계 검증 대신, 빠른 sanity check 방식 채택
 
-#### 검증 순서
-1. **Leaf 노드부터 검증**: 의존성이 없는 최하위 디렉토리부터 시작
-2. **각 노드는 자기 바운더리만 검증**: 직접 소유한 파일만 검증 대상
-3. **하위 디렉토리는 존재 여부만 확인**: 내부 검증은 해당 CLAUDE.md 책임
+| Validator | 역할 | 구현 상태 |
+|-----------|------|----------|
+| drift-validator | CLAUDE.md와 코드 일치 검증 | [x] 완료 |
+| export-validator | Export 존재 여부 확인 | [x] 완료 (이전 이름: reproducibility-validator) |
 
-#### 구현 범위
-- [ ] validator Agent 정의
-- [ ] /validate 명령어 (사용자 진입점)
-- [ ] 구조 검증 로직 (파일명, 디렉토리명)
-- [ ] 인터페이스 검증 로직 (Export 시그니처 비교)
-- [ ] 동작 검증 로직 (Behavior 시나리오 테스트)
-- [ ] 불일치 리포트 생성
+#### 검증 범위
+- [x] /validate 명령어 (사용자 진입점)
+- [x] 구조 검증 (Structure drift)
+- [x] Export 존재 검증 (grep 기반)
+- [x] 불일치 리포트 생성
+
+**미구현 (향후 고려)**:
+- [ ] 인터페이스 검증 (시그니처 정확 일치)
+- [ ] 동작 검증 (Behavior 시나리오 테스트)
 
 ---
 

@@ -96,6 +96,7 @@ ClaudeMdSpec에서 추출:
 - `behaviors`: 동작 시나리오 (테스트 케이스로 변환)
 - `contracts`: 사전/사후조건 (검증 로직으로 변환)
 - `dependencies`: 필요한 import문 생성
+- `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
 
 **중요**: 코드 생성 시 `project_claude_md`의 규칙(파일 구조, 네이밍 컨벤션, 코딩 스타일 등)을 따릅니다.
 
@@ -165,6 +166,41 @@ for dep in spec.dependencies:
 **이유**: CLAUDE.md의 Exports는 **Interface Catalog**로서 설계되었습니다.
 코드 탐색보다 CLAUDE.md 탐색이 더 효율적이고, 캡슐화 원칙을 준수합니다.
 
+#### 1.3 Domain Context 반영
+
+**Domain Context는 compile 재현성의 핵심입니다.** 동일한 CLAUDE.md에서 동일한 코드를 생성하려면 Domain Context의 값들이 코드에 그대로 반영되어야 합니다.
+
+```python
+# Domain Context 추출 및 적용
+domain_context = spec.domain_context
+
+if domain_context:
+    # 1. Decision Rationale → 상수 값 결정
+    # 예: "TOKEN_EXPIRY: 7일 (PCI-DSS)" → const TOKEN_EXPIRY_DAYS = 7
+    for rationale in domain_context.decision_rationale:
+        apply_constant_value(rationale)
+
+    # 2. Constraints → 검증 로직 강화
+    # 예: "비밀번호 재설정 90일" → validatePasswordAge(90)
+    for constraint in domain_context.constraints:
+        apply_constraint(constraint)
+
+    # 3. Compatibility → 레거시 지원 코드
+    # 예: "UUID v1 지원" → parseUUIDv1() 함수 포함
+    for compat in domain_context.compatibility:
+        apply_compatibility(compat)
+```
+
+**Domain Context 반영 예시**:
+
+| Domain Context | 생성 코드 |
+|----------------|----------|
+| `TOKEN_EXPIRY: 7일 (PCI-DSS)` | `const TOKEN_EXPIRY_DAYS = 7; // PCI-DSS compliance` |
+| `TIMEOUT: 2000ms (IdP SLA × 4)` | `const TIMEOUT_MS = 2000; // Based on IdP SLA` |
+| `MAX_RETRY: 3 (외부 API SLA)` | `const MAX_RETRY = 3;` |
+| `UUID v1 지원 필요` | UUID v1 파싱 로직 포함 |
+| `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
+
 ### Phase 2: 언어 감지 확인
 
 ```python
@@ -225,14 +261,11 @@ generate_errors_file(error_types, detected_language)
 
 # 3. 메인 구현 파일 생성
 for func in spec.exports.functions:
-    # 시그니처 변환
-    converted = Skill("claude-md-plugin:signature-convert",
-                      signature=func.signature,
-                      target_lang=detected_language)
-
-    # 구현 생성 (LLM이 contracts와 behaviors를 기반으로 생성)
+    # 구현 생성 (LLM이 시그니처, contracts, behaviors를 기반으로 생성)
     implementation = generate_implementation(
         func=func,
+        signature=func.signature,
+        target_lang=detected_language,
         contracts=find_contract(spec.contracts, func.name),
         behaviors=find_behaviors(spec.behaviors, func.name)
     )
@@ -241,7 +274,7 @@ for func in spec.exports.functions:
 test_result = run_tests(detected_language, target_dir)
 
 retry_count = 0
-while not test_result.all_passed and retry_count < 5:
+while not test_result.all_passed and retry_count < 3:
     # 실패한 테스트 분석
     failing_tests = test_result.failures
 
@@ -362,10 +395,9 @@ tests_failed: {test_result.failed}
 │  ┌─ TDD Workflow (내부 자동) ────────────────────────────┐ │
 │  │                                                        │ │
 │  │  [RED] behaviors → 테스트 파일 생성 (실패 확인)       │ │
-│  │         └─ Skill("signature-convert") 사용            │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
-│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 5회 재시도)    │ │
+│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)    │ │
 │  │         └─ exports + contracts 기반 LLM 코드 생성     │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
@@ -401,6 +433,9 @@ tests_failed: {test_result.failed}
 | Behavior (에러) | 에러 케이스 테스트 |
 | Protocol (상태) | 상태 enum/타입 정의 |
 | Protocol (전이) | 상태 전이 함수 구현 |
+| Domain Context (결정 근거) | 상수 값 및 주석 |
+| Domain Context (제약) | 검증 로직, 리밋 적용 |
+| Domain Context (호환성) | 레거시 지원 코드 |
 
 구체적인 코드 스타일, 네이밍, 에러 처리 방식은 프로젝트 CLAUDE.md를 따릅니다.
 
