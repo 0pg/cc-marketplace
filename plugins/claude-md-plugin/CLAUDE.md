@@ -97,7 +97,7 @@ User: /generate
 │ │                   │                    │  │
 │ │                   ▼                    │  │
 │ │ [GREEN] 구현 생성 + 테스트 통과        │  │
-│ │         └─ 최대 3회 재시도             │  │
+│ │         └─ 최대 5회 재시도             │  │
 │ │                   │                    │  │
 │ │                   ▼                    │  │
 │ │ [REFACTOR] 프로젝트 컨벤션 적용        │  │
@@ -296,7 +296,7 @@ claude-md-core convert-signature --signature "<시그니처>" --target-lang <언
 3. 각 CLAUDE.md에 대해 `Task(generator)` 실행
 4. generator Agent가 내부 TDD 워크플로우 수행:
    - [RED] behaviors → 테스트 코드 생성 (실패 확인)
-   - [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)
+   - [GREEN] 구현 생성 + 테스트 통과 (최대 5회 재시도)
    - [REFACTOR] 프로젝트 컨벤션 적용
 5. 파일 충돌 처리 (skip 또는 overwrite)
 6. 결과 수집 및 보고

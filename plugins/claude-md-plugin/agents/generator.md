@@ -173,7 +173,7 @@ for func in spec.exports.functions:
 test_result = run_tests(detected_language, target_dir)
 
 retry_count = 0
-while not test_result.all_passed and retry_count < 3:
+while not test_result.all_passed and retry_count < 5:
     # 실패한 테스트 분석
     failing_tests = test_result.failures
 
@@ -297,7 +297,7 @@ tests_failed: {test_result.failed}
 │  │         └─ Skill("signature-convert") 사용            │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
-│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)    │ │
+│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 5회 재시도)    │ │
 │  │         └─ exports + contracts 기반 LLM 코드 생성     │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
@@ -342,7 +342,7 @@ tests_failed: {test_result.failed}
 |------|------|
 | CLAUDE.md 파싱 실패 | 에러 로그, Agent 실패 반환 |
 | 언어 감지 실패 | 사용자에게 질문 |
-| 테스트 3회 실패 | 경고와 함께 진행, 수동 수정 필요 표시 |
+| 테스트 5회 실패 | 경고와 함께 진행, 수동 수정 필요 표시 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
 
 ## Context 효율성

@@ -143,7 +143,7 @@ Skill("claude-md-plugin:schema-validate")
 validation = read_json(f".claude/extract-results/{output_name}-validation.json")
 
 retry_count = 0
-while not validation["valid"] and retry_count < 3:
+while not validation["valid"] and retry_count < 5:
     # 이슈 수정
     fix_issues(validation["issues"])
 
@@ -153,7 +153,7 @@ while not validation["valid"] and retry_count < 3:
     retry_count += 1
 
 if not validation["valid"]:
-    # 3회 실패 시 경고와 함께 진행
+    # 5회 실패 시 경고와 함께 진행
     log_warning("Schema validation failed after 3 attempts")
 ```
 
@@ -207,7 +207,7 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("schema-validate") ──────────────────────────┐   │
-│  │ 스키마 검증 (실패시 최대 3회 재시도)                  │   │
+│  │ 스키마 검증 (실패시 최대 5회 재시도)                  │   │
 │  │ → .claude/extract-results/{name}-validation.json    │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                              │
@@ -260,7 +260,7 @@ for child_path in child_claude_mds:
 |------|------|
 | Skill 실패 | 에러 로그, Agent 실패 반환 |
 | 소스 파일 읽기 실패 | 경고 로그, 해당 파일 스킵 |
-| 스키마 검증 3회 실패 | 경고와 함께 진행 |
+| 스키마 검증 5회 실패 | 경고와 함께 진행 |
 | 사용자 응답 없음 | 합리적 기본값 사용, 명시적 표기 |
 
 ## Context 효율성

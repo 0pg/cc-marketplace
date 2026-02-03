@@ -59,7 +59,7 @@ CLAUDE.md 파일을 기반으로 소스 코드를 생성합니다. 내부적으�
 1. CLAUDE.md 파싱 → 구조화된 스펙 추출
 2. [RED] behaviors 섹션 → 테스트 코드 생성
 3. [GREEN] exports + contracts → 구현 코드 생성
-4. 테스트 실행 (실패 시 최대 3회 재시도)
+4. 테스트 실행 (실패 시 최대 5회 재시도)
 
 ### /validate - CLAUDE.md 검증
 

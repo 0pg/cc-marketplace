@@ -90,12 +90,13 @@ For each documented_export:
 
 **MISSING**: 코드의 public export가 문서에 없음
 ```
-# 언어별 export 패턴 검색
-TypeScript: Grep("^export (function|const|class|interface|type)", ...)
-Python: Grep("^(def|class|async def) [a-z_]", ...) + __all__ 확인
-Go: Grep("^func [A-Z]|^type [A-Z]", ...)
-Rust: Grep("^pub (fn|struct|enum|trait)", ...)
-Java/Kotlin: Grep("public (class|interface|enum|record)", ...)
+# 언어별 export 패턴 검색 (프로젝트 설정에서 감지된 언어 기반)
+# 예시 패턴:
+# - export 키워드 기반 언어: ^export (function|const|class)
+# - public 키워드 기반 언어: ^public (class|interface)
+# - public이 기본인 언어: ^(fun|class|interface|object) [A-Z]
+# - 대문자 시작이 public인 언어: ^func [A-Z]|^type [A-Z]
+# - pub 키워드 언어: ^pub (fn|struct|enum)
 
 For each code_export:
   if not in documented_exports: MISSING
