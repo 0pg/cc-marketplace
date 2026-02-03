@@ -109,7 +109,7 @@ auth/
         ├── Key Constants
         ├── Error Handling
         ├── State Management
-        └── Session Notes
+        └── Implementation Guide
 ```
 
 **명령어별 업데이트 범위:**

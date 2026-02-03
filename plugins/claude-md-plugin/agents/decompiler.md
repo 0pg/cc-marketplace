@@ -330,7 +330,7 @@ implements_md = f"""# {directory_name}/IMPLEMENTS.md
 
 {format_state_management(analysis.state) or "None"}
 
-## Session Notes
+## Implementation Guide
 
 - {current_date}: Initial extraction from existing code
 """

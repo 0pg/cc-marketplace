@@ -129,7 +129,7 @@ CLAUDE.md + IMPLEMENTS.md 파싱
      ▼
 IMPLEMENTS.md Implementation Section 업데이트
      │   - Algorithm, Key Constants, Error Handling
-     │   - State Management, Session Notes
+     │   - State Management, Implementation Guide
      ▼
 결과 반환
 ```

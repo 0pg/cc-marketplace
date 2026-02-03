@@ -380,7 +380,7 @@ Write(implements_md_path, updated_content)
 | Key Constants | 도메인 의미가 있는 상수가 있을 때 | 이름, 값, 근거, 영향 범위 |
 | Error Handling | 에러 처리가 있을 때 | 에러 타입, 재시도, 복구, 로그 레벨 |
 | State Management | 상태 관리가 있을 때 | 초기 상태, 저장, 정리 |
-| Session Notes | 구현 중 특이사항이 있을 때 | 날짜, 변경 사항, 이유 |
+| Implementation Guide | 구현 중 특이사항이 있을 때 | 날짜, 변경 사항, 이유 |
 
 ### Phase 6: 결과 반환
 

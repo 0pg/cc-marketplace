@@ -267,7 +267,7 @@ None
 
 None
 
-## Session Notes
+## Implementation Guide
 
 (To be filled by /compile)
 ```

@@ -30,7 +30,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 │ - Key Constants (상수값과 근거)                             │
 │ - Error Handling (에러 처리 전략)                           │
 │ - State Management (상태 관리)                              │
-│ - Session Notes (다른 세션 참고용 정보)                     │
+│ - Implementation Guide (다른 세션 참고용 정보)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -45,7 +45,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 | Key Constants | /compile | ✗ | - | 도메인 의미가 있는 상수만 |
 | Error Handling | /compile | ✓ | ✓ | 에러 처리 전략 |
 | State Management | /compile | ✓ | ✓ | 상태 관리 방식 |
-| Session Notes | /compile | ✗ | - | 다른 세션 참고 정보 |
+| Implementation Guide | /compile | ✗ | - | 다른 세션 참고 정보 |
 
 ---
 
@@ -212,19 +212,22 @@ None
 None
 ```
 
-### 8. Session Notes (선택)
+### 8. Implementation Guide (선택)
 
-다른 세션에서 참고해야 할 구현 중 발견사항을 기록합니다.
+다음 세션에서 소스코드 탐색 전 알면 효율적인 구현 가이드를 기록합니다.
+(도메인 맥락은 CLAUDE.md Domain Context에 기술)
 
 ```markdown
-## Session Notes
+## Implementation Guide
 
-- 2024-01-15: retry 로직 2회 → 3회 조정 (외부 API SLA 변경)
-- 2024-01-20: CLOCK_DRIFT 30초 → 60초 (배포 환경 시간 동기화 이슈)
-- 2024-02-01: 캐시 TTL 10분 → 5분 (메모리 사용량 최적화)
+- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
+- 암호화 유틸 → ../utils/crypto/CLAUDE.md#hashPassword
+- 에러 타입 → ../errors/CLAUDE.md#AuthError
 ```
 
-**작성 기준**: "다음 세션에서 이 정보를 알아야 하는가?"
+**작성 기준**: "소스코드 탐색 없이 구현 시작점을 알 수 있는가?"
+- 의존 모듈의 CLAUDE.md 경로 + Export 이름 (예: ../jwt/CLAUDE.md#validateToken)
+- 도메인 맥락(값의 근거 등)은 CLAUDE.md Domain Context에 기술
 
 ---
 
@@ -292,9 +295,9 @@ None
 ### Cleanup
 - 정리 전략
 
-## Session Notes
+## Implementation Guide
 
-- YYYY-MM-DD: 변경 사항 및 이유
+- 기능 → 의존모듈/CLAUDE.md#ExportName
 ```
 
 ---
@@ -311,12 +314,12 @@ None
 ### 조건부 섹션
 - Algorithm: 복잡한 로직이 있을 때만 작성
 - Key Constants: 도메인 의미 있는 상수가 있을 때만 작성
-- Session Notes: 참고 사항이 있을 때만 작성
+- Implementation Guide: 참고 사항이 있을 때만 작성
 
 ### 업데이트 책임
 ```
 /spec → Planning Section (Dependencies Direction, Implementation Approach, Technology Choices)
-/compile → Implementation Section (Algorithm, Key Constants, Error Handling, State Management, Session Notes)
+/compile → Implementation Section (Algorithm, Key Constants, Error Handling, State Management, Implementation Guide)
 /decompile → 전체 섹션
 ```
 
@@ -403,9 +406,9 @@ None
 - 만료 시점 + 1분 버퍼 초과 항목 삭제
 - 캐시 크기 1000개 초과 시 LRU 정책 적용
 
-## Session Notes
+## Implementation Guide
 
-- 2024-01-15: CACHE_TTL 10분 → 5분 (메모리 사용량 최적화)
-- 2024-01-20: CLOCK_DRIFT 30초 → 60초 (k8s 환경 시간 동기화 이슈)
-- 2024-02-01: MAX_CACHE_SIZE 500 → 1000 (트래픽 증가 대응)
+- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
+- 암호화 → ../utils/crypto/CLAUDE.md#hashPassword, #verifyPassword
+- 설정 로드 → ../config/CLAUDE.md#JWT_SECRET, #TOKEN_EXPIRY
 ```
