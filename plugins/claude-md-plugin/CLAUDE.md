@@ -27,6 +27,8 @@
 
 ### Agent-Skill 아키텍처
 
+#### /extract 워크플로우 (소스코드 → CLAUDE.md)
+
 ```
 User: /extract
         │
@@ -65,6 +67,92 @@ User: /extract
 └─────────────────────────────────────────────┘
 ```
 
+#### /generate 워크플로우 (CLAUDE.md → 소스코드)
+
+```
+User: /generate
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ generate SKILL (사용자 진입점)               │
+│                                             │
+│ 1. CLAUDE.md 파일 검색                      │
+│ 2. 언어 자동 감지                           │
+│ 3. For each CLAUDE.md:                      │
+│    Task(generator) 생성                     │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│ generator AGENT (CLAUDE.md별)               │
+│                                             │
+│ ┌─ Skill("claude-md-parse") ─────────────┐  │
+│ │ CLAUDE.md → ClaudeMdSpec JSON          │  │
+│ └──────────────────┬─────────────────────┘  │
+│                    ▼                        │
+│ ┌─ TDD Workflow (내부 자동) ─────────────┐  │
+│ │                                        │  │
+│ │ [RED] behaviors → 테스트 코드 생성     │  │
+│ │       └─ Skill("signature-convert")    │  │
+│ │                   │                    │  │
+│ │                   ▼                    │  │
+│ │ [GREEN] exports + contracts            │  │
+│ │         → 구현 코드 생성 (LLM)         │  │
+│ │                   │                    │  │
+│ │                   ▼                    │  │
+│ │ [TEST] 테스트 실행 → 실패시 3회 재시도 │  │
+│ │                                        │  │
+│ └──────────────────┬─────────────────────┘  │
+│                    ▼                        │
+│ ┌─ 파일 충돌 처리 ───────────────────────┐  │
+│ │ skip (기본) 또는 overwrite 모드        │  │
+│ └────────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
+
+#### /validate 워크플로우 (문서-코드 일치 검증)
+
+```
+User: /validate
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ validate SKILL (사용자 진입점)               │
+│                                             │
+│ 1. Glob("**/CLAUDE.md") → 대상 목록         │
+│ 2. mkdir .claude/validate-results           │
+│ 3. For each CLAUDE.md (병렬):               │
+│    Task(drift-validator)                    │
+│    Task(reproducibility-validator)          │
+└────────────────────┬────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+        ▼                         ▼
+┌───────────────────┐   ┌───────────────────┐
+│ drift-validator   │   │ reproducibility-  │
+│ AGENT             │   │ validator AGENT   │
+│                   │   │                   │
+│ Structure drift   │   │ Phase 1: 예측    │
+│ Exports drift     │   │ (코드 읽지 않음)  │
+│ Dependencies drift│   │                   │
+│ Behavior drift    │   │ Phase 2: 검증    │
+│                   │   │ (실제 코드 비교)  │
+│ → drift-*.md 저장 │   │ → repro-*.md 저장│
+└─────────┬─────────┘   └─────────┬─────────┘
+          │                       │
+          └───────────┬───────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────┐
+│ validate SKILL (결과 수집)                   │
+│                                             │
+│ 1. Read 결과 파일들                          │
+│ 2. 통합 보고서 생성                          │
+│ 3. rm -rf .claude/validate-results          │
+└─────────────────────────────────────────────┘
+```
+
 ### 설계 원칙
 
 #### Skill (도메인 컴포넌트)
@@ -92,12 +180,24 @@ plugins/claude-md-plugin/
 │   │   ├── tree_parser.rs
 │   │   ├── boundary_resolver.rs
 │   │   ├── schema_validator.rs
+│   │   ├── claude_md_parser.rs    # CLAUDE.md 파싱
+│   │   ├── signature_converter.rs # 시그니처 변환
 │   │   └── main.rs
 │   └── tests/
 │       └── features/        # Gherkin 테스트
+│           ├── tree_parser.feature
+│           ├── boundary_resolver.feature
+│           ├── schema_validator.feature
+│           ├── claude_md_parser.feature    # 파서 테스트
+│           ├── signature_converter.feature # 변환기 테스트
+│           └── code_generator.feature      # 생성기 테스트
 ├── skills/
 │   ├── extract/
 │   │   └── SKILL.md         # /extract (사용자 진입점)
+│   ├── generate/
+│   │   └── SKILL.md         # /generate (사용자 진입점)
+│   ├── validate/
+│   │   └── SKILL.md         # /validate (사용자 진입점)
 │   ├── tree-parse/
 │   │   └── SKILL.md         # (internal) 트리 파싱
 │   ├── boundary-resolve/
@@ -106,10 +206,17 @@ plugins/claude-md-plugin/
 │   │   └── SKILL.md         # (internal) 코드 분석
 │   ├── draft-generate/
 │   │   └── SKILL.md         # (internal) CLAUDE.md 생성
-│   └── schema-validate/
-│       └── SKILL.md         # (internal) 스키마 검증
+│   ├── schema-validate/
+│   │   └── SKILL.md         # (internal) 스키마 검증
+│   ├── claude-md-parse/
+│   │   └── SKILL.md         # (internal) CLAUDE.md 파싱
+│   └── signature-convert/
+│       └── SKILL.md         # (internal) 시그니처 변환
 ├── agents/
-│   └── extractor.md         # Skill 조합으로 단일 디렉토리 처리
+│   ├── extractor.md         # Skill 조합으로 단일 디렉토리 처리
+│   ├── generator.md         # CLAUDE.md → 소스코드 생성
+│   ├── drift-validator.md   # 코드-문서 일치 검증
+│   └── reproducibility-validator.md  # 재현성 검증
 └── templates/
     └── claude-md-schema.md  # CLAUDE.md 스키마 정의
 ```
@@ -137,6 +244,21 @@ plugins/claude-md-plugin/
 | Exports 형식 | `Name(params) ReturnType` 패턴 |
 | Behavior 형식 | `input → output` 패턴 |
 
+### claude_md_parser
+| 기능 | 설명 |
+|------|------|
+| CLAUDE.md 파싱 | Purpose, Exports, Dependencies, Behaviors, Contracts, Protocol 섹션 추출 |
+| ClaudeMdSpec 생성 | 구조화된 JSON 스펙 출력 |
+| 다중 언어 지원 | TypeScript, Python, Go, Rust, Java, Kotlin |
+
+### signature_converter
+| 기능 | 설명 |
+|------|------|
+| 시그니처 변환 | 범용 시그니처 → 대상 언어 변환 |
+| 타입 매핑 | string→str(Python), string→String(Go) 등 |
+| 네이밍 규칙 | camelCase→snake_case(Python), PascalCase(Go) 등 |
+| Promise 처리 | Promise<T>→async/await(Python), (T, error)(Go) 등 |
+
 ## CLI Interface
 
 ```bash
@@ -148,16 +270,45 @@ claude-md-core resolve-boundary --path src/auth --output boundary.json
 
 # 스키마 검증
 claude-md-core validate-schema --file CLAUDE.md --output validation.json
+
+# CLAUDE.md 파싱 (NEW)
+claude-md-core parse-claude-md --file CLAUDE.md --output spec.json
+
+# 시그니처 변환 (NEW)
+claude-md-core convert-signature --signature "validateToken(token: string): Promise<Claims>" --target-lang python
+# 출력: async def validate_token(token: str) -> Claims
 ```
 
 ## Workflow
 
-### /extract 실행 시
+### /extract 실행 시 (소스코드 → CLAUDE.md)
 1. extract Skill이 `Skill("tree-parse")` 호출
 2. tree.json에서 CLAUDE.md 필요한 디렉토리 추출 (leaf-first 정렬)
 3. 각 디렉토리에 `Task(extractor)` 실행 (순차)
 4. extractor Agent가 내부 Skill 조합으로 CLAUDE.md 생성
 5. 결과 수집 및 보고
+
+### /generate 실행 시 (CLAUDE.md → 소스코드)
+1. generate Skill이 프로젝트에서 CLAUDE.md 파일 검색
+2. 각 CLAUDE.md가 있는 디렉토리의 언어 자동 감지
+   - 기존 소스 파일 확장자 기반 (.ts, .py, .go, .rs, .java, .kt)
+   - 감지 불가 시 사용자에게 질문
+3. 각 CLAUDE.md에 대해 `Task(generator)` 실행
+4. generator Agent가 내부 TDD 워크플로우 수행:
+   - [RED] behaviors → 테스트 코드 생성
+   - [GREEN] exports + contracts → 구현 코드 생성
+   - 테스트 실행 (실패 시 최대 3회 재시도)
+5. 파일 충돌 처리 (skip 또는 overwrite)
+6. 결과 수집 및 보고
+
+### /validate 실행 시 (문서-코드 일치 검증)
+1. validate Skill이 대상 경로에서 CLAUDE.md 파일 검색
+2. `.claude/validate-results/` 디렉토리 생성
+3. 각 CLAUDE.md에 대해 **병렬로** Task 실행:
+   - `drift-validator`: Structure, Exports, Dependencies, Behavior drift 검증
+   - `reproducibility-validator`: CLAUDE.md만으로 코드 재현 가능 여부 검증
+4. 결과 파일들 수집 및 통합 보고서 생성
+5. 임시 파일 정리 (`.claude/validate-results/` 삭제)
 
 ## 불변식
 
@@ -191,7 +342,17 @@ validate(node) = validate(node.claude_md, node.direct_files)
    - 파일 경로, 실패 원인, 가능한 해결책 포함
    - `thiserror` 크레이트로 구조화된 에러 타입 사용
 
+## 지원 언어
+
+| 언어 | 파일 확장자 | 테스트 프레임워크 | 네이밍 규칙 |
+|------|------------|------------------|-------------|
+| TypeScript | `.ts`, `.tsx` | Jest / Vitest | camelCase |
+| Python | `.py` | pytest | snake_case |
+| Go | `.go` | testing | PascalCase (exported) |
+| Rust | `.rs` | #[test] | snake_case |
+| Java | `.java` | JUnit 5 | camelCase |
+| Kotlin | `.kt` | JUnit 5 | camelCase |
+
 ## 향후 계획 (현재 범위 아님)
 
-- **Validator Agent**: 80% 재현율 검증
-- **Generator Agent**: CLAUDE.md → 소스코드 생성
+- **Round-trip 테스트**: Extract → Generate → Compare

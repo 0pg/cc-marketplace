@@ -523,6 +523,12 @@ fn analyze_file_for_behaviors(world: &mut TestWorld) {
     analyze_file_for_exports(world);
 }
 
+#[when("I analyze the file for contracts")]
+fn analyze_file_for_contracts(world: &mut TestWorld) {
+    // Same as exports - we analyze everything including contracts
+    analyze_file_for_exports(world);
+}
+
 #[when("I analyze the package for exports")]
 fn analyze_package_for_exports(world: &mut TestWorld) {
     let analyzer = world.analyzer.as_ref().expect("No analyzer");
@@ -772,6 +778,132 @@ fn should_find_data_classes(world: &mut TestWorld, step: &cucumber::gherkin::Ste
 #[then("I should find enum classes:")]
 fn should_find_enum_classes(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
     should_find_public_enums(world, step);
+}
+
+#[then("I should find re-exported symbols:")]
+fn should_find_re_exported_symbols(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No symbol name");
+            let source = row.get(1).expect("No source");
+
+            let found = result.exports.re_exports.iter().any(|r| {
+                r.name == *name && r.source == *source
+            });
+            assert!(found, "Expected to find re-exported symbol '{}' from '{}', found: {:?}",
+                    name, source, result.exports.re_exports);
+        }
+    }
+}
+
+// Contract assertions
+#[then(regex = r#"I should find contract for "(\w+)":"#)]
+fn should_find_contract_for(world: &mut TestWorld, function_name: String, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    let contract = result.contracts.iter()
+        .find(|c| c.function_name == function_name)
+        .unwrap_or_else(|| panic!("Expected contract for function '{}', found: {:?}",
+                                   function_name, result.contracts.iter().map(|c| &c.function_name).collect::<Vec<_>>()));
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            // Check preconditions column if present
+            if let Some(precondition) = row.first() {
+                if !precondition.is_empty() {
+                    let found = contract.contract.preconditions.iter()
+                        .any(|p| p.contains(precondition));
+                    assert!(found, "Expected precondition containing '{}' for '{}', found: {:?}",
+                            precondition, function_name, contract.contract.preconditions);
+                }
+            }
+
+            // Check postconditions column if present
+            if let Some(postcondition) = row.get(1) {
+                if !postcondition.is_empty() {
+                    let found = contract.contract.postconditions.iter()
+                        .any(|p| p.contains(postcondition));
+                    assert!(found, "Expected postcondition containing '{}' for '{}', found: {:?}",
+                            postcondition, function_name, contract.contract.postconditions);
+                }
+            }
+
+            // Check throws column if present
+            if let Some(throws) = row.get(2) {
+                if !throws.is_empty() {
+                    let found = contract.contract.throws.iter()
+                        .any(|t| t.contains(throws));
+                    assert!(found, "Expected throws containing '{}' for '{}', found: {:?}",
+                            throws, function_name, contract.contract.throws);
+                }
+            }
+        }
+    }
+}
+
+#[when("I analyze the file for protocol")]
+fn analyze_file_for_protocol(world: &mut TestWorld) {
+    // Same as exports - we analyze everything including protocol
+    analyze_file_for_exports(world);
+}
+
+#[then("I should find states:")]
+fn should_find_states(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    let protocol = result.protocol.as_ref()
+        .expect("No protocol found in analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let state = row.first().expect("No state name");
+
+            let found = protocol.states.iter().any(|s| s == state);
+            assert!(found, "Expected to find state '{}', found: {:?}",
+                    state, protocol.states);
+        }
+    }
+}
+
+#[then("I should find lifecycle methods:")]
+fn should_find_lifecycle_methods(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    let protocol = result.protocol.as_ref()
+        .expect("No protocol found in analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let method = row.first().expect("No method name");
+
+            let found = protocol.lifecycle.iter().any(|m| m == method);
+            assert!(found, "Expected to find lifecycle method '{}', found: {:?}",
+                    method, protocol.lifecycle);
+        }
+    }
+}
+
+#[then(regex = r#"I should find inferred preconditions for "(\w+)":"#)]
+fn should_find_inferred_preconditions(world: &mut TestWorld, function_name: String, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    let contract = result.contracts.iter()
+        .find(|c| c.function_name == function_name)
+        .unwrap_or_else(|| panic!("Expected contract for function '{}', found: {:?}",
+                                   function_name, result.contracts.iter().map(|c| &c.function_name).collect::<Vec<_>>()));
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            if let Some(precondition) = row.first() {
+                let found = contract.contract.preconditions.iter()
+                    .any(|p| p.contains(precondition));
+                assert!(found, "Expected inferred precondition containing '{}' for '{}', found: {:?}",
+                        precondition, function_name, contract.contract.preconditions);
+            }
+        }
+    }
 }
 
 // Behavior assertions

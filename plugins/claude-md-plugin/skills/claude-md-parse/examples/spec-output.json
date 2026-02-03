@@ -1,0 +1,79 @@
+{
+  "name": "auth",
+  "purpose": "User authentication module for JWT token validation and generation.",
+  "exports": {
+    "functions": [
+      {
+        "name": "validateToken",
+        "signature": "validateToken(token: string): Promise<Claims>",
+        "is_async": true
+      },
+      {
+        "name": "generateToken",
+        "signature": "generateToken(userId: string, role: Role): string",
+        "is_async": false
+      }
+    ],
+    "types": [
+      {
+        "name": "Claims",
+        "definition": "Claims { userId: string, role: Role, exp: number }",
+        "kind": "interface"
+      },
+      {
+        "name": "TokenConfig",
+        "definition": "TokenConfig { secret: string, expiresIn: number }",
+        "kind": "interface"
+      }
+    ],
+    "classes": [
+      {
+        "name": "TokenManager",
+        "constructor_signature": "TokenManager(secret: string, algorithm?: string)"
+      }
+    ],
+    "enums": [],
+    "variables": []
+  },
+  "dependencies": {
+    "external": ["jsonwebtoken@9.0.0"],
+    "internal": ["./types"]
+  },
+  "behaviors": [
+    {
+      "input": "valid JWT token",
+      "output": "Claims object with userId and role",
+      "category": "success"
+    },
+    {
+      "input": "generateToken with valid params",
+      "output": "JWT string",
+      "category": "success"
+    },
+    {
+      "input": "expired token",
+      "output": "TokenExpiredError",
+      "category": "error"
+    },
+    {
+      "input": "invalid signature",
+      "output": "InvalidTokenError",
+      "category": "error"
+    },
+    {
+      "input": "malformed token",
+      "output": "MalformedTokenError",
+      "category": "error"
+    }
+  ],
+  "contracts": [
+    {
+      "function_name": "validateToken",
+      "preconditions": ["token must be non-empty string"],
+      "postconditions": ["returns Claims with valid userId"],
+      "throws": ["InvalidTokenError if token is malformed"],
+      "invariants": []
+    }
+  ],
+  "parse_errors": []
+}

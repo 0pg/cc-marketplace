@@ -118,6 +118,71 @@
 - 동시 세션은 최대 5개
 ```
 
+### 7. Contract (선택)
+함수별 사전조건(preconditions), 사후조건(postconditions), 불변식(invariants) 정보입니다.
+
+```markdown
+## Contract
+
+### validateToken
+- **Preconditions**: token must be non-empty string
+- **Postconditions**: returns Claims with valid userId
+- **Throws**: InvalidTokenError if token is malformed
+
+### processOrder
+- **Preconditions**:
+  - order.id is required
+  - order.items not empty
+- **Postconditions**: returns Receipt with orderId matching input
+```
+
+#### 추출 소스
+Contract 정보는 다음에서 자동 추출됩니다:
+
+1. **JSDoc 태그** (명시적)
+   - `@precondition <condition>` - 사전조건
+   - `@postcondition <condition>` - 사후조건
+   - `@invariant <condition>` - 불변식
+   - `@throws <ErrorType>` - 예외
+
+2. **코드 패턴 추론** (암시적)
+   - Validation 로직: `if (!x.prop) throw new Error` → `x.prop is required`
+   - Length 검증: `if (arr.length === 0) throw` → `arr not empty`
+   - Type guards: `asserts x is T` → `x must be T`
+
+### 8. Protocol (선택)
+명시적인 상태 전이나 호출 순서가 있는 경우만 작성합니다.
+
+```markdown
+## Protocol
+
+### State Machine
+States: `Idle` | `Loading` | `Loaded` | `Error`
+
+Transitions:
+- `Idle` + `load()` → `Loading`
+- `Loading` + `success` → `Loaded`
+- `Loading` + `failure` → `Error`
+
+### Lifecycle
+1. `init()` - 초기화
+2. `start()` - 시작
+3. `stop()` - 정지
+4. `destroy()` - 정리
+```
+
+#### 추출 소스
+Protocol 정보는 다음에서 자동 추출됩니다:
+
+1. **상태 머신** (State enum)
+   - `enum State { Idle, Loading, Loaded, Error }` 패턴 인식
+   - 상태 전이 로직에서 transitions 추론
+
+2. **라이프사이클** (JSDoc 태그)
+   - `@lifecycle N` 태그로 순서 명시
+   - 예: `@lifecycle 1` → 첫 번째 호출
+   - 예: `@lifecycle 2` → 두 번째 호출
+
 ## 검증 규칙
 
 ### 필수 섹션 검증

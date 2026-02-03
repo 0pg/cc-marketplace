@@ -1,0 +1,7 @@
+{
+  "original_signature": "validateToken(token: string): Promise<Claims>",
+  "converted_signature": "pub async fn validate_token(token: &str) -> Result<Claims, Error>",
+  "target_language": "rust",
+  "function_name": "validate_token",
+  "is_async": true
+}

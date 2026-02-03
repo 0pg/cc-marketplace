@@ -4,10 +4,14 @@ use std::path::PathBuf;
 mod tree_parser;
 mod boundary_resolver;
 mod schema_validator;
+mod claude_md_parser;
+mod signature_converter;
 
 use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
 use schema_validator::SchemaValidator;
+use claude_md_parser::ClaudeMdParser;
+use signature_converter::{SignatureConverter, TargetLanguage};
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -55,6 +59,32 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Parse CLAUDE.md into structured JSON spec
+    ParseClaudeMd {
+        /// CLAUDE.md file to parse
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Convert signature to target language
+    ConvertSignature {
+        /// Function signature to convert
+        #[arg(short, long)]
+        signature: String,
+
+        /// Target language (typescript, python, go, rust, java, kotlin)
+        #[arg(short, long)]
+        target_lang: String,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -76,6 +106,25 @@ fn main() {
             let validation_result = validator.validate(file);
             output_result(&validation_result, output.as_ref(), "validate-schema")
         }
+        Commands::ParseClaudeMd { file, output } => {
+            let parser = ClaudeMdParser::new();
+            match parser.parse(file) {
+                Ok(spec) => output_result(&spec, output.as_ref(), "parse-claude-md"),
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+            }
+        }
+        Commands::ConvertSignature { signature, target_lang, output } => {
+            let converter = SignatureConverter::new();
+            match target_lang.parse::<TargetLanguage>() {
+                Ok(target) => {
+                    match converter.convert(signature, target) {
+                        Ok(result) => output_result(&result, output.as_ref(), "convert-signature"),
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                    }
+                }
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -83,6 +132,8 @@ fn main() {
             Commands::ParseTree { .. } => "parse-tree",
             Commands::ResolveBoundary { .. } => "resolve-boundary",
             Commands::ValidateSchema { .. } => "validate-schema",
+            Commands::ParseClaudeMd { .. } => "parse-claude-md",
+            Commands::ConvertSignature { .. } => "convert-signature",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
