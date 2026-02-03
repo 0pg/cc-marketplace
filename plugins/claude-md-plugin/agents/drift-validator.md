@@ -1,3 +1,37 @@
+---
+name: drift-validator
+description: |
+  CLAUDE.md와 실제 코드의 일치 여부를 검증합니다.
+  Structure, Exports, Dependencies, Behavior drift를 탐지합니다.
+
+  <example>
+  <context>
+  프로젝트 디렉토리 src/auth에 CLAUDE.md가 존재하고,
+  해당 디렉토리에 실제 소스 파일들이 있는 상황
+  </context>
+  <user_request>
+  src/auth 디렉토리의 CLAUDE.md와 실제 코드 일치 여부를 검증해주세요.
+  </user_request>
+  <assistant_response>
+  1. CLAUDE.md 파싱 → Structure, Exports, Dependencies, Behavior 섹션 추출
+  2. Structure Drift 검증 → UNCOVERED/ORPHAN 파일 탐지
+  3. Exports Drift 검증 → STALE/MISSING/MISMATCH export 탐지
+  4. Dependencies Drift 검증 → STALE/ORPHAN 의존성 탐지
+  5. Behavior Drift 검증 → 문서화된 시나리오와 실제 동작 비교
+  6. 결과를 .claude/validate-results/drift-src-auth.md에 저장
+  </assistant_response>
+  </example>
+model: inherit
+color: yellow
+tools:
+  - Glob
+  - Grep
+  - Read
+  - Write
+  - Bash
+  - Skill
+---
+
 # drift-validator
 
 CLAUDE.md와 실제 코드의 일치 여부를 검증하는 에이전트입니다.

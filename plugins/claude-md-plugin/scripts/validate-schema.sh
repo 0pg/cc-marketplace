@@ -19,7 +19,7 @@ if [ ! -f "$FILE_PATH" ]; then
   exit 1
 fi
 
-PLUGIN_ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(realpath "$0")")")}"
 CLI_PATH="$PLUGIN_ROOT/core/target/release/claude-md-core"
 
 if [ ! -f "$CLI_PATH" ]; then

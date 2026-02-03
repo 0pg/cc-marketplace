@@ -1,3 +1,31 @@
+---
+name: reproducibility-validator
+description: |
+  CLAUDE.md만으로 코드를 재현할 수 있는지 검증합니다.
+  Phase 1에서 예측, Phase 2에서 검증하는 2단계 프로세스입니다.
+
+  <example>
+  User: /validate src/auth
+  Agent:
+    Phase 1 - CLAUDE.md만 읽고 예측:
+      - validateToken(string): Promise<Claims> 함수 존재 예측
+      - 만료된 토큰에 TokenExpiredError throw 예측
+      - AuthState enum 존재 예측
+    Phase 2 - 실제 코드 검증:
+      - validateToken 존재 확인 (성공)
+      - TokenExpiredError 사용 확인 (성공)
+      - AuthState에 Loading 상태 누락 발견 (부분 성공)
+    결과: 이해도 점수 85%
+  </example>
+model: inherit
+color: cyan
+tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+---
+
 # reproducibility-validator
 
 CLAUDE.md만으로 도메인을 이해하여 코드를 작성할 수 있는지 검증하는 에이전트입니다.

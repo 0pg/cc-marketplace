@@ -1,3 +1,40 @@
+---
+name: validate
+description: |
+  CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
+  drift-validator와 reproducibility-validator를 병렬 실행합니다.
+
+  <example>
+  <user_request>/validate</user_request>
+  <assistant_response>
+  CLAUDE.md 검증 보고서
+  =====================
+
+  요약
+  ----
+  검증 대상: 3개 디렉토리
+  - 양호: 1개
+  - 개선 권장: 1개
+  - 개선 필요: 1개
+  </assistant_response>
+  </example>
+
+  <example>
+  <user_request>/validate src/</user_request>
+  <assistant_response>
+  CLAUDE.md 검증 보고서
+  =====================
+
+  상세 결과
+  ---------
+  src/auth (양호)
+    Drift: 0개 이슈
+    재현성: 95% (18/19 예측 성공)
+  </assistant_response>
+  </example>
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
+---
+
 # /validate
 
 CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
