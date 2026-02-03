@@ -163,13 +163,13 @@ print(f"""
 CLAUDE.md 파싱
      │
      ▼
-[RED] behaviors → 테스트 코드 생성
+[RED] behaviors → 테스트 코드 생성 (실패 확인)
      │
      ▼
-[GREEN] exports + contracts → 구현 코드 생성
+[GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)
      │
      ▼
-테스트 실행 → 실패 시 최대 3회 재시도
+[REFACTOR] 프로젝트 컨벤션 적용 + 회귀 테스트
      │
      ▼
 파일 충돌 처리

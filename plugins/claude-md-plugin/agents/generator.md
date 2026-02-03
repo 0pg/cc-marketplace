@@ -143,9 +143,9 @@ for behavior in spec.behaviors:
 - 프로젝트 CLAUDE.md의 테스트 프레임워크/컨벤션을 따름
 - 명시되지 않은 경우 해당 언어의 표준 테스트 프레임워크 사용
 
-#### 3.2 GREEN Phase - 구현 생성
+#### 3.2 GREEN Phase - 구현 + 테스트 통과
 
-exports와 contracts를 기반으로 구현 파일 생성:
+exports와 contracts를 기반으로 구현 파일 생성하고, 테스트가 통과할 때까지 반복:
 
 ```python
 # 1. 타입/인터페이스 파일 생성
@@ -168,15 +168,10 @@ for func in spec.exports.functions:
         contracts=find_contract(spec.contracts, func.name),
         behaviors=find_behaviors(spec.behaviors, func.name)
     )
-```
 
-#### 3.3 테스트 실행
-
-```python
-# 언어별 테스트 실행
+# 4. 테스트 실행 및 통과할 때까지 반복
 test_result = run_tests(detected_language, target_dir)
 
-# 실패 시 재시도 (최대 3회)
 retry_count = 0
 while not test_result.all_passed and retry_count < 3:
     # 실패한 테스트 분석
@@ -193,7 +188,7 @@ if not test_result.all_passed:
     log_warning(f"Tests failed after {retry_count} retries")
 ```
 
-#### 3.4 REFACTOR Phase - 코드 개선
+#### 3.3 REFACTOR Phase - 코드 개선
 
 테스트 통과 후, 프로젝트 CLAUDE.md의 코딩 규칙에 맞게 리팩토링:
 
@@ -298,15 +293,12 @@ tests_failed: {test_result.failed}
 │                          ▼                                   │
 │  ┌─ TDD Workflow (내부 자동) ────────────────────────────┐ │
 │  │                                                        │ │
-│  │  [RED] behaviors → 테스트 파일 생성                    │ │
+│  │  [RED] behaviors → 테스트 파일 생성 (실패 확인)       │ │
 │  │         └─ Skill("signature-convert") 사용            │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
-│  │  [GREEN] exports + contracts → 구현 파일 생성         │ │
-│  │         └─ LLM이 코드 생성                            │ │
-│  │                     │                                  │ │
-│  │                     ▼                                  │ │
-│  │  [TEST] 테스트 실행 → 실패 시 최대 3회 재시도         │ │
+│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)    │ │
+│  │         └─ exports + contracts 기반 LLM 코드 생성     │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
 │  │  [REFACTOR] 프로젝트 컨벤션에 맞게 코드 정리          │ │

@@ -92,15 +92,15 @@ User: /generate
 │                    ▼                        │
 │ ┌─ TDD Workflow (내부 자동) ─────────────┐  │
 │ │                                        │  │
-│ │ [RED] behaviors → 테스트 코드 생성     │  │
+│ │ [RED] behaviors → 테스트 생성 (실패)   │  │
 │ │       └─ Skill("signature-convert")    │  │
 │ │                   │                    │  │
 │ │                   ▼                    │  │
-│ │ [GREEN] exports + contracts            │  │
-│ │         → 구현 코드 생성 (LLM)         │  │
+│ │ [GREEN] 구현 생성 + 테스트 통과        │  │
+│ │         └─ 최대 3회 재시도             │  │
 │ │                   │                    │  │
 │ │                   ▼                    │  │
-│ │ [TEST] 테스트 실행 → 실패시 3회 재시도 │  │
+│ │ [REFACTOR] 프로젝트 컨벤션 적용        │  │
 │ │                                        │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
@@ -295,9 +295,9 @@ claude-md-core convert-signature --signature "<시그니처>" --target-lang <언
    - 감지 불가 시 사용자에게 질문
 3. 각 CLAUDE.md에 대해 `Task(generator)` 실행
 4. generator Agent가 내부 TDD 워크플로우 수행:
-   - [RED] behaviors → 테스트 코드 생성
-   - [GREEN] exports + contracts → 구현 코드 생성
-   - 테스트 실행 (실패 시 최대 3회 재시도)
+   - [RED] behaviors → 테스트 코드 생성 (실패 확인)
+   - [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)
+   - [REFACTOR] 프로젝트 컨벤션 적용
 5. 파일 충돌 처리 (skip 또는 overwrite)
 6. 결과 수집 및 보고
 
