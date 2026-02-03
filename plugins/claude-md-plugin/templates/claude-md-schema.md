@@ -44,6 +44,17 @@
 ### 3. Exports (필수)
 모듈의 public interface를 **시그니처 레벨**로 명시합니다.
 
+**Exports = Interface Catalog**: 다른 모듈이 코드를 탐색하지 않고도 이 모듈의 인터페이스를 파악할 수 있어야 합니다.
+
+#### Discovery Use Case
+```
+다른 모듈에서 이 모듈을 참조할 때:
+1. 이 CLAUDE.md의 Exports 섹션 읽기 ← 인터페이스 카탈로그
+2. 필요한 함수/타입 시그니처 확인
+3. (선택) Behavior 섹션으로 동작 이해
+4. (최후) 실제 소스코드 ← Exports로 불충분할 때만
+```
+
 #### 형식 규칙
 - 함수/메서드: `Name(params) ReturnType` 형태
 - 파라미터 타입과 반환 타입 필수
