@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md를 Source of Truth로. /extract로 소스코드에서 CLAUDE.md 추출, /generate로 CLAUDE.md에서 코드 생성, /incremental-generate로 변경분만 생성, /validate로 문서-코드 일치 검증.",
-      "version": "0.13.1",
+      "version": "0.14.0",
       "author": {
         "name": "jhk"
       },
