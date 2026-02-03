@@ -4,6 +4,7 @@ use std::path::PathBuf;
 mod tree_parser;
 mod boundary_resolver;
 mod schema_validator;
+mod bracket_utils;
 mod claude_md_parser;
 mod signature_converter;
 

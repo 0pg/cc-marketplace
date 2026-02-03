@@ -2,6 +2,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::bracket_utils::split_respecting_brackets;
+
 /// Error types for signature conversion
 #[derive(Debug, Error)]
 pub enum ConversionError {
@@ -353,66 +355,7 @@ impl SignatureConverter {
 
     /// Split parameters by comma, respecting nested brackets <>, (), [], {}
     fn split_params_respecting_brackets(&self, s: &str) -> Vec<String> {
-        let mut result = Vec::new();
-        let mut current = String::new();
-        let mut angle_depth: u32 = 0;   // < >
-        let mut paren_depth: u32 = 0;   // ( )
-        let mut bracket_depth: u32 = 0; // [ ]
-        let mut brace_depth: u32 = 0;   // { }
-
-        for c in s.chars() {
-            match c {
-                '<' => {
-                    angle_depth += 1;
-                    current.push(c);
-                }
-                '>' => {
-                    angle_depth = angle_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '(' => {
-                    paren_depth += 1;
-                    current.push(c);
-                }
-                ')' => {
-                    paren_depth = paren_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '[' => {
-                    bracket_depth += 1;
-                    current.push(c);
-                }
-                ']' => {
-                    bracket_depth = bracket_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '{' => {
-                    brace_depth += 1;
-                    current.push(c);
-                }
-                '}' => {
-                    brace_depth = brace_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                ',' if angle_depth == 0
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0 =>
-                {
-                    result.push(current.trim().to_string());
-                    current = String::new();
-                }
-                _ => {
-                    current.push(c);
-                }
-            }
-        }
-
-        if !current.is_empty() {
-            result.push(current.trim().to_string());
-        }
-
-        result
+        split_respecting_brackets(s, ',')
     }
 
     /// Split "name: Type" respecting brackets in Type (for TypeScript/Kotlin style)

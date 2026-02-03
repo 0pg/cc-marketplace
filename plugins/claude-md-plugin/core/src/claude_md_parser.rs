@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
+pub use crate::bracket_utils::split_respecting_brackets;
+
 /// Error types for CLAUDE.md parsing
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -39,9 +41,9 @@ pub struct ClaudeMdSpec {
     /// Directory structure
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structure: Option<StructureSpec>,
-    /// Validation errors (if any)
+    /// Validation warnings (non-fatal issues found during parsing)
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub parse_errors: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 /// Exports specification
@@ -431,7 +433,7 @@ impl ClaudeMdParser {
             && spec.exports.types.is_empty()
             && spec.exports.classes.is_empty()
         {
-            spec.parse_errors.push("Exports section contains no valid exports".to_string());
+            spec.warnings.push("Exports section contains no valid exports".to_string());
         }
     }
 
@@ -846,7 +848,7 @@ impl ClaudeMdParser {
         }
 
         if spec.behaviors.is_empty() {
-            spec.parse_errors.push("Behavior section contains no valid scenarios".to_string());
+            spec.warnings.push("Behavior section contains no valid scenarios".to_string());
         }
     }
 
@@ -1061,72 +1063,6 @@ mod bracket_utils {
             }
         }
         None
-    }
-
-    /// Split a string by a delimiter, but ignore delimiters inside balanced brackets.
-    /// Supports <>, (), [], {}
-    pub fn split_respecting_brackets(s: &str, delimiter: char) -> Vec<String> {
-        let mut result = Vec::new();
-        let mut current = String::new();
-        let mut angle_depth: u32 = 0;   // < >
-        let mut paren_depth: u32 = 0;   // ( )
-        let mut bracket_depth: u32 = 0; // [ ]
-        let mut brace_depth: u32 = 0;   // { }
-
-        for c in s.chars() {
-            match c {
-                '<' => {
-                    angle_depth += 1;
-                    current.push(c);
-                }
-                '>' => {
-                    angle_depth = angle_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '(' => {
-                    paren_depth += 1;
-                    current.push(c);
-                }
-                ')' => {
-                    paren_depth = paren_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '[' => {
-                    bracket_depth += 1;
-                    current.push(c);
-                }
-                ']' => {
-                    bracket_depth = bracket_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                '{' => {
-                    brace_depth += 1;
-                    current.push(c);
-                }
-                '}' => {
-                    brace_depth = brace_depth.saturating_sub(1);
-                    current.push(c);
-                }
-                _ if c == delimiter
-                    && angle_depth == 0
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0 =>
-                {
-                    result.push(current.trim().to_string());
-                    current = String::new();
-                }
-                _ => {
-                    current.push(c);
-                }
-            }
-        }
-
-        if !current.is_empty() {
-            result.push(current.trim().to_string());
-        }
-
-        result
     }
 
     /// Extract content between parentheses, respecting nested brackets.
