@@ -48,6 +48,31 @@ Feature: Code Analyze Skill
       | ./types         |
       | ../utils/crypto |
 
+  Scenario: Extract TypeScript arrow function exports
+    Given a TypeScript file "fixtures/typescript/arrow-functions.ts"
+    When I analyze the file for exports
+    Then I should find exported functions:
+      | name          | signature                                        |
+      | validateToken | validateToken(token: string): Promise<Claims>    |
+      | generateId    | generateId(prefix: string): Promise<string>      |
+      | syncHelper    | syncHelper(value: number): number                |
+
+  Scenario: Extract TypeScript export default function
+    Given a TypeScript file "fixtures/typescript/default-export.ts"
+    When I analyze the file for exports
+    Then I should find exported functions:
+      | name      | signature                                       |
+      | createApp | createApp(config: AppConfig): Application       |
+
+  Scenario: Extract TypeScript re-exports
+    Given a TypeScript file "fixtures/typescript/re-exports.ts"
+    When I analyze the file for exports
+    Then I should find re-exported symbols:
+      | name          | source    |
+      | validateToken | ./auth    |
+      | Claims        | ./auth    |
+      | createApp     | ./app     |
+
   # =============================================================================
   # Python Analysis
   # =============================================================================
@@ -250,6 +275,193 @@ Feature: Code Analyze Skill
       | Valid JWT token | Result.success(TokenClaims)          |
       | Expired token   | Result.failure(TokenExpiredException) |
       | Invalid token   | Result.failure(InvalidTokenException) |
+
+  # =============================================================================
+  # Contract Extraction
+  # =============================================================================
+
+  Scenario: Extract contract from JSDoc
+    Given a TypeScript file "fixtures/typescript/contracts.ts"
+    When I analyze the file for contracts
+    Then I should find contract for "validateToken":
+      | preconditions             | postconditions                   | throws           |
+      | token must be non-empty   | returns Claims with valid userId | InvalidTokenError |
+
+  Scenario: Infer contract from validation logic
+    Given a TypeScript file "fixtures/typescript/contracts.ts"
+    When I analyze the file for contracts
+    Then I should find inferred preconditions for "processOrder":
+      | precondition           |
+      | order.id is required   |
+      | order.items not empty  |
+
+  Scenario: Extract contract from Python docstring
+    Given a Python file "fixtures/python/contracts.py"
+    When I analyze the file for contracts
+    Then I should find contract for "validate_token":
+      | preconditions             | postconditions         | throws              |
+      | token must be non-empty   | Claims object          | InvalidTokenError   |
+
+  Scenario: Extract contract from Go comments
+    Given a Go file "fixtures/go/contracts.go"
+    When I analyze the file for contracts
+    Then I should find contract for "ValidateToken":
+      | preconditions             | postconditions         | throws          |
+      | token must be non-empty   | Claims or error        | ErrInvalidToken |
+
+  Scenario: Extract contract from Rust doc comments
+    Given a Rust file "fixtures/rust/contracts.rs"
+    When I analyze the file for contracts
+    Then I should find contract for "validate_token":
+      | preconditions             | postconditions         | throws               |
+      | token must be non-empty   | Ok(Claims)             | TokenError::Invalid  |
+
+  Scenario: Extract contract from Javadoc
+    Given a Java file "fixtures/java/Contracts.java"
+    When I analyze the file for contracts
+    Then I should find contract for "validateToken":
+      | preconditions             | postconditions         | throws                |
+      | token must be non-empty   | TokenClaims object     | InvalidTokenException |
+
+  Scenario: Extract contract from KDoc
+    Given a Kotlin file "fixtures/kotlin/Contracts.kt"
+    When I analyze the file for contracts
+    Then I should find contract for "validateToken":
+      | preconditions             | postconditions         | throws                   |
+      | token must be non-empty   | TokenClaims or null    | IllegalArgumentException |
+
+  # =============================================================================
+  # Protocol Extraction
+  # =============================================================================
+
+  Scenario: Extract state machine from enum
+    Given a TypeScript file "fixtures/typescript/state-machine.ts"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state    |
+      | Idle     |
+      | Loading  |
+      | Loaded   |
+      | Error    |
+
+  Scenario: Extract lifecycle methods
+    Given a TypeScript file "fixtures/typescript/state-machine.ts"
+    When I analyze the file for protocol
+    Then I should find lifecycle methods:
+      | method     |
+      | init       |
+      | start      |
+      | stop       |
+      | destroy    |
+
+  Scenario: Extract Python protocol from Enum
+    Given a Python file "fixtures/python/state_machine.py"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state    |
+      | IDLE     |
+      | LOADING  |
+      | LOADED   |
+      | ERROR    |
+
+  Scenario: Extract protocol from Python Union types
+    Given a Python file "fixtures/python/union_state.py"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state   |
+      | Idle    |
+      | Loading |
+      | Loaded  |
+      | Error   |
+
+  Scenario: Extract Go protocol from iota constants
+    Given a Go file "fixtures/go/state_machine.go"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state        |
+      | StateIdle    |
+      | StateLoading |
+      | StateLoaded  |
+      | StateError   |
+
+  Scenario: Extract Rust protocol from enum
+    Given a Rust file "fixtures/rust/state_machine.rs"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state    |
+      | Idle     |
+      | Loading  |
+      | Loaded   |
+      | Error    |
+
+  Scenario: Extract protocol from Rust enum with associated data
+    Given a Rust file "fixtures/rust/adt_state.rs"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state   |
+      | Idle    |
+      | Loading |
+      | Loaded  |
+      | Error   |
+
+  Scenario: Extract Java protocol from enum
+    Given a Java file "fixtures/java/StateMachine.java"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state    |
+      | IDLE     |
+      | LOADING  |
+      | LOADED   |
+      | ERROR    |
+
+  Scenario: Extract Kotlin protocol from enum class
+    Given a Kotlin file "fixtures/kotlin/StateMachine.kt"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state    |
+      | IDLE     |
+      | LOADING  |
+      | LOADED   |
+      | ERROR    |
+
+  Scenario: Extract protocol from Kotlin sealed class
+    Given a Kotlin file "fixtures/kotlin/SealedState.kt"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state   |
+      | Idle    |
+      | Loading |
+      | Loaded  |
+      | Error   |
+
+  Scenario: Extract protocol from Kotlin sealed interface
+    Given a Kotlin file "fixtures/kotlin/SealedState.kt"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state        |
+      | Start        |
+      | DataReceived |
+      | Cancel       |
+
+  Scenario: Extract protocol from Java sealed class
+    Given a Java file "fixtures/java/SealedState.java"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state   |
+      | Idle    |
+      | Loading |
+      | Loaded  |
+      | Error   |
+
+  Scenario: Extract protocol from TypeScript discriminated union
+    Given a TypeScript file "fixtures/typescript/discriminated-union.ts"
+    When I analyze the file for protocol
+    Then I should find states:
+      | state   |
+      | idle    |
+      | loading |
+      | loaded  |
+      | error   |
 
   # =============================================================================
   # Behavior Inference

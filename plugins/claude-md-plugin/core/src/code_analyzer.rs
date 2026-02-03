@@ -44,6 +44,11 @@ pub struct AnalysisResult {
     pub dependencies: Dependencies,
     /// Inferred behaviors
     pub behaviors: Vec<Behavior>,
+    /// Contracts for functions (preconditions, postconditions, etc.)
+    pub contracts: Vec<FunctionContract>,
+    /// Protocol (state machines, lifecycle)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<Protocol>,
     /// List of files that were analyzed
     pub analyzed_files: Vec<String>,
 }
@@ -61,6 +66,15 @@ pub struct Exports {
     pub enums: Vec<ExportedEnum>,
     /// Exported variables/constants
     pub variables: Vec<ExportedVariable>,
+    /// Re-exported symbols from other modules
+    pub re_exports: Vec<ReExport>,
+}
+
+/// A re-exported symbol from another module.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReExport {
+    pub name: String,
+    pub source: String,
 }
 
 /// An exported function.
@@ -146,6 +160,48 @@ pub enum BehaviorCategory {
     Error,
 }
 
+/// Contract information for a function (preconditions, postconditions, invariants).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Contract {
+    /// Preconditions that must hold before the function executes
+    pub preconditions: Vec<String>,
+    /// Postconditions that are guaranteed after successful execution
+    pub postconditions: Vec<String>,
+    /// Invariants that are maintained throughout execution
+    pub invariants: Vec<String>,
+    /// Exceptions/errors that may be thrown
+    pub throws: Vec<String>,
+}
+
+/// A function with its associated contract.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionContract {
+    pub function_name: String,
+    pub contract: Contract,
+}
+
+/// Protocol information (state machines, lifecycle).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Protocol {
+    /// State machine states (from enum)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub states: Vec<String>,
+    /// State transitions
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub transitions: Vec<StateTransition>,
+    /// Lifecycle methods in order
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifecycle: Vec<String>,
+}
+
+/// A state transition in a state machine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateTransition {
+    pub from: String,
+    pub to: String,
+    pub trigger: String,
+}
+
 /// Trait that all language-specific analyzers must implement.
 pub trait LanguageAnalyzer {
     /// Analyze a single file and return partial results.
@@ -163,6 +219,9 @@ pub struct PartialAnalysis {
     pub classes: Vec<ExportedClass>,
     pub enums: Vec<ExportedEnum>,
     pub variables: Vec<ExportedVariable>,
+    pub re_exports: Vec<ReExport>,
+    pub contracts: Vec<FunctionContract>,
+    pub protocol: Option<Protocol>,
     pub external_deps: Vec<String>,
     pub internal_deps: Vec<String>,
     pub behaviors: Vec<Behavior>,
@@ -219,12 +278,15 @@ impl CodeAnalyzer {
                 classes: partial.classes,
                 enums: partial.enums,
                 variables: partial.variables,
+                re_exports: partial.re_exports,
             },
             dependencies: Dependencies {
                 external: partial.external_deps,
                 internal: partial.internal_deps,
             },
             behaviors: partial.behaviors,
+            contracts: partial.contracts,
+            protocol: partial.protocol,
             analyzed_files: vec![file_name],
         })
     }
@@ -306,6 +368,7 @@ impl CodeAnalyzer {
         target.exports.classes.extend(source.exports.classes);
         target.exports.enums.extend(source.exports.enums);
         target.exports.variables.extend(source.exports.variables);
+        target.exports.re_exports.extend(source.exports.re_exports);
 
         // Deduplicate dependencies
         for dep in source.dependencies.external {
@@ -320,6 +383,19 @@ impl CodeAnalyzer {
         }
 
         target.behaviors.extend(source.behaviors);
+        target.contracts.extend(source.contracts);
+
+        // Merge protocol (take the first non-empty one or merge)
+        if let Some(src_protocol) = source.protocol {
+            if let Some(ref mut tgt_protocol) = target.protocol {
+                tgt_protocol.states.extend(src_protocol.states);
+                tgt_protocol.transitions.extend(src_protocol.transitions);
+                tgt_protocol.lifecycle.extend(src_protocol.lifecycle);
+            } else {
+                target.protocol = Some(src_protocol);
+            }
+        }
+
         target.analyzed_files.extend(source.analyzed_files);
     }
 }

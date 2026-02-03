@@ -4,8 +4,8 @@ use std::path::Path;
 use regex::Regex;
 
 use super::{
-    AnalyzerError, Behavior, BehaviorCategory, ExportedFunction, ExportedType,
-    ExportedVariable, LanguageAnalyzer, PartialAnalysis, TypeKind,
+    AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedFunction, ExportedType,
+    ExportedVariable, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, TypeKind,
 };
 
 /// Analyzer for Go files.
@@ -18,6 +18,15 @@ pub struct GoAnalyzer {
     var_re: Regex,
     import_re: Regex,
     error_return_re: Regex,
+    // Contract extraction patterns
+    func_comment_re: Regex,
+    precondition_re: Regex,
+    postcondition_re: Regex,
+    errors_re: Regex,
+    // Protocol patterns
+    iota_const_re: Regex,
+    state_const_re: Regex,
+    lifecycle_re: Regex,
 }
 
 impl GoAnalyzer {
@@ -52,12 +61,154 @@ impl GoAnalyzer {
             error_return_re: Regex::new(
                 r"return\s+\w+,\s+(Err\w+)"
             ).unwrap(),
+
+            // Match comment block followed by func
+            // // Comment line
+            // func FunctionName(...)
+            func_comment_re: Regex::new(
+                r"(?s)((?://[^\n]*\n)+)\s*func\s+(\w+)\s*\([^)]*\)"
+            ).unwrap(),
+
+            // Precondition: ... in comment
+            precondition_re: Regex::new(
+                r"(?i)//\s*Precondition:\s*(.+)"
+            ).unwrap(),
+
+            // Postcondition: ... in comment
+            postcondition_re: Regex::new(
+                r"(?i)//\s*Postcondition:\s*(.+)"
+            ).unwrap(),
+
+            // Errors: ... or Error: ... in comment
+            errors_re: Regex::new(
+                r"(?i)//\s*Errors?:\s*(.+)"
+            ).unwrap(),
+
+            // iota const block
+            // const (
+            //     StateIdle State = iota
+            //     StateLoading
+            // )
+            iota_const_re: Regex::new(
+                r"(?s)const\s*\(\s*((?:\s*\w+\s+\w+\s*=\s*iota.*?\n)(?:\s*\w+.*?\n)*)\s*\)"
+            ).unwrap(),
+
+            // Individual state constants (State prefix pattern)
+            state_const_re: Regex::new(
+                r"(?m)^\s*(State\w+)"
+            ).unwrap(),
+
+            // @lifecycle N in comment
+            lifecycle_re: Regex::new(
+                r"@lifecycle\s+(\d+)"
+            ).unwrap(),
         }
     }
 
     /// Check if a name is exported (starts with uppercase)
     fn is_exported(&self, name: &str) -> bool {
         name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+    }
+
+    /// Extract contracts from Go comments.
+    fn extract_contracts(&self, content: &str) -> Vec<FunctionContract> {
+        let mut contracts = Vec::new();
+
+        for cap in self.func_comment_re.captures_iter(content) {
+            let comment_block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let function_name = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            // Only process exported functions
+            if !self.is_exported(function_name) {
+                continue;
+            }
+
+            let mut contract = Contract::default();
+
+            // Extract preconditions
+            for pre_cap in self.precondition_re.captures_iter(comment_block) {
+                if let Some(m) = pre_cap.get(1) {
+                    contract.preconditions.push(m.as_str().trim().to_string());
+                }
+            }
+
+            // Extract postconditions
+            for post_cap in self.postcondition_re.captures_iter(comment_block) {
+                if let Some(m) = post_cap.get(1) {
+                    contract.postconditions.push(m.as_str().trim().to_string());
+                }
+            }
+
+            // Extract errors/throws
+            for err_cap in self.errors_re.captures_iter(comment_block) {
+                if let Some(m) = err_cap.get(1) {
+                    contract.throws.push(m.as_str().trim().to_string());
+                }
+            }
+
+            // Only add if contract has any content
+            if !contract.preconditions.is_empty()
+                || !contract.postconditions.is_empty()
+                || !contract.throws.is_empty()
+            {
+                contracts.push(FunctionContract {
+                    function_name: function_name.to_string(),
+                    contract,
+                });
+            }
+        }
+
+        contracts
+    }
+
+    /// Extract protocol information (states from iota, lifecycle).
+    fn extract_protocol(&self, content: &str) -> Option<Protocol> {
+        let mut protocol = Protocol::default();
+
+        // Extract states from iota const blocks
+        for cap in self.iota_const_re.captures_iter(content) {
+            let const_block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            // Extract State* constants
+            for state_cap in self.state_const_re.captures_iter(const_block) {
+                if let Some(state) = state_cap.get(1) {
+                    let state_name = state.as_str();
+                    if !protocol.states.contains(&state_name.to_string()) {
+                        protocol.states.push(state_name.to_string());
+                    }
+                }
+            }
+        }
+
+        // Extract lifecycle methods from @lifecycle comments
+        let lifecycle_func_re = Regex::new(
+            r"(?s)((?://[^\n]*\n)+)\s*func\s+(?:\([^)]+\)\s*)?(\w+)\s*\([^)]*\)"
+        ).unwrap();
+
+        let mut lifecycle_methods: Vec<(u32, String)> = Vec::new();
+        for cap in lifecycle_func_re.captures_iter(content) {
+            let comment_block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let func_name = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            if let Some(lifecycle_cap) = self.lifecycle_re.captures(comment_block) {
+                if let Some(order) = lifecycle_cap.get(1) {
+                    if let Ok(order_num) = order.as_str().parse::<u32>() {
+                        lifecycle_methods.push((order_num, func_name.to_string()));
+                    }
+                }
+            }
+        }
+
+        // Sort by order and extract names
+        lifecycle_methods.sort_by_key(|(order, _)| *order);
+        protocol.lifecycle = lifecycle_methods.into_iter().map(|(_, name)| name).collect();
+
+        // Only return protocol if it has content
+        if !protocol.states.is_empty() || !protocol.lifecycle.is_empty() {
+            Some(protocol)
+        } else {
+            None
+        }
     }
 }
 
@@ -160,6 +311,12 @@ impl LanguageAnalyzer for GoAnalyzer {
                 analysis.external_deps.push(package.to_string());
             }
         }
+
+        // Extract contracts from comments
+        analysis.contracts = self.extract_contracts(content);
+
+        // Extract protocol information (states, lifecycle)
+        analysis.protocol = self.extract_protocol(content);
 
         // Infer behaviors from error returns
         for cap in self.error_return_re.captures_iter(content) {
