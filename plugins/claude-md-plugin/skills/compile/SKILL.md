@@ -46,19 +46,38 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 
 ## Core Philosophy
 
-**CLAUDE.md(소스) → Source Code(바이너리) = Compile**
+**CLAUDE.md + IMPLEMENTS.md → Source Code = Compile**
 
 ```
-CLAUDE.md (스펙)  ─── /compile ──→  Source Code (구현)
+CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source Code (구현)
 ```
 
 전통적 컴파일러가 소스코드를 바이너리로 변환하듯,
-`/compile`은 CLAUDE.md 명세를 실행 가능한 소스코드로 변환합니다.
+`/compile`은 CLAUDE.md + IMPLEMENTS.md 명세를 실행 가능한 소스코드로 변환합니다.
+
+## 듀얼 문서 시스템
+
+```
+/compile
+    │
+    ├─ CLAUDE.md 읽기 (스펙 = WHAT)
+    ├─ IMPLEMENTS.md [Planning Section] 읽기 (구현 방향 = HOW 계획)
+    │
+    ├─→ 소스코드 생성 (TDD Workflow)
+    │
+    └─→ IMPLEMENTS.md [Implementation Section] 업데이트
+        - Algorithm (실제 구현된 알고리즘)
+        - Key Constants (상수값과 근거)
+        - Error Handling (에러 처리 전략)
+        - State Management (상태 관리)
+        - Session Notes (다른 세션 참고용 정보)
+```
 
 ## 목적
 
-CLAUDE.md 파일을 기반으로 소스 코드를 생성합니다.
-CLAUDE.md가 명세(specification)가 되고, 소스 코드가 산출물이 됩니다.
+CLAUDE.md + IMPLEMENTS.md 파일을 기반으로 소스 코드를 생성합니다.
+CLAUDE.md가 명세(WHAT)가 되고, IMPLEMENTS.md가 구현 방향(HOW)을 제공하며,
+소스 코드가 산출물이 됩니다.
 
 ## 사용법
 
@@ -128,13 +147,28 @@ def detect_language(directory):
     return ask_user_for_language()
 ```
 
-### 3. compiler Agent 호출 (병렬 처리)
+### 3. IMPLEMENTS.md 존재 확인 및 자동 생성
+
+```python
+for claude_md_path in target_files:
+    target_dir = dirname(claude_md_path)
+    implements_md_path = f"{target_dir}/IMPLEMENTS.md"
+
+    # IMPLEMENTS.md 없으면 자동 생성
+    if not file_exists(implements_md_path):
+        print(f"  ⚠ {implements_md_path} 없음 - 자동 생성")
+        # 기본 Planning Section으로 IMPLEMENTS.md 생성
+        create_default_implements_md(implements_md_path)
+```
+
+### 4. compiler Agent 호출 (병렬 처리)
 
 ```python
 # 모든 compiler Task를 병렬로 실행
 tasks = []
 for claude_md_path in target_files:
     target_dir = dirname(claude_md_path)
+    implements_md_path = f"{target_dir}/IMPLEMENTS.md"
     detected_language = detect_language(target_dir)
     output_name = target_dir.replace("/", "-").replace(".", "root")
 
@@ -144,6 +178,7 @@ for claude_md_path in target_files:
     task = Task(
         prompt=f"""
         CLAUDE.md 경로: {claude_md_path}
+        IMPLEMENTS.md 경로: {implements_md_path}
         대상 디렉토리: {target_dir}
         감지된 언어: {detected_language}
         충돌 처리: {conflict_mode}
@@ -155,7 +190,7 @@ for claude_md_path in target_files:
     tasks.append(task)
 ```
 
-### 4. 결과 수집 및 보고
+### 5. 결과 수집 및 보고
 
 ```python
 total_files = 0
@@ -192,20 +227,24 @@ print(f"""
 사용자에게 노출되지 않는 내부 프로세스:
 
 ```
-CLAUDE.md 파싱
+CLAUDE.md + IMPLEMENTS.md 파싱
      │
      ▼
 [RED] behaviors → 테스트 코드 생성 (실패 확인)
      │
      ▼
 [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)
-     │
+     │   └─ IMPLEMENTS.md Planning Section 참조
      ▼
 [REFACTOR] 프로젝트 컨벤션 적용 + 회귀 테스트
      │
      ▼
 파일 충돌 처리
      │
+     ▼
+IMPLEMENTS.md Implementation Section 업데이트
+     │   - Algorithm, Key Constants, Error Handling
+     │   - State Management, Session Notes
      ▼
 결과 반환
 ```
@@ -235,28 +274,33 @@ if file_exists(target_path):
 프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
 발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md
-2. src/utils/CLAUDE.md
+1. src/auth/CLAUDE.md + IMPLEMENTS.md
+2. src/utils/CLAUDE.md + IMPLEMENTS.md
 
 코드 생성을 시작합니다...
 
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
+✓ IMPLEMENTS.md Planning Section 로드
 ✓ 테스트 생성 (5 test cases)
 ✓ 구현 생성
 ✓ 테스트 실행: 5 passed
+✓ IMPLEMENTS.md Implementation Section 업데이트
 
 [2/2] src/utils/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
+✓ IMPLEMENTS.md Planning Section 로드
 ✓ 테스트 생성 (3 test cases)
 ✓ 구현 생성
 ✓ 테스트 실행: 3 passed
+✓ IMPLEMENTS.md Implementation Section 업데이트
 
 === 생성 완료 ===
 총 CLAUDE.md: 2개
 생성된 파일: 7개
 건너뛴 파일: 0개
 테스트: 8 passed, 0 failed
+업데이트된 IMPLEMENTS.md: 2개
 ```
 
 ## 오류 처리
@@ -264,6 +308,7 @@ if file_exists(target_path):
 | 상황 | 대응 |
 |------|------|
 | CLAUDE.md 없음 | "CLAUDE.md 파일을 찾을 수 없습니다" 메시지 출력 |
+| IMPLEMENTS.md 없음 | 기본 템플릿으로 자동 생성 후 진행 |
 | 파싱 오류 | 해당 파일 건너뛰고 계속 진행, 오류 로그 |
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | 테스트 실패 | 경고 표시, 수동 수정 필요 안내 |

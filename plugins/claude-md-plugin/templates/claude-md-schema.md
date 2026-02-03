@@ -7,6 +7,34 @@
 
 이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
 
+**CLAUDE.md = WHAT (정형화된 PRD)**
+- CLAUDE.md는 "무엇을(WHAT)" 정의하는 문서입니다.
+- IMPLEMENTS.md는 "어떻게(HOW)" 구현하는지 정의합니다.
+- 두 문서는 1:1로 매핑됩니다.
+
+## 듀얼 문서 시스템
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    C 언어 비유                              │
+│                                                             │
+│   .h (헤더)    +  .c (소스)     ─── compile ──→  .o/.exe   │
+│   WHAT            HOW                            Binary     │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    claude-md-plugin                         │
+│                                                             │
+│   CLAUDE.md     +  IMPLEMENTS.md  ─── /compile ──→  소스코드│
+│   WHAT (스펙)      HOW (구현명세)                   (실행물)│
+└─────────────────────────────────────────────────────────────┘
+```
+
+| 문서 | 역할 | 비유 | 주요 내용 |
+|------|------|------|----------|
+| **CLAUDE.md** | WHAT | .h (헤더) | 도메인맥락, PRD, 인터페이스 |
+| **IMPLEMENTS.md** | HOW | .c (구현) | 알고리즘, 상수, 구현 상세 |
+
 ## 필수 섹션 요약 (6개)
 
 | 섹션 | 필수 | "None" 허용 | 설명 |
@@ -43,7 +71,7 @@
 ```
 
 ### 3. Exports (필수)
-모듈의 public interface를 **시그니처 레벨**로 명시합니다.
+모듈의 public interface를 **시그니처 레벨 + 도메인 맥락**으로 명시합니다.
 
 **Exports = Interface Catalog**: 다른 모듈이 코드를 탐색하지 않고도 이 모듈의 인터페이스를 파악할 수 있어야 합니다.
 
@@ -59,9 +87,41 @@
 #### 형식 규칙
 - 함수/메서드: `Name(params) ReturnType` 형태
 - 파라미터 타입과 반환 타입 필수
+- **도메인 맥락**: 각 함수/타입에 역할과 용도 설명 포함
 - 언어별 관용 표현 허용
 
-#### 형식 예시
+#### Functions 상세 형식 (권장)
+
+각 함수는 시그니처와 함께 도메인 맥락을 포함해야 합니다:
+
+```markdown
+### Functions
+
+#### validateToken
+`validateToken(token: string) -> Claims`
+
+JWT 토큰을 검증하고 Claims를 추출합니다.
+- **입력**: Bearer 토큰 (Authorization 헤더에서 추출된 문자열)
+- **출력**: 사용자 식별 정보와 권한 목록을 포함하는 Claims
+- **역할**: API 요청의 인증 게이트키퍼. 모든 보호된 엔드포인트에서 호출됨
+- **도메인 맥락**: PCI-DSS 준수를 위해 7일 만료 정책 적용
+```
+
+#### Types 상세 형식 (권장)
+
+```markdown
+### Types
+
+#### Claims
+`Claims { userId: string, exp: number, permissions: Permission[] }`
+
+인증된 사용자의 신원과 권한을 나타내는 타입
+- **userId**: UUID v4 형식, 사용자 테이블의 PK
+- **exp**: Unix timestamp (초), 토큰 만료 시점
+- **permissions**: 해당 사용자가 수행 가능한 작업 목록
+```
+
+#### 간략 형식 (단순한 경우)
 
 ```markdown
 ### Functions
@@ -305,4 +365,24 @@ None
 ## Dependencies
 - ../api: (부모 참조 - 금지) ✗
 - ../utils: (형제 참조 - 금지) ✗
+```
+
+## 관련 문서
+
+- **IMPLEMENTS.md**: HOW(구현 명세)를 정의하는 쌍 문서
+- 템플릿: `templates/implements-md-schema.md`
+
+### 불변식
+
+**INV-3: CLAUDE.md ↔ IMPLEMENTS.md 쌍**
+```
+∀ CLAUDE.md ∃ IMPLEMENTS.md (1:1 mapping)
+path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
+```
+
+**INV-4: Section 업데이트 책임**
+```
+/spec → CLAUDE.md + IMPLEMENTS.md.PlanningSection
+/compile → IMPLEMENTS.md.ImplementationSection
+/decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 ```

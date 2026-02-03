@@ -14,8 +14,22 @@ allowed-tools: [Read, Glob, Write, Task, Skill, AskUserQuestion]
 
 ## 목적
 
-요구사항(자연어 또는 User Story)을 분석하여 CLAUDE.md를 생성/업데이트합니다.
+요구사항(자연어 또는 User Story)을 분석하여 **CLAUDE.md + IMPLEMENTS.md** 쌍을 생성/업데이트합니다.
 **코드 구현 없이** behavior 정의만 수행하여 ATDD/TDD의 "명세 먼저" 원칙을 따릅니다.
+
+## 듀얼 문서 시스템
+
+```
+/spec "요구사항"
+    │
+    ├─→ CLAUDE.md 생성/업데이트 (WHAT)
+    │   - Purpose, Domain Context, Exports, Behavior, Contract, Protocol
+    │
+    └─→ IMPLEMENTS.md [Planning Section] 업데이트 (HOW 계획)
+        - Dependencies Direction
+        - Implementation Approach
+        - Technology Choices
+```
 
 ## 아키텍처
 
@@ -27,7 +41,8 @@ User: /spec "요구사항"
 │ spec SKILL (Entry Point)                    │
 │                                             │
 │ Task(spec-agent) → 요구사항 분석 및         │
-│                    CLAUDE.md 작성           │
+│                    CLAUDE.md + IMPLEMENTS.md│
+│                    작성                     │
 └─────────────────────────────────────────────┘
 
         │
@@ -37,11 +52,12 @@ User: /spec "요구사항"
 │                                             │
 │ 1. 요구사항 분석                            │
 │ 2. 모호한 부분 AskUserQuestion             │
-│ 3. 대상 CLAUDE.md 위치 결정                 │
+│ 3. 대상 위치 결정                           │
 │ 4. 기존 CLAUDE.md 존재시 병합               │
 │ 5. CLAUDE.md 생성                           │
-│ 6. Skill("schema-validate") → 검증          │
-│ → 최종 CLAUDE.md 저장                       │
+│ 6. IMPLEMENTS.md Planning Section 생성      │
+│ 7. Skill("schema-validate") → 검증          │
+│ → 최종 CLAUDE.md + IMPLEMENTS.md 저장       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -55,7 +71,7 @@ User: /spec "요구사항"
 - Feature 목록
 - 기능 요청
 
-### 2. CLAUDE.md 생성 (spec-agent)
+### 2. CLAUDE.md + IMPLEMENTS.md 생성 (spec-agent)
 
 ```python
 # spec-agent Agent 호출
@@ -67,9 +83,9 @@ Task(
 
 프로젝트 루트: {project_root}
 
-요구사항을 분석하고 CLAUDE.md를 생성해주세요.
+요구사항을 분석하고 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
 """,
-    description="Generate CLAUDE.md from requirements"
+    description="Generate CLAUDE.md + IMPLEMENTS.md from requirements"
 )
 ```
 
@@ -79,8 +95,12 @@ Task(
 3. 대상 경로 결정 (명시적 경로, 모듈명 추론, 사용자 선택)
 4. 기존 CLAUDE.md 존재시 smart merge
 5. 템플릿 기반 CLAUDE.md 생성
-6. 스키마 검증 (1회)
-7. 최종 저장
+6. **IMPLEMENTS.md Planning Section 생성**
+   - Dependencies Direction: 필요한 의존성과 위치
+   - Implementation Approach: 구현 전략과 대안
+   - Technology Choices: 기술 선택 근거
+7. 스키마 검증 (1회)
+8. 최종 저장
 
 ### 3. 최종 결과 보고
 
@@ -88,7 +108,8 @@ Task(
 === /spec 완료 ===
 
 생성/업데이트된 파일:
-  ✓ {target_path}/CLAUDE.md
+  ✓ {target_path}/CLAUDE.md (WHAT - 스펙)
+  ✓ {target_path}/IMPLEMENTS.md (HOW - Planning Section)
 
 스펙 요약:
   - Purpose: {purpose}
@@ -96,10 +117,15 @@ Task(
   - Behaviors: {behavior_count}개
   - Contracts: {contract_count}개
 
+구현 계획 요약:
+  - Dependencies: {dependency_count}개
+  - Implementation Approach: {approach_summary}
+  - Technology Choices: {choice_count}개
+
 검증 결과: 스키마 검증 통과
 
 다음 단계:
-  - /compile로 코드 구현 가능
+  - /compile로 코드 구현 가능 (IMPLEMENTS.md Implementation Section도 업데이트됨)
   - /validate로 문서-코드 일치 검증 가능
 ```
 
@@ -110,6 +136,7 @@ Task(
 | 요구사항 불명확 | spec-agent가 AskUserQuestion으로 명확화 |
 | 대상 경로 모호 | 후보 목록 제시 후 선택 요청 |
 | 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
+| 기존 IMPLEMENTS.md와 충돌 | Planning Section만 업데이트 (Implementation Section 유지) |
 | 스키마 검증 실패 | 경고와 함께 이슈 보고 |
 
 ## /decompile과의 차이점

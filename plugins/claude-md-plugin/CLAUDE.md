@@ -8,36 +8,42 @@
 
 ## Core Philosophy: Compile/Decompile 패러다임
 
-**CLAUDE.md는 소스코드이고, 소스코드는 바이너리다.**
+**CLAUDE.md + IMPLEMENTS.md는 소스코드이고, 소스코드는 바이너리다.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    전통적 소프트웨어                          │
 │                                                             │
-│   Source Code (.c, .java)  ─── compile ──→  Binary (.exe)  │
-│   Binary (.exe)  ─── decompile ──→  Source Code            │
+│   .h (헤더)  +  .c (소스)  ─── compile ──→  Binary (.exe)   │
+│   Binary (.exe)  ─── decompile ──→  .h + .c                 │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin                         │
+│                    claude-md-plugin (듀얼 문서 시스템)       │
 │                                                             │
-│   CLAUDE.md (스펙)  ─── /compile ──→  Source Code (구현)    │
-│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (스펙)  │
+│   CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)                    │
+│         │                                                   │
+│         └──── /compile ──→  Source Code (구현)              │
+│                                                             │
+│   Source Code (구현)  ─── /decompile ──→                    │
+│         └──→ CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 전통적 개념 | claude-md-plugin | 명령어 |
-|------------|------------------|--------|
-| Source Code | CLAUDE.md | - |
-| Binary | Source Code (.ts, .py, ...) | - |
-| **compile** | CLAUDE.md → Source Code | `/compile` |
-| **decompile** | Source Code → CLAUDE.md | `/decompile` |
+| 전통적 개념 | claude-md-plugin | 역할 |
+|------------|------------------|------|
+| .h (헤더) | CLAUDE.md | WHAT - 인터페이스, 스펙 |
+| .c (소스) | IMPLEMENTS.md | HOW - 구현 명세 |
+| Binary | Source Code (.ts, .py, ...) | 실행물 |
+| **compile** | CLAUDE.md + IMPLEMENTS.md → Source Code | `/compile` |
+| **decompile** | Source Code → CLAUDE.md + IMPLEMENTS.md | `/decompile` |
 
 **왜 이 비유인가?**
-- **Source Code**는 사람이 읽고 작성하는 것 → CLAUDE.md
-- **Binary**는 기계가 실행하는 것 → 실제 소스코드 (런타임이 실행)
-- **Compile**은 스펙에서 실행 가능한 형태로 변환 → CLAUDE.md에서 코드 생성
-- **Decompile**은 실행 가능한 형태에서 스펙 추출 → 코드에서 CLAUDE.md 추출
+- **CLAUDE.md** (.h)는 "무엇을(WHAT)" 정의 → 인터페이스, PRD
+- **IMPLEMENTS.md** (.c)는 "어떻게(HOW)" 구현하는지 정의 → 알고리즘, 상수, 에러처리
+- **Source Code**는 기계가 실행하는 것 → 실제 소스코드 (런타임이 실행)
+- **Compile**은 스펙+구현명세에서 실행 가능한 형태로 변환
+- **Decompile**은 실행 가능한 형태에서 스펙+구현명세 추출
 
 ## 핵심 개념
 
@@ -73,32 +79,52 @@
 3. 실제 소스코드 ← 최후 수단 (Exports로 불충분할 때만)
 ```
 
-### Domain Context = 맥락 카탈로그
+### Domain Context = 맥락 카탈로그 (CLAUDE.md)
 
-**Domain Context 섹션은 compile 재현성을 보장하는 맥락 정보입니다.**
-
-이 정보가 없으면 동일한 CLAUDE.md에서 다른 코드가 생성될 수 있습니다.
+**Domain Context 섹션은 "왜?" 이 결정을 했는지 설명하는 맥락 정보입니다.**
 
 | 역할 | 설명 |
 |------|------|
 | **자체 compile 재현** | 해당 CLAUDE.md → 동일한 코드 |
 | **의존자 compile 영향** | 이 모듈을 참조하는 다른 모듈의 compile 결정에 필요한 맥락 |
 
-```
-auth/CLAUDE.md
-├── Exports: validateToken(token: string): Claims  ← 인터페이스
-└── Domain Context: 토큰 만료 7일 (PCI-DSS)       ← 맥락
+### IMPLEMENTS.md = 구현 명세 (듀얼 문서 시스템)
 
-user/CLAUDE.md (auth 의존)
-├── compile 시 auth/Exports 참조 → validateToken 호출 방법
-└── compile 시 auth/Domain Context 참조 → 세션 갱신 주기 결정
+**IMPLEMENTS.md는 CLAUDE.md와 1:1로 매핑되는 "어떻게(HOW)" 문서입니다.**
+
+```
+auth/
+├── CLAUDE.md       ← WHAT (스펙)
+│   ├── Exports: validateToken(token: string): Claims
+│   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
+│
+└── IMPLEMENTS.md   ← HOW (구현 명세)
+    ├── [Planning Section] - /spec이 업데이트
+    │   ├── Dependencies Direction
+    │   ├── Implementation Approach
+    │   └── Technology Choices
+    │
+    └── [Implementation Section] - /compile이 업데이트
+        ├── Algorithm
+        ├── Key Constants
+        ├── Error Handling
+        ├── State Management
+        └── Session Notes
 ```
 
-**Exports = 인터페이스 카탈로그, Domain Context = 맥락 카탈로그**
+**명령어별 업데이트 범위:**
+
+| 명령어 | CLAUDE.md | IMPLEMENTS.md |
+|--------|-----------|---------------|
+| `/spec` | 생성/업데이트 | Planning Section 업데이트 |
+| `/compile` | 읽기 전용 | Implementation Section 업데이트 |
+| `/decompile` | 생성 (전체) | 생성 (전체 - Planning + Implementation) |
+
+**Exports = 인터페이스 카탈로그, Domain Context = 맥락 카탈로그, IMPLEMENTS.md = 구현 명세**
 
 ## Architecture
 
-### /spec (요구사항 → CLAUDE.md)
+### /spec (요구사항 → CLAUDE.md + IMPLEMENTS.md)
 
 ```
 User: /spec "요구사항"
@@ -108,7 +134,8 @@ User: /spec "요구사항"
 │ spec SKILL (Entry Point)                    │
 │                                             │
 │ Task(spec-agent) → 요구사항 분석 및         │
-│                    CLAUDE.md 작성           │
+│                    CLAUDE.md + IMPLEMENTS.md│
+│                    작성                     │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -119,12 +146,13 @@ User: /spec "요구사항"
 │ 2. AskUserQuestion → 모호한 부분 명확화     │
 │ 3. 대상 경로 결정                           │
 │ 4. 기존 CLAUDE.md 병합 (필요시)             │
-│ 5. CLAUDE.md 생성                           │
-│ 6. Skill("schema-validate") → 검증 (1회)    │
+│ 5. CLAUDE.md 생성 (WHAT)                    │
+│ 6. IMPLEMENTS.md Planning Section 생성 (HOW)│
+│ 7. Skill("schema-validate") → 검증 (1회)    │
 └─────────────────────────────────────────────┘
 ```
 
-### /decompile (소스코드 → CLAUDE.md)
+### /decompile (소스코드 → CLAUDE.md + IMPLEMENTS.md)
 
 ```
 User: /decompile
@@ -145,12 +173,13 @@ User: /decompile
 │ Skill("boundary-resolve") → 바운더리 분석   │
 │ Skill("code-analyze") → 코드 분석           │
 │ AskUserQuestion → 불명확한 부분 질문        │
-│ CLAUDE.md 생성 (인라인)                     │
+│ CLAUDE.md 생성 (WHAT)                       │
+│ IMPLEMENTS.md 생성 (HOW - 전체 섹션)        │
 │ Skill("schema-validate") → 검증 (1회)       │
 └─────────────────────────────────────────────┘
 ```
 
-### /compile (CLAUDE.md → 소스코드)
+### /compile (CLAUDE.md + IMPLEMENTS.md → 소스코드)
 
 ```
 User: /compile
@@ -159,9 +188,10 @@ User: /compile
 ┌─────────────────────────────────────────────┐
 │ compile SKILL (Entry Point)                 │
 │                                             │
-│ 1. 모든 CLAUDE.md 검색                      │
-│ 2. 언어 자동 감지                           │
-│ 3. For each CLAUDE.md (병렬):               │
+│ 1. 모든 CLAUDE.md + IMPLEMENTS.md 검색      │
+│ 2. IMPLEMENTS.md 없으면 자동 생성           │
+│ 3. 언어 자동 감지                           │
+│ 4. For each pair (병렬):                    │
 │    Task(compiler) 호출                      │
 └────────────────────┬────────────────────────┘
                      │
@@ -169,10 +199,13 @@ User: /compile
 ┌─────────────────────────────────────────────┐
 │ compiler AGENT (TDD Workflow)               │
 │                                             │
+│ CLAUDE.md 읽기 (WHAT)                       │
+│ IMPLEMENTS.md Planning Section 읽기 (HOW)   │
 │ Skill("claude-md-parse") → JSON 변환        │
 │ [RED] 테스트 생성                           │
 │ [GREEN] 구현 생성 (최대 3회 재시도)         │
 │ [REFACTOR] 프로젝트 컨벤션 적용             │
+│ IMPLEMENTS.md Implementation Section 업데이트│
 └─────────────────────────────────────────────┘
 ```
 
@@ -232,7 +265,20 @@ node.dependencies ⊆ node.children
 
 ### INV-2: Self-contained 바운더리
 ```
-validate(node) = validate(node.claude_md, node.direct_files)
+validate(node) = validate(node.claude_md, node.implements_md, node.direct_files)
+```
+
+### INV-3: CLAUDE.md ↔ IMPLEMENTS.md 쌍
+```
+∀ CLAUDE.md ∃ IMPLEMENTS.md (1:1 mapping)
+path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
+```
+
+### INV-4: Section 업데이트 책임
+```
+/spec → CLAUDE.md + IMPLEMENTS.md.PlanningSection
+/compile → IMPLEMENTS.md.ImplementationSection
+/decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 ```
 
 ## 개발 원칙

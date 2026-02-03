@@ -13,19 +13,42 @@ allowed-tools: [Bash, Read, Write, Task, Skill, AskUserQuestion]
 
 ## Core Philosophy
 
-**Source Code(바이너리) → CLAUDE.md(소스) = Decompile**
+**Source Code(바이너리) → CLAUDE.md + IMPLEMENTS.md(소스) = Decompile**
 
 ```
-Source Code (구현)  ─── /decompile ──→  CLAUDE.md (스펙)
+Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)
 ```
 
 전통적 디컴파일러가 바이너리에서 소스코드를 추출하듯,
-`/decompile`은 기존 소스코드에서 CLAUDE.md 명세를 추출합니다.
+`/decompile`은 기존 소스코드에서 CLAUDE.md + IMPLEMENTS.md 명세를 추출합니다.
+
+## 듀얼 문서 시스템
+
+```
+/decompile
+    │
+    ├─→ CLAUDE.md 추출 (WHAT - 스펙)
+    │   - Purpose, Exports, Behavior, Contract, Protocol, Domain Context
+    │
+    └─→ IMPLEMENTS.md 추출 (HOW - 전체 섹션)
+        - [Planning Section]
+        │   - Dependencies Direction
+        │   - Implementation Approach
+        │   - Technology Choices
+        │
+        - [Implementation Section]
+            - Algorithm
+            - Key Constants
+            - Error Handling
+            - State Management
+            - Session Notes
+```
 
 ## 목적
 
-기존 소스 코드(바이너리)를 분석하여 CLAUDE.md(소스) 초안을 생성합니다.
-CLAUDE.md는 해당 디렉토리의 Source of Truth가 되어 코드 재현의 기반이 됩니다.
+기존 소스 코드(바이너리)를 분석하여 CLAUDE.md + IMPLEMENTS.md(소스) 초안을 생성합니다.
+CLAUDE.md는 해당 디렉토리의 WHAT(무엇을), IMPLEMENTS.md는 HOW(어떻게)를 정의하여
+코드 재현의 기반이 됩니다.
 
 ## 아키텍처
 
@@ -51,14 +74,17 @@ User: /decompile
 │                    ▼                        │
 │ ┌─ Skill("code-analyze") ────────────────┐  │
 │ │ 코드 분석 (exports, deps, behaviors)    │  │
+│ │ + 알고리즘, 상수, 에러처리, 상태 분석   │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
 │ ┌─ AskUserQuestion ──────────────────────┐  │
 │ │ 불명확한 부분 질문                      │  │
+│ │ (Domain Context, Implementation 배경)   │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ CLAUDE.md 생성 (인라인) ──────────────┐  │
-│ │ CLAUDE.md 초안 직접 생성                │  │
+│ ┌─ CLAUDE.md + IMPLEMENTS.md 생성 ───────┐  │
+│ │ CLAUDE.md: WHAT 초안 생성               │  │
+│ │ IMPLEMENTS.md: HOW 전체 섹션 생성       │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
 │ ┌─ Skill("schema-validate") ─────────────┐  │
@@ -167,33 +193,38 @@ for dir_info in sorted_dirs:
 
 각 Agent 실행 완료 즉시 (순차 실행이므로):
 
-1. scratchpad의 결과 파일 확인
-2. 검증 통과 시 실제 CLAUDE.md 위치로 복사
+1. scratchpad의 결과 파일 확인 (CLAUDE.md + IMPLEMENTS.md)
+2. 검증 통과 시 실제 위치로 복사
 3. **중요:** 복사 후 다음 depth의 Agent가 읽을 수 있도록 즉시 배치
 
 ```bash
 # 검증 성공 시 즉시 배치 (다음 Agent가 읽을 수 있도록)
-cp {scratchpad_result_file} src/auth/CLAUDE.md
+cp {scratchpad_result_file_claude} src/auth/CLAUDE.md
+cp {scratchpad_result_file_implements} src/auth/IMPLEMENTS.md
 ```
 
 ### 6. 최종 보고
 
 ```
-=== CLAUDE.md 추출 완료 ===
+=== CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/CLAUDE.md
-  ✓ src/auth/CLAUDE.md
-  ✓ src/api/CLAUDE.md
+  ✓ src/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/auth/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/api/CLAUDE.md + IMPLEMENTS.md
 
 검증 결과:
-  - 스키마 검증: 3/3 통과
+  - CLAUDE.md 스키마: 3/3 통과
+  - IMPLEMENTS.md 스키마: 3/3 통과
   - 참조 규칙: 3/3 통과
 
 사용자 질문: 5개 응답됨
+  - Domain Context 관련: 3개
+  - Implementation 배경: 2개
 
 다음 단계:
-  - /context-validate로 재현성 검증 가능
+  - /validate로 문서-코드 일치 검증 가능
+  - /compile로 코드 재생성 가능 (재현성 테스트)
 ```
 
 ## 내부 Skill 목록
