@@ -5,6 +5,9 @@ use thiserror::Error;
 
 pub use crate::bracket_utils::split_respecting_brackets;
 
+// Include generated constants from schema-rules.yaml (SSOT)
+include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+
 /// Error types for CLAUDE.md parsing
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -226,7 +229,8 @@ impl ClaudeMdParser {
     }
 
     /// Parse CLAUDE.md content directly
-    /// Returns Err immediately if any required section (Purpose, Exports, Behavior) is missing.
+    /// Returns Err immediately if any required section is missing.
+    /// Required sections are defined in schema-rules.yaml (SSOT).
     pub fn parse_content(&self, content: &str) -> Result<ClaudeMdSpec, ParseError> {
         let mut spec = ClaudeMdSpec::default();
         let sections = self.extract_sections(content);
@@ -239,52 +243,80 @@ impl ClaudeMdParser {
             }
         }
 
-        // Parse Purpose section (required) - FAIL FAST
+        // Check all required sections exist (from SSOT) - FAIL FAST
+        for required in REQUIRED_SECTIONS {
+            let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
+
+            match section_found {
+                None => {
+                    return Err(ParseError::MissingRequiredSection {
+                        section: required.to_string(),
+                    });
+                }
+                Some(section) => {
+                    // For sections that allow "None", check if it's a valid None marker
+                    let allows_none = ALLOW_NONE_SECTIONS
+                        .iter()
+                        .any(|s| s.eq_ignore_ascii_case(required));
+                    let is_none_marker = self.is_none_marker(section);
+
+                    // If section doesn't allow None but has None marker, that's an error
+                    if !allows_none && is_none_marker {
+                        return Err(ParseError::InvalidSectionFormat {
+                            section: required.to_string(),
+                            details: format!("Section '{}' does not allow 'None' as value", required),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Parse Purpose section
         if let Some(purpose_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Purpose")) {
             spec.purpose = purpose_section.content.join("\n").trim().to_string();
-        } else {
-            return Err(ParseError::MissingRequiredSection {
-                section: "Purpose".to_string(),
-            });
         }
 
-        // Check Exports section exists (required) - FAIL FAST
-        if !sections.iter().any(|s| s.name.eq_ignore_ascii_case("Exports")) {
-            return Err(ParseError::MissingRequiredSection {
-                section: "Exports".to_string(),
-            });
-        }
-
-        // Check Behavior section exists (required) - FAIL FAST
-        if !sections.iter().any(|s| s.name.eq_ignore_ascii_case("Behavior")) {
-            return Err(ParseError::MissingRequiredSection {
-                section: "Behavior".to_string(),
-            });
-        }
-
-        // Parse Exports section (required)
+        // Parse Exports section
         self.parse_exports(&sections, &mut spec);
 
-        // Parse Dependencies section (optional)
+        // Parse Dependencies section (optional - not in REQUIRED_SECTIONS)
         if let Some(deps_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Dependencies")) {
             spec.dependencies = self.parse_dependencies(&deps_section.content);
         }
 
-        // Parse Behavior section (required)
+        // Parse Behavior section
         self.parse_behaviors(&sections, &mut spec);
 
-        // Parse Contract section (optional)
+        // Parse Contract section
         self.parse_contracts(&sections, &mut spec);
 
-        // Parse Protocol section (optional)
+        // Parse Protocol section
         self.parse_protocol(&sections, &mut spec);
 
-        // Parse Structure section (optional)
+        // Parse Structure section (optional - not in REQUIRED_SECTIONS)
         if let Some(structure_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Structure")) {
             spec.structure = Some(self.parse_structure(&structure_section.content));
         }
 
         Ok(spec)
+    }
+
+    /// Check if a section contains only a "None" marker (None, N/A, etc.)
+    fn is_none_marker(&self, section: &Section) -> bool {
+        let non_empty_lines: Vec<&str> = section
+            .content
+            .iter()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect();
+
+        // If section has only one non-empty line and it's a none marker
+        if non_empty_lines.len() == 1 {
+            let line = non_empty_lines[0].to_lowercase();
+            return line == "none" || line == "n/a";
+        }
+
+        false
     }
 
     fn extract_sections(&self, content: &str) -> Vec<Section> {
@@ -1082,10 +1114,23 @@ mod bracket_utils {
 mod tests {
     use super::*;
 
+    /// Helper: Returns minimal required sections with Contract/Protocol as None
+    fn with_required_sections(base: &str) -> String {
+        let mut content = base.to_string();
+        if !content.contains("## Contract") {
+            content.push_str("\n## Contract\nNone\n");
+        }
+        if !content.contains("## Protocol") {
+            content.push_str("\n## Protocol\nNone\n");
+        }
+        content
+    }
+
     #[test]
     fn test_parse_purpose() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test-module
+        let content = with_required_sections(
+            r#"# test-module
 
 ## Purpose
 Handles user authentication.
@@ -1095,15 +1140,17 @@ Handles user authentication.
 
 ## Behavior
 - input → output
-"#;
-        let spec = parser.parse_content(content).unwrap();
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
         assert_eq!(spec.purpose, "Handles user authentication.");
     }
 
     #[test]
     fn test_parse_typescript_function() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        let content = with_required_sections(
+            r#"# test
 
 ## Purpose
 Test module.
@@ -1115,8 +1162,9 @@ Test module.
 
 ## Behavior
 - valid → Claims
-"#;
-        let spec = parser.parse_content(content).unwrap();
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
         assert_eq!(spec.exports.functions.len(), 1);
         assert_eq!(spec.exports.functions[0].name, "validateToken");
         assert!(spec.exports.functions[0].is_async);
@@ -1125,7 +1173,8 @@ Test module.
     #[test]
     fn test_parse_dependencies() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        let content = with_required_sections(
+            r#"# test
 
 ## Purpose
 Test module.
@@ -1139,8 +1188,9 @@ Test module.
 
 ## Behavior
 - input → output
-"#;
-        let spec = parser.parse_content(content).unwrap();
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
         assert_eq!(spec.dependencies.external.len(), 1);
         assert_eq!(spec.dependencies.internal.len(), 1);
         assert_eq!(spec.dependencies.external[0], "jsonwebtoken@9.0.0");
@@ -1149,7 +1199,8 @@ Test module.
     #[test]
     fn test_parse_behaviors() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        let content = with_required_sections(
+            r#"# test
 
 ## Purpose
 Test module.
@@ -1164,8 +1215,9 @@ Test module.
 
 ### Error Cases
 - expired token → TokenExpiredError
-"#;
-        let spec = parser.parse_content(content).unwrap();
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
         assert_eq!(spec.behaviors.len(), 2);
         assert_eq!(spec.behaviors[0].category, BehaviorCategory::Success);
         assert_eq!(spec.behaviors[1].category, BehaviorCategory::Error);
@@ -1174,15 +1226,18 @@ Test module.
     #[test]
     fn test_fail_fast_missing_purpose() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        // Note: Even with Contract/Protocol, missing Purpose should fail
+        let content = with_required_sections(
+            r#"# test
 
 ## Exports
 - `validate(): void`
 
 ## Behavior
 - input → output
-"#;
-        let result = parser.parse_content(content);
+"#,
+        );
+        let result = parser.parse_content(&content);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Purpose"));
@@ -1191,15 +1246,17 @@ Test module.
     #[test]
     fn test_fail_fast_missing_exports() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        let content = with_required_sections(
+            r#"# test
 
 ## Purpose
 Test module.
 
 ## Behavior
 - input → output
-"#;
-        let result = parser.parse_content(content);
+"#,
+        );
+        let result = parser.parse_content(&content);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Exports"));
@@ -1208,6 +1265,26 @@ Test module.
     #[test]
     fn test_fail_fast_missing_behavior() {
         let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"# test
+
+## Purpose
+Test module.
+
+## Exports
+- `validate(): void`
+"#,
+        );
+        let result = parser.parse_content(&content);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Behavior"));
+    }
+
+    #[test]
+    fn test_fail_fast_missing_contract() {
+        let parser = ClaudeMdParser::new();
+        // Missing Contract section (only Protocol)
         let content = r#"# test
 
 ## Purpose
@@ -1215,17 +1292,69 @@ Test module.
 
 ## Exports
 - `validate(): void`
+
+## Behavior
+- input → output
+
+## Protocol
+None
 "#;
         let result = parser.parse_content(content);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Behavior"));
+        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Contract"));
+    }
+
+    #[test]
+    fn test_fail_fast_missing_protocol() {
+        let parser = ClaudeMdParser::new();
+        // Missing Protocol section (only Contract)
+        let content = r#"# test
+
+## Purpose
+Test module.
+
+## Exports
+- `validate(): void`
+
+## Behavior
+- input → output
+
+## Contract
+None
+"#;
+        let result = parser.parse_content(content);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Protocol"));
+    }
+
+    #[test]
+    fn test_contract_allows_none() {
+        let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"# test
+
+## Purpose
+Test module.
+
+## Exports
+- `validate(): void`
+
+## Behavior
+- input → output
+"#,
+        );
+        // Should pass because Contract/Protocol allow None
+        let spec = parser.parse_content(&content).unwrap();
+        assert_eq!(spec.purpose, "Test module.");
     }
 
     #[test]
     fn test_parse_generic_type_function() {
         let parser = ClaudeMdParser::new();
-        let content = r#"# test
+        let content = with_required_sections(
+            r#"# test
 
 ## Purpose
 Test module.
@@ -1237,10 +1366,15 @@ Test module.
 
 ## Behavior
 - key → cached value
-"#;
-        let spec = parser.parse_content(content).unwrap();
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
         assert_eq!(spec.exports.functions.len(), 1);
         assert_eq!(spec.exports.functions[0].name, "getCache");
-        assert!(spec.exports.functions[0].signature.contains("Map<string, List<CacheEntry>>"));
+        assert!(spec
+            .exports
+            .functions[0]
+            .signature
+            .contains("Map<string, List<CacheEntry>>"));
     }
 }

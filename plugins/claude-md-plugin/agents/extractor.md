@@ -216,6 +216,16 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 
 ## 분석 가이드라인
 
+### 스키마 규칙 참조
+
+규칙의 Single Source of Truth:
+```bash
+cat plugins/claude-md-plugin/skills/schema-validate/references/schema-rules.yaml
+```
+
+필수 섹션 (5개): Purpose, Exports, Behavior, Contract, Protocol
+- Contract/Protocol은 "None" 명시적 표기 허용
+
 ### 템플릿 로딩
 
 시작 시 스키마 템플릿을 확인합니다:

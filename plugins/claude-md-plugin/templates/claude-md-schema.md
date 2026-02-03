@@ -1,8 +1,27 @@
+<!--
+  이 파일은 예시와 설명을 위한 문서입니다.
+  규칙의 Single Source of Truth: skills/schema-validate/references/schema-rules.yaml
+-->
+
 # CLAUDE.md Schema Template
 
 이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
 
-## 필수 섹션
+## 필수 섹션 요약 (5개)
+
+| 섹션 | 필수 | "None" 허용 | 설명 |
+|------|------|-------------|------|
+| Purpose | ✓ | ✗ | 디렉토리의 책임 |
+| Exports | ✓ | ✓ | public interface |
+| Behavior | ✓ | ✓ | 동작 시나리오 |
+| Contract | ✓ | ✓ | 사전/사후조건 |
+| Protocol | ✓ | ✓ | 상태 전이/호출 순서 |
+
+> 규칙 상세: `skills/schema-validate/references/schema-rules.yaml` 참조
+
+---
+
+## 상세 설명
 
 ### 1. Purpose (필수)
 디렉토리의 책임을 1-2문장으로 명시합니다.
@@ -118,8 +137,17 @@
 - 동시 세션은 최대 5개
 ```
 
-### 7. Contract (선택)
+### 7. Contract (필수, "None" 허용)
 함수별 사전조건(preconditions), 사후조건(postconditions), 불변식(invariants) 정보입니다.
+
+특별한 계약 조건이 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Contract
+None
+```
+
+계약 조건이 있는 경우:
 
 ```markdown
 ## Contract
@@ -150,8 +178,17 @@ Contract 정보는 다음에서 자동 추출됩니다:
    - Length 검증: `if (arr.length === 0) throw` → `arr not empty`
    - Type guards: `asserts x is T` → `x must be T`
 
-### 8. Protocol (선택)
-명시적인 상태 전이나 호출 순서가 있는 경우만 작성합니다.
+### 8. Protocol (필수, "None" 허용)
+상태 전이나 호출 순서를 명시합니다.
+
+특별한 프로토콜이 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Protocol
+None
+```
+
+프로토콜이 있는 경우:
 
 ```markdown
 ## Protocol
@@ -185,10 +222,14 @@ Protocol 정보는 다음에서 자동 추출됩니다:
 
 ## 검증 규칙
 
-### 필수 섹션 검증
-- Purpose: 반드시 존재
-- Exports: 반드시 존재 (public interface가 없는 경우도 "None" 명시)
-- Behavior: 반드시 존재
+> 규칙의 Single Source of Truth: `skills/schema-validate/references/schema-rules.yaml`
+
+### 필수 섹션 검증 (5개)
+- Purpose: 반드시 존재, "None" 불가
+- Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
+- Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
+- Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
+- Protocol: 반드시 존재, 프로토콜이 없는 경우 "None" 명시
 
 ### Exports 형식 검증
 ```regex

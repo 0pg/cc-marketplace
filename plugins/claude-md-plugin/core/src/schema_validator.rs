@@ -30,8 +30,8 @@ pub struct ValidationError {
     pub section: Option<String>,
 }
 
-/// Required sections in CLAUDE.md
-const REQUIRED_SECTIONS: &[&str] = &["Purpose", "Exports", "Behavior"];
+// Include generated constants from schema-rules.yaml (SSOT)
+include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
 
 pub struct SchemaValidator {
     /// Pattern to match section headers
@@ -83,22 +83,40 @@ impl SchemaValidator {
 
         // Check required sections
         for required in REQUIRED_SECTIONS {
-            if !sections.iter().any(|s| s.name.eq_ignore_ascii_case(required)) {
-                errors.push(ValidationError {
-                    error_type: "MissingSection".to_string(),
-                    message: format!("Missing required section: {}", required),
-                    line_number: None,
-                    section: Some(required.to_string()),
-                });
+            let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
+
+            match section_found {
+                None => {
+                    errors.push(ValidationError {
+                        error_type: "MissingSection".to_string(),
+                        message: format!("Missing required section: {}", required),
+                        line_number: None,
+                        section: Some(required.to_string()),
+                    });
+                }
+                Some(section) => {
+                    // Check if section allows "None" and has valid content
+                    let allows_none = ALLOW_NONE_SECTIONS.iter().any(|s| s.eq_ignore_ascii_case(required));
+                    let is_none_marker = self.is_none_marker(section);
+
+                    if !allows_none && is_none_marker {
+                        errors.push(ValidationError {
+                            error_type: "InvalidSectionContent".to_string(),
+                            message: format!("Section '{}' does not allow 'None' as value", required),
+                            line_number: Some(section.start_line),
+                            section: Some(required.to_string()),
+                        });
+                    }
+                }
             }
         }
 
-        // Validate Exports section
+        // Validate Exports section format
         if let Some(exports) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports")) {
             self.validate_exports(exports, &mut errors, &mut warnings);
         }
 
-        // Validate Behavior section
+        // Validate Behavior section format
         if let Some(behavior) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Behavior")) {
             self.validate_behavior(behavior, &mut errors, &mut warnings);
         }
@@ -144,6 +162,24 @@ impl SchemaValidator {
         }
 
         sections
+    }
+
+    /// Check if a section contains only a "None" marker (None, N/A, etc.)
+    fn is_none_marker(&self, section: &Section) -> bool {
+        let non_empty_lines: Vec<&str> = section
+            .content
+            .iter()
+            .map(|(_, line)| line.trim())
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect();
+
+        // If section has only one non-empty line and it's a none marker
+        if non_empty_lines.len() == 1 {
+            let line = non_empty_lines[0].to_lowercase();
+            return line == "none" || line == "n/a";
+        }
+
+        false
     }
 
     fn validate_exports(
@@ -331,9 +367,21 @@ mod tests {
         (temp, file_path)
     }
 
+    /// Helper: Appends Contract and Protocol sections with None if missing
+    fn with_required_sections(base: &str) -> String {
+        let mut content = base.to_string();
+        if !content.contains("## Contract") {
+            content.push_str("\n## Contract\nNone\n");
+        }
+        if !content.contains("## Protocol") {
+            content.push_str("\n## Protocol\nNone\n");
+        }
+        content
+    }
+
     #[test]
     fn test_missing_purpose_fails() {
-        let (_temp, path) = create_test_file(
+        let content = with_required_sections(
             r#"# Test Module
 
 ## Exports
@@ -343,6 +391,7 @@ mod tests {
 - valid token → Claims object
 "#,
         );
+        let (_temp, path) = create_test_file(&content);
 
         let validator = SchemaValidator::new();
         let result = validator.validate(&path);
@@ -356,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_valid_typescript_exports() {
-        let (_temp, path) = create_test_file(
+        let content = with_required_sections(
             r#"# Test Module
 
 ## Purpose
@@ -369,16 +418,17 @@ Validates tokens.
 - valid token → Claims object
 "#,
         );
+        let (_temp, path) = create_test_file(&content);
 
         let validator = SchemaValidator::new();
         let result = validator.validate(&path);
 
-        assert!(result.valid);
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
     }
 
     #[test]
     fn test_exports_missing_signature_warns() {
-        let (_temp, path) = create_test_file(
+        let content = with_required_sections(
             r#"# Test Module
 
 ## Purpose
@@ -391,6 +441,7 @@ Validates tokens.
 - valid token → Claims object
 "#,
         );
+        let (_temp, path) = create_test_file(&content);
 
         let validator = SchemaValidator::new();
         let result = validator.validate(&path);
@@ -401,7 +452,7 @@ Validates tokens.
 
     #[test]
     fn test_behavior_without_arrow_fails() {
-        let (_temp, path) = create_test_file(
+        let content = with_required_sections(
             r#"# Test Module
 
 ## Purpose
@@ -414,6 +465,7 @@ Validates tokens.
 - 토큰을 검증합니다
 "#,
         );
+        let (_temp, path) = create_test_file(&content);
 
         let validator = SchemaValidator::new();
         let result = validator.validate(&path);
@@ -423,5 +475,85 @@ Validates tokens.
             .errors
             .iter()
             .any(|e| e.error_type == "InvalidBehavior"));
+    }
+
+    #[test]
+    fn test_missing_contract_fails() {
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+
+## Protocol
+None
+"#;
+        let (_temp, path) = create_test_file(content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.message.contains("Contract")));
+    }
+
+    #[test]
+    fn test_missing_protocol_fails() {
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+
+## Contract
+None
+"#;
+        let (_temp, path) = create_test_file(content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.message.contains("Protocol")));
+    }
+
+    #[test]
+    fn test_contract_allows_none() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        // Contract with None should pass
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
     }
 }

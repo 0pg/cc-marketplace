@@ -110,29 +110,27 @@ warnings: {경고 수}
 
 ## 검증 규칙
 
-### 필수 섹션
-| 섹션 | 필수 여부 | 조건 |
-|------|---------|------|
-| Purpose | 필수 | 항상 |
-| Exports | 필수 | 항상 (없으면 "None" 명시) |
-| Behavior | 필수 | 항상 |
-| Structure | 조건부 | 하위 디렉토리/파일 있을 때 |
-| Dependencies | 선택 | 외부 의존성 있을 때 |
-| Constraints | 선택 | 제약사항 있을 때 |
+검증 규칙은 `references/schema-rules.yaml`에서 정의됩니다 (Single Source of Truth).
 
-### Exports 형식
-```regex
-^[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*[:→\->]?\s*.+$
-```
-- 유효: `validateToken(token: string): Promise<Claims>`
-- 무효: `validateToken` (파라미터 없음)
+### 현재 필수 섹션 (5개)
 
-### Behavior 형식
-```regex
-.+\s*[→\->]\s*.+
-```
-- 유효: `유효한 토큰 → Claims 객체`
-- 무효: `토큰을 검증합니다`
+| 섹션 | 필수 | "None" 허용 |
+|------|------|-------------|
+| Purpose | ✓ | ✗ |
+| Exports | ✓ | ✓ |
+| Behavior | ✓ | ✓ |
+| Contract | ✓ | ✓ |
+| Protocol | ✓ | ✓ |
+
+### 조건부/선택 섹션
+
+| 섹션 | 조건 |
+|------|------|
+| Structure | 하위 디렉토리/파일 있을 때 |
+| Dependencies | 외부 의존성 있을 때 |
+| Constraints | 제약사항 있을 때 |
+
+*자세한 규칙과 패턴은 `references/schema-rules.yaml` 참조*
 
 ### 참조 규칙
 - 부모 참조 (`../`) 금지
