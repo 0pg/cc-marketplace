@@ -61,13 +61,7 @@ Glob으로 대상 경로의 모든 CLAUDE.md 수집:
 Glob("**/CLAUDE.md", path={path})
 ```
 
-### 2. 결과 디렉토리 생성
-
-```bash
-mkdir -p .claude/validate-results
-```
-
-### 3. 병렬 검증 실행
+### 2. 병렬 검증 실행
 
 각 CLAUDE.md에 대해 두 validator를 **단일 메시지에서 병렬로 Task 호출**:
 
@@ -82,14 +76,14 @@ For each claude_md_file:
 
 **중요**: 성능 최적화를 위해 모든 Task를 하나의 응답에서 호출해야 합니다.
 
-### 4. 결과 수집
+### 3. 결과 수집
 
 각 validator는 구조화된 블록으로 결과를 반환합니다:
 
 ```
 ---drift-validator-result---
 status: success | failed
-result_file: .claude/validate-results/drift-{dir-safe-name}.md
+result_file: {scratchpad}/drift-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
 ---end-drift-validator-result---
@@ -98,13 +92,13 @@ issues_count: {N}
 ```
 ---reproducibility-validator-result---
 status: success | failed
-result_file: .claude/validate-results/repro-{dir-safe-name}.md
+result_file: {scratchpad}/repro-{dir-safe-name}.md
 directory: {directory}
 understanding_score: {0-100}
 ---end-reproducibility-validator-result---
 ```
 
-### 5. 통합 보고서 생성
+### 4. 통합 보고서 생성
 
 결과 파일들을 Read하여 다음 형식으로 통합 보고서 생성:
 
@@ -131,11 +125,9 @@ understanding_score: {0-100}
 ...
 ```
 
-### 6. 임시 파일 정리
+### 5. 임시 파일 정리
 
-```bash
-rm -rf .claude/validate-results/
-```
+scratchpad의 임시 파일은 세션 종료 시 자동으로 정리됩니다.
 
 ## 성공 기준
 

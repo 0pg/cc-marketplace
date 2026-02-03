@@ -13,7 +13,7 @@ description: |
   대상 디렉토리: src/auth
   감지된 언어: (자동 감지됨)
   충돌 처리: skip
-  결과 파일: .claude/compile-results/src-auth.json
+  결과는 scratchpad에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll compile source code based on src/auth/CLAUDE.md.
@@ -28,7 +28,7 @@ description: |
   6. Tests executed: 5 passed
   7. File conflicts: 0 skipped, 4 compiled
   ---compiler-result---
-  result_file: .claude/compile-results/src-auth.json
+  result_file: {scratchpad}/src-auth.json
   status: success
   compiled_files: [...]
   skipped_files: []
@@ -68,7 +68,7 @@ CLAUDE.md 경로: <path>
 대상 디렉토리: <path>
 감지된 언어: (optional, 자동 감지)
 충돌 처리: skip | overwrite
-결과 파일: <path>
+결과는 scratchpad에 저장하고 경로만 반환
 ```
 
 ## 워크플로우
@@ -417,4 +417,4 @@ tests_failed: {test_result.failed}
 
 - CLAUDE.md만 읽고 코드 생성 (기존 소스 참조 최소화)
 - 시그니처 변환은 CLI 사용
-- 결과는 파일로 저장, 경로만 반환
+- 결과는 scratchpad에 저장, 경로만 반환

@@ -167,23 +167,23 @@ plugins/project-context-store/
 
 ### 해결
 
-Agent가 결과를 **파일로 저장**하고 **경로만 반환**합니다.
+Agent가 결과를 **scratchpad에 저장**하고 **경로만 반환**합니다.
 
 ```
 Before: Agent → 거대한 결과 텍스트 반환 → Skill context에 누적 → 폭발
-After:  Agent → 결과를 파일로 저장 → 파일 경로만 반환 (~50 토큰)
+After:  Agent → 결과를 scratchpad에 저장 → 파일 경로만 반환 (~50 토큰)
 ```
 
 ### 적용 대상
 
-| Agent | 결과 파일 경로 | 반환 형식 |
-|-------|--------------|----------|
-| drift-validator | `.claude/validate-results/drift-{dir}.md` | `---drift-validator-result---` 블록 |
-| reproducibility-validator | `.claude/validate-results/repro-{dir}.md` | `---reproducibility-validator-result---` 블록 |
+| Agent | 결과 위치 | 반환 형식 |
+|-------|----------|----------|
+| drift-validator | scratchpad | `---drift-validator-result---` 블록 |
+| reproducibility-validator | scratchpad | `---reproducibility-validator-result---` 블록 |
 
 ### Skill 처리
 
 1. 모든 Task 완료 후 result_file 경로 수집
 2. 각 파일을 순차적으로 Read
 3. 통합 보고서 작성
-4. 임시 파일 삭제: `rm -rf .claude/validate-results/`
+4. scratchpad는 세션 종료 시 자동 정리

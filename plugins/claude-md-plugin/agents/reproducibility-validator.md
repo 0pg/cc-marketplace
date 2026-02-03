@@ -184,7 +184,7 @@ For each predicted_protocol:
 
 ### 4. 결과 저장
 
-결과 파일 경로: `.claude/validate-results/repro-{dir-safe-name}.md`
+결과를 scratchpad에 저장합니다 (예: `repro-src-auth.md`).
 
 ```markdown
 # 재현성 검증 결과: {directory}
@@ -263,7 +263,7 @@ For each predicted_protocol:
 ```
 ---reproducibility-validator-result---
 status: success | failed
-result_file: .claude/validate-results/repro-{dir-safe-name}.md
+result_file: {scratchpad}/repro-{dir-safe-name}.md
 directory: {directory}
 understanding_score: {0-100}
 ---end-reproducibility-validator-result---

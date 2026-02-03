@@ -69,6 +69,17 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 
 # Compile Skill
 
+## Core Philosophy
+
+**CLAUDE.md(소스) → Source Code(바이너리) = Compile**
+
+```
+CLAUDE.md (스펙)  ─── /compile ──→  Source Code (구현)
+```
+
+전통적 컴파일러가 소스코드를 바이너리로 변환하듯,
+`/compile`은 CLAUDE.md 명세를 실행 가능한 소스코드로 변환합니다.
+
 ## 목적
 
 CLAUDE.md 파일을 기반으로 소스 코드를 생성합니다.
@@ -144,8 +155,8 @@ Skill("claude-md-plugin:diff-analyze",
       base=base,
       include_untracked=include_untracked)
 
-# 결과 읽기
-diff_result = read_json(".claude/diff-analyze-result.json")
+# 결과 읽기 (scratchpad에서)
+diff_result = read_json(diff_result_file)
 
 # 변경 없으면 조기 종료
 if len(diff_result["changed_files"]) == 0:
@@ -193,9 +204,6 @@ def detect_language(directory):
 ### 3. compiler Agent 호출 (병렬 처리)
 
 ```python
-# 결과 디렉토리 준비
-mkdir -p .claude/compile-results
-
 # 모든 compiler Task를 병렬로 실행
 tasks = []
 for file_info in target_files:
@@ -214,7 +222,7 @@ for file_info in target_files:
         대상 디렉토리: {target_dir}
         감지된 언어: {detected_language}
         충돌 처리: {conflict_mode}
-        결과 파일: .claude/compile-results/{output_name}.json
+        결과는 scratchpad에 저장하고 경로만 반환해주세요.
         """,
         subagent_type="compiler",
         run_in_background=True
@@ -364,7 +372,6 @@ if file_exists(target_path):
 건너뛴 파일: 0개
 테스트: 8 passed, 0 failed
 
-상세 결과: .claude/compile-results/
 ```
 
 ### 변경 없는 경우 (incremental 모드)
@@ -393,11 +400,4 @@ if file_exists(target_path):
 
 ## 출력 파일
 
-```
-.claude/
-├── diff-analyze-result.json    # diff 분석 결과 (incremental 모드)
-└── compile-results/
-    ├── src-auth.json           # compiler Agent 결과
-    ├── src-utils.json          # compiler Agent 결과
-    └── summary.json            # 전체 요약
-```
+모든 임시 결과 파일은 scratchpad에 저장됩니다.

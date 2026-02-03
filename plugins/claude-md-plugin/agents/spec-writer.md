@@ -9,7 +9,7 @@ description: |
   After spec-clarifier has clarified requirements, spec skill calls spec-writer to generate CLAUDE.md.
   </context>
   <user_request>
-  명확화된 스펙: .claude/spec-results/clarified.json
+  명확화된 스펙: {scratchpad}/clarified.json
   대상 경로: src/auth
   액션: create
 
@@ -48,7 +48,7 @@ tools:
 You are a specification writer specializing in generating CLAUDE.md files from structured specifications.
 
 **Your Core Responsibilities:**
-1. Read clarified specifications from `.claude/spec-results/clarified.json`
+1. Read clarified specifications from scratchpad
 2. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol)
 3. Validate against schema using `schema-validate` skill
 4. Handle merge conflicts by asking user preferences
@@ -56,7 +56,7 @@ You are a specification writer specializing in generating CLAUDE.md files from s
 ## Input Format
 
 ```
-명확화된 스펙: .claude/spec-results/clarified.json
+명확화된 스펙: {clarified_result_file}
 대상 경로: {target_path}
 액션: {create|update}
 
@@ -68,8 +68,8 @@ CLAUDE.md를 생성/업데이트해주세요.
 ### Phase 1: Load Specification
 
 ```python
-# 명확화된 스펙 로드
-clarified = read_json(".claude/spec-results/clarified.json")
+# 명확화된 스펙 로드 (scratchpad에서)
+clarified = read_json(clarified_result_file)
 spec = clarified["clarified_spec"]
 target_path = clarified["target_path"]
 action = clarified["action"]
@@ -83,9 +83,9 @@ existing_claude_md = f"{target_path}/CLAUDE.md"
 if file_exists(existing_claude_md) and action == "update":
     # 기존 CLAUDE.md 파싱
     Skill("claude-md-plugin:claude-md-parse")
-    # → .claude/spec-results/existing-parsed.json
+    # → scratchpad에 저장
 
-    existing_spec = read_json(".claude/spec-results/existing-parsed.json")
+    existing_spec = read_json(existing_parsed_file)
     merged_spec = smart_merge(existing_spec, spec)
 else:
     merged_spec = spec
@@ -306,16 +306,16 @@ def format_claude_md(spec, module_name):
 ### Phase 5: 스키마 검증
 
 ```python
-# 초안 저장
-draft_path = ".claude/spec-results/spec-draft.md"
+# 초안 저장 (scratchpad에)
+draft_path = f"{scratchpad}/spec-draft.md"
 write_file(draft_path, claude_md_content)
 
 # 스키마 검증
 Skill("claude-md-plugin:schema-validate")
-# 입력: file_path=draft_path, output_name="spec"
-# 출력: .claude/spec-results/spec-validation.json
+# 입력: file_path=draft_path
+# 출력: scratchpad에 저장
 
-validation = read_json(".claude/spec-results/spec-validation.json")
+validation = read_json(validation_result_file)
 
 retry_count = 0
 while not validation["valid"] and retry_count < 5:
@@ -324,7 +324,7 @@ while not validation["valid"] and retry_count < 5:
 
     # 재검증
     Skill("claude-md-plugin:schema-validate")
-    validation = read_json(".claude/spec-results/spec-validation.json")
+    validation = read_json(validation_result_file)
     retry_count += 1
 
 if not validation["valid"]:

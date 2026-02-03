@@ -10,6 +10,17 @@ allowed-tools: [Bash, Read, Task, Skill, AskUserQuestion]
 
 # Decompile Skill
 
+## Core Philosophy
+
+**Source Code(바이너리) → CLAUDE.md(소스) = Decompile**
+
+```
+Source Code (구현)  ─── /decompile ──→  CLAUDE.md (스펙)
+```
+
+전통적 디컴파일러가 바이너리에서 소스코드를 추출하듯,
+`/decompile`은 기존 소스코드에서 CLAUDE.md 명세를 추출합니다.
+
 ## 목적
 
 기존 소스 코드(바이너리)를 분석하여 CLAUDE.md(소스) 초안을 생성합니다.
@@ -76,7 +87,7 @@ fi
 # tree-parse Skill 호출
 Skill("claude-md-plugin:tree-parse")
 # 입력: root_path (기본: 현재 디렉토리)
-# 출력: .claude/decompile-tree.json
+# 출력: scratchpad에 저장
 ```
 
 프로젝트 루트에서 트리를 파싱하여 CLAUDE.md가 필요한 디렉토리 목록을 생성합니다.
@@ -135,7 +146,7 @@ for dir_info in sorted_dirs:
 자식 CLAUDE.md: {child_claude_mds}
 
 이 디렉토리의 CLAUDE.md를 생성해주세요.
-결과 파일: .claude/decompile-results/{dir_info["path"].replace('/', '-')}.md
+결과는 scratchpad에 저장하고 경로만 반환해주세요.
 """,
         description=f"Extract CLAUDE.md for {dir_info['path']}"
     )
@@ -155,13 +166,13 @@ for dir_info in sorted_dirs:
 
 각 Agent 실행 완료 즉시 (순차 실행이므로):
 
-1. `.claude/decompile-results/{dir-name}.md` 결과 파일 확인
+1. scratchpad의 결과 파일 확인
 2. 검증 통과 시 실제 CLAUDE.md 위치로 복사
 3. **중요:** 복사 후 다음 depth의 Agent가 읽을 수 있도록 즉시 배치
 
 ```bash
 # 검증 성공 시 즉시 배치 (다음 Agent가 읽을 수 있도록)
-cp .claude/decompile-results/src-auth.md src/auth/CLAUDE.md
+cp {scratchpad_result_file} src/auth/CLAUDE.md
 ```
 
 ### 6. 최종 보고
@@ -200,13 +211,7 @@ cp .claude/decompile-results/src-auth.md src/auth/CLAUDE.md
 
 ## 파일 기반 결과 전달
 
-Agent는 결과를 파일로 저장하고 경로만 반환합니다:
-
-| 컴포넌트 | 결과 파일 경로 |
-|---------|--------------|
-| tree-parse | `.claude/decompile-tree.json` |
-| decompiler | `.claude/decompile-results/{dir-name}.md` |
-
+Agent는 결과를 scratchpad에 저장하고 경로만 반환합니다.
 이로써 Skill context 폭발을 방지합니다.
 
 ## 오류 처리

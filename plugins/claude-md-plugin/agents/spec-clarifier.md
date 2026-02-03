@@ -16,7 +16,7 @@ description: |
   프로젝트 루트: /Users/dev/my-app
 
   요구사항을 분석하고 CLAUDE.md 스펙을 명확화해주세요.
-  결과 파일: .claude/spec-results/clarified.json
+  결과는 scratchpad에 저장하고 경로만 반환해주세요.
   </user_request>
   <assistant_response>
   I'll analyze the requirements and clarify the specification.
@@ -29,7 +29,7 @@ description: |
   - Behaviors: valid token → UserClaims, expired → TokenExpiredError
 
   ---spec-clarifier-result---
-  result_file: .claude/spec-results/clarified.json
+  result_file: {scratchpad}/clarified.json
   status: success
   target_path: src/auth
   action: create
@@ -67,7 +67,7 @@ You are a requirements analyst specializing in extracting structured specificati
 프로젝트 루트: {project_root}
 
 요구사항을 분석하고 CLAUDE.md 스펙을 명확화해주세요.
-결과 파일: .claude/spec-results/clarified.json
+결과는 scratchpad에 저장하고 경로만 반환해주세요.
 ```
 
 ## Workflow
@@ -216,21 +216,17 @@ def determine_target(requirement, project_root):
 }
 ```
 
-### Phase 5: 결과 저장
+### Phase 5: 결과 저장 및 반환
 
 ```python
-# .claude/spec-results 디렉토리 확인
-mkdir -p .claude/spec-results
-
-# 결과 저장
-write_json(".claude/spec-results/clarified.json", clarified_spec)
+# scratchpad에 결과 저장
+result_file = f"{scratchpad}/clarified.json"
+write_json(result_file, clarified_spec)
 ```
-
-### Phase 6: 결과 반환
 
 ```
 ---spec-clarifier-result---
-result_file: .claude/spec-results/clarified.json
+result_file: {scratchpad}/clarified.json
 status: success
 target_path: {target_path}
 action: {create|update}
@@ -297,4 +293,4 @@ cat plugins/claude-md-plugin/skills/schema-validate/references/schema-rules.yaml
 
 - 요구사항 텍스트만 분석, 전체 코드베이스 읽지 않음
 - 대상 경로 결정 시에만 Glob 사용
-- 결과는 파일로 저장, 경로만 반환
+- 결과는 scratchpad에 저장, 경로만 반환

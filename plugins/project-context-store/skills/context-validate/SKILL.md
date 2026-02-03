@@ -83,7 +83,7 @@ for claude_md in target_claude_mds:
    - reproducibility-validator: ---reproducibility-validator-result--- 블록에서 result_file 추출
 
 2. 모든 Task 완료 후 결과 파일 읽기:
-   a. 각 result_file을 순차적으로 Read
+   a. 각 result_file을 순차적으로 Read (scratchpad 경로)
    b. 결과 내용 파싱 및 취합
 
 3. 통합 보고서 작성:
@@ -93,13 +93,10 @@ for claude_md in target_claude_mds:
    - 심각도별 분류 및 정렬
    - 권장 조치 통합
 
-4. 임시 파일 삭제:
-   Bash: rm -rf .claude/validate-results/
+4. scratchpad는 세션 종료 시 자동 정리
 ```
 
-**결과 파일 위치:**
-- Drift 결과: `.claude/validate-results/drift-{dir}.md`
-- 재현성 결과: `.claude/validate-results/repro-{dir}.md`
+**결과 파일 위치:** scratchpad에 저장
 
 ### 4. 통합 보고서 생성
 

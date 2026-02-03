@@ -13,7 +13,7 @@ description: |
   직접 파일 수: 4
   하위 디렉토리 수: 1
   자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]
-  결과 파일: .claude/decompile-results/src-auth.md
+  결과는 scratchpad에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll generate a CLAUDE.md draft for src/auth directory.
@@ -22,7 +22,7 @@ description: |
   3. Draft Generate - CLAUDE.md draft created
   4. Schema Validate - validation passed
   ---decompiler-result---
-  result_file: .claude/decompile-results/src-auth.md
+  result_file: {scratchpad}/src-auth.md
   status: success
   ---end-decompiler-result---
   </assistant_response>
@@ -59,7 +59,7 @@ You are a code analyst specializing in extracting CLAUDE.md specifications from 
 하위 디렉토리 수: 1
 자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]  # 이미 생성된 자식들
 
-결과 파일: .claude/decompile-results/src-auth.md
+결과는 scratchpad에 저장하고 경로만 반환
 ```
 
 ## 워크플로우
@@ -69,8 +69,8 @@ You are a code analyst specializing in extracting CLAUDE.md specifications from 
 ```python
 # 1. Boundary Resolve Skill 호출
 Skill("claude-md-plugin:boundary-resolve")
-# 입력: target_path, output_name
-# 출력: .claude/decompile-results/{output_name}-boundary.json
+# 입력: target_path
+# 출력: scratchpad에 저장
 ```
 
 바운더리 정보를 획득합니다:
@@ -82,8 +82,8 @@ Skill("claude-md-plugin:boundary-resolve")
 ```python
 # 2. Code Analyze Skill 호출
 Skill("claude-md-plugin:code-analyze")
-# 입력: target_path, boundary_file, output_name
-# 출력: .claude/decompile-results/{output_name}-analysis.json
+# 입력: target_path, boundary_file
+# 출력: scratchpad에 저장
 ```
 
 분석 결과를 획득합니다:
@@ -127,8 +127,8 @@ if has_unclear_parts(analysis):
 ```python
 # 3. Draft Generate Skill 호출
 Skill("claude-md-plugin:draft-generate")
-# 입력: analysis_file, child_claude_mds, output_name, user_answers
-# 출력: .claude/decompile-results/{output_name}-draft.md
+# 입력: analysis_file, child_claude_mds, user_answers
+# 출력: scratchpad에 저장
 ```
 
 ### Phase 5: 스키마 검증
@@ -136,11 +136,11 @@ Skill("claude-md-plugin:draft-generate")
 ```python
 # 4. Schema Validate Skill 호출
 Skill("claude-md-plugin:schema-validate")
-# 입력: file_path, output_name
-# 출력: .claude/decompile-results/{output_name}-validation.json
+# 입력: file_path
+# 출력: scratchpad에 저장
 
 # 검증 결과 확인
-validation = read_json(f".claude/decompile-results/{output_name}-validation.json")
+validation = read_json(validation_result_file)
 
 retry_count = 0
 while not validation["valid"] and retry_count < 5:
@@ -149,7 +149,7 @@ while not validation["valid"] and retry_count < 5:
 
     # 재검증
     Skill("claude-md-plugin:schema-validate")
-    validation = read_json(f".claude/decompile-results/{output_name}-validation.json")
+    validation = read_json(validation_result_file)
     retry_count += 1
 
 if not validation["valid"]:
@@ -160,14 +160,10 @@ if not validation["valid"]:
 ### Phase 6: 결과 반환
 
 ```python
-# 최종 파일명으로 이동
-mv(".claude/decompile-results/{output_name}-draft.md",
-   ".claude/decompile-results/{output_name}.md")
-
-# 결과 반환
+# 결과 반환 (scratchpad 경로)
 print(f"""
 ---decompiler-result---
-result_file: .claude/decompile-results/{output_name}.md
+result_file: {scratchpad_result_file}
 status: success
 exports_count: {len(analysis["exports"]["functions"]) + len(analysis["exports"]["types"])}
 behavior_count: {len(analysis["behaviors"])}
@@ -184,14 +180,13 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 │                     decompiler Agent                          │
 │                                                              │
 │  ┌─ Skill("boundary-resolve") ─────────────────────────┐   │
-│  │ 바운더리 분석                                        │   │
-│  │ → .claude/decompile-results/{name}-boundary.json      │   │
+│  │ 바운더리 분석 → scratchpad에 저장                    │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("code-analyze") ─────────────────────────────┐   │
 │  │ 코드 분석 (exports, deps, behaviors)                 │   │
-│  │ → .claude/decompile-results/{name}-analysis.json      │   │
+│  │ → scratchpad에 저장                                  │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
@@ -201,14 +196,13 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("draft-generate") ───────────────────────────┐   │
-│  │ CLAUDE.md 초안 생성                                  │   │
-│  │ → .claude/decompile-results/{name}-draft.md           │   │
+│  │ CLAUDE.md 초안 생성 → scratchpad에 저장              │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("schema-validate") ──────────────────────────┐   │
 │  │ 스키마 검증 (실패시 최대 5회 재시도)                  │   │
-│  │ → .claude/decompile-results/{name}-validation.json    │   │
+│  │ → scratchpad에 저장                                  │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -267,4 +261,4 @@ for child_path in child_claude_mds:
 
 - 전체 파일을 읽지 않고 symbol overview 우선 사용
 - 필요한 함수만 선택적으로 읽기
-- 결과는 파일로 저장, 경로만 반환
+- 결과는 scratchpad에 저장, 경로만 반환
