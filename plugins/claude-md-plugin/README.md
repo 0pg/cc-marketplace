@@ -34,20 +34,20 @@ claude marketplace install claude-md-plugin
 2. Leaf-first 순서로 각 디렉토리 처리
 3. 바운더리 분석 → 코드 분석 → CLAUDE.md 초안 생성 → 스키마 검증
 
-### /generate - CLAUDE.md에서 소스코드 생성
+### /compile - CLAUDE.md에서 소스코드 생성
 
 ```bash
 # 기본 사용 (프로젝트 전체)
-/generate
+/compile
 
 # 특정 경로만 처리
-/generate --path src/auth
+/compile --path src/auth
 
 # 충돌 시 덮어쓰기
-/generate --conflict overwrite
+/compile --conflict overwrite
 ```
 
-CLAUDE.md 파일을 기반으로 소스 코드를 생성합니다. 내부적으로 TDD 워크플로우를 자동 수행합니다.
+CLAUDE.md 파일을 기반으로 소스 코드를 컴파일합니다. (CLAUDE.md → 소스코드 = 소스 → 바이너리 = compile) 내부적으로 TDD 워크플로우를 자동 수행합니다.
 
 **옵션:**
 | 옵션 | 기본값 | 설명 |

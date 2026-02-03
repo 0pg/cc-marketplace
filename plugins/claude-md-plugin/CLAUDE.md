@@ -68,12 +68,12 @@ User: /decompile
 └─────────────────────────────────────────────┘
 ```
 
-### /generate (CLAUDE.md → 소스코드)
+### /compile (CLAUDE.md → 소스코드)
 
 기본 동작은 **incremental** (변경분만 처리), `--all` 옵션으로 전체 처리.
 
 ```
-User: /generate [--all]
+User: /compile [--all]
         │
         ├─ --all? ─ Yes ─→ 모든 CLAUDE.md 검색
         │                    │
@@ -86,18 +86,18 @@ User: /generate [--all]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ generate SKILL (Entry Point)                │
+│ compile SKILL (Entry Point)                 │
 │                                             │
 │ 1. Skill("diff-analyze") → 변경 감지        │
 │    (--all 시 전체 CLAUDE.md 검색)           │
 │ 2. 언어 자동 감지                           │
 │ 3. For each CLAUDE.md (병렬):               │
-│    Task(generator) 호출                     │
+│    Task(compiler) 호출                      │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ generator AGENT (TDD Workflow)              │
+│ compiler AGENT (TDD Workflow)               │
 │                                             │
 │ Skill("claude-md-parse") → JSON 변환        │
 │ [RED] Skill("signature-convert") → 테스트   │

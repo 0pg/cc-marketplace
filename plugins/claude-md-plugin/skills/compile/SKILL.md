@@ -1,16 +1,16 @@
 ---
-name: generate
+name: compile
 description: |
-  This skill should be used when the user asks to "generate code from CLAUDE.md", "implement spec",
-  "create source files", or uses "/generate". Default: incremental (changed only), use --all for full processing.
-  Performs TDD workflow (RED→GREEN→REFACTOR) to ensure generated code passes tests.
+  This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement spec",
+  "create source files", or uses "/compile". Default: incremental (changed only), use --all for full processing.
+  Performs TDD workflow (RED→GREEN→REFACTOR) to ensure compiled code passes tests.
 
   <example>
   <context>
   사용자가 feature 브랜치에서 src/auth/CLAUDE.md를 수정한 후 코드 생성을 요청합니다.
   프로젝트에는 총 5개의 CLAUDE.md가 있습니다.
   </context>
-  <user_request>/generate</user_request>
+  <user_request>/compile</user_request>
   <assistant_response>
   브랜치 base commit 기준 변경 감지 중...
 
@@ -36,7 +36,7 @@ description: |
   <context>
   사용자가 프로젝트의 모든 CLAUDE.md를 처리하려고 합니다.
   </context>
-  <user_request>/generate --all</user_request>
+  <user_request>/compile --all</user_request>
   <assistant_response>
   프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
@@ -67,7 +67,7 @@ description: |
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
-# Generate Skill
+# Compile Skill
 
 ## 목적
 
@@ -80,19 +80,19 @@ CLAUDE.md가 명세(specification)가 되고, 소스 코드가 산출물이 됩�
 
 ```bash
 # 기본 사용 (변경분만 처리 - incremental)
-/generate
+/compile
 
 # 전체 CLAUDE.md 처리
-/generate --all
+/compile --all
 
 # 특정 경로만 처리
-/generate --path src/auth
+/compile --path src/auth
 
 # 특정 commit 기준으로 변경 감지
-/generate --base abc1234
+/compile --base abc1234
 
 # 기존 파일 덮어쓰기
-/generate --conflict overwrite
+/compile --conflict overwrite
 ```
 
 ## 옵션
@@ -108,7 +108,7 @@ CLAUDE.md가 명세(specification)가 되고, 소스 코드가 산출물이 됩�
 ## 워크플로우
 
 ```
-/generate
+/compile
     │
     ├─ --all 플래그? ─ Yes ─→ 모든 CLAUDE.md 검색
     │                           │
@@ -152,7 +152,7 @@ if len(diff_result["changed_files"]) == 0:
     print("변경된 CLAUDE.md가 없습니다.")
     print(f"전체 CLAUDE.md: {diff_result['total_claude_md_count']}개")
     print(f"기준: {diff_result['base_ref'][:8]} ({diff_result['base_description']})")
-    print("\n💡 Tip: 모든 CLAUDE.md를 처리하려면 /generate --all을 사용하세요.")
+    print("\n💡 Tip: 모든 CLAUDE.md를 처리하려면 /compile --all을 사용하세요.")
     return  # 조기 종료
 
 # 변경 내역 보고
@@ -190,13 +190,13 @@ def detect_language(directory):
     return ask_user_for_language()
 ```
 
-### 3. generator Agent 호출 (병렬 처리)
+### 3. compiler Agent 호출 (병렬 처리)
 
 ```python
 # 결과 디렉토리 준비
-mkdir -p .claude/generate-results
+mkdir -p .claude/compile-results
 
-# 모든 generator Task를 병렬로 실행
+# 모든 compiler Task를 병렬로 실행
 tasks = []
 for file_info in target_files:
     claude_md_path = file_info["path"] if isinstance(file_info, dict) else file_info
@@ -207,16 +207,16 @@ for file_info in target_files:
 
     print(f"  • {claude_md_path} ({status}) - 시작")
 
-    # generator Agent 병렬 실행 (run_in_background=True)
+    # compiler Agent 병렬 실행 (run_in_background=True)
     task = Task(
         prompt=f"""
         CLAUDE.md 경로: {claude_md_path}
         대상 디렉토리: {target_dir}
         감지된 언어: {detected_language}
         충돌 처리: {conflict_mode}
-        결과 파일: .claude/generate-results/{output_name}.json
+        결과 파일: .claude/compile-results/{output_name}.json
         """,
-        subagent_type="generator",
+        subagent_type="compiler",
         run_in_background=True
     )
     tasks.append(task)
@@ -364,7 +364,7 @@ if file_exists(target_path):
 건너뛴 파일: 0개
 테스트: 8 passed, 0 failed
 
-상세 결과: .claude/generate-results/
+상세 결과: .claude/compile-results/
 ```
 
 ### 변경 없는 경우 (incremental 모드)
@@ -376,7 +376,7 @@ if file_exists(target_path):
 전체 CLAUDE.md: 7개
 기준: abc1234 (main 브랜치 분기점)
 
-💡 Tip: 모든 CLAUDE.md를 처리하려면 /generate --all을 사용하세요.
+💡 Tip: 모든 CLAUDE.md를 처리하려면 /compile --all을 사용하세요.
 ```
 
 ## 오류 처리
@@ -396,8 +396,8 @@ if file_exists(target_path):
 ```
 .claude/
 ├── diff-analyze-result.json    # diff 분석 결과 (incremental 모드)
-└── generate-results/
-    ├── src-auth.json           # generator Agent 결과
-    ├── src-utils.json          # generator Agent 결과
+└── compile-results/
+    ├── src-auth.json           # compiler Agent 결과
+    ├── src-utils.json          # compiler Agent 결과
     └── summary.json            # 전체 요약
 ```

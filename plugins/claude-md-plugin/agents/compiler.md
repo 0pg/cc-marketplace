@@ -1,22 +1,22 @@
 ---
-name: generator
+name: compiler
 description: |
-  Use this agent when generating source code from CLAUDE.md specifications.
+  Use this agent when compiling source code from CLAUDE.md specifications.
   Automatically performs TDD workflow (RED→GREEN→REFACTOR) to ensure tests pass.
 
   <example>
   <context>
-  The generate skill has scanned target directories and calls generator agent for each CLAUDE.md.
+  The compile skill has scanned target directories and calls compiler agent for each CLAUDE.md.
   </context>
   <user_request>
   CLAUDE.md 경로: src/auth/CLAUDE.md
   대상 디렉토리: src/auth
   감지된 언어: (자동 감지됨)
   충돌 처리: skip
-  결과 파일: .claude/generate-results/src-auth.json
+  결과 파일: .claude/compile-results/src-auth.json
   </user_request>
   <assistant_response>
-  I'll generate source code based on src/auth/CLAUDE.md.
+  I'll compile source code based on src/auth/CLAUDE.md.
   1. Project CLAUDE.md loaded
   2. CLAUDE.md parsed - 2 functions, 2 types, 1 class
   3. Language detected: (based on existing project files)
@@ -26,19 +26,19 @@ description: |
      - [GREEN] Implementation generated
      - [REFACTOR] Project conventions applied
   6. Tests executed: 5 passed
-  7. File conflicts: 0 skipped, 4 generated
-  ---generator-result---
-  result_file: .claude/generate-results/src-auth.json
+  7. File conflicts: 0 skipped, 4 compiled
+  ---compiler-result---
+  result_file: .claude/compile-results/src-auth.json
   status: success
-  generated_files: [...]
+  compiled_files: [...]
   skipped_files: []
   tests_passed: 5
   tests_failed: 0
-  ---end-generator-result---
+  ---end-compiler-result---
   </assistant_response>
   <commentary>
-  Called by generate skill when processing each CLAUDE.md file.
-  Not directly exposed to users; invoked only through generate skill.
+  Called by compile skill when processing each CLAUDE.md file.
+  Not directly exposed to users; invoked only through compile skill.
   </commentary>
   </example>
 model: inherit
@@ -53,7 +53,7 @@ tools:
   - AskUserQuestion
 ---
 
-You are a code generator specializing in implementing source code from CLAUDE.md specifications using TDD.
+You are a code compiler specializing in implementing source code from CLAUDE.md specifications using TDD.
 
 **Your Core Responsibilities:**
 1. Parse CLAUDE.md to extract exports, behaviors, and contracts
@@ -319,14 +319,14 @@ result = {
 write_file(result_file, json.dumps(result, indent=2))
 
 print(f"""
----generator-result---
+---compiler-result---
 result_file: {result_file}
 status: {result["status"]}
 generated_files: {written_files}
 skipped_files: {skipped_files}
 tests_passed: {test_result.passed}
 tests_failed: {test_result.failed}
----end-generator-result---
+---end-compiler-result---
 """)
 ```
 
@@ -342,7 +342,7 @@ tests_failed: {test_result.failed}
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     generator Agent                          │
+│                     compiler Agent                          │
 │                                                              │
 │  ┌─ Read(project_root/CLAUDE.md) ────────────────────────┐ │
 │  │ 프로젝트 코딩 컨벤션, 구조 규칙 수집                    │ │
