@@ -34,22 +34,26 @@ User: /extract
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ extract SKILL (사용자 진입점)                │
+│ extract SKILL (Entry Point)                 │
+│ ─────────────────────────────────────────── │
+│ 간단한 오케스트레이션                        │
 │                                             │
 │ 1. Skill("tree-parse") → 대상 목록          │
 │ 2. For each directory (leaf-first):         │
-│    Task(extractor) 생성                     │
+│    Task(extractor) 호출                     │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ extractor AGENT (디렉토리별)                 │
+│ extractor AGENT (복잡한 오케스트레이터)      │
+│ ─────────────────────────────────────────── │
+│ 5 Skill 호출, 조건문, 재시도 로직            │
 │                                             │
-│ ┌─ Skill("boundary-resolve") ────────────┐  │
+│ ┌─ Skill("boundary-resolve") ── Internal ┐  │
 │ │ 바운더리 분석                           │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("code-analyze") ────────────────┐  │
+│ ┌─ Skill("code-analyze") ─── Internal ───┐  │
 │ │ 코드 분석 (exports, deps, behaviors)    │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
@@ -57,11 +61,11 @@ User: /extract
 │ │ 불명확한 부분 질문                      │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("draft-generate") ──────────────┐  │
+│ ┌─ Skill("draft-generate") ── Internal ──┐  │
 │ │ CLAUDE.md 초안 생성                     │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("schema-validate") ─────────────┐  │
+│ ┌─ Skill("schema-validate") ── Internal ─┐  │
 │ │ 스키마 검증 (실패시 재시도)             │  │
 │ └────────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
@@ -74,19 +78,23 @@ User: /generate
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ generate SKILL (사용자 진입점)               │
+│ generate SKILL (Entry Point)                │
+│ ─────────────────────────────────────────── │
+│ 간단한 오케스트레이션                        │
 │                                             │
 │ 1. CLAUDE.md 파일 검색                      │
 │ 2. 언어 자동 감지                           │
 │ 3. For each CLAUDE.md:                      │
-│    Task(generator) 생성                     │
+│    Task(generator) 호출                     │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ generator AGENT (CLAUDE.md별)               │
+│ generator AGENT (복잡한 오케스트레이터)      │
+│ ─────────────────────────────────────────── │
+│ 4+ Skill 호출, 재시도 로직, 상태 관리        │
 │                                             │
-│ ┌─ Skill("claude-md-parse") ─────────────┐  │
+│ ┌─ Skill("claude-md-parse") ── Internal ─┐  │
 │ │ CLAUDE.md → ClaudeMdSpec JSON          │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
@@ -94,6 +102,7 @@ User: /generate
 │ │                                        │  │
 │ │ [RED] behaviors → 테스트 생성 (실패)   │  │
 │ │       └─ Skill("signature-convert")    │  │
+│ │              └── Internal ────────     │  │
 │ │                   │                    │  │
 │ │                   ▼                    │  │
 │ │ [GREEN] 구현 생성 + 테스트 통과        │  │
@@ -110,6 +119,34 @@ User: /generate
 └─────────────────────────────────────────────┘
 ```
 
+#### /incremental-generate 워크플로우 (변경된 CLAUDE.md만 처리)
+
+```
+User: /incremental-generate
+          │
+          ▼
+┌──────────────────────────────────────────┐
+│ incremental-generate SKILL (Entry Point) │
+│ ──────────────────────────────────────── │
+│ 간단한 오케스트레이션                     │
+│                                          │
+│ 1. Skill("diff-analyze") 호출            │
+│ 2. 변경된 CLAUDE.md 목록 획득            │
+│ 3. For each: Task(generator) 호출        │
+│ 4. 결과 수집 및 보고                      │
+└────────────────────┬─────────────────────┘
+                     │
+         ┌───────────┴───────────┐
+         ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐
+│ diff-analyze    │    │ generator AGENT │
+│ SKILL (Internal)│    │ (복잡한         │
+│                 │    │  오케스트레이터) │
+│ git merge-base  │    │                 │
+│ + git diff      │    │ TDD workflow    │
+└─────────────────┘    └─────────────────┘
+```
+
 #### /validate 워크플로우 (문서-코드 일치 검증)
 
 ```
@@ -117,13 +154,15 @@ User: /validate
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ validate SKILL (사용자 진입점)               │
+│ validate SKILL (Entry Point)                │
+│ ─────────────────────────────────────────── │
+│ 간단한 오케스트레이션                        │
 │                                             │
 │ 1. Glob("**/CLAUDE.md") → 대상 목록         │
 │ 2. mkdir .claude/validate-results           │
 │ 3. For each CLAUDE.md (병렬):               │
-│    Task(drift-validator)                    │
-│    Task(reproducibility-validator)          │
+│    Task(drift-validator) 호출               │
+│    Task(reproducibility-validator) 호출     │
 └────────────────────┬────────────────────────┘
                      │
         ┌────────────┴────────────┐
@@ -132,6 +171,8 @@ User: /validate
 ┌───────────────────┐   ┌───────────────────┐
 │ drift-validator   │   │ reproducibility-  │
 │ AGENT             │   │ validator AGENT   │
+│ (복잡한           │   │ (복잡한           │
+│  오케스트레이터)   │   │  오케스트레이터)   │
 │                   │   │                   │
 │ Structure drift   │   │ Phase 1: 예측    │
 │ Exports drift     │   │ (코드 읽지 않음)  │
@@ -145,7 +186,7 @@ User: /validate
                       │
                       ▼
 ┌─────────────────────────────────────────────┐
-│ validate SKILL (결과 수집)                   │
+│ validate SKILL (Entry Point - 결과 수집)    │
 │                                             │
 │ 1. Read 결과 파일들                          │
 │ 2. 통합 보고서 생성                          │
@@ -155,14 +196,29 @@ User: /validate
 
 ### 설계 원칙
 
-#### Skill (도메인 컴포넌트)
-- **한 가지 일만** 잘 수행 (SRP)
-- Stateless, 재사용 가능
-- 내부 전용 Skill은 description에 `(internal)` 표시하여 자동완성에서 숨김
+#### Skill 구분
+
+**Entry Point Skill** (사용자 진입점)
+- 사용자가 직접 호출 (`/extract`, `/generate`, `/validate`, `/incremental-generate`)
+- description에 사용자 친화적 설명
+- 간단한 오케스트레이션 허용:
+  - 대상 파일/디렉토리 검색
+  - 반복 처리 (For each)
+  - Agent 호출 (`Task(agent-name)`)
+
+**Internal Skill** (내부 전용)
+- Agent에서만 호출 `Skill("claude-md-plugin:skill-name")`
+- 단일 기능 (SRP), Stateless, 재사용 가능
+- description에 `(internal)` 표시하여 자동완성에서 숨김
 
 #### Agent (비즈니스 오케스트레이터)
 - N개의 Skill을 `Skill("claude-md-plugin:skill-name")` 형태로 호출
-- 워크플로우 관리, 에러 처리, 재시도 로직 담당
+- 복잡한 오케스트레이션 담당:
+  - 4개 이상 Skill 호출
+  - 조건문, 반복문
+  - 재시도 로직 (최대 N회)
+  - 상태 관리
+- 워크플로우 관리, 에러 처리
 - 사용자에게 비즈니스 가치 제공
 
 ## Structure
@@ -196,8 +252,12 @@ plugins/claude-md-plugin/
 │   │   └── SKILL.md         # /extract (사용자 진입점)
 │   ├── generate/
 │   │   └── SKILL.md         # /generate (사용자 진입점)
+│   ├── incremental-generate/
+│   │   └── SKILL.md         # /incremental-generate (사용자 진입점)
 │   ├── validate/
 │   │   └── SKILL.md         # /validate (사용자 진입점)
+│   ├── diff-analyze/
+│   │   └── SKILL.md         # (internal) Git diff 기반 변경 감지
 │   ├── tree-parse/
 │   │   └── SKILL.md         # (internal) 트리 파싱
 │   ├── boundary-resolve/
@@ -300,6 +360,13 @@ claude-md-core convert-signature --signature "<시그니처>" --target-lang <언
    - [REFACTOR] 프로젝트 컨벤션 적용
 5. 파일 충돌 처리 (skip 또는 overwrite)
 6. 결과 수집 및 보고
+
+### /incremental-generate 실행 시 (변경된 CLAUDE.md만 처리)
+1. incremental-generate Skill이 `Skill("diff-analyze")` 호출
+2. Git merge-base 기준으로 변경된 CLAUDE.md 파일 목록 획득
+3. 변경 없으면 조기 종료, 있으면 변경 내역 보고
+4. 각 변경된 CLAUDE.md에 대해 `Task(generator)` 실행 (기존 generator Agent 재사용)
+5. 결과 수집 및 보고 (처리 수, 건너뜀 수, 테스트 결과)
 
 ### /validate 실행 시 (문서-코드 일치 검증)
 1. validate Skill이 대상 경로에서 CLAUDE.md 파일 검색
