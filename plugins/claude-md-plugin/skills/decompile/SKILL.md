@@ -24,117 +24,38 @@ Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT) + IMPLEME
 
 ## 듀얼 문서 시스템
 
-```
-/decompile
-    │
-    ├─→ CLAUDE.md 추출 (WHAT - 스펙)
-    │   - Purpose, Exports, Behavior, Contract, Protocol, Domain Context
-    │
-    └─→ IMPLEMENTS.md 추출 (HOW - 전체 섹션)
-        - [Planning Section]
-        │   - Dependencies Direction
-        │   - Implementation Approach
-        │   - Technology Choices
-        │
-        - [Implementation Section]
-            - Algorithm
-            - Key Constants
-            - Error Handling
-            - State Management
-            - Session Notes
-```
-
-## 목적
-
-기존 소스 코드(바이너리)를 분석하여 CLAUDE.md + IMPLEMENTS.md(소스) 초안을 생성합니다.
-CLAUDE.md는 해당 디렉토리의 WHAT(무엇을), IMPLEMENTS.md는 HOW(어떻게)를 정의하여
-코드 재현의 기반이 됩니다.
-
-## 아키텍처
-
-```
-User: /decompile
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│ decompile SKILL (사용자 진입점)             │
-│                                             │
-│ 1. Skill("tree-parse") → 대상 목록          │
-│ 2. For each directory (leaf-first):         │
-│    Task(decompiler) 생성                    │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│ decompiler AGENT (디렉토리별)               │
-│                                             │
-│ ┌─ Skill("boundary-resolve") ────────────┐  │
-│ │ 바운더리 분석                           │  │
-│ └──────────────────┬─────────────────────┘  │
-│                    ▼                        │
-│ ┌─ Skill("code-analyze") ────────────────┐  │
-│ │ 코드 분석 (exports, deps, behaviors)    │  │
-│ │ + 알고리즘, 상수, 에러처리, 상태 분석   │  │
-│ └──────────────────┬─────────────────────┘  │
-│                    ▼                        │
-│ ┌─ AskUserQuestion ──────────────────────┐  │
-│ │ 불명확한 부분 질문                      │  │
-│ │ (Domain Context, Implementation 배경)   │  │
-│ └──────────────────┬─────────────────────┘  │
-│                    ▼                        │
-│ ┌─ CLAUDE.md + IMPLEMENTS.md 생성 ───────┐  │
-│ │ CLAUDE.md: WHAT 초안 생성               │  │
-│ │ IMPLEMENTS.md: HOW 전체 섹션 생성       │  │
-│ └──────────────────┬─────────────────────┘  │
-│                    ▼                        │
-│ ┌─ Skill("schema-validate") ─────────────┐  │
-│ │ 스키마 검증 (실패시 재시도)             │  │
-│ └────────────────────────────────────────┘  │
-└─────────────────────────────────────────────┘
-```
+| 출력 | 역할 | 내용 |
+|------|------|------|
+| CLAUDE.md | WHAT (스펙) | Purpose, Exports, Behavior, Contract, Protocol, Domain Context |
+| IMPLEMENTS.md Planning | HOW 계획 | Dependencies Direction, Implementation Approach, Technology Choices |
+| IMPLEMENTS.md Implementation | HOW 상세 | Algorithm, Key Constants, Error Handling, State Management, Session Notes |
 
 ## 워크플로우
 
-### 1. Core Engine 빌드 확인
-
-```bash
-# CLI가 빌드되어 있는지 확인
-CLI_PATH="plugins/claude-md-plugin/core/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..."
-    cd plugins/claude-md-plugin/core && cargo build --release
-fi
+```
+/decompile
+    │
+    ▼
+Skill("tree-parse") → 대상 디렉토리 목록
+    │
+    ▼
+depth 내림차순 정렬 (leaf-first)
+    │
+    ▼
+For each directory (순차 실행):
+    Task(decompiler) → CLAUDE.md + IMPLEMENTS.md 생성
+    │
+    └─→ 검증 후 즉시 배치 (다음 Agent가 읽을 수 있도록)
+    │
+    ▼
+최종 보고
 ```
 
-빌드된 CLI가 없으면 먼저 빌드합니다.
+**핵심:** 자식 디렉토리 CLAUDE.md가 먼저 생성되어야 부모가 자식의 Purpose를 읽을 수 있습니다.
 
-### 2. 트리 파싱 (Skill 호출)
+상세 실행 순서는 `references/execution-order.md` 참조.
 
-```python
-# tree-parse Skill 호출
-Skill("claude-md-plugin:tree-parse")
-# 입력: root_path (기본: 현재 디렉토리)
-# 출력: scratchpad에 저장
-```
-
-프로젝트 루트에서 트리를 파싱하여 CLAUDE.md가 필요한 디렉토리 목록을 생성합니다.
-
-**출력 예시** (tree.json):
-```json
-{
-  "root": "/path/to/project",
-  "needs_claude_md": [
-    {"path": "src", "source_file_count": 2, "subdir_count": 3, "reason": "2 source files and 3 subdirectories", "depth": 1},
-    {"path": "src/auth", "source_file_count": 4, "subdir_count": 1, "reason": "4 source files", "depth": 2},
-    {"path": "src/api", "source_file_count": 5, "subdir_count": 0, "reason": "5 source files", "depth": 2}
-  ],
-  "excluded": ["node_modules", "target", "dist"]
-}
-```
-
-### 3. 대상 디렉토리 확인
-
-tree.json을 읽고 CLAUDE.md가 필요한 디렉토리 목록을 **depth 내림차순** (leaf-first)으로 정렬하여 사용자에게 보여줍니다.
+## 대상 디렉토리 확인 예시
 
 ```
 === CLAUDE.md 생성 대상 ===
@@ -149,61 +70,18 @@ tree.json을 읽고 CLAUDE.md가 필요한 디렉토리 목록을 **depth 내림
 계속하시겠습니까?
 ```
 
-**핵심:** 자식 디렉토리 CLAUDE.md가 먼저 생성되어야 부모가 자식의 Purpose를 읽을 수 있습니다.
+## 내부 Skill 목록
 
-### 4. Leaf-first 순차 실행
+| Skill | 역할 | 호출 위치 |
+|-------|------|----------|
+| `tree-parse` | 디렉토리 트리 파싱 | decompile Skill |
+| `boundary-resolve` | 바운더리 분석 | decompiler Agent |
+| `code-analyze` | 코드 분석 | decompiler Agent |
+| `schema-validate` | 스키마 검증 | decompiler Agent |
 
-**병렬이 아닌 순차 실행**으로 depth가 깊은 디렉토리(leaf)부터 처리합니다.
+내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨집니다.
 
-```python
-# depth 내림차순 정렬 (leaf-first)
-sorted_dirs = sorted(needs_claude_md, key=lambda d: -d["depth"])
-
-for dir_info in sorted_dirs:
-    # 하위 CLAUDE.md 경로 목록 (이미 생성된 자식들)
-    child_claude_mds = find_child_claude_mds(dir_info["path"])
-
-    # decompiler Agent 실행
-    Task(
-        subagent_type="claude-md-plugin:decompiler",
-        prompt=f"""
-대상 디렉토리: {dir_info["path"]}
-직접 파일 수: {dir_info["source_file_count"]}
-하위 디렉토리 수: {dir_info["subdir_count"]}
-자식 CLAUDE.md: {child_claude_mds}
-
-이 디렉토리의 CLAUDE.md를 생성해주세요.
-결과는 scratchpad에 저장하고 경로만 반환해주세요.
-""",
-        description=f"Extract CLAUDE.md for {dir_info['path']}"
-    )
-
-    # 다음 디렉토리 처리 전 완료 대기 (순차 실행)
-```
-
-**실행 순서 예시:**
-```
-1. src/auth/jwt  (depth=3) → CLAUDE.md 생성
-2. src/auth      (depth=2) → jwt/CLAUDE.md Purpose 읽기 가능
-3. src/api       (depth=2) → CLAUDE.md 생성
-4. src           (depth=1) → auth/CLAUDE.md, api/CLAUDE.md Purpose 읽기 가능
-```
-
-### 5. 결과 수집 및 검증
-
-각 Agent 실행 완료 즉시 (순차 실행이므로):
-
-1. scratchpad의 결과 파일 확인 (CLAUDE.md + IMPLEMENTS.md)
-2. 검증 통과 시 실제 위치로 복사
-3. **중요:** 복사 후 다음 depth의 Agent가 읽을 수 있도록 즉시 배치
-
-```bash
-# 검증 성공 시 즉시 배치 (다음 Agent가 읽을 수 있도록)
-cp {scratchpad_result_file_claude} src/auth/CLAUDE.md
-cp {scratchpad_result_file_implements} src/auth/IMPLEMENTS.md
-```
-
-### 6. 최종 보고
+## 최종 보고 예시
 
 ```
 === CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
@@ -226,19 +104,6 @@ cp {scratchpad_result_file_implements} src/auth/IMPLEMENTS.md
   - /validate로 문서-코드 일치 검증 가능
   - /compile로 코드 재생성 가능 (재현성 테스트)
 ```
-
-## 내부 Skill 목록
-
-이 Skill은 다음 내부 Skill들을 조합합니다:
-
-| Skill | 역할 | 호출 위치 |
-|-------|------|----------|
-| `tree-parse` | 디렉토리 트리 파싱 | decompile Skill |
-| `boundary-resolve` | 바운더리 분석 | decompiler Agent |
-| `code-analyze` | 코드 분석 | decompiler Agent |
-| `schema-validate` | 스키마 검증 | decompiler Agent |
-
-내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨집니다.
 
 ## 파일 기반 결과 전달
 
