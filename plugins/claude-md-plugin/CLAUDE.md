@@ -6,6 +6,39 @@
 
 기존 접근법(소스코드 → 문서)을 역전시켜 CLAUDE.md가 명세가 되고, 소스코드가 산출물이 되는 패러다임을 제공합니다.
 
+## Core Philosophy: Compile/Decompile 패러다임
+
+**CLAUDE.md는 소스코드이고, 소스코드는 바이너리다.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    전통적 소프트웨어                          │
+│                                                             │
+│   Source Code (.c, .java)  ─── compile ──→  Binary (.exe)  │
+│   Binary (.exe)  ─── decompile ──→  Source Code            │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    claude-md-plugin                         │
+│                                                             │
+│   CLAUDE.md (스펙)  ─── /compile ──→  Source Code (구현)    │
+│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (스펙)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| 전통적 개념 | claude-md-plugin | 명령어 |
+|------------|------------------|--------|
+| Source Code | CLAUDE.md | - |
+| Binary | Source Code (.ts, .py, ...) | - |
+| **compile** | CLAUDE.md → Source Code | `/compile` |
+| **decompile** | Source Code → CLAUDE.md | `/decompile` |
+
+**왜 이 비유인가?**
+- **Source Code**는 사람이 읽고 작성하는 것 → CLAUDE.md
+- **Binary**는 기계가 실행하는 것 → 실제 소스코드 (런타임이 실행)
+- **Compile**은 스펙에서 실행 가능한 형태로 변환 → CLAUDE.md에서 코드 생성
+- **Decompile**은 실행 가능한 형태에서 스펙 추출 → 코드에서 CLAUDE.md 추출
+
 ## 핵심 개념
 
 ### CLAUDE.md = 소스코드의 스펙
