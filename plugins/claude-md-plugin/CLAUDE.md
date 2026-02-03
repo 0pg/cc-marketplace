@@ -42,23 +42,23 @@
 
 ## Architecture
 
-### /init (소스코드 → CLAUDE.md)
+### /decompile (소스코드 → CLAUDE.md)
 
 ```
-User: /init
+User: /decompile
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ init SKILL (Entry Point)                    │
+│ decompile SKILL (Entry Point)               │
 │                                             │
 │ 1. Skill("tree-parse") → 대상 목록          │
 │ 2. For each directory (leaf-first):         │
-│    Task(initializer) 호출                   │
+│    Task(decompiler) 호출                    │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ initializer AGENT                           │
+│ decompiler AGENT                            │
 │                                             │
 │ Skill("boundary-resolve") → 바운더리 분석   │
 │ Skill("code-analyze") → 코드 분석           │

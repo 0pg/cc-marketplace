@@ -1,19 +1,19 @@
 ---
-name: initializer
+name: decompiler
 description: |
   Use this agent when analyzing source code to generate CLAUDE.md drafts for a single directory.
   Orchestrates internal skills (boundary-resolve, code-analyze, draft-generate, schema-validate).
 
   <example>
   <context>
-  The init skill has parsed the directory tree and calls initializer agent for each directory in leaf-first order.
+  The decompile skill has parsed the directory tree and calls decompiler agent for each directory in leaf-first order.
   </context>
   <user_request>
   대상 디렉토리: src/auth
   직접 파일 수: 4
   하위 디렉토리 수: 1
   자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]
-  결과 파일: .claude/init-results/src-auth.md
+  결과 파일: .claude/decompile-results/src-auth.md
   </user_request>
   <assistant_response>
   I'll generate a CLAUDE.md draft for src/auth directory.
@@ -21,14 +21,14 @@ description: |
   2. Code Analyze - found 3 exports, 5 behaviors
   3. Draft Generate - CLAUDE.md draft created
   4. Schema Validate - validation passed
-  ---initializer-result---
-  result_file: .claude/init-results/src-auth.md
+  ---decompiler-result---
+  result_file: .claude/decompile-results/src-auth.md
   status: success
-  ---end-initializer-result---
+  ---end-decompiler-result---
   </assistant_response>
   <commentary>
-  Called by init skill when processing directories in leaf-first order.
-  Not directly exposed to users; invoked only through init skill.
+  Called by decompile skill when processing directories in leaf-first order.
+  Not directly exposed to users; invoked only through decompile skill.
   </commentary>
   </example>
 model: inherit
@@ -59,7 +59,7 @@ You are a code analyst specializing in extracting CLAUDE.md specifications from 
 하위 디렉토리 수: 1
 자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]  # 이미 생성된 자식들
 
-결과 파일: .claude/init-results/src-auth.md
+결과 파일: .claude/decompile-results/src-auth.md
 ```
 
 ## 워크플로우
@@ -70,7 +70,7 @@ You are a code analyst specializing in extracting CLAUDE.md specifications from 
 # 1. Boundary Resolve Skill 호출
 Skill("claude-md-plugin:boundary-resolve")
 # 입력: target_path, output_name
-# 출력: .claude/init-results/{output_name}-boundary.json
+# 출력: .claude/decompile-results/{output_name}-boundary.json
 ```
 
 바운더리 정보를 획득합니다:
@@ -83,7 +83,7 @@ Skill("claude-md-plugin:boundary-resolve")
 # 2. Code Analyze Skill 호출
 Skill("claude-md-plugin:code-analyze")
 # 입력: target_path, boundary_file, output_name
-# 출력: .claude/init-results/{output_name}-analysis.json
+# 출력: .claude/decompile-results/{output_name}-analysis.json
 ```
 
 분석 결과를 획득합니다:
@@ -128,7 +128,7 @@ if has_unclear_parts(analysis):
 # 3. Draft Generate Skill 호출
 Skill("claude-md-plugin:draft-generate")
 # 입력: analysis_file, child_claude_mds, output_name, user_answers
-# 출력: .claude/init-results/{output_name}-draft.md
+# 출력: .claude/decompile-results/{output_name}-draft.md
 ```
 
 ### Phase 5: 스키마 검증
@@ -137,10 +137,10 @@ Skill("claude-md-plugin:draft-generate")
 # 4. Schema Validate Skill 호출
 Skill("claude-md-plugin:schema-validate")
 # 입력: file_path, output_name
-# 출력: .claude/init-results/{output_name}-validation.json
+# 출력: .claude/decompile-results/{output_name}-validation.json
 
 # 검증 결과 확인
-validation = read_json(f".claude/init-results/{output_name}-validation.json")
+validation = read_json(f".claude/decompile-results/{output_name}-validation.json")
 
 retry_count = 0
 while not validation["valid"] and retry_count < 5:
@@ -149,7 +149,7 @@ while not validation["valid"] and retry_count < 5:
 
     # 재검증
     Skill("claude-md-plugin:schema-validate")
-    validation = read_json(f".claude/init-results/{output_name}-validation.json")
+    validation = read_json(f".claude/decompile-results/{output_name}-validation.json")
     retry_count += 1
 
 if not validation["valid"]:
@@ -161,19 +161,19 @@ if not validation["valid"]:
 
 ```python
 # 최종 파일명으로 이동
-mv(".claude/init-results/{output_name}-draft.md",
-   ".claude/init-results/{output_name}.md")
+mv(".claude/decompile-results/{output_name}-draft.md",
+   ".claude/decompile-results/{output_name}.md")
 
 # 결과 반환
 print(f"""
----initializer-result---
-result_file: .claude/init-results/{output_name}.md
+---decompiler-result---
+result_file: .claude/decompile-results/{output_name}.md
 status: success
 exports_count: {len(analysis["exports"]["functions"]) + len(analysis["exports"]["types"])}
 behavior_count: {len(analysis["behaviors"])}
 questions_asked: {questions_asked}
 validation: {"passed" if validation["valid"] else "failed_with_warnings"}
----end-initializer-result---
+---end-decompiler-result---
 """)
 ```
 
@@ -181,17 +181,17 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     initializer Agent                          │
+│                     decompiler Agent                          │
 │                                                              │
 │  ┌─ Skill("boundary-resolve") ─────────────────────────┐   │
 │  │ 바운더리 분석                                        │   │
-│  │ → .claude/init-results/{name}-boundary.json      │   │
+│  │ → .claude/decompile-results/{name}-boundary.json      │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("code-analyze") ─────────────────────────────┐   │
 │  │ 코드 분석 (exports, deps, behaviors)                 │   │
-│  │ → .claude/init-results/{name}-analysis.json      │   │
+│  │ → .claude/decompile-results/{name}-analysis.json      │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
@@ -202,13 +202,13 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 │                          ▼                                   │
 │  ┌─ Skill("draft-generate") ───────────────────────────┐   │
 │  │ CLAUDE.md 초안 생성                                  │   │
-│  │ → .claude/init-results/{name}-draft.md           │   │
+│  │ → .claude/decompile-results/{name}-draft.md           │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ Skill("schema-validate") ──────────────────────────┐   │
 │  │ 스키마 검증 (실패시 최대 5회 재시도)                  │   │
-│  │ → .claude/init-results/{name}-validation.json    │   │
+│  │ → .claude/decompile-results/{name}-validation.json    │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘

@@ -21,13 +21,13 @@ claude marketplace install claude-md-plugin
 
 ## 사용법
 
-### /init - 소스코드에서 CLAUDE.md 추출
+### /decompile - 소스코드에서 CLAUDE.md 추출
 
 ```
-/init
+/decompile
 ```
 
-현재 프로젝트의 모든 디렉토리를 분석하여 CLAUDE.md를 생성합니다.
+현재 프로젝트의 모든 디렉토리를 분석하여 CLAUDE.md를 생성합니다. (소스코드 → CLAUDE.md = 바이너리 → 소스 = decompile)
 
 **워크플로우:**
 1. 프로젝트 트리 파싱 → CLAUDE.md가 필요한 디렉토리 식별
