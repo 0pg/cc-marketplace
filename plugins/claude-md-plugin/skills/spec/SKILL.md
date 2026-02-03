@@ -1,17 +1,10 @@
 ---
 name: spec
 description: |
-  This skill should be used when the user wants to define requirements and
-  generate/update CLAUDE.md files. It analyzes requirements and creates
-  CLAUDE.md documentation without implementing any code.
-
-  Trigger keywords:
-  - "/spec"
-  - "요구사항 정의"
-  - "스펙 작성"
-  - "behavior 정의"
-  - "Define specification"
-  - "Create CLAUDE.md from requirements"
+  This skill should be used when the user asks to "define requirements", "write spec",
+  "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
+  Analyzes natural language requirements and generates CLAUDE.md without implementing code.
+  Follows ATDD principle: specification first, then code generation via /generate.
 allowed-tools: [Read, Glob, Task, Skill, AskUserQuestion]
 ---
 

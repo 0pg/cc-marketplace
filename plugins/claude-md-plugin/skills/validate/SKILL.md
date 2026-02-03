@@ -1,8 +1,8 @@
 ---
 name: validate
 description: |
-  CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
-  drift-validator와 reproducibility-validator를 병렬 실행합니다.
+  This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
+  "verify spec matches implementation", or uses "/validate". Runs drift-validator and reproducibility-validator in parallel.
 
   <example>
   <user_request>/validate</user_request>

@@ -2,16 +2,9 @@
 name: init
 aliases: [extract, ext]
 description: |
-  This skill should be used when the user wants to generate CLAUDE.md files
-  for an existing codebase. It analyzes source code structure and creates
-  CLAUDE.md documentation for each directory containing source files.
-
-  Trigger keywords:
-  - "/init", "/ext"
-  - "CLAUDE.md 추출"
-  - "소스코드 문서화"
-  - "claude-md 생성"
-  - "Initialize CLAUDE.md from code"
+  This skill should be used when the user asks to "initialize CLAUDE.md", "extract CLAUDE.md from code",
+  "document existing codebase", "generate CLAUDE.md for project", or uses "/init" or "/ext".
+  Analyzes existing source code structure and creates CLAUDE.md documentation for each directory.
 allowed-tools: [Bash, Read, Task, Skill, AskUserQuestion]
 ---
 

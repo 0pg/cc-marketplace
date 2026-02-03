@@ -1,8 +1,9 @@
 ---
 name: generate
 description: |
-  CLAUDE.md를 기반으로 소스 코드를 생성합니다.
-  기본 동작은 incremental (변경분만 처리), --all 옵션으로 전체 처리.
+  This skill should be used when the user asks to "generate code from CLAUDE.md", "implement spec",
+  "create source files", or uses "/generate". Default: incremental (changed only), use --all for full processing.
+  Performs TDD workflow (RED→GREEN→REFACTOR) to ensure generated code passes tests.
 
   <example>
   <context>
