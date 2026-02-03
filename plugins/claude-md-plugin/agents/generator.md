@@ -75,6 +75,8 @@ CLAUDE.md 경로: <path>
 
 ### Phase 1: 컨텍스트 수집
 
+#### 1.1 프로젝트 컨텍스트 로드
+
 ```python
 # 1. 프로젝트 root CLAUDE.md 읽기 (코딩 컨벤션, 구조 규칙 등)
 project_root = find_project_root(target_dir)  # .git 또는 package.json 등으로 탐지
@@ -96,6 +98,72 @@ ClaudeMdSpec에서 추출:
 - `dependencies`: 필요한 import문 생성
 
 **중요**: 코드 생성 시 `project_claude_md`의 규칙(파일 구조, 네이밍 컨벤션, 코딩 스타일 등)을 따릅니다.
+
+#### 1.2 의존성 인터페이스 탐색 (CLAUDE.md Tree Discovery)
+
+의존 모듈의 구현체가 필요할 때, **반드시 CLAUDE.md 트리를 먼저 탐색**합니다.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                의존성 탐색 워크플로우                              │
+│                                                                 │
+│  STEP 1: CLAUDE.md Tree 탐색 (PRIMARY) ─────────────────────   │
+│                                                                 │
+│    project/                                                     │
+│    ├── CLAUDE.md          ← Structure 섹션 → 하위 모듈 목록     │
+│    └── src/                                                     │
+│        ├── auth/CLAUDE.md ← Exports = Interface Catalog         │
+│        └── utils/CLAUDE.md                                      │
+│                                                                 │
+│  STEP 2: 코드 탐색 (SECONDARY) ──────────────────────────────   │
+│    ONLY when: Exports만으로 불충분할 때                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**탐색 우선순위 테이블**:
+
+| 우선순위 | 단계 | 탐색 대상 | 획득 정보 |
+|----------|------|-----------|----------|
+| 1 (필수) | 대상 CLAUDE.md Dependencies | 의존 모듈 경로 목록 | 어떤 모듈에 의존하는지 |
+| 2 (필수) | 의존 모듈 CLAUDE.md Exports | 인터페이스 카탈로그 | 함수/타입/클래스 시그니처 |
+| 3 (선택) | 의존 모듈 CLAUDE.md Behavior | 동작 이해 | 정상/에러 시나리오 |
+| 4 (최후) | 실제 소스코드 | 구현 세부사항 | Exports만으로 불충분할 때만 |
+
+**탐색 워크플로우**:
+
+```python
+# 의존 모듈 인터페이스 수집
+dependency_interfaces = {}
+
+for dep in spec.dependencies:
+    if dep.type == "internal":
+        # 1. 의존 모듈의 CLAUDE.md 읽기
+        dep_claude_md_path = f"{dep.path}/CLAUDE.md"
+        dep_claude_md = Read(dep_claude_md_path)
+
+        # 2. Exports 섹션 = Interface Catalog
+        dep_exports = parse_exports(dep_claude_md)
+        dependency_interfaces[dep.path] = dep_exports
+
+        # 3. (선택) Behavior 섹션으로 동작 이해
+        if need_behavior_understanding:
+            dep_behavior = parse_behavior(dep_claude_md)
+
+# 실제 코드 탐색은 최후 수단
+# ONLY when: Exports 시그니처만으로 구현 불가능한 경우
+```
+
+**금지 사항**:
+
+```
+❌ 코드 먼저 탐색 후 CLAUDE.md 확인
+❌ Exports 섹션 무시하고 바로 구현 파일 읽기
+❌ 의존 모듈의 내부 구현 세부사항에 의존
+```
+
+**이유**: CLAUDE.md의 Exports는 **Interface Catalog**로서 설계되었습니다.
+코드 탐색보다 CLAUDE.md 탐색이 더 효율적이고, 캡슐화 원칙을 준수합니다.
 
 ### Phase 2: 언어 감지 확인
 

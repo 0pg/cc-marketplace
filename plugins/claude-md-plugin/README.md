@@ -21,10 +21,10 @@ claude marketplace install claude-md-plugin
 
 ## 사용법
 
-### /extract - 소스코드에서 CLAUDE.md 추출
+### /init - 소스코드에서 CLAUDE.md 추출
 
 ```
-/extract
+/init
 ```
 
 현재 프로젝트의 모든 디렉토리를 분석하여 CLAUDE.md를 생성합니다.

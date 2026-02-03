@@ -23,25 +23,42 @@
 
 각 CLAUDE.md는 자신의 바운더리 내에서 self-contained여야 합니다.
 
-## Architecture
+### CLAUDE.md Exports = Interface Catalog
 
-### /extract (소스코드 → CLAUDE.md)
+**Exports 섹션은 다른 모듈이 코드 탐색 없이 인터페이스를 파악할 수 있는 카탈로그입니다.**
+
+| 시나리오 | Exports 섹션 활용 |
+|----------|------------------|
+| **생성 시** | 모든 public interface를 시그니처 레벨로 명시 |
+| **참조 시** | 의존 모듈의 Exports 섹션으로 인터페이스 파악 (코드 탐색 불필요) |
+| **변경 시** | Exports 변경 = Breaking Change, 참조하는 모듈 확인 필요 |
 
 ```
-User: /extract
+의존 모듈 참조 시 탐색 순서:
+1. 의존 모듈 CLAUDE.md Exports ← 여기서 인터페이스 확인
+2. 의존 모듈 CLAUDE.md Behavior ← 동작 이해 필요 시
+3. 실제 소스코드 ← 최후 수단 (Exports로 불충분할 때만)
+```
+
+## Architecture
+
+### /init (소스코드 → CLAUDE.md)
+
+```
+User: /init
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ extract SKILL (Entry Point)                 │
+│ init SKILL (Entry Point)                    │
 │                                             │
 │ 1. Skill("tree-parse") → 대상 목록          │
 │ 2. For each directory (leaf-first):         │
-│    Task(extractor) 호출                     │
+│    Task(initializer) 호출                   │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ extractor AGENT                             │
+│ initializer AGENT                           │
 │                                             │
 │ Skill("boundary-resolve") → 바운더리 분석   │
 │ Skill("code-analyze") → 코드 분석           │

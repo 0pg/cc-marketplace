@@ -1,21 +1,21 @@
 ---
-name: extract
-aliases: [ext, claude-md]
+name: init
+aliases: [extract, ext]
 description: |
   This skill should be used when the user wants to generate CLAUDE.md files
   for an existing codebase. It analyzes source code structure and creates
   CLAUDE.md documentation for each directory containing source files.
 
   Trigger keywords:
-  - "/extract", "/ext"
+  - "/init", "/ext"
   - "CLAUDE.md 추출"
   - "소스코드 문서화"
   - "claude-md 생성"
-  - "Extract CLAUDE.md from code"
+  - "Initialize CLAUDE.md from code"
 allowed-tools: [Bash, Read, Task, Skill, AskUserQuestion]
 ---
 
-# Extract Skill
+# Init Skill
 
 ## 목적
 
@@ -25,20 +25,20 @@ CLAUDE.md는 해당 디렉토리의 Source of Truth가 되어 코드 재현의 �
 ## 아키텍처
 
 ```
-User: /extract
+User: /init
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ extract SKILL (사용자 진입점)                │
+│ init SKILL (사용자 진입점)                │
 │                                             │
 │ 1. Skill("tree-parse") → 대상 목록          │
 │ 2. For each directory (leaf-first):         │
-│    Task(extractor) 생성                     │
+│    Task(initializer) 생성                     │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ extractor AGENT (디렉토리별)                 │
+│ initializer AGENT (디렉토리별)                 │
 │                                             │
 │ ┌─ Skill("boundary-resolve") ────────────┐  │
 │ │ 바운더리 분석                           │  │
@@ -83,7 +83,7 @@ fi
 # tree-parse Skill 호출
 Skill("claude-md-plugin:tree-parse")
 # 입력: root_path (기본: 현재 디렉토리)
-# 출력: .claude/extract-tree.json
+# 출력: .claude/init-tree.json
 ```
 
 프로젝트 루트에서 트리를 파싱하여 CLAUDE.md가 필요한 디렉토리 목록을 생성합니다.
@@ -132,9 +132,9 @@ for dir_info in sorted_dirs:
     # 하위 CLAUDE.md 경로 목록 (이미 생성된 자식들)
     child_claude_mds = find_child_claude_mds(dir_info["path"])
 
-    # extractor Agent 실행
+    # initializer Agent 실행
     Task(
-        subagent_type="claude-md-plugin:extractor",
+        subagent_type="claude-md-plugin:initializer",
         prompt=f"""
 대상 디렉토리: {dir_info["path"]}
 직접 파일 수: {dir_info["source_file_count"]}
@@ -142,7 +142,7 @@ for dir_info in sorted_dirs:
 자식 CLAUDE.md: {child_claude_mds}
 
 이 디렉토리의 CLAUDE.md를 생성해주세요.
-결과 파일: .claude/extract-results/{dir_info["path"].replace('/', '-')}.md
+결과 파일: .claude/init-results/{dir_info["path"].replace('/', '-')}.md
 """,
         description=f"Extract CLAUDE.md for {dir_info['path']}"
     )
@@ -162,13 +162,13 @@ for dir_info in sorted_dirs:
 
 각 Agent 실행 완료 즉시 (순차 실행이므로):
 
-1. `.claude/extract-results/{dir-name}.md` 결과 파일 확인
+1. `.claude/init-results/{dir-name}.md` 결과 파일 확인
 2. 검증 통과 시 실제 CLAUDE.md 위치로 복사
 3. **중요:** 복사 후 다음 depth의 Agent가 읽을 수 있도록 즉시 배치
 
 ```bash
 # 검증 성공 시 즉시 배치 (다음 Agent가 읽을 수 있도록)
-cp .claude/extract-results/src-auth.md src/auth/CLAUDE.md
+cp .claude/init-results/src-auth.md src/auth/CLAUDE.md
 ```
 
 ### 6. 최종 보고
@@ -197,11 +197,11 @@ cp .claude/extract-results/src-auth.md src/auth/CLAUDE.md
 
 | Skill | 역할 | 호출 위치 |
 |-------|------|----------|
-| `tree-parse` | 디렉토리 트리 파싱 | extract Skill |
-| `boundary-resolve` | 바운더리 분석 | extractor Agent |
-| `code-analyze` | 코드 분석 | extractor Agent |
-| `draft-generate` | CLAUDE.md 생성 | extractor Agent |
-| `schema-validate` | 스키마 검증 | extractor Agent |
+| `tree-parse` | 디렉토리 트리 파싱 | init Skill |
+| `boundary-resolve` | 바운더리 분석 | initializer Agent |
+| `code-analyze` | 코드 분석 | initializer Agent |
+| `draft-generate` | CLAUDE.md 생성 | initializer Agent |
+| `schema-validate` | 스키마 검증 | initializer Agent |
 
 내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨집니다.
 
@@ -211,8 +211,8 @@ Agent는 결과를 파일로 저장하고 경로만 반환합니다:
 
 | 컴포넌트 | 결과 파일 경로 |
 |---------|--------------|
-| tree-parse | `.claude/extract-tree.json` |
-| extractor | `.claude/extract-results/{dir-name}.md` |
+| tree-parse | `.claude/init-tree.json` |
+| initializer | `.claude/init-results/{dir-name}.md` |
 
 이로써 Skill context 폭발을 방지합니다.
 
@@ -222,5 +222,5 @@ Agent는 결과를 파일로 저장하고 경로만 반환합니다:
 |------|------|
 | CLI 빌드 실패 | 에러 메시지 출력, 실패 반환 |
 | tree-parse 실패 | CLI 에러 메시지 전달 |
-| extractor 실패 | 해당 디렉토리 스킵, 경고 표시 |
+| initializer 실패 | 해당 디렉토리 스킵, 경고 표시 |
 | 스키마 검증 실패 | Agent가 최대 5회 재시도 후 경고와 함께 진행 |
