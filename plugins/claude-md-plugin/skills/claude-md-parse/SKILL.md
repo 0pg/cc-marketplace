@@ -1,5 +1,6 @@
 ---
 name: claude-md-parse
+version: 1.0.0
 description: (internal) CLAUDE.md 파일을 파싱하여 구조화된 JSON 스펙으로 변환
 allowed-tools: [Bash, Read]
 ---

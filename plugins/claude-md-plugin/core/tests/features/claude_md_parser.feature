@@ -789,8 +789,8 @@ Feature: CLAUDE.md Parser
   # =============================================================================
 
   Scenario: CLI parse-claude-md command outputs JSON
-    Given a CLAUDE.md file at "fixtures/generate/sample/CLAUDE.md"
-    When I run "claude-md-core parse-claude-md --file fixtures/generate/sample/CLAUDE.md"
+    Given a CLAUDE.md file at "fixtures/parser/sample/CLAUDE.md"
+    When I run "claude-md-core parse-claude-md --file fixtures/parser/sample/CLAUDE.md"
     Then the output should be valid JSON
     And the JSON should have "purpose" field
     And the JSON should have "exports" object

@@ -1,5 +1,7 @@
 ---
 name: compile
+version: 1.0.0
+aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement spec",
   "create source files", or uses "/compile". Processes all CLAUDE.md files in the target path.

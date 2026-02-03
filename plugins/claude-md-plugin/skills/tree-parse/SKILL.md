@@ -1,5 +1,6 @@
 ---
 name: tree-parse
+version: 1.0.0
 description: (internal) 프로젝트 디렉토리 구조를 파싱하여 CLAUDE.md가 필요한 위치 식별
 allowed-tools: [Bash, Read]
 ---

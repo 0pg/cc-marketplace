@@ -16,3 +16,15 @@ JWT 기반 인증 처리 모듈.
 |-------|--------|
 | 유효한 JWT 토큰 | Claims 객체 반환 |
 | 만료된 토큰 | TokenExpiredError |
+
+## Contract
+
+None
+
+## Protocol
+
+None
+
+## Domain Context
+
+None

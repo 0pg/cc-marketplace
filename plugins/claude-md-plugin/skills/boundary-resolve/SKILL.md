@@ -1,5 +1,6 @@
 ---
 name: boundary-resolve
+version: 1.0.0
 description: (internal) 단일 디렉토리의 바운더리(직접 파일, 하위 디렉토리) 결정
 allowed-tools: [Bash, Read]
 ---

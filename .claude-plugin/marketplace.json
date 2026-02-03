@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md를 Source of Truth로. /decompile로 소스코드에서 CLAUDE.md 추출, /compile로 CLAUDE.md에서 코드 생성 (기본 incremental, --all로 전체 처리), /validate로 문서-코드 일치 검증, /spec으로 요구사항에서 CLAUDE.md 생성.",
-      "version": "0.20.0",
+      "version": "0.21.0",
       "author": {
         "name": "jhk"
       },

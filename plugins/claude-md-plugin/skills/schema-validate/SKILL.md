@@ -1,5 +1,6 @@
 ---
 name: schema-validate
+version: 1.0.0
 description: (internal) CLAUDE.md 파일이 스키마 규칙을 준수하는지 검증
 allowed-tools: [Bash, Read]
 ---

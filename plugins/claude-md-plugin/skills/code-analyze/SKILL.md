@@ -2,7 +2,7 @@
 name: code-analyze
 version: 1.0.0
 description: (internal) 소스 코드를 분석하여 Exports, Dependencies, Behavior 추출
-allowed-tools: [Read, Glob, Grep]
+allowed-tools: [Read, Glob, Grep, Write]
 ---
 
 # Code Analyze Skill

@@ -1,5 +1,7 @@
 ---
 name: validate
+version: 1.0.0
+aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
   "verify spec matches implementation", or uses "/validate". Runs drift-validator and export-validator in parallel.
@@ -32,7 +34,7 @@ description: |
     Export 커버리지: 95% (18/19 예측 성공)
   </assistant_response>
   </example>
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill]
 ---
 
 # /validate

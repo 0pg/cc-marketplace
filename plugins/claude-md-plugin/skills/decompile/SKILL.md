@@ -1,11 +1,12 @@
 ---
 name: decompile
+version: 1.0.0
 aliases: [decom]
 description: |
   This skill should be used when the user asks to "decompile code to CLAUDE.md", "extract CLAUDE.md from code",
   "document existing codebase", "reverse engineer spec", or uses "/decompile" or "/decom".
   Analyzes existing source code (binary) and creates CLAUDE.md (source) documentation for each directory.
-allowed-tools: [Bash, Read, Task, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Write, Task, Skill, AskUserQuestion]
 ---
 
 # Decompile Skill

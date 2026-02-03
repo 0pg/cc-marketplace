@@ -1,11 +1,13 @@
 ---
 name: spec
+version: 1.0.0
+aliases: [define, requirements, spec-out]
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
   "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
   Analyzes natural language requirements and generates CLAUDE.md without implementing code.
   Follows ATDD principle: specification first, then code generation via /compile.
-allowed-tools: [Read, Glob, Task, Skill, AskUserQuestion]
+allowed-tools: [Read, Glob, Write, Task, Skill, AskUserQuestion]
 ---
 
 # Spec Skill

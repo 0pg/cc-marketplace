@@ -1,18 +1,17 @@
 {
   "path": "src/auth",
   "direct_files": [
-    "index.ts",
-    "middleware.ts",
-    "types.ts",
-    "constants.ts"
+    {"name": "index.ts", "type": "typescript"},
+    {"name": "middleware.ts", "type": "typescript"},
+    {"name": "types.ts", "type": "typescript"},
+    {"name": "constants.ts", "type": "typescript"}
   ],
-  "subdirectories": [
+  "subdirs": [
     {
       "name": "jwt",
       "has_claude_md": true
     }
   ],
-  "file_extensions": {
-    ".ts": 4
-  }
+  "source_file_count": 4,
+  "subdir_count": 1
 }
