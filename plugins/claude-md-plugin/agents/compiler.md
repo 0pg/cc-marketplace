@@ -85,26 +85,19 @@ IMPLEMENTS.md 경로: <path>
 
 #### 1.1 프로젝트 컨텍스트 로드
 
-```python
-# 1. 프로젝트 root CLAUDE.md 읽기 (코딩 컨벤션, 구조 규칙 등)
-project_root = find_project_root(target_dir)  # .git 또는 package.json 등으로 탐지
-project_claude_md = Read(f"{project_root}/CLAUDE.md")
+##### 실행 단계
 
-# 2. 대상 CLAUDE.md Parse Skill 호출 (WHAT)
-Skill("claude-md-plugin:claude-md-parse")
-# 입력: claude_md_path
-# 출력: ClaudeMdSpec JSON (stdout)
+1. `Read({project_root}/CLAUDE.md)` → 프로젝트 코딩 컨벤션 로드
+2. `Skill("claude-md-plugin:claude-md-parse")` → CLAUDE.md 파싱
+   - 입력: claude_md_path
+   - 출력: ClaudeMdSpec JSON (stdout)
+3. `Read({target_dir}/IMPLEMENTS.md)` → Planning Section 로드 (파일 존재 시)
 
-# 파싱 결과 저장
-spec = parse_result
+##### 로직
 
-# 3. 대상 IMPLEMENTS.md 읽기 (HOW - Planning Section)
-implements_md_path = claude_md_path.replace("CLAUDE.md", "IMPLEMENTS.md")
-if file_exists(implements_md_path):
-    implements_spec = parse_implements_md(Read(implements_md_path))
-else:
-    implements_spec = None  # 기본값 사용
-```
+- 프로젝트 루트 탐지: `.git` 또는 `package.json` 위치 기반
+- IMPLEMENTS.md 경로: CLAUDE.md 경로에서 파일명만 교체
+- IMPLEMENTS.md가 없으면 기본값 사용
 
 **CLAUDE.md (WHAT)**에서 추출:
 - `exports`: 함수, 타입, 클래스 정의
@@ -152,37 +145,22 @@ else:
 | 3 (선택) | 의존 모듈 CLAUDE.md Behavior | 동작 이해 | 정상/에러 시나리오 |
 | 4 (최후) | 실제 소스코드 | 구현 세부사항 | Exports만으로 불충분할 때만 |
 
-**탐색 워크플로우**:
+##### 실행 단계
 
-```python
-# 의존 모듈 인터페이스 수집
-dependency_interfaces = {}
+1. spec.dependencies에서 내부 의존성 목록 추출
+2. 각 의존성에 대해 `Read({dep.path}/CLAUDE.md)` → Exports 섹션 파싱
+3. (선택) Behavior 섹션 파싱 (동작 이해 필요 시)
 
-for dep in spec.dependencies:
-    if dep.type == "internal":
-        # 1. 의존 모듈의 CLAUDE.md 읽기
-        dep_claude_md_path = f"{dep.path}/CLAUDE.md"
-        dep_claude_md = Read(dep_claude_md_path)
+##### 로직
 
-        # 2. Exports 섹션 = Interface Catalog
-        dep_exports = parse_exports(dep_claude_md)
-        dependency_interfaces[dep.path] = dep_exports
-
-        # 3. (선택) Behavior 섹션으로 동작 이해
-        if need_behavior_understanding:
-            dep_behavior = parse_behavior(dep_claude_md)
-
-# 실제 코드 탐색은 최후 수단
-# ONLY when: Exports 시그니처만으로 구현 불가능한 경우
-```
+- 의존 모듈별 인터페이스 카탈로그 수집
+- Exports 시그니처로 구현 가능 여부 판단
+- 불충분한 경우에만 실제 소스코드 참조
 
 **금지 사항**:
-
-```
-❌ 코드 먼저 탐색 후 CLAUDE.md 확인
-❌ Exports 섹션 무시하고 바로 구현 파일 읽기
-❌ 의존 모듈의 내부 구현 세부사항에 의존
-```
+- ❌ 코드 먼저 탐색 후 CLAUDE.md 확인
+- ❌ Exports 섹션 무시하고 바로 구현 파일 읽기
+- ❌ 의존 모듈의 내부 구현 세부사항에 의존
 
 **이유**: CLAUDE.md의 Exports는 **Interface Catalog**로서 설계되었습니다.
 코드 탐색보다 CLAUDE.md 탐색이 더 효율적이고, 캡슐화 원칙을 준수합니다.
@@ -191,26 +169,15 @@ for dep in spec.dependencies:
 
 **Domain Context는 compile 재현성의 핵심입니다.** 동일한 CLAUDE.md에서 동일한 코드를 생성하려면 Domain Context의 값들이 코드에 그대로 반영되어야 합니다.
 
-```python
-# Domain Context 추출 및 적용
-domain_context = spec.domain_context
+##### 로직
 
-if domain_context:
-    # 1. Decision Rationale → 상수 값 결정
-    # 예: "TOKEN_EXPIRY: 7일 (PCI-DSS)" → const TOKEN_EXPIRY_DAYS = 7
-    for rationale in domain_context.decision_rationale:
-        apply_constant_value(rationale)
+Domain Context 항목별 코드 반영:
 
-    # 2. Constraints → 검증 로직 강화
-    # 예: "비밀번호 재설정 90일" → validatePasswordAge(90)
-    for constraint in domain_context.constraints:
-        apply_constraint(constraint)
-
-    # 3. Compatibility → 레거시 지원 코드
-    # 예: "UUID v1 지원" → parseUUIDv1() 함수 포함
-    for compat in domain_context.compatibility:
-        apply_compatibility(compat)
-```
+| 항목 | 반영 방식 | 예시 |
+|------|----------|------|
+| Decision Rationale | 상수 값 결정 | `TOKEN_EXPIRY: 7일 (PCI-DSS)` → `const TOKEN_EXPIRY_DAYS = 7` |
+| Constraints | 검증 로직 강화 | `비밀번호 재설정 90일` → `validatePasswordAge(90)` |
+| Compatibility | 레거시 지원 코드 | `UUID v1 지원` → `parseUUIDv1()` 함수 포함 |
 
 **Domain Context 반영 예시**:
 
@@ -224,45 +191,27 @@ if domain_context:
 
 ### Phase 2: 언어 감지 확인
 
-```python
-# 감지된 언어 확인
-if not detected_language:
-    # 자동 감지 시도
-    detected_language = detect_language_from_files(target_dir)
+##### 실행 단계 (언어 감지 실패 시)
 
-    if not detected_language:
-        # 감지 불가 시 사용자에게 질문
-        # 감지 불가 시 사용자에게 질문
-        # 옵션은 프로젝트에서 사용 중인 언어 목록으로 동적 생성
-        answer = AskUserQuestion(
-            questions=[{
-                "question": "이 디렉토리에서 사용할 프로그래밍 언어를 선택해주세요.",
-                "header": "언어 선택",
-                "options": get_project_languages()  # 동적 생성
-            }]
-        )
-        detected_language = answer
-```
+`AskUserQuestion` → 언어 선택 질문
+- 옵션은 프로젝트에서 사용 중인 언어 목록으로 동적 생성
+
+##### 로직
+
+1. 입력에 언어가 지정되었으면 사용
+2. 미지정 시 target_dir의 파일 확장자로 자동 감지
+3. 감지 불가 시 사용자에게 질문
 
 ### Phase 3: TDD 워크플로우 (내부 자동 수행)
 
 #### 3.1 RED Phase - 테스트 생성
 
+##### 로직
+
 behaviors를 기반으로 테스트 파일 생성:
 
-```python
-# 테스트 파일 생성
-# 테스트 프레임워크는 프로젝트 설정에서 감지 (package.json, pyproject.toml 등)
-# 감지 불가 시 project_claude_md에 명시된 프레임워크 사용
-
-for behavior in spec.behaviors:
-    if behavior.category == "success":
-        # 성공 케이스 테스트
-        generate_success_test(behavior)
-    else:
-        # 에러 케이스 테스트
-        generate_error_test(behavior)
-```
+- **성공 케이스 (success)**: 정상 동작 테스트
+- **에러 케이스 (error)**: 예외 처리 테스트
 
 테스트 생성 시:
 - 프로젝트 CLAUDE.md의 테스트 프레임워크/컨벤션을 따름
@@ -272,107 +221,57 @@ for behavior in spec.behaviors:
 
 exports와 contracts를 기반으로 구현 파일 생성하고, 테스트가 통과할 때까지 반복:
 
-```python
-# 1. 타입/인터페이스 파일 생성
-generate_types_file(spec.exports.types, detected_language)
+##### 파일 생성 순서
 
-# 2. 에러 클래스 파일 생성 (behaviors에서 추출)
-error_types = extract_error_types(spec.behaviors)
-generate_errors_file(error_types, detected_language)
+1. 타입/인터페이스 파일 생성 (exports.types 기반)
+2. 에러 클래스 파일 생성 (behaviors에서 추출)
+3. 메인 구현 파일 생성 (exports.functions 기반)
+   - 시그니처, contracts, behaviors를 기반으로 구현
 
-# 3. 메인 구현 파일 생성
-for func in spec.exports.functions:
-    # 구현 생성 (LLM이 시그니처, contracts, behaviors를 기반으로 생성)
-    implementation = generate_implementation(
-        func=func,
-        signature=func.signature,
-        target_lang=detected_language,
-        contracts=find_contract(spec.contracts, func.name),
-        behaviors=find_behaviors(spec.behaviors, func.name)
-    )
+##### 테스트 실행 및 재시도 정책
 
-# 4. 테스트 실행 및 통과할 때까지 반복
-test_result = run_tests(detected_language, target_dir)
-
-retry_count = 0
-while not test_result.all_passed and retry_count < 3:
-    # 실패한 테스트 분석
-    failing_tests = test_result.failures
-
-    # 구현 수정
-    fix_implementation(failing_tests)
-
-    # 재실행
-    test_result = run_tests(detected_language, target_dir)
-    retry_count += 1
-
-if not test_result.all_passed:
-    log_warning(f"Tests failed after {retry_count} retries")
-```
+- 테스트 실행 후 실패 시 구현 수정
+- **최대 재시도**: 3회
+- **재시도 조건**: 테스트 실패
+- **재시도 액션**: 실패 분석 → 구현 수정 → 재실행
+- **실패 시**: 경고 로그 후 다음 단계로 진행
 
 #### 3.3 REFACTOR Phase - 코드 개선
 
 테스트 통과 후, 프로젝트 CLAUDE.md의 코딩 규칙에 맞게 리팩토링:
 
-```python
-if test_result.all_passed:
-    # 프로젝트 컨벤션에 맞게 코드 정리
-    # - 네이밍 컨벤션 적용
-    # - 코드 스타일 정리 (포매터 실행 등)
-    # - 중복 제거, 가독성 개선
-    refactor_to_project_conventions(
-        generated_files,
-        project_claude_md
-    )
+##### 로직
 
-    # 리팩토링 후 테스트 재실행 (회귀 확인)
-    test_result = run_tests(detected_language, target_dir)
-
-    if not test_result.all_passed:
-        # 리팩토링으로 테스트 실패 시 롤백
-        rollback_refactoring()
-```
+1. 테스트가 통과한 경우에만 실행
+2. 프로젝트 컨벤션 적용:
+   - 네이밍 컨벤션 적용
+   - 코드 스타일 정리 (포매터 실행 등)
+   - 중복 제거, 가독성 개선
+3. 리팩토링 후 회귀 테스트 실행
+4. 리팩토링으로 테스트 실패 시 롤백
 
 ### Phase 4: 파일 충돌 처리
 
-```python
-for file in generated_files:
-    target_path = f"{target_dir}/{file}"
+##### 로직
 
-    if file_exists(target_path):
-        if conflict_mode == "skip":
-            skipped_files.append(file)
-            continue
-        elif conflict_mode == "overwrite":
-            overwritten_files.append(file)
-            # 파일 덮어쓰기
+각 생성 파일에 대해:
 
-    write_file(target_path, content)
-    written_files.append(file)
-```
+| 상황 | skip 모드 | overwrite 모드 |
+|------|----------|---------------|
+| 파일 존재 | 건너뛰기, skipped_files에 추가 | 덮어쓰기, overwritten_files에 추가 |
+| 파일 미존재 | 새로 생성 | 새로 생성 |
 
 ### Phase 5: IMPLEMENTS.md Implementation Section 업데이트
 
-코드 생성 후 실제 구현 상세를 IMPLEMENTS.md에 기록합니다:
+코드 생성 후 실제 구현 상세를 IMPLEMENTS.md에 기록합니다.
 
-```python
-# 구현 과정에서 발견된 정보 수집
-implementation_details = {
-    "algorithm": extract_algorithm_notes(generated_code),  # 복잡한 로직만
-    "key_constants": extract_key_constants(generated_code),  # 도메인 의미 있는 상수
-    "error_handling": extract_error_handling(generated_code),
-    "state_management": extract_state_management(generated_code),
-    "session_notes": generate_session_notes(changes_made)
-}
+##### 실행 단계
 
-# IMPLEMENTS.md Implementation Section 업데이트
-implements_md_path = f"{target_dir}/IMPLEMENTS.md"
-existing_content = Read(implements_md_path)
-updated_content = update_implementation_section(existing_content, implementation_details)
-Write(implements_md_path, updated_content)
-```
+1. `Read({target_dir}/IMPLEMENTS.md)` → 기존 내용 로드
+2. Implementation Section 업데이트
+3. `Write({target_dir}/IMPLEMENTS.md)` → 저장
 
-#### Implementation Section 업데이트 규칙
+##### 수집 정보
 
 | 섹션 | 업데이트 조건 | 내용 |
 |------|--------------|------|
@@ -384,38 +283,33 @@ Write(implements_md_path, updated_content)
 
 ### Phase 6: 결과 반환
 
-```python
-# 결과 JSON 생성
-result = {
-    "claude_md_path": claude_md_path,
-    "implements_md_path": implements_md_path,
-    "target_dir": target_dir,
-    "detected_language": detected_language,
-    "generated_files": written_files,
-    "skipped_files": skipped_files,
-    "overwritten_files": overwritten_files,
-    "tests": {
-        "total": test_result.total,
-        "passed": test_result.passed,
-        "failed": test_result.failed
-    },
-    "implements_md_updated": True,
-    "status": "success" if test_result.all_passed else "warning"
-}
+결과 JSON을 scratchpad에 저장하고 구조화된 블록 출력:
 
-write_file(result_file, json.dumps(result, indent=2))
+##### 결과 포함 항목
 
-print(f"""
+- `claude_md_path`: 입력 CLAUDE.md 경로
+- `implements_md_path`: IMPLEMENTS.md 경로
+- `target_dir`: 대상 디렉토리
+- `detected_language`: 감지된 언어
+- `generated_files`: 생성된 파일 목록
+- `skipped_files`: 건너뛴 파일 목록
+- `overwritten_files`: 덮어쓴 파일 목록
+- `tests`: 테스트 결과 (total, passed, failed)
+- `implements_md_updated`: IMPLEMENTS.md 업데이트 여부
+- `status`: success | warning
+
+##### 출력 형식
+
+```
 ---compiler-result---
 result_file: {result_file}
-status: {result["status"]}
+status: {status}
 generated_files: {written_files}
 skipped_files: {skipped_files}
-tests_passed: {test_result.passed}
-tests_failed: {test_result.failed}
+tests_passed: {tests.passed}
+tests_failed: {tests.failed}
 implements_md_updated: true
 ---end-compiler-result---
-""")
 ```
 
 ## 파일 구조 결정
@@ -510,7 +404,7 @@ implements_md_updated: true
 |------|------|
 | CLAUDE.md 파싱 실패 | 에러 로그, Agent 실패 반환 |
 | 언어 감지 실패 | 사용자에게 질문 |
-| 테스트 5회 실패 | 경고와 함께 진행, 수동 수정 필요 표시 |
+| 테스트 3회 실패 | 경고와 함께 진행, 수동 수정 필요 표시 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
 
 ## Context 효율성
