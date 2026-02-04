@@ -1,5 +1,113 @@
 # Compile Workflow Details
 
+## 증분 Compile 워크플로우 (--incremental)
+
+### 전체 데이터 흐름
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ Step 1: 변경 분석                                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [1] git-status-analyzer                                         │
+│      │                                                           │
+│      └─→ uncommitted_dirs: ["src/auth", "src/new-feature"]       │
+│                │                                                 │
+│                ▼                                                 │
+│  [2] commit-comparator (← uncommitted_dirs 입력)                 │
+│      │                                                           │
+│      ├─→ outdated_dirs: ["src/utils"]                            │
+│      │   (스펙 커밋 > 소스 커밋)                                   │
+│      │                                                           │
+│      └─→ no_source_dirs: ["src/new-module"]                      │
+│          (CLAUDE.md만 있고 소스 없음)                              │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ Step 2: 대상 결정                                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  compile_targets = A ∪ B ∪ C                                     │
+│                                                                  │
+│  A: uncommitted_dirs    ["src/auth", "src/new-feature"]          │
+│  B: outdated_dirs       ["src/utils"]                            │
+│  C: no_source_dirs      ["src/new-module"]                       │
+│                                                                  │
+│  → compile_targets = ["src/auth", "src/new-feature",             │
+│                       "src/utils", "src/new-module"]             │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ Step 3: Compile 실행                                             │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  for each target in compile_targets:                             │
+│      if target in no_source_dirs:                                │
+│          # 신규 모듈 - IMPLEMENTS.md 자동 생성                     │
+│          create_default_implements_md(target)                    │
+│          Task(compiler, mode="create")                           │
+│      else:                                                       │
+│          # 기존 모듈 - 업데이트                                    │
+│          Task(compiler, mode="update")                           │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ Step 4: 사후 분석                                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  for each compiled_module:                                       │
+│      if module not in no_source_dirs:                            │
+│          # 기존 모듈만 diff 분석 (신규는 before 없음)              │
+│          Skill("interface-diff")                                  │
+│              Before = CLAUDE.md Exports (스펙)                    │
+│              After  = Source exports (구현 결과)                   │
+│              → changes, breaking_change                          │
+│                                                                  │
+│  if any(breaking_change):                                        │
+│      Skill("dependency-tracker")                                  │
+│          → 영향받는 모듈 분석                                      │
+│          → 재컴파일 권장                                          │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### no_source 케이스 상세
+
+신규 모듈(CLAUDE.md만 있고 소스 없음)은 다음과 같이 처리됩니다:
+
+```python
+def handle_no_source_module(module_path):
+    # 1. IMPLEMENTS.md 자동 생성 (없는 경우)
+    implements_path = f"{module_path}/IMPLEMENTS.md"
+    if not exists(implements_path):
+        create_default_implements_md(implements_path)
+
+    # 2. compiler Agent 호출 (신규 생성 모드)
+    Task(
+        prompt=f"""
+        신규 모듈 생성 (no_source)
+        CLAUDE.md: {module_path}/CLAUDE.md
+        IMPLEMENTS.md: {implements_path}
+        모드: create (기존 소스 없음)
+        """,
+        subagent_type="compiler"
+    )
+
+    # 3. interface-diff 건너뜀
+    # 이유: before 상태가 없음 (신규 모듈이므로 이전 구현 없음)
+
+    # 4. 결과 보고
+    # "신규 생성됨" 으로 분류
+```
+
+---
+
 ## 언어 자동 감지
 
 각 CLAUDE.md가 있는 디렉토리의 언어를 감지합니다.

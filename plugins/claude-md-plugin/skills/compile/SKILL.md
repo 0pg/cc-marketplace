@@ -1,6 +1,6 @@
 ---
 name: compile
-version: 1.0.0
+version: 1.1.0
 aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement spec",
@@ -39,6 +39,55 @@ description: |
   테스트: 8 passed, 0 failed
   </assistant_response>
   </example>
+
+  <example>
+  <context>
+  사용자가 변경된 스펙만 compile하려고 합니다.
+  </context>
+  <user_request>/compile --incremental</user_request>
+  <assistant_response>
+  증분 compile 모드로 실행합니다...
+
+  [변경 분석]
+  ✓ Uncommitted 변경 감지: 1개
+    - src/auth/CLAUDE.md (modified)
+  ✓ Outdated 스펙 감지: 1개
+    - src/utils (스펙이 소스보다 최신)
+
+  Compile 대상: 2개
+  1. src/auth (uncommitted)
+  2. src/utils (outdated)
+
+  코드 생성을 시작합니다...
+
+  [1/2] src/auth/CLAUDE.md
+  ✓ CLAUDE.md 파싱 완료 - 함수 2개
+  ✓ 테스트 생성
+  ✓ 구현 생성
+  ✓ 테스트 실행: 5 passed
+  ✓ Interface 변경 감지: validateToken 시그니처 변경 (breaking)
+
+  [2/2] src/utils/CLAUDE.md
+  ✓ CLAUDE.md 파싱 완료 - 함수 3개
+  ✓ 테스트 생성
+  ✓ 구현 생성
+  ✓ 테스트 실행: 3 passed
+
+  === 생성 완료 ===
+  Compile된 모듈: 2개
+  건너뛴 모듈: 3개 (변경 없음)
+
+  [영향 분석]
+  ⚠ Breaking change 감지: src/auth
+  영향받는 모듈:
+    - src/api (validateToken 사용)
+    - src/middleware (validateToken 사용)
+
+  권장 조치:
+    /compile --path src/api
+    /compile --path src/middleware
+  </assistant_response>
+  </example>
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
@@ -74,6 +123,9 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 # 기존 파일 덮어쓰기
 /compile --conflict overwrite
+
+# 증분 compile (변경된 스펙만 처리)
+/compile --incremental
 ```
 
 ## 옵션
@@ -82,8 +134,11 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 |------|--------|------|
 | `--path` | `.` | 처리 대상 경로 |
 | `--conflict` | `skip` | 기존 파일과 충돌 시 처리 (`skip` \| `overwrite`) |
+| `--incremental` | `false` | 변경된 스펙만 compile (증분 모드) |
 
 ## 워크플로우
+
+### 기본 모드 (Full Compile)
 
 ```
 /compile
@@ -104,7 +159,105 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 결과 수집 및 보고
 ```
 
+### 증분 모드 (Incremental Compile)
+
+```
+/compile --incremental
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ Step 1: 변경 분석                            │
+│                                             │
+│ [1] Skill("git-status-analyzer")            │
+│     → uncommitted_dirs 추출                 │
+│                                             │
+│ [2] Skill("commit-comparator")              │
+│     ← uncommitted_dirs 입력                 │
+│     → outdated_dirs, no_source_dirs 추출    │
+│                                             │
+│ 데이터 흐름:                                  │
+│   git-status-analyzer                       │
+│         │                                   │
+│         └─── uncommitted_dirs ──→           │
+│                                   │         │
+│                    commit-comparator        │
+│                           │                 │
+│                           └─→ outdated_dirs │
+│                           └─→ no_source_dirs│
+└─────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ Step 2: 대상 결정                            │
+│                                             │
+│ compile_targets = A ∪ B ∪ C                  │
+│   A: Uncommitted 변경이 있는 디렉토리         │
+│   B: 스펙이 소스보다 최신인 디렉토리 (outdated)│
+│   C: 소스 파일이 없는 신규 모듈 (no_source)   │
+│                                             │
+│ if compile_targets.empty():                  │
+│   → "모든 스펙이 최신 상태입니다" 출력        │
+│   → 종료                                    │
+└─────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ Step 3: Compile 실행                         │
+│                                             │
+│ 각 compile_target에 대해:                    │
+│   Task(compiler) 호출                        │
+└─────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ Step 4: 사후 분석                            │
+│                                             │
+│ 각 compiled 모듈에 대해:                     │
+│   Skill("interface-diff")                    │
+│   → Exports 시그니처 변경 감지               │
+│   → Breaking change 판정                    │
+│                                             │
+│ Breaking change 있으면:                      │
+│   Skill("dependency-tracker")                │
+│   → 영향받는 모듈 분석                       │
+│   → 재컴파일 권장 명령 출력                   │
+└─────────────────────────────────────────────┘
+    │
+    ▼
+결과 보고
+```
+
 상세 구현은 `references/workflow.md` 참조.
+
+## 증분 Compile 대상 결정
+
+```
+compile_targets = A ∪ B ∪ C
+
+A: Uncommitted 변경
+   - CLAUDE.md 또는 IMPLEMENTS.md에 uncommitted 변경이 있음
+   - git status --porcelain으로 감지
+
+B: 커밋 기준 outdated
+   - max(CLAUDE.md 커밋, IMPLEMENTS.md 커밋) > max(소스파일들 커밋)
+   - 스펙이 소스보다 최신 = compile 필요
+
+C: no_source (신규 모듈)
+   - CLAUDE.md는 있으나 소스 파일이 없음
+   - 새로 작성된 스펙 = compile 필요
+```
+
+### no_source 케이스 처리
+
+소스 파일이 없는 신규 모듈(no_source)은 특별 처리됩니다:
+
+```
+if module in no_source:
+    1. IMPLEMENTS.md 없으면 자동 생성
+    2. compiler Agent 호출 (신규 생성 모드)
+    3. interface-diff 건너뜀 (before 상태 없음)
+    4. 생성 결과 보고
+```
 
 ## 언어 및 테스트 프레임워크
 
@@ -121,6 +274,8 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 | `overwrite` | 기존 파일 덮어쓰기 |
 
 ## 출력 예시
+
+### 기본 모드
 
 ```
 프로젝트에서 CLAUDE.md 파일을 검색합니다...
@@ -155,6 +310,68 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 업데이트된 IMPLEMENTS.md: 2개
 ```
 
+### 증분 모드
+
+```
+증분 compile 모드로 실행합니다...
+
+[변경 분석]
+✓ Uncommitted 변경 감지: 1개
+  - src/auth/CLAUDE.md (modified)
+  - src/auth/IMPLEMENTS.md (modified)
+✓ Outdated 스펙 감지: 1개
+  - src/utils (스펙: 2024-01-20, 소스: 2024-01-15)
+
+Compile 대상: 2개 (전체 5개 중)
+1. src/auth (uncommitted)
+2. src/utils (outdated)
+
+건너뛰는 모듈: 3개
+- src/api (up-to-date)
+- src/config (up-to-date)
+- src/middleware (up-to-date)
+
+코드 생성을 시작합니다...
+
+[1/2] src/auth/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 2개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 5 passed
+
+[2/2] src/utils/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 3개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 3 passed
+
+=== 생성 완료 ===
+Compile된 모듈: 2개
+건너뛴 모듈: 3개
+
+[Interface 변경 분석]
+src/auth:
+  - 추가: refreshToken(token: string): Claims
+  - 변경: validateToken
+    Before: validateToken(token: string): boolean
+    After:  validateToken(token: string, options?: Options): Claims
+  ⚠ Breaking change 감지
+
+src/utils:
+  - 변경 없음
+
+[영향 분석]
+⚠ Breaking change가 있는 모듈: src/auth
+
+영향받는 모듈:
+  - src/api (validateToken, Claims 사용)
+  - src/middleware (validateToken 사용)
+
+권장 조치:
+  /compile --path src/api
+  /compile --path src/middleware
+```
+
 ## 오류 처리
 
 | 상황 | 대응 |
@@ -165,3 +382,13 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | 테스트 실패 | 경고 표시, 수동 수정 필요 안내 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
+| Git 저장소 아님 (증분 모드) | 경고 출력, 전체 compile로 fallback |
+
+## 관련 Internal Skills
+
+| Skill | 용도 |
+|-------|------|
+| `git-status-analyzer` | Uncommitted 스펙 파일 찾기 |
+| `commit-comparator` | 스펙 vs 소스 커밋 시점 비교 |
+| `interface-diff` | Exports 시그니처 변경 감지 |
+| `dependency-tracker` | 의존 모듈 영향 분석 |
