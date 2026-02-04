@@ -6,11 +6,14 @@ mod boundary_resolver;
 mod schema_validator;
 mod bracket_utils;
 mod claude_md_parser;
+mod code_analyzer;
+mod dependency_graph;
 
 use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
 use schema_validator::SchemaValidator;
 use claude_md_parser::ClaudeMdParser;
+use dependency_graph::DependencyGraphBuilder;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -69,6 +72,17 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Build dependency graph for the project
+    DependencyGraph {
+        /// Root directory to scan
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -97,6 +111,13 @@ fn main() {
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
+        Commands::DependencyGraph { root, output } => {
+            let builder = DependencyGraphBuilder::new();
+            match builder.build(root) {
+                Ok(graph) => output_result(&graph, output.as_ref(), "dependency-graph"),
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -105,6 +126,7 @@ fn main() {
             Commands::ResolveBoundary { .. } => "resolve-boundary",
             Commands::ValidateSchema { .. } => "validate-schema",
             Commands::ParseClaudeMd { .. } => "parse-claude-md",
+            Commands::DependencyGraph { .. } => "dependency-graph",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
