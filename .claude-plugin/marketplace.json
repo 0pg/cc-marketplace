@@ -56,6 +56,16 @@
       },
       "source": "./plugins/claude-md-plugin",
       "category": "documentation"
+    },
+    {
+      "name": "project-setup",
+      "description": "프로젝트의 빌드/테스트 커맨드를 파악하고 CLAUDE.md에 저장. /project-setup으로 실행.",
+      "version": "2.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/project-setup",
+      "category": "development"
     }
   ]
 }

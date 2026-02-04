@@ -362,7 +362,7 @@ implementation_details = {
     "key_constants": extract_key_constants(generated_code),  # 도메인 의미 있는 상수
     "error_handling": extract_error_handling(generated_code),
     "state_management": extract_state_management(generated_code),
-    "session_notes": generate_session_notes(changes_made)
+    "implementation_guide": generate_implementation_guide(changes_made)
 }
 
 # IMPLEMENTS.md Implementation Section 업데이트
