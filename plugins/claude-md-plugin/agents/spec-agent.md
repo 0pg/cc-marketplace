@@ -112,30 +112,25 @@ Extract the following information from requirements:
 - 프로젝트 컨벤션에서 추론 가능한 경우
 - 표준 패턴을 따르는 경우
 
+##### 실행 단계 (질문 필요 시)
+
+`AskUserQuestion` → 모호한 부분 명확화
+- 카테고리별 적절한 옵션 제공
+- multiSelect 사용하여 복수 선택 허용 (필요 시)
+
 ### Phase 2.5: 아키텍처 설계 분석
 
 기존 코드베이스를 분석하여 모듈 배치, 인터페이스 설계, 의존성 방향을 결정합니다.
 
 #### 2.5.1 기존 코드베이스 분석
 
-```python
-# 프로젝트 구조 파싱
-Skill("claude-md-plugin:tree-parse")
-tree = read_json(".claude/extract-tree.json")
+##### 실행 단계
 
-# 의존성 그래프 분석
-Skill("claude-md-plugin:dependency-graph")
-graph = read_json(".claude/dependency-graph.json")
+1. `Skill("claude-md-plugin:tree-parse")` → 프로젝트 구조 파싱
+2. `Skill("claude-md-plugin:dependency-graph")` → 의존성 그래프 분석
+3. 관련 모듈 CLAUDE.md 읽기 → Exports/Behavior 파악
 
-# 관련 모듈 CLAUDE.md 읽기 (Exports/Behavior 파악)
-related_modules = find_related_modules(requirement, tree)
-for module in related_modules:
-    claude_md = Read(f"{module}/CLAUDE.md")
-    # Exports 섹션에서 사용 가능한 인터페이스 파악
-    # Behavior 섹션에서 동작 이해
-```
-
-**분석 항목:**
+##### 분석 항목
 
 | 항목 | 분석 방법 | 목적 |
 |------|----------|------|
@@ -145,45 +140,13 @@ for module in related_modules:
 
 #### 2.5.2 모듈 배치 결정
 
-```python
-def decide_module_placement(requirement, tree, graph):
-    """
-    신규 모듈 생성 vs 기존 모듈 확장 결정
-    """
-    # 후보 위치 도출
-    candidates = []
+##### 로직
 
-    # 1. 기존 모듈 확장 후보
-    for module in tree.modules:
-        if is_related(module, requirement):
-            candidates.append({
-                "path": module.path,
-                "action": "extend",
-                "pros": "기존 컨텍스트 활용",
-                "cons": "SRP 위반 가능성"
-            })
+1. 기존 모듈 확장 후보 도출 (관련 모듈 검색)
+2. 신규 모듈 생성 후보 도출 (적절한 경로 제안)
+3. 명확하지 않으면 `AskUserQuestion`으로 사용자에게 선택 요청
 
-    # 2. 신규 모듈 생성 후보
-    suggested_path = suggest_new_path(requirement, tree)
-    candidates.append({
-        "path": suggested_path,
-        "action": "create",
-        "pros": "명확한 책임 분리",
-        "cons": "통합 포인트 필요"
-    })
-
-    # 3. 명확하지 않으면 사용자에게 질문
-    if len(candidates) > 1 and not clear_choice:
-        answer = AskUserQuestion(
-            question="모듈 배치 위치를 선택해주세요",
-            options=[format_candidate(c) for c in candidates]
-        )
-        return answer
-
-    return best_candidate(candidates)
-```
-
-**배치 결정 기준:**
+##### 배치 결정 기준
 
 | 기준 | 신규 모듈 생성 | 기존 모듈 확장 |
 |------|---------------|---------------|
@@ -193,46 +156,13 @@ def decide_module_placement(requirement, tree, graph):
 
 #### 2.5.3 인터페이스 설계 가이드라인
 
-```python
-def design_interface_guidelines(requirement, related_modules, graph):
-    """
-    새로 정의할 Exports 시그니처 제안
-    기존 모듈과의 통합 포인트 식별
-    """
-    guidelines = {
-        "new_exports": [],  # 새로 정의할 인터페이스
-        "integration_points": [],  # 기존 모듈 참조 포인트
-        "dependency_direction": {}  # 의존성 방향 검증
-    }
+##### 로직
 
-    # 1. 새로 정의할 인터페이스 시그니처
-    for export in extracted_exports:
-        guidelines["new_exports"].append({
-            "signature": export.signature,
-            "purpose": export.purpose
-        })
+1. 새로 정의할 인터페이스 시그니처 도출
+2. 기존 모듈과의 통합 포인트 식별
+3. 경계 명확성 검증 (Exports 참조 여부)
 
-    # 2. 기존 모듈과의 통합 포인트
-    for module in related_modules:
-        exports = parse_exports(module.claude_md)
-        for export in exports:
-            if is_needed(export, requirement):
-                guidelines["integration_points"].append({
-                    "from": f"{module.path}/CLAUDE.md#{export.name}",
-                    "usage": describe_usage(export, requirement)
-                })
-
-    # 3. 경계 명확성 검증 (Exports 참조 여부)
-    for integration in guidelines["integration_points"]:
-        source = target_path
-        target = integration["from"]
-        validation = validate_boundary_compliance(source, target, graph)
-        guidelines["dependency_direction"][target] = validation
-
-    return guidelines
-```
-
-**인터페이스 설계 원칙:**
+##### 인터페이스 설계 원칙
 
 | 원칙 | 설명 |
 |------|------|
@@ -242,83 +172,52 @@ def design_interface_guidelines(requirement, related_modules, graph):
 
 #### 2.5.4 Architecture Decisions 생성
 
-```python
-def generate_architecture_decisions(placement, guidelines):
-    """
-    IMPLEMENTS.md Architecture Decisions 섹션 생성
-    """
-    return f"""
+##### 생성 구조
+
+```markdown
 ## Architecture Decisions
 
 ### Module Placement
 - **Decision**: {placement.path}
-- **Alternatives Considered**:
-{format_alternatives(placement.alternatives)}
-- **Rationale**: {placement.rationale}
+- **Alternatives Considered**: {alternatives}
+- **Rationale**: {rationale}
 
 ### Interface Guidelines
-- 새로 정의할 인터페이스:
-{format_new_exports(guidelines.new_exports)}
-- 기존 모듈과의 통합 포인트:
-{format_integration_points(guidelines.integration_points)}
+- 새로 정의할 인터페이스: {new_exports}
+- 기존 모듈과의 통합 포인트: {integration_points}
 
 ### Dependency Direction
 - 의존성 분석: `.claude/dependency-graph.json`
-- 경계 명확성 준수: {guidelines.boundary_compliant}
-- 검증 결과:
-{format_dependency_validations(guidelines.dependency_direction)}
-"""
+- 경계 명확성 준수: {boundary_compliant}
+- 검증 결과: {dependency_validations}
 ```
 
 ### Phase 3: 대상 위치 결정
 
 Phase 2.5에서 결정된 모듈 배치를 기반으로 대상 위치를 확정합니다.
 
-```python
-def determine_target(requirement, project_root, architecture_decision):
-    # Phase 2.5 결과 활용
-    if architecture_decision:
-        return architecture_decision.path, architecture_decision.action
+##### 로직
 
-    # Fallback: 기존 로직
-    # 1. 사용자가 명시적으로 지정한 경우
-    if explicit_path_in_requirement:
-        return explicit_path, "create" if not exists else "update"
+1. **사용자 명시 경로**: 요구사항에 경로가 있으면 사용
+2. **모듈명 추론**: 요구사항에서 모듈명 추출 후 프로젝트 검색
+   - 일치 1개: 해당 경로 사용 (update)
+   - 일치 여러 개: 사용자에게 선택 요청
+   - 일치 없음: 새 경로 제안 (create)
+3. **기본값**: 현재 디렉토리
 
-    # 2. 요구사항에서 모듈명 추론
-    if mentions_module_name:
-        # 프로젝트에서 일치하는 디렉토리 검색
-        candidates = Glob(f"**/{module_name}")
+##### 실행 단계 (검색/선택 필요 시)
 
-        if len(candidates) == 1:
-            return candidates[0], "update"
-        elif len(candidates) > 1:
-            # 사용자에게 선택 요청
-            answer = AskUserQuestion(...)
-            return answer, "update"
-        else:
-            # 새 디렉토리 생성
-            return suggest_new_path(module_name), "create"
-
-    # 3. 현재 디렉토리 기본값
-    return ".", "update" if exists("./CLAUDE.md") else "create"
-```
+1. `Glob(**/{module_name})` → 후보 경로 검색
+2. (여러 개일 때) `AskUserQuestion` → 사용자 선택 요청
 
 ### Phase 4: 기존 CLAUDE.md 확인 및 병합
 
-```python
-existing_claude_md = f"{target_path}/CLAUDE.md"
+##### 실행 단계 (기존 파일 존재 시)
 
-if file_exists(existing_claude_md) and action == "update":
-    # 기존 CLAUDE.md 파싱
-    Skill("claude-md-plugin:claude-md-parse")
-    existing_spec = read_json(existing_parsed_file)
-    merged_spec = smart_merge(existing_spec, new_spec)
-else:
-    merged_spec = new_spec
-```
+1. `Skill("claude-md-plugin:claude-md-parse")` → 기존 CLAUDE.md 파싱
+2. Smart Merge 수행
 
-#### Smart Merge 전략
+##### Smart Merge 전략
 
 | 섹션 | 병합 전략 |
 |------|----------|
@@ -331,13 +230,14 @@ else:
 
 ### Phase 5: CLAUDE.md 생성 (WHAT)
 
-템플릿 기반으로 CLAUDE.md를 생성합니다:
+템플릿 기반으로 CLAUDE.md를 생성합니다.
+
+##### 생성 구조
 
 ```markdown
 # {module_name}
 
 ## Purpose
-
 {spec.purpose}
 
 ## Summary
@@ -345,23 +245,18 @@ else:
 {generate_summary(spec.purpose)}  # Purpose에서 핵심만 추출한 1-2문장
 
 ## Exports
-
 {format_exports(spec.exports)}
 
 ## Behavior
-
 {format_behaviors(spec.behaviors)}
 
 ## Contract
-
 {format_contracts(spec.contracts)}
 
 ## Protocol
-
 {format_protocol(spec.protocol) or "None"}
 
 ## Domain Context
-
 {format_domain_context(spec.domain_context) or "None"}
 
 {optional_sections}
@@ -386,7 +281,9 @@ else:
 
 ### Phase 5.5: IMPLEMENTS.md Planning Section 생성 (HOW 계획)
 
-요구사항 분석 결과와 **Phase 2.5 아키텍처 설계**를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다:
+요구사항 분석 결과와 **Phase 2.5 아키텍처 설계**를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다.
+
+##### 생성 구조
 
 ```markdown
 # {module_name}/IMPLEMENTS.md
@@ -496,39 +393,27 @@ None
 
 ### Phase 6: 스키마 검증 (1회)
 
-```python
-# CLAUDE.md 스키마 검증
-Skill("claude-md-plugin:schema-validate")
-validation = read_json(validation_result_file)
+##### 실행 단계
 
-if not validation["valid"]:
-    # 검증 실패 시 사용자에게 이슈 보고
-    issues = format_issues(validation["issues"])
-    log_warning(f"Schema validation failed: {issues}")
-    # 사용자에게 수정 요청 또는 경고와 함께 진행
-```
+`Skill("claude-md-plugin:schema-validate")`
+- 입력: claude_md_file_path
+- 출력: 검증 결과
+
+##### 로직
+
+- 검증 실패 시 사용자에게 이슈 보고
+- 경고와 함께 진행 가능
 
 ### Phase 7: 최종 저장 및 결과 반환
 
-```python
-# 대상 디렉토리 생성 (필요시)
-mkdir -p target_path
+##### 실행 단계
 
-# 최종 CLAUDE.md 저장
-claude_md_path = f"{target_path}/CLAUDE.md"
-write_file(claude_md_path, claude_md_content)
+1. (필요시) 대상 디렉토리 생성
+2. `Write({target_path}/CLAUDE.md)` → CLAUDE.md 저장
+3. `Write({target_path}/IMPLEMENTS.md)` → IMPLEMENTS.md 저장
+   - 기존 파일 존재 시: Planning Section만 업데이트, Implementation Section 유지
 
-# 최종 IMPLEMENTS.md 저장
-implements_md_path = f"{target_path}/IMPLEMENTS.md"
-if file_exists(implements_md_path):
-    # 기존 IMPLEMENTS.md가 있으면 Planning Section만 업데이트
-    existing_content = read_file(implements_md_path)
-    updated_content = merge_planning_section(existing_content, implements_md_content)
-    write_file(implements_md_path, updated_content)
-else:
-    # 새로 생성
-    write_file(implements_md_path, implements_md_content)
-```
+##### 출력 형식
 
 ```
 ---spec-agent-result---

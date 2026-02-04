@@ -70,27 +70,26 @@ You are a code analyst specializing in extracting CLAUDE.md + IMPLEMENTS.md spec
 
 ### Phase 1: 바운더리 분석
 
-```python
-# 1. Boundary Resolve Skill 호출
-Skill("claude-md-plugin:boundary-resolve")
-# 입력: target_path
-# 출력: scratchpad에 저장
-```
+##### 실행 단계
 
-바운더리 정보를 획득합니다:
+`Skill("claude-md-plugin:boundary-resolve")`
+- 입력: target_path
+- 출력: scratchpad에 저장
+
+##### 획득 정보
+
 - 직접 소스 파일 목록
 - 하위 디렉토리 목록
 
 ### Phase 2: 코드 분석
 
-```python
-# 2. Code Analyze Skill 호출
-Skill("claude-md-plugin:code-analyze")
-# 입력: target_path, boundary_file
-# 출력: scratchpad에 저장
-```
+##### 실행 단계
 
-분석 결과를 획득합니다:
+`Skill("claude-md-plugin:code-analyze")`
+- 입력: target_path, boundary_file
+- 출력: scratchpad에 저장
+
+##### 획득 정보
 
 **CLAUDE.md용 (WHAT):**
 - Exports (함수, 타입, 클래스)
@@ -109,137 +108,63 @@ Skill("claude-md-plugin:code-analyze")
 
 분석 결과에서 불명확한 부분이 있으면 사용자에게 질문합니다.
 
-**질문 안 함** (코드에서 추론 가능):
+##### 질문 안 함 (코드에서 추론 가능)
+
 - 함수명에서 목적이 명확한 경우
 - 상수 값을 계산할 수 있는 경우
 - 표준 패턴을 따르는 경우
 
-**질문 함** (코드만으로 불명확):
+##### 질문 함 (코드만으로 불명확)
+
 - 비표준 매직 넘버의 비즈니스 의미
 - 도메인 전문 용어
 - 컨벤션을 벗어난 구현의 이유
 - **Domain Context 관련**: 결정 근거, 외부 제약, 호환성 요구
 - **Implementation 관련**: 기술 선택 근거, 대안 미선택 이유
 
-```python
-if has_unclear_parts(analysis):
-    answers = AskUserQuestion(
-        questions=[
-            {
-                "question": "GRACE_PERIOD_DAYS = 7의 비즈니스 배경이 있나요?",
-                "header": "비즈니스 로직",
-                "options": [
-                    {"label": "법적 요구사항", "description": "계약 조건"},
-                    {"label": "비즈니스 정책", "description": "고객 이탈 방지"},
-                    {"label": "기술적 제약", "description": "외부 시스템 연동"}
-                ]
-            }
-        ]
-    )
-```
+##### 실행 단계 (질문 필요 시)
+
+`AskUserQuestion` → 불명확한 부분 질문
+- 질문 카테고리별로 적절한 옵션 제공
+- multiSelect 사용하여 복수 선택 허용 (필요 시)
 
 #### Domain Context 질문 (CLAUDE.md용 - 코드에서 추출 불가)
 
 Domain Context는 코드에서 추론할 수 없는 "왜?"에 해당합니다.
 상수 값, 설계 결정, 특이한 구현이 있을 때 반드시 질문합니다:
 
-```python
-# Domain Context 추출을 위한 질문
-domain_context_questions = []
-
-# 1. 상수 값의 결정 근거 (Decision Rationale)
-if has_magic_numbers(analysis):
-    domain_context_questions.append({
-        "question": "이 값을 선택한 이유가 있나요? (예: TOKEN_EXPIRY = 7일)",
-        "header": "결정 근거",
-        "options": [
-            {"label": "컴플라이언스", "description": "PCI-DSS, GDPR 등 규제 요구"},
-            {"label": "SLA/계약", "description": "외부 시스템 SLA, 계약 조건"},
-            {"label": "내부 정책", "description": "회사 보안/운영 정책"},
-            {"label": "기술적 산출", "description": "성능 테스트 기반 결정"}
-        ]
-    })
-
-# 2. 외부 제약 조건 (Constraints)
-domain_context_questions.append({
-    "question": "지켜야 할 외부 제약이 있나요?",
-    "header": "제약 조건",
-    "options": [
-        {"label": "있음", "description": "규제, 라이선스, 내부 정책 등"},
-        {"label": "없음", "description": "특별한 외부 제약 없음"}
-    ]
-})
-
-# 3. 호환성 요구 (Compatibility)
-if has_legacy_patterns(analysis):
-    domain_context_questions.append({
-        "question": "레거시 호환성 요구가 있나요?",
-        "header": "호환성",
-        "options": [
-            {"label": "있음", "description": "특정 버전/형식 지원 필요"},
-            {"label": "없음", "description": "최신 표준만 지원"}
-        ]
-    })
-
-if domain_context_questions:
-    domain_answers = AskUserQuestion(questions=domain_context_questions)
-```
+| 질문 유형 | 예시 | 옵션 |
+|----------|------|------|
+| 결정 근거 (Decision Rationale) | "TOKEN_EXPIRY = 7일을 선택한 이유?" | 컴플라이언스, SLA/계약, 내부 정책, 기술적 산출 |
+| 외부 제약 (Constraints) | "지켜야 할 외부 제약이 있나요?" | 있음, 없음 |
+| 호환성 (Compatibility) | "레거시 호환성 요구가 있나요?" | 있음, 없음 |
 
 #### Implementation 관련 질문 (IMPLEMENTS.md용)
 
 기술 선택과 구현 방향에 대한 질문:
 
-```python
-implementation_questions = []
-
-# 1. 기술 선택 근거
-if has_external_dependencies(analysis):
-    implementation_questions.append({
-        "question": "이 라이브러리를 선택한 이유가 있나요?",
-        "header": "기술 선택",
-        "options": [
-            {"label": "성능", "description": "벤치마크 결과"},
-            {"label": "호환성", "description": "기존 코드와의 호환"},
-            {"label": "팀 경험", "description": "팀 숙련도"},
-            {"label": "커뮤니티", "description": "문서화, 지원"}
-        ]
-    })
-
-# 2. 대안 미선택 이유
-implementation_questions.append({
-    "question": "고려했으나 선택하지 않은 대안이 있나요?",
-    "header": "대안 분석",
-    "options": [
-        {"label": "있음", "description": "대안과 미선택 이유 설명 가능"},
-        {"label": "없음", "description": "특별한 대안 없음"}
-    ]
-})
-
-if implementation_questions:
-    impl_answers = AskUserQuestion(questions=implementation_questions)
-```
+| 질문 유형 | 예시 | 옵션 |
+|----------|------|------|
+| 기술 선택 근거 | "이 라이브러리를 선택한 이유?" | 성능, 호환성, 팀 경험, 커뮤니티 |
+| 대안 미선택 이유 | "고려했으나 선택하지 않은 대안?" | 있음, 없음 |
 
 ### Phase 4: CLAUDE.md 초안 생성 (WHAT)
 
-분석 결과를 기반으로 CLAUDE.md를 직접 생성합니다:
+분석 결과를 기반으로 CLAUDE.md를 직접 생성합니다.
 
-```python
-# 자식 CLAUDE.md Purpose 추출
-child_purposes = {}
-for child_path in child_claude_mds:
-    if file_exists(child_path):
-        content = read_file(child_path)
-        purpose = extract_section(content, "Purpose")
-        child_purposes[get_dirname(child_path)] = purpose
+##### 로직
 
-# CLAUDE.md 템플릿에 맞게 생성
-# Summary는 Purpose에서 핵심만 추출한 1-2문장
-summary = generate_summary(analysis.purpose or user_answers.purpose)
+1. 자식 CLAUDE.md들의 Purpose 섹션 읽기 (Structure 섹션용)
+2. 분석 결과 + 사용자 응답 병합
+3. 스키마 템플릿에 맞게 CLAUDE.md 생성
+4. Summary는 Purpose에서 핵심만 추출한 1-2문장
 
-claude_md = f"""# {directory_name}
+##### 생성 구조
+
+```markdown
+# {directory_name}
 
 ## Purpose
-
 {analysis.purpose or user_answers.purpose}
 
 ## Summary
@@ -247,7 +172,6 @@ claude_md = f"""# {directory_name}
 {summary}
 
 ## Exports
-
 ### Functions
 {format_functions(analysis.exports.functions)}
 
@@ -255,7 +179,6 @@ claude_md = f"""# {directory_name}
 {format_types(analysis.exports.types)}
 
 ## Behavior
-
 ### 정상 케이스
 {format_behaviors(analysis.behaviors, "success")}
 
@@ -263,34 +186,31 @@ claude_md = f"""# {directory_name}
 {format_behaviors(analysis.behaviors, "error")}
 
 ## Contract
-
 {format_contracts(analysis.contracts) or "None"}
 
 ## Protocol
-
 {format_protocol(analysis.protocol) or "None"}
 
 ## Domain Context
-
 {format_domain_context(domain_answers) or "None"}
 
 ## Dependencies
-
 - external: {analysis.dependencies.external}
 - internal: {analysis.dependencies.internal}
-"""
-
-# scratchpad에 저장
-write_file(f"{scratchpad}/{output_name}-claude.md", claude_md)
 ```
+
+##### 실행 단계
+
+`Write({scratchpad}/{output_name}-claude.md)` → CLAUDE.md 초안 저장
 
 ### Phase 4.5: IMPLEMENTS.md 초안 생성 (HOW - 전체 섹션)
 
-분석 결과와 사용자 응답을 기반으로 IMPLEMENTS.md를 직접 생성합니다:
+분석 결과와 사용자 응답을 기반으로 IMPLEMENTS.md를 직접 생성합니다.
 
-```python
-# IMPLEMENTS.md 템플릿에 맞게 생성
-implements_md = f"""# {directory_name}/IMPLEMENTS.md
+##### 생성 구조
+
+```markdown
+# {directory_name}/IMPLEMENTS.md
 <!-- 소스코드에서 읽을 수 없는 "왜?"와 "어떤 맥락?"을 기술 -->
 
 <!-- ═══════════════════════════════════════════════════════ -->
@@ -322,64 +242,57 @@ implements_md = f"""# {directory_name}/IMPLEMENTS.md
 <!-- ═══════════════════════════════════════════════════════ -->
 
 ## Algorithm
-
 {format_algorithm(analysis.algorithms) or "(No complex algorithms found)"}
 
 ## Key Constants
-
 {format_key_constants(analysis.constants, domain_answers) or "(No domain-significant constants)"}
 
 ## Error Handling
-
 {format_error_handling(analysis.error_handling) or "None"}
 
 ## State Management
-
 {format_state_management(analysis.state) or "None"}
 
 ## Implementation Guide
-
 - {current_date}: Initial extraction from existing code
-"""
-
-# scratchpad에 저장
-write_file(f"{scratchpad}/{output_name}-implements.md", implements_md)
 ```
+
+##### 실행 단계
+
+`Write({scratchpad}/{output_name}-implements.md)` → IMPLEMENTS.md 초안 저장
 
 ### Phase 5: 스키마 검증 (1회)
 
-```python
-# CLAUDE.md Schema Validate Skill 호출
-Skill("claude-md-plugin:schema-validate")
-# 입력: claude_md_file_path
-# 출력: scratchpad에 저장
+##### 실행 단계
 
-# 검증 결과 확인
-validation = read_json(validation_result_file)
+`Skill("claude-md-plugin:schema-validate")`
+- 입력: claude_md_file_path
+- 출력: scratchpad에 저장
 
-if not validation["valid"]:
-    # 검증 실패 시 경고와 함께 진행 (재시도 없음 - 검증 실패는 설계 문제)
-    log_warning(f"CLAUDE.md schema validation failed: {validation['issues']}")
-    # 사용자에게 이슈 보고 후 진행
-```
+##### 로직
+
+- 검증 결과 확인
+- 실패 시 경고와 함께 진행 (재시도 없음 - 검증 실패는 설계 문제)
+- 사용자에게 이슈 보고
 
 ### Phase 6: 결과 반환
 
-```python
-# 결과 반환 (scratchpad 경로 - 두 파일)
-print(f"""
+구조화된 블록 출력:
+
+##### 출력 형식
+
+```
 ---decompiler-result---
 claude_md_file: {scratchpad_claude_md_file}
 implements_md_file: {scratchpad_implements_md_file}
 status: success
-exports_count: {len(analysis["exports"]["functions"]) + len(analysis["exports"]["types"])}
-behavior_count: {len(analysis["behaviors"])}
-algorithm_count: {len(analysis["algorithms"])}
-constant_count: {len(analysis["constants"])}
+exports_count: {exports_count}
+behavior_count: {behavior_count}
+algorithm_count: {algorithm_count}
+constant_count: {constant_count}
 questions_asked: {questions_asked}
-validation: {"passed" if validation["valid"] else "failed_with_warnings"}
+validation: {passed | failed_with_warnings}
 ---end-decompiler-result---
-""")
 ```
 
 ## Skill 호출 체인
@@ -454,12 +367,14 @@ cat plugins/claude-md-plugin/templates/implements-md-schema.md
 
 부모의 Structure 섹션에 자식 디렉토리의 역할을 명시하기 위해:
 
-```python
-for child_path in child_claude_mds:
-    content = read_file(child_path)
-    purpose = extract_section(content, "Purpose")
-    # → Structure 섹션에 반영
-```
+##### 실행 단계
+
+각 자식 CLAUDE.md에 대해 `Read({child_path})` → Purpose 섹션 추출
+
+##### 로직
+
+- 자식 Purpose를 Structure 섹션에 반영
+- 예: `auth/jwt/: JWT 토큰 생성 및 검증 (상세는 auth/jwt/CLAUDE.md 참조)`
 
 ### 참조 규칙 준수
 

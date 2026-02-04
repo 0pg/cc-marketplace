@@ -1,0 +1,6 @@
+{
+  "name": "project-setup",
+  "version": "2.0.0",
+  "description": "프로젝트의 빌드/테스트 커맨드를 파악하고 CLAUDE.md에 저장",
+  "keywords": ["setup", "build", "test", "configuration"]
+}

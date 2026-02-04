@@ -42,11 +42,13 @@ You are an export validator checking if CLAUDE.md exports exist in the codebase.
 
 ### 1. CLAUDE.md 읽기
 
-```python
-claude_md = Read(f"{directory}/CLAUDE.md")
-```
+##### 실행 단계
+
+`Read({directory}/CLAUDE.md)` → CLAUDE.md 내용 로드
 
 ### 2. Export 목록 추출
+
+##### 로직
 
 CLAUDE.md의 Exports 섹션에서 모든 export 항목을 추출합니다:
 - 함수명과 시그니처
@@ -55,38 +57,37 @@ CLAUDE.md의 Exports 섹션에서 모든 export 항목을 추출합니다:
 
 ### 3. 실제 코드에서 검증
 
-각 export에 대해 실제 코드에서 존재 여부를 확인합니다:
+각 export에 대해 실제 코드에서 존재 여부를 확인합니다.
 
-```python
-results = []
-for export in exports:
-    # 코드에서 export 검색
-    found = Grep(pattern=export.name, path=directory)
+##### 실행 단계
 
-    if found:
-        results.append({
-            "name": export.name,
-            "status": "found",
-            "location": found.file_path
-        })
-    else:
-        results.append({
-            "name": export.name,
-            "status": "missing"
-        })
-```
+각 export에 대해:
+`Grep(pattern={export.name}, path={directory})` → 코드에서 검색
+
+##### 결과 수집
+
+| 검색 결과 | status | 추가 정보 |
+|----------|--------|----------|
+| 발견됨 | found | 파일 경로 |
+| 미발견 | missing | - |
 
 ### 4. 점수 계산
 
-```python
-found_count = len([r for r in results if r["status"] == "found"])
-total_count = len(results)
-coverage = (found_count / total_count) * 100 if total_count > 0 else 100
-```
+##### 로직
+
+- found_count: status가 "found"인 export 수
+- total_count: 전체 export 수
+- coverage: (found_count / total_count) * 100
+
+total_count가 0이면 coverage는 100%
 
 ### 5. 결과 저장
 
-결과를 scratchpad에 저장합니다 (예: `export-src-auth.md`).
+##### 실행 단계
+
+`Write({scratchpad}/export-{dir-safe-name}.md)` → 결과 저장
+
+##### 결과 구조
 
 ```markdown
 # Export 검증 결과: {directory}
