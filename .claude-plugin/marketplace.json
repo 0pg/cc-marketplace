@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템. /decompile로 소스코드에서 CLAUDE.md(WHAT) + IMPLEMENTS.md(HOW) 추출, /compile로 코드 생성 및 IMPLEMENTS.md 업데이트, /validate로 문서-코드 일치 검증, /spec으로 요구사항에서 듀얼 문서 생성, audit CLI로 완성도 검사.",
-      "version": "0.31.0",
+      "version": "0.32.0",
       "author": {
         "name": "jhk"
       },

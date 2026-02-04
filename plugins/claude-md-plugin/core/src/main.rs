@@ -8,12 +8,14 @@ mod bracket_utils;
 mod claude_md_parser;
 mod code_analyzer;
 mod dependency_graph;
+mod auditor;
 
 use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
 use schema_validator::SchemaValidator;
 use claude_md_parser::ClaudeMdParser;
 use dependency_graph::DependencyGraphBuilder;
+use auditor::Auditor;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -83,6 +85,21 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Audit directory tree for CLAUDE.md completeness
+    Audit {
+        /// Root directory to scan
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Only show directories where status is 'missing' or 'unexpected'
+        #[arg(long, default_value = "false")]
+        only_issues: bool,
+    },
 }
 
 fn main() {
@@ -118,6 +135,11 @@ fn main() {
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
+        Commands::Audit { root, output, only_issues } => {
+            let auditor = Auditor::new();
+            let result = auditor.audit(root, *only_issues);
+            output_result(&result, output.as_ref(), "audit")
+        }
     };
 
     if let Err(e) = result {
@@ -127,6 +149,7 @@ fn main() {
             Commands::ValidateSchema { .. } => "validate-schema",
             Commands::ParseClaudeMd { .. } => "parse-claude-md",
             Commands::DependencyGraph { .. } => "dependency-graph",
+            Commands::Audit { .. } => "audit",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");

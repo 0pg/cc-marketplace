@@ -1,6 +1,6 @@
 ---
 name: validate
-version: 1.0.0
+version: 1.1.0
 aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
@@ -55,6 +55,23 @@ CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
 
 ## Workflow
 
+### 0. Completeness 검증 (audit)
+
+CLI로 CLAUDE.md 완성도를 먼저 검사합니다:
+
+```bash
+./plugins/claude-md-plugin/core/target/release/claude-md-core audit \
+  --root {path} \
+  --only-issues \
+  --output {scratchpad}/audit-result.json
+```
+
+**결과 상태:**
+| 상태 | 의미 |
+|------|------|
+| `missing` | CON-1 충족하지만 CLAUDE.md 없음 → **생성 필요** |
+| `unexpected` | CON-1 미충족인데 CLAUDE.md 있음 → 삭제 검토 |
+
 ### 1. 대상 수집
 
 Glob으로 대상 경로의 모든 CLAUDE.md 수집:
@@ -107,6 +124,21 @@ export_coverage: {0-100}
 ```markdown
 # CLAUDE.md 검증 보고서
 
+## Completeness (CLAUDE.md 완성도)
+
+| 상태 | 개수 |
+|------|------|
+| Complete | 5 |
+| Missing | 2 |
+| Unexpected | 1 |
+
+**Missing (생성 필요):**
+- src/utils (소스 3개)
+- src/api (소스 5개)
+
+**Unexpected (삭제 검토):**
+- docs/examples (소스 0개, 하위 1개)
+
 ## 요약
 
 | 디렉토리 | Drift 이슈 | Export 커버리지 점수 | 상태 |
@@ -147,6 +179,13 @@ scratchpad의 임시 파일은 세션 종료 시 자동으로 정리됩니다.
 CLAUDE.md 검증 보고서
 =====================
 
+Completeness (CLAUDE.md 완성도)
+-------------------------------
+Complete: 3개 | Missing: 1개 | Unexpected: 0개
+
+⚠ Missing (생성 필요):
+  - src/api (소스 5개)
+
 요약
 ----
 검증 대상: 3개 디렉토리
@@ -176,5 +215,6 @@ src/legacy (개선 필요)
 
 ## 관련 컴포넌트
 
+- `core/target/release/claude-md-core audit`: CLAUDE.md 완성도 검증 (CLI)
 - `agents/drift-validator.md`: 코드-문서 일치 검증
 - `agents/export-validator.md`: Export 커버리지 검증
