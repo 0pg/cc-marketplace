@@ -83,11 +83,7 @@ total_count가 0이면 coverage는 100%
 
 ### 5. 결과 저장
 
-##### 실행 단계
-
-`Write({scratchpad}/export-{dir-safe-name}.md)` → 결과 저장
-
-##### 결과 구조
+결과를 .claude/tmp/{session-id}에 저장합니다 (예: `export-src-auth.md`).
 
 ```markdown
 # Export 검증 결과: {directory}
@@ -119,7 +115,7 @@ total_count가 0이면 coverage는 100%
 ```
 ---export-validator-result---
 status: success | failed
-result_file: {scratchpad}/export-{dir-safe-name}.md
+result_file: .claude/tmp/{session-id}/export-{dir-safe-name}.md
 directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---

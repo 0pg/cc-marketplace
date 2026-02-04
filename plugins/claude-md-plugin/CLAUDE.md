@@ -287,3 +287,38 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 2. **언어 무관**: 파일 확장자 기반 자동 감지
 3. **파일 기반 결과 전달**: Agent 결과는 파일로 저장, 경로만 반환
 4. **단순한 재시도**: 스키마 검증 1회, 테스트 재시도 3회
+
+## Scratchpad 규칙
+
+Agent 간 결과 전달 시 임시 파일을 사용합니다.
+
+**경로:** `.claude/tmp/{session-id}/{agent-prefix}-{target}.{ext}`
+
+| 요소 | 설명 |
+|------|------|
+| `{session-id}` | 세션 ID (8자) - 세션별 격리 |
+| `{agent-prefix}` | Agent 고유 접두사 - Agent별 격리 |
+| `{target}` | 대상 식별자 (경로의 `/`를 `-`로 변환) |
+
+**Agent별 파일명:**
+
+| Agent | 파일명 패턴 |
+|-------|-----------|
+| drift-validator | `drift-{target}.md` |
+| export-validator | `export-{target}.md` |
+| decompiler | `decompile-{target}-claude.md`, `decompile-{target}-implements.md` |
+| compiler | `compile-{target}.json` |
+| audit CLI | `audit-result.json` |
+
+**예시:**
+```
+.claude/tmp/a1b2c3d4/
+├── drift-src-auth.md
+├── export-src-auth.md
+├── decompile-src-auth-claude.md
+├── decompile-src-auth-implements.md
+├── compile-src-auth.json
+└── audit-result.json
+```
+
+**정리:** 세션 종료 시 해당 session-id 디렉토리의 파일들은 자동 정리됩니다.

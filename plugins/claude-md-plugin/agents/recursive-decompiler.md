@@ -15,7 +15,7 @@ description: |
   max_depth: 100
   incremental_mode: true
   visited_paths: []
-  결과는 scratchpad에 저장하고 통계만 반환
+  결과는 .claude/tmp/{session-id}에 저장하고 통계만 반환
   </user_request>
   <assistant_response>
   I'll recursively decompile the src directory with incremental mode.
@@ -74,7 +74,7 @@ incremental_mode: true          # Git-based incremental mode (default: true)
 visited_paths: []               # Already visited real paths for cycle detection (default: [])
 
 이 디렉토리와 모든 하위 디렉토리에 대해 재귀적으로 decompile을 수행해주세요.
-결과는 scratchpad에 저장하고 통계만 반환
+결과는 .claude/tmp/{session-id}에 저장하고 통계만 반환
 ```
 
 ## Workflow
@@ -110,7 +110,7 @@ realpath "{target_path}"
 ```
 Skill("claude-md-plugin:boundary-resolve")
 입력: target_path
-출력: scratchpad에 boundary 정보
+출력: .claude/tmp/{session-id}에 boundary 정보
   - direct_files: 직접 소스 파일 목록
   - subdirs: 하위 디렉토리 목록
 ```
@@ -159,7 +159,7 @@ incremental_mode: {incremental_mode}
 visited_paths: {visited_paths + [real_path]}
 
 이 디렉토리와 모든 하위 디렉토리에 대해 재귀적으로 decompile을 수행해주세요.
-결과는 scratchpad에 저장하고 통계만 반환
+결과는 .claude/tmp/{session-id}에 저장하고 통계만 반환
 """,
     description="Recursive decompile {subdir_path}"
 )
@@ -230,13 +230,13 @@ Task(
 자식 CLAUDE.md: {child_claude_mds}
 
 이 디렉토리의 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
-결과는 scratchpad에 저장하고 경로만 반환
+결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환
 """,
     description="Decompile {target_path}"
 )
 ```
 
-성공 시 scratchpad에서 실제 위치로 복사하고, `processed` 카운트를 증가시킵니다.
+성공 시 .claude/tmp/{session-id}에서 실제 위치로 복사하고, `processed` 카운트를 증가시킵니다.
 
 **decompile이 불필요한 경우:**
 

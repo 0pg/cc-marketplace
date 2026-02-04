@@ -169,7 +169,7 @@ for claude_md_path in target_files:
         대상 디렉토리: {target_dir}
         감지된 언어: {detected_language}
         충돌 처리: {conflict_mode}
-        결과는 scratchpad에 저장하고 경로만 반환해주세요.
+        결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환해주세요.
         """,
         subagent_type="compiler",
         run_in_background=True

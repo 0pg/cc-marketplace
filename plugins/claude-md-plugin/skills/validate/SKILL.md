@@ -63,7 +63,7 @@ CLI로 CLAUDE.md 완성도를 먼저 검사합니다:
 ./plugins/claude-md-plugin/core/target/release/claude-md-core audit \
   --root {path} \
   --only-issues \
-  --output {scratchpad}/audit-result.json
+  --output .claude/tmp/{session-id}/audit-result.json
 ```
 
 **결과 상태:**
@@ -102,7 +102,7 @@ For each claude_md_file:
 ```
 ---drift-validator-result---
 status: success | failed
-result_file: {scratchpad}/drift-{dir-safe-name}.md
+result_file: .claude/tmp/{session-id}/drift-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
 ---end-drift-validator-result---
@@ -111,7 +111,7 @@ issues_count: {N}
 ```
 ---export-validator-result---
 status: success | failed
-result_file: {scratchpad}/export-{dir-safe-name}.md
+result_file: .claude/tmp/{session-id}/export-{dir-safe-name}.md
 directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---
@@ -161,7 +161,7 @@ export_coverage: {0-100}
 
 ### 5. 임시 파일 정리
 
-scratchpad의 임시 파일은 세션 종료 시 자동으로 정리됩니다.
+.claude/tmp/{session-id}의 임시 파일은 세션 종료 시 자동으로 정리됩니다.
 
 ## 성공 기준
 

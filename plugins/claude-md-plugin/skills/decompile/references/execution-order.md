@@ -220,14 +220,14 @@ recursive-decompiler가 호출하는 decompiler agent:
 ## 결과 배치
 
 각 decompiler 완료 즉시:
-1. scratchpad의 결과 파일 확인 (CLAUDE.md + IMPLEMENTS.md)
+1. .claude/tmp/{session-id}의 결과 파일 확인 (CLAUDE.md + IMPLEMENTS.md)
 2. 검증 통과 시 실제 위치로 복사
 3. **중요:** 복사 후 부모 Agent가 자식 CLAUDE.md Purpose를 읽을 수 있음
 
 ```bash
 # 검증 성공 시 즉시 배치
-cp {scratchpad_result_file_claude} src/auth/CLAUDE.md
-cp {scratchpad_result_file_implements} src/auth/IMPLEMENTS.md
+cp {.claude/tmp/{session-id}_result_file_claude} src/auth/CLAUDE.md
+cp {.claude/tmp/{session-id}_result_file_implements} src/auth/IMPLEMENTS.md
 ```
 
 ## Edge Cases
