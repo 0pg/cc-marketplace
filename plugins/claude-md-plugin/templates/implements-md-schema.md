@@ -21,6 +21,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 │ IMPLEMENTS.md 섹션 구조                                     │
 ├─────────────────────────────────────────────────────────────┤
 │ [Planning Section] ← /spec 이 업데이트                      │
+│ - Architecture Decisions (아키텍처 설계 결정)               │
 │ - Dependencies Direction (필요 의존성, 위치)                │
 │ - Implementation Approach (구현 방향)                       │
 │ - Technology Choices (기술 선택 근거)                       │
@@ -30,7 +31,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 │ - Key Constants (상수값과 근거)                             │
 │ - Error Handling (에러 처리 전략)                           │
 │ - State Management (상태 관리)                              │
-│ - Implementation Guide (다른 세션 참고용 정보)                     │
+│ - Implementation Guide (다른 세션 참고용 정보)              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,6 +39,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 | 섹션 | 명령어 | 필수 | "None" 허용 | 설명 |
 |------|--------|------|-------------|------|
+| Architecture Decisions | /spec | ✓ | ✓ | 아키텍처 설계 결정과 근거 |
 | Dependencies Direction | /spec | ✓ | ✗ | 필요 의존성과 위치 |
 | Implementation Approach | /spec | ✓ | ✗ | 구현 방향과 전략 |
 | Technology Choices | /spec | ✓ | ✓ | 기술 선택과 근거 |
@@ -53,9 +55,52 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 > `/spec`이 업데이트하는 섹션. 코드 구현 전 계획 단계에서 결정되는 사항.
 
-### 1. Dependencies Direction (필수)
+### 1. Architecture Decisions (필수, "None" 허용)
 
-의존성의 위치와 사용 목적을 명시합니다.
+아키텍처 설계 결정과 그 근거를 기록합니다. 기존 코드베이스 분석 결과를 바탕으로 모듈 배치, 인터페이스 설계, 의존성 방향을 결정합니다.
+
+```markdown
+## Architecture Decisions
+
+### Module Placement
+- **Decision**: `src/payment/` 신규 디렉토리 생성
+- **Alternatives Considered**:
+  - `src/api/payment/`: API 레이어에 포함 → 비즈니스 로직 분리 원칙 위배
+  - `src/auth/payment/`: 인증과 결합 → SRP 위반
+- **Rationale**: 독립적 도메인으로 분리, 향후 마이크로서비스 전환 용이
+
+### Interface Guidelines
+- 새로 정의할 인터페이스:
+  - `processPayment(order: Order): Promise<PaymentResult>`
+  - `refundPayment(paymentId: string): Promise<RefundResult>`
+- 기존 모듈과의 통합 포인트:
+  - `../order/CLAUDE.md#Order` 타입 사용
+  - `../config/CLAUDE.md#PAYMENT_GATEWAY` 설정 참조
+
+### Dependency Direction
+- 의존성 분석: `.claude/dependency-graph.json` 참조
+- 경계 명확성 준수: ✓
+- 검증 결과:
+  - `payment → config.PAYMENT_GATEWAY`: 유효 (Exports 참조)
+  - `payment → order.Order`: 유효 (Exports 타입 참조)
+```
+
+아키텍처 결정이 필요 없는 단순한 경우:
+
+```markdown
+## Architecture Decisions
+
+None
+```
+
+**작성 기준**:
+- 신규 모듈 생성 시: Module Placement 필수
+- 기존 모듈 확장 시: Interface Guidelines에 추가 인터페이스만 명시
+- 단순 기능 추가 시: "None" 허용
+
+### 2. Dependencies Direction (필수)
+
+의존성의 위치와 사용 목적을 명시합니다. Architecture Decisions에서 결정된 의존성을 구체화합니다.
 
 ```markdown
 ## Dependencies Direction
@@ -71,7 +116,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 **목적**: 코드 탐색 없이 의존성 구조를 파악
 
-### 2. Implementation Approach (필수)
+### 3. Implementation Approach (필수)
 
 구현의 전략적 방향과 고려했으나 선택하지 않은 대안을 명시합니다.
 
@@ -91,7 +136,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 **목적**: "왜 이 방식인가?"에 대한 근거 제공
 
-### 3. Technology Choices (필수, "None" 허용)
+### 4. Technology Choices (필수, "None" 허용)
 
 기술 선택과 그 근거를 테이블 형태로 명시합니다.
 
@@ -119,7 +164,7 @@ None
 
 > `/compile`이 업데이트하는 섹션. 실제 구현 후 발견된 사항을 기록.
 
-### 4. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
+### 5. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
 
 소스코드를 보기 전에 알아야 할 구현 로직만 기술합니다.
 **단순한 구현은 기술하지 않습니다** (소스코드로 충분).
@@ -142,7 +187,7 @@ None
 - Yes → Algorithm 섹션에 기술
 - No → 생략 (코드로 충분)
 
-### 5. Key Constants (조건부 - 도메인 의미가 있는 값만)
+### 6. Key Constants (조건부 - 도메인 의미가 있는 값만)
 
 다른 세션이 알아야 할 상수만 기술합니다.
 코드에서 명확한 상수는 생략합니다.
@@ -161,7 +206,7 @@ None
 - Yes → Key Constants 섹션에 기술
 - No → 생략 (코드에서 명확)
 
-### 6. Error Handling (필수, "None" 허용)
+### 7. Error Handling (필수, "None" 허용)
 
 에러 유형별 처리 전략을 명시합니다.
 
@@ -184,7 +229,7 @@ None
 None
 ```
 
-### 7. State Management (필수, "None" 허용)
+### 8. State Management (필수, "None" 허용)
 
 내부 상태의 초기화, 저장, 복구 방식을 명시합니다.
 
@@ -212,7 +257,7 @@ None
 None
 ```
 
-### 8. Implementation Guide (선택)
+### 9. Implementation Guide (선택)
 
 다음 세션에서 소스코드 탐색 전 알면 효율적인 구현 가이드를 기록합니다.
 (도메인 맥락은 CLAUDE.md Domain Context에 기술)
@@ -240,6 +285,21 @@ None
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- PLANNING SECTION - /spec 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
+
+## Architecture Decisions
+
+### Module Placement
+- **Decision**: 배치 위치
+- **Alternatives Considered**: 고려한 대안들
+- **Rationale**: 선택 근거
+
+### Interface Guidelines
+- 새로 정의할 인터페이스 시그니처
+- 기존 모듈과의 통합 포인트
+
+### Dependency Direction
+- 의존성 분석 결과
+- 경계 명확성 준수 여부
 
 ## Dependencies Direction
 
@@ -305,6 +365,7 @@ None
 ## 검증 규칙
 
 ### 필수 섹션 검증
+- Architecture Decisions: 반드시 존재, 결정 없으면 "None" 명시
 - Dependencies Direction: 반드시 존재
 - Implementation Approach: 반드시 존재
 - Technology Choices: 반드시 존재, 선택 없으면 "None" 명시
@@ -318,7 +379,7 @@ None
 
 ### 업데이트 책임
 ```
-/spec → Planning Section (Dependencies Direction, Implementation Approach, Technology Choices)
+/spec → Planning Section (Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices)
 /compile → Implementation Section (Algorithm, Key Constants, Error Handling, State Management, Implementation Guide)
 /decompile → 전체 섹션
 ```
@@ -334,6 +395,30 @@ None
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- PLANNING SECTION - /spec 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
+
+## Architecture Decisions
+
+### Module Placement
+- **Decision**: `src/auth/` 독립 디렉토리
+- **Alternatives Considered**:
+  - `src/api/auth/`: API 레이어 통합 → 비즈니스 로직 분리 원칙 위배
+  - `src/services/auth/`: 서비스 레이어 → 도메인 경계 불명확
+- **Rationale**: 인증은 독립 도메인, 다른 모듈에서 참조만 받음
+
+### Interface Guidelines
+- 새로 정의할 인터페이스:
+  - `validateToken(token: string): Promise<Claims>`
+  - `issueToken(userId: string): Promise<string>`
+- 기존 모듈과의 통합 포인트:
+  - `../config/CLAUDE.md#JWT_SECRET` 설정 참조
+  - `../utils/crypto/CLAUDE.md#hashPassword` 유틸리티 사용
+
+### Dependency Direction
+- 의존성 분석: `.claude/dependency-graph.json`
+- 경계 명확성 준수: ✓
+- 검증 결과:
+  - `auth → config.JWT_SECRET`: 유효 (Exports 참조)
+  - `auth → utils/crypto.hashPassword`: 유효 (Exports 참조)
 
 ## Dependencies Direction
 

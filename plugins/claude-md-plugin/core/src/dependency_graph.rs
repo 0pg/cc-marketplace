@@ -51,6 +51,9 @@ pub struct ModuleNode {
     pub path: String,
     /// Whether this module has a CLAUDE.md
     pub has_claude_md: bool,
+    /// Summary - brief 1-2 sentence overview of role/responsibility/features
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
     /// Exported symbols from CLAUDE.md Exports section
     pub exports: Vec<String>,
 }
@@ -140,14 +143,15 @@ impl DependencyGraphBuilder {
             };
 
             if claude_md_path.exists() {
-                // Parse CLAUDE.md to get exports
-                let exports = self.extract_exports(&claude_md_path);
+                // Parse CLAUDE.md to get exports and summary
+                let (exports, summary) = self.extract_exports_and_summary(&claude_md_path);
                 let export_names = exports.clone();
                 module_exports.insert(relative_path.clone(), export_names.clone());
 
                 nodes.push(ModuleNode {
                     path: relative_path,
                     has_claude_md: true,
+                    summary,
                     exports: export_names,
                 });
             } else {
@@ -156,6 +160,7 @@ impl DependencyGraphBuilder {
                 nodes.push(ModuleNode {
                     path: relative_path,
                     has_claude_md: false,
+                    summary: None,
                     exports: Vec::new(),
                 });
             }
@@ -225,11 +230,11 @@ impl DependencyGraphBuilder {
         })
     }
 
-    /// Extract export names from a CLAUDE.md file.
-    fn extract_exports(&self, claude_md_path: &Path) -> Vec<String> {
+    /// Extract export names and summary from a CLAUDE.md file.
+    fn extract_exports_and_summary(&self, claude_md_path: &Path) -> (Vec<String>, Option<String>) {
         let spec = match self.claude_md_parser.parse(claude_md_path) {
             Ok(s) => s,
-            Err(_) => return Vec::new(),
+            Err(_) => return (Vec::new(), None),
         };
 
         let mut exports = Vec::new();
@@ -259,7 +264,7 @@ impl DependencyGraphBuilder {
             exports.push(var.name.clone());
         }
 
-        exports
+        (exports, spec.summary)
     }
 
     /// Process an internal dependency and check for boundary violations.
@@ -434,8 +439,8 @@ mod tests {
 ## Purpose
 Authentication module.
 
-## Domain Context
-Test authentication context.
+## Summary
+인증 모듈. JWT 토큰 검증 및 사용자 인증 처리.
 
 ## Exports
 
@@ -450,6 +455,9 @@ None
 
 ## Protocol
 None
+
+## Domain Context
+Test authentication context.
 "#
         )
         .unwrap();
@@ -497,13 +505,15 @@ export const Config = {{ secret: 'xxx' }};
     }
 
     #[test]
-    fn test_extract_exports_from_claude_md() {
+    fn test_extract_exports_and_summary_from_claude_md() {
         let temp = create_test_project();
         let builder = DependencyGraphBuilder::new();
         let claude_md_path = temp.path().join("src").join("auth").join("CLAUDE.md");
 
-        let exports = builder.extract_exports(&claude_md_path);
+        let (exports, summary) = builder.extract_exports_and_summary(&claude_md_path);
         assert!(exports.contains(&"validateToken".to_string()));
+        assert!(summary.is_some());
+        assert!(summary.unwrap().contains("인증 모듈"));
     }
 
     #[test]

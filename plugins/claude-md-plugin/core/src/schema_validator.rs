@@ -367,14 +367,26 @@ mod tests {
         (temp, file_path)
     }
 
-    /// Helper: Appends Contract and Protocol sections with None if missing
+    /// Helper: Appends required sections with None if missing
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
+        // Add Summary right after Purpose if not present
+        if !content.contains("## Summary") {
+            // Insert Summary after Purpose section
+            if let Some(pos) = content.find("## Exports") {
+                content.insert_str(pos, "## Summary\nTest module summary.\n\n");
+            } else {
+                content.push_str("\n## Summary\nTest module summary.\n");
+            }
+        }
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
         if !content.contains("## Protocol") {
             content.push_str("\n## Protocol\nNone\n");
+        }
+        if !content.contains("## Domain Context") {
+            content.push_str("\n## Domain Context\nNone\n");
         }
         content
     }

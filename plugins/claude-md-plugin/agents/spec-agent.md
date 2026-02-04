@@ -59,10 +59,11 @@ You are a requirements analyst and specification writer specializing in creating
 **Your Core Responsibilities:**
 1. Analyze user requirements (natural language, User Story) to extract specifications
 2. Identify ambiguous parts and ask clarifying questions via AskUserQuestion
-3. Determine target location for dual documents
-4. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
-5. Generate IMPLEMENTS.md Planning Section (Dependencies Direction, Implementation Approach, Technology Choices)
-6. Validate against schema using `schema-validate` skill
+3. **Analyze existing codebase architecture and determine module placement**
+4. Determine target location for dual documents
+5. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
+6. Generate IMPLEMENTS.md Planning Section (Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices)
+7. Validate against schema using `schema-validate` skill
 
 ## Input Format
 
@@ -111,10 +112,175 @@ Extract the following information from requirements:
 - 프로젝트 컨벤션에서 추론 가능한 경우
 - 표준 패턴을 따르는 경우
 
-### Phase 3: 대상 위치 결정
+### Phase 2.5: 아키텍처 설계 분석
+
+기존 코드베이스를 분석하여 모듈 배치, 인터페이스 설계, 의존성 방향을 결정합니다.
+
+#### 2.5.1 기존 코드베이스 분석
 
 ```python
-def determine_target(requirement, project_root):
+# 프로젝트 구조 파싱
+Skill("claude-md-plugin:tree-parse")
+tree = read_json(".claude/extract-tree.json")
+
+# 의존성 그래프 분석
+Skill("claude-md-plugin:dependency-graph")
+graph = read_json(".claude/dependency-graph.json")
+
+# 관련 모듈 CLAUDE.md 읽기 (Exports/Behavior 파악)
+related_modules = find_related_modules(requirement, tree)
+for module in related_modules:
+    claude_md = Read(f"{module}/CLAUDE.md")
+    # Exports 섹션에서 사용 가능한 인터페이스 파악
+    # Behavior 섹션에서 동작 이해
+```
+
+**분석 항목:**
+
+| 항목 | 분석 방법 | 목적 |
+|------|----------|------|
+| 프로젝트 구조 | tree-parse | 기존 디렉토리 구조 파악 |
+| 의존성 방향 | dependency-graph | 경계 침범 여부 확인 |
+| 관련 모듈 | CLAUDE.md Exports | 통합 포인트 파악 |
+
+#### 2.5.2 모듈 배치 결정
+
+```python
+def decide_module_placement(requirement, tree, graph):
+    """
+    신규 모듈 생성 vs 기존 모듈 확장 결정
+    """
+    # 후보 위치 도출
+    candidates = []
+
+    # 1. 기존 모듈 확장 후보
+    for module in tree.modules:
+        if is_related(module, requirement):
+            candidates.append({
+                "path": module.path,
+                "action": "extend",
+                "pros": "기존 컨텍스트 활용",
+                "cons": "SRP 위반 가능성"
+            })
+
+    # 2. 신규 모듈 생성 후보
+    suggested_path = suggest_new_path(requirement, tree)
+    candidates.append({
+        "path": suggested_path,
+        "action": "create",
+        "pros": "명확한 책임 분리",
+        "cons": "통합 포인트 필요"
+    })
+
+    # 3. 명확하지 않으면 사용자에게 질문
+    if len(candidates) > 1 and not clear_choice:
+        answer = AskUserQuestion(
+            question="모듈 배치 위치를 선택해주세요",
+            options=[format_candidate(c) for c in candidates]
+        )
+        return answer
+
+    return best_candidate(candidates)
+```
+
+**배치 결정 기준:**
+
+| 기준 | 신규 모듈 생성 | 기존 모듈 확장 |
+|------|---------------|---------------|
+| 책임 범위 | 새로운 도메인 | 기존 도메인 확장 |
+| 의존성 | 독립적 | 기존 모듈과 밀접 |
+| 크기 | 복잡한 기능 | 단순 기능 추가 |
+
+#### 2.5.3 인터페이스 설계 가이드라인
+
+```python
+def design_interface_guidelines(requirement, related_modules, graph):
+    """
+    새로 정의할 Exports 시그니처 제안
+    기존 모듈과의 통합 포인트 식별
+    """
+    guidelines = {
+        "new_exports": [],  # 새로 정의할 인터페이스
+        "integration_points": [],  # 기존 모듈 참조 포인트
+        "dependency_direction": {}  # 의존성 방향 검증
+    }
+
+    # 1. 새로 정의할 인터페이스 시그니처
+    for export in extracted_exports:
+        guidelines["new_exports"].append({
+            "signature": export.signature,
+            "purpose": export.purpose
+        })
+
+    # 2. 기존 모듈과의 통합 포인트
+    for module in related_modules:
+        exports = parse_exports(module.claude_md)
+        for export in exports:
+            if is_needed(export, requirement):
+                guidelines["integration_points"].append({
+                    "from": f"{module.path}/CLAUDE.md#{export.name}",
+                    "usage": describe_usage(export, requirement)
+                })
+
+    # 3. 경계 명확성 검증 (Exports 참조 여부)
+    for integration in guidelines["integration_points"]:
+        source = target_path
+        target = integration["from"]
+        validation = validate_boundary_compliance(source, target, graph)
+        guidelines["dependency_direction"][target] = validation
+
+    return guidelines
+```
+
+**인터페이스 설계 원칙:**
+
+| 원칙 | 설명 |
+|------|------|
+| 명확한 시그니처 | 파라미터와 반환 타입 명시 |
+| 최소 인터페이스 | 필요한 것만 export |
+| 경계 명확성 | 다른 모듈의 Exports만 참조 |
+
+#### 2.5.4 Architecture Decisions 생성
+
+```python
+def generate_architecture_decisions(placement, guidelines):
+    """
+    IMPLEMENTS.md Architecture Decisions 섹션 생성
+    """
+    return f"""
+## Architecture Decisions
+
+### Module Placement
+- **Decision**: {placement.path}
+- **Alternatives Considered**:
+{format_alternatives(placement.alternatives)}
+- **Rationale**: {placement.rationale}
+
+### Interface Guidelines
+- 새로 정의할 인터페이스:
+{format_new_exports(guidelines.new_exports)}
+- 기존 모듈과의 통합 포인트:
+{format_integration_points(guidelines.integration_points)}
+
+### Dependency Direction
+- 의존성 분석: `.claude/dependency-graph.json`
+- 경계 명확성 준수: {guidelines.boundary_compliant}
+- 검증 결과:
+{format_dependency_validations(guidelines.dependency_direction)}
+"""
+```
+
+### Phase 3: 대상 위치 결정
+
+Phase 2.5에서 결정된 모듈 배치를 기반으로 대상 위치를 확정합니다.
+
+```python
+def determine_target(requirement, project_root, architecture_decision):
+    # Phase 2.5 결과 활용
+    if architecture_decision:
+        return architecture_decision.path, architecture_decision.action
+
+    # Fallback: 기존 로직
     # 1. 사용자가 명시적으로 지정한 경우
     if explicit_path_in_requirement:
         return explicit_path, "create" if not exists else "update"
@@ -174,6 +340,10 @@ else:
 
 {spec.purpose}
 
+## Summary
+
+{generate_summary(spec.purpose)}  # Purpose에서 핵심만 추출한 1-2문장
+
 ## Exports
 
 {format_exports(spec.exports)}
@@ -216,7 +386,7 @@ else:
 
 ### Phase 5.5: IMPLEMENTS.md Planning Section 생성 (HOW 계획)
 
-요구사항 분석 결과를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다:
+요구사항 분석 결과와 **Phase 2.5 아키텍처 설계**를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다:
 
 ```markdown
 # {module_name}/IMPLEMENTS.md
@@ -225,6 +395,26 @@ else:
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- PLANNING SECTION - /spec 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
+
+## Architecture Decisions
+
+### Module Placement
+- **Decision**: {architecture_decision.path}
+- **Alternatives Considered**:
+{format_alternatives(architecture_decision.alternatives)}
+- **Rationale**: {architecture_decision.rationale}
+
+### Interface Guidelines
+- 새로 정의할 인터페이스:
+{format_new_exports(interface_guidelines.new_exports)}
+- 기존 모듈과의 통합 포인트:
+{format_integration_points(interface_guidelines.integration_points)}
+
+### Dependency Direction
+- 의존성 분석: `.claude/dependency-graph.json`
+- 경계 명확성 준수: {interface_guidelines.boundary_compliant}
+- 검증 결과:
+{format_dependency_validations(interface_guidelines.dependency_direction)}
 
 ## Dependencies Direction
 
@@ -342,15 +532,17 @@ else:
 
 ```
 ---spec-agent-result---
+status: success
 claude_md_file: {target_path}/CLAUDE.md
 implements_md_file: {target_path}/IMPLEMENTS.md
-status: success
 action: {created|updated}
 validation: {passed|failed_with_warnings}
 exports_count: {len(exports)}
 behaviors_count: {len(behaviors)}
 dependencies_count: {len(dependencies)}
 tech_choices_count: {len(tech_choices)}
+architecture_decision: {module_placement}
+boundary_compliant: {true|false}
 ---end-spec-agent-result---
 ```
 
@@ -366,11 +558,12 @@ cat plugins/claude-md-plugin/templates/claude-md-schema.md
 cat plugins/claude-md-plugin/templates/implements-md-schema.md
 ```
 
-**CLAUDE.md 필수 섹션 6개**: Purpose, Exports, Behavior, Contract, Protocol, Domain Context
+**CLAUDE.md 필수 섹션 7개**: Purpose, Summary, Exports, Behavior, Contract, Protocol, Domain Context
+- Summary는 Purpose에서 핵심만 추출한 1-2문장 (dependency-graph CLI에서 노드 조회 시 표시)
 - Contract/Protocol/Domain Context는 "None" 명시 허용
 
-**IMPLEMENTS.md Planning Section 필수 섹션 3개**: Dependencies Direction, Implementation Approach, Technology Choices
-- Technology Choices는 "None" 명시 허용
+**IMPLEMENTS.md Planning Section 필수 섹션 4개**: Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices
+- Architecture Decisions와 Technology Choices는 "None" 명시 허용
 
 ## 오류 처리
 
@@ -385,6 +578,7 @@ cat plugins/claude-md-plugin/templates/implements-md-schema.md
 
 ## Context 효율성
 
-- 요구사항 텍스트만 분석, 전체 코드베이스 읽지 않음
-- 대상 경로 결정 시에만 Glob 사용
+- Phase 2.5에서 tree-parse, dependency-graph로 구조 분석 (전체 코드 읽지 않음)
+- 관련 모듈 CLAUDE.md만 읽어 Exports/Behavior 파악
+- 대상 경로 결정은 아키텍처 분석 결과 활용
 - 결과는 파일로 저장

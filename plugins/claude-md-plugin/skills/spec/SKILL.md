@@ -26,6 +26,7 @@ allowed-tools: [Read, Glob, Write, Task, Skill, AskUserQuestion]
     │   - Purpose, Domain Context, Exports, Behavior, Contract, Protocol
     │
     └─→ IMPLEMENTS.md [Planning Section] 업데이트 (HOW 계획)
+        - Architecture Decisions (모듈 배치, 인터페이스 설계, 의존성 방향)
         - Dependencies Direction
         - Implementation Approach
         - Technology Choices
@@ -50,14 +51,24 @@ User: /spec "요구사항"
 ┌─────────────────────────────────────────────┐
 │ spec-agent AGENT                            │
 │                                             │
-│ 1. 요구사항 분석                            │
-│ 2. 모호한 부분 AskUserQuestion             │
-│ 3. 대상 위치 결정                           │
-│ 4. 기존 CLAUDE.md 존재시 병합               │
-│ 5. CLAUDE.md 생성                           │
-│ 6. IMPLEMENTS.md Planning Section 생성      │
-│ 7. Skill("schema-validate") → 검증          │
-│ → 최종 CLAUDE.md + IMPLEMENTS.md 저장       │
+│ Phase 1. 요구사항 분석                      │
+│ Phase 2. 모호한 부분 AskUserQuestion        │
+│                                             │
+│ [NEW] Phase 2.5. 아키텍처 설계 분석         │
+│   ├── Skill("tree-parse") → 프로젝트 구조   │
+│   ├── Skill("dependency-graph") → 의존성    │
+│   ├── 관련 모듈 CLAUDE.md Exports 파악      │
+│   ├── 모듈 배치 결정 (신규 vs 확장)         │
+│   ├── 인터페이스 설계 가이드라인            │
+│   └── 경계 명확성 검증 (Exports 참조)       │
+│                                             │
+│ Phase 3. 대상 위치 결정 (Phase 2.5 결과)    │
+│ Phase 4. 기존 CLAUDE.md 존재시 병합         │
+│ Phase 5. CLAUDE.md 생성                     │
+│ Phase 5.5. IMPLEMENTS.md Planning Section   │
+│   └── Architecture Decisions 섹션 포함      │
+│ Phase 6. Skill("schema-validate") → 검증    │
+│ Phase 7. 최종 저장                          │
 └─────────────────────────────────────────────┘
 ```
 
@@ -92,15 +103,21 @@ Task(
 **spec-agent 워크플로우:**
 1. 요구사항에서 Purpose, Exports, Behaviors, Contracts 추출
 2. 모호한 부분은 AskUserQuestion으로 명확화
-3. 대상 경로 결정 (명시적 경로, 모듈명 추론, 사용자 선택)
-4. 기존 CLAUDE.md 존재시 smart merge
-5. 템플릿 기반 CLAUDE.md 생성
-6. **IMPLEMENTS.md Planning Section 생성**
+3. **[NEW] 아키텍처 설계 분석**
+   - tree-parse, dependency-graph로 기존 코드베이스 분석
+   - 모듈 배치 결정 (신규 생성 vs 기존 확장)
+   - 인터페이스 설계 가이드라인 생성
+   - 경계 명확성 검증 (Exports 참조)
+4. 대상 경로 결정 (아키텍처 분석 결과 활용)
+5. 기존 CLAUDE.md 존재시 smart merge
+6. 템플릿 기반 CLAUDE.md 생성
+7. **IMPLEMENTS.md Planning Section 생성**
+   - Architecture Decisions: 모듈 배치, 인터페이스, 의존성 방향
    - Dependencies Direction: 필요한 의존성과 위치
    - Implementation Approach: 구현 전략과 대안
    - Technology Choices: 기술 선택 근거
-7. 스키마 검증 (1회)
-8. 최종 저장
+8. 스키마 검증 (1회)
+9. 최종 저장
 
 ### 3. 최종 결과 보고
 
@@ -111,6 +128,11 @@ Task(
   ✓ {target_path}/CLAUDE.md (WHAT - 스펙)
   ✓ {target_path}/IMPLEMENTS.md (HOW - Planning Section)
 
+아키텍처 결정:
+  - Module Placement: {module_placement} ({create|extend})
+  - 경계 명확성 준수: ✓
+  - 의존성 그래프: .claude/dependency-graph.json
+
 스펙 요약:
   - Purpose: {purpose}
   - Exports: {export_count}개
@@ -118,6 +140,7 @@ Task(
   - Contracts: {contract_count}개
 
 구현 계획 요약:
+  - Architecture Decisions: 모듈 배치, 인터페이스 설계, 의존성 방향
   - Dependencies: {dependency_count}개
   - Implementation Approach: {approach_summary}
   - Technology Choices: {choice_count}개

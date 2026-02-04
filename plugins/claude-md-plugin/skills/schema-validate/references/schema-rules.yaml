@@ -16,6 +16,13 @@ sections:
     allow_none: false
     description: "디렉토리의 책임을 1-2문장으로 명시"
 
+  summary:
+    name: "Summary"
+    required: true
+    condition: "always"
+    allow_none: false
+    description: "모듈의 역할/책임/주요 기능을 1-2문장으로 요약"
+
   exports:
     name: "Exports"
     required: true

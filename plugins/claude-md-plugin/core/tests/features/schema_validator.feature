@@ -11,11 +11,23 @@ Feature: Schema Validation
       """
       # Test Module
 
+      ## Summary
+      Test module summary.
+
       ## Exports
       - `validateToken(token: string): Promise<Claims>`
 
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should fail
@@ -29,8 +41,20 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      Token validation module.
+
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should fail
@@ -44,8 +68,20 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      Token validation module.
+
       ## Exports
       - `validateToken(token: string): Promise<Claims>`
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should fail
@@ -59,6 +95,9 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      인증 모듈. JWT 토큰 검증 및 갱신 담당.
+
       ## Exports
       ### Functions
       - `validateToken(token: string): Promise<Claims>`
@@ -67,6 +106,15 @@ Feature: Schema Validation
       ## Behavior
       - valid token → Claims object
       - invalid token → InvalidTokenError
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -79,6 +127,9 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      인증 모듈. JWT 토큰 검증 및 갱신 담당.
+
       ## Exports
       ### Functions
       - `validate_token(token: str) -> Claims`
@@ -86,6 +137,15 @@ Feature: Schema Validation
 
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -98,6 +158,9 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      인증 모듈. JWT 토큰 검증 및 갱신 담당.
+
       ## Exports
       ### Functions
       - `ValidateToken(token string) (Claims, error)`
@@ -105,6 +168,15 @@ Feature: Schema Validation
 
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -117,6 +189,9 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      인증 모듈. JWT 토큰 검증 및 갱신 담당.
+
       ## Exports
       ### Functions
       - `validate_token(token: &str) -> Result<Claims, AuthError>`
@@ -124,6 +199,15 @@ Feature: Schema Validation
 
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -136,6 +220,9 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
+      ## Summary
+      인증 모듈. JWT 토큰 검증 및 갱신 담당.
+
       ## Exports
       ### Methods
       - `Claims validateToken(String token) throws AuthException`
@@ -143,6 +230,15 @@ Feature: Schema Validation
 
       ## Behavior
       - valid token → Claims object
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -155,11 +251,23 @@ Feature: Schema Validation
       ## Purpose
       Test module.
 
+      ## Summary
+      테스트 모듈.
+
       ## Exports
       - `validateToken` - validates the token
 
       ## Behavior
       - token → result
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should have warnings
@@ -173,12 +281,24 @@ Feature: Schema Validation
       ## Purpose
       Test module.
 
+      ## Summary
+      테스트 모듈.
+
       ## Exports
       - `validateToken(token: string): boolean`
 
       ## Behavior
       - 토큰을 검증합니다
       - Validates the authentication token
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should fail
@@ -192,6 +312,9 @@ Feature: Schema Validation
       ## Purpose
       Test module.
 
+      ## Summary
+      테스트 모듈.
+
       ## Exports
       - `process(input: string): Output`
 
@@ -203,6 +326,15 @@ Feature: Schema Validation
       ### Error cases
       - invalid input → ValidationError
       - null input -> NullPointerException
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass
@@ -215,11 +347,23 @@ Feature: Schema Validation
       ## Purpose
       Internal utilities with no public API.
 
+      ## Summary
+      내부 유틸리티 모듈.
+
       ## Exports
       None
 
       ## Behavior
       - Called internally by parent module → performs internal operations
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
       """
     When I validate the schema
     Then validation should pass

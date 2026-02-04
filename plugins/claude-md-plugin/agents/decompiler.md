@@ -233,11 +233,18 @@ for child_path in child_claude_mds:
         child_purposes[get_dirname(child_path)] = purpose
 
 # CLAUDE.md 템플릿에 맞게 생성
+# Summary는 Purpose에서 핵심만 추출한 1-2문장
+summary = generate_summary(analysis.purpose or user_answers.purpose)
+
 claude_md = f"""# {directory_name}
 
 ## Purpose
 
 {analysis.purpose or user_answers.purpose}
+
+## Summary
+
+{summary}
 
 ## Exports
 
@@ -427,8 +434,9 @@ validation: {"passed" if validation["valid"] else "failed_with_warnings"}
 cat plugins/claude-md-plugin/skills/schema-validate/references/schema-rules.yaml
 ```
 
-필수 섹션 (6개): Purpose, Exports, Behavior, Contract, Protocol, Domain Context
+필수 섹션 (7개): Purpose, Summary, Exports, Behavior, Contract, Protocol, Domain Context
 - Contract/Protocol/Domain Context는 "None" 명시적 표기 허용
+- Summary는 Purpose에서 핵심만 추출한 1-2문장 (dependency-graph CLI에서 노드 조회 시 표시)
 
 ### 템플릿 로딩
 

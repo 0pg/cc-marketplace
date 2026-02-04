@@ -40,6 +40,7 @@ target_path: 분석 대상 경로 (기본: 프로젝트 루트)
     {
       "path": "src/auth",
       "has_claude_md": true,
+      "summary": "인증 모듈. JWT 토큰 생성/검증/갱신 및 세션 관리 담당.",
       "exports": ["validateToken", "Claims"]
     }
   ],

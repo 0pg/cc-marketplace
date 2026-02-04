@@ -30,6 +30,9 @@ pub struct ClaudeMdSpec {
     pub name: String,
     /// Purpose description
     pub purpose: String,
+    /// Summary - brief 1-2 sentence overview of role/responsibility/features
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
     /// Exported symbols
     pub exports: ExportsSpec,
     /// Dependencies
@@ -274,6 +277,14 @@ impl ClaudeMdParser {
         // Parse Purpose section
         if let Some(purpose_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Purpose")) {
             spec.purpose = purpose_section.content.join("\n").trim().to_string();
+        }
+
+        // Parse Summary section
+        if let Some(summary_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Summary")) {
+            let summary_text = summary_section.content.join(" ").trim().to_string();
+            if !summary_text.is_empty() && !self.is_none_marker(summary_section) {
+                spec.summary = Some(summary_text);
+            }
         }
 
         // Parse Exports section
@@ -1114,14 +1125,26 @@ mod bracket_utils {
 mod tests {
     use super::*;
 
-    /// Helper: Returns minimal required sections with Contract/Protocol as None
+    /// Helper: Returns minimal required sections with Contract/Protocol/Domain Context as None
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
+        // Add Summary right after Purpose if not present
+        if !content.contains("## Summary") {
+            // Insert Summary after Purpose section
+            if let Some(pos) = content.find("## Exports") {
+                content.insert_str(pos, "## Summary\nTest module summary.\n\n");
+            } else {
+                content.push_str("\n## Summary\nTest module summary.\n");
+            }
+        }
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
         if !content.contains("## Protocol") {
             content.push_str("\n## Protocol\nNone\n");
+        }
+        if !content.contains("## Domain Context") {
+            content.push_str("\n## Domain Context\nNone\n");
         }
         content
     }
@@ -1284,11 +1307,14 @@ Test module.
     #[test]
     fn test_fail_fast_missing_contract() {
         let parser = ClaudeMdParser::new();
-        // Missing Contract section (only Protocol)
+        // Missing Contract section (has Summary, Protocol, Domain Context)
         let content = r#"# test
 
 ## Purpose
 Test module.
+
+## Summary
+Test module summary.
 
 ## Exports
 - `validate(): void`
@@ -1297,6 +1323,9 @@ Test module.
 - input → output
 
 ## Protocol
+None
+
+## Domain Context
 None
 "#;
         let result = parser.parse_content(content);
@@ -1308,11 +1337,14 @@ None
     #[test]
     fn test_fail_fast_missing_protocol() {
         let parser = ClaudeMdParser::new();
-        // Missing Protocol section (only Contract)
+        // Missing Protocol section (has Summary, Contract, Domain Context)
         let content = r#"# test
 
 ## Purpose
 Test module.
+
+## Summary
+Test module summary.
 
 ## Exports
 - `validate(): void`
@@ -1321,6 +1353,9 @@ Test module.
 - input → output
 
 ## Contract
+None
+
+## Domain Context
 None
 "#;
         let result = parser.parse_content(content);

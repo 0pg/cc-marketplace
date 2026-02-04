@@ -35,11 +35,12 @@
 | **CLAUDE.md** | WHAT | .h (헤더) | 도메인맥락, PRD, 인터페이스 |
 | **IMPLEMENTS.md** | HOW | .c (구현) | 알고리즘, 상수, 구현 상세 |
 
-## 필수 섹션 요약 (6개)
+## 필수 섹션 요약 (7개)
 
 | 섹션 | 필수 | "None" 허용 | 설명 |
 |------|------|-------------|------|
 | Purpose | ✓ | ✗ | 디렉토리의 책임 |
+| Summary | ✓ | ✗ | 역할/책임/기능 1-2문장 요약 |
 | Exports | ✓ | ✓ | public interface |
 | Behavior | ✓ | ✓ | 동작 시나리오 |
 | Contract | ✓ | ✓ | 사전/사후조건 |
@@ -60,7 +61,17 @@
 이 모듈은 사용자 인증을 담당합니다.
 ```
 
-### 2. Structure (조건부 필수)
+### 2. Summary (필수)
+모듈의 역할/책임/주요 기능을 1-2문장으로 요약합니다.
+Purpose보다 간결하게, 다른 개발자가 한눈에 파악할 수 있도록 작성합니다.
+**dependency-graph CLI에서 노드 조회 시 표시**되므로 탐색 시 유용합니다.
+
+```markdown
+## Summary
+인증 모듈. JWT 토큰 생성/검증/갱신 및 세션 관리 담당.
+```
+
+### 4. Structure (조건부 필수)
 하위 디렉토리나 파일이 있는 경우 필수입니다.
 
 ```markdown
@@ -70,7 +81,7 @@
 - types.ts: 인증 관련 타입 정의
 ```
 
-### 3. Exports (필수)
+### 5. Exports (필수)
 모듈의 public interface를 **시그니처 레벨 + 도메인 맥락**으로 명시합니다.
 
 **Exports = Interface Catalog**: 다른 모듈이 코드를 탐색하지 않고도 이 모듈의 인터페이스를 파악할 수 있어야 합니다.
@@ -138,7 +149,7 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 **참고**: 시그니처 형식은 프로젝트에서 사용하는 언어의 관용적 표현을 따릅니다.
 프로젝트 root CLAUDE.md에 명시된 코딩 컨벤션을 참조하세요.
 
-### 4. Dependencies (조건부)
+### 6. Dependencies (조건부)
 외부 의존성이 있는 경우 명시합니다.
 
 ```markdown
@@ -147,7 +158,7 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - internal: ../utils/crypto
 ```
 
-### 5. Behavior (필수)
+### 7. Behavior (필수)
 동작을 **시나리오 레벨** (input → output)로 명시합니다.
 
 ```markdown
@@ -163,7 +174,7 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - 위조된 토큰 → SignatureVerificationError
 ```
 
-### 6. Constraints (선택)
+### 8. Constraints (선택)
 지켜야 할 규칙이나 제약사항입니다.
 
 ```markdown
@@ -173,7 +184,7 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - 동시 세션은 최대 5개
 ```
 
-### 7. Contract (필수, "None" 허용)
+### 9. Contract (필수, "None" 허용)
 함수별 사전조건(preconditions), 사후조건(postconditions), 불변식(invariants) 정보입니다.
 
 특별한 계약 조건이 없는 경우 `None`을 명시합니다.
@@ -214,7 +225,7 @@ Contract 정보는 다음에서 자동 추출됩니다:
    - Length 검증: `if (arr.length === 0) throw` → `arr not empty`
    - Type guards: `asserts x is T` → `x must be T`
 
-### 8. Protocol (필수, "None" 허용)
+### 10. Protocol (필수, "None" 허용)
 상태 전이나 호출 순서를 명시합니다.
 
 특별한 프로토콜이 없는 경우 `None`을 명시합니다.
@@ -256,7 +267,7 @@ Protocol 정보는 다음에서 자동 추출됩니다:
    - 예: `@lifecycle 1` → 첫 번째 호출
    - 예: `@lifecycle 2` → 두 번째 호출
 
-### 9. Domain Context (필수, "None" 허용)
+### 11. Domain Context (필수, "None" 허용)
 compile 시 동일한 코드 재현을 보장하기 위한 맥락 정보입니다.
 이 정보가 없으면 compile 결과가 달라질 수 있습니다.
 
@@ -311,8 +322,9 @@ None
 
 > 규칙의 Single Source of Truth: `skills/schema-validate/references/schema-rules.yaml`
 
-### 필수 섹션 검증 (6개)
+### 필수 섹션 검증 (7개)
 - Purpose: 반드시 존재, "None" 불가
+- Summary: 반드시 존재, "None" 불가 (1-2문장 역할/책임/기능 요약)
 - Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
 - Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
 - Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
