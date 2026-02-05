@@ -2,8 +2,15 @@
 set -euo pipefail
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-BINARY="${PLUGIN_ROOT}/core/target/release/claude-md-core"
-CARGO_TOML="${PLUGIN_ROOT}/core/Cargo.toml"
+CORE_DIR="${PLUGIN_ROOT}/core"
+BINARY="${CORE_DIR}/target/release/claude-md-core"
+CARGO_TOML="${CORE_DIR}/Cargo.toml"
+CARGO_LOCK="${CORE_DIR}/Cargo.lock"
+
+# core 디렉토리 없으면 skip
+if [ ! -d "$CORE_DIR" ]; then
+  exit 0
+fi
 
 # cargo 없으면 graceful skip
 if ! command -v cargo &> /dev/null; then
@@ -11,10 +18,19 @@ if ! command -v cargo &> /dev/null; then
   exit 0
 fi
 
-# 바이너리 없거나 Cargo.toml이 더 최신이면 빌드
-if [ ! -f "$BINARY" ] || [ "$CARGO_TOML" -nt "$BINARY" ]; then
+# 빌드 필요 여부 확인: 바이너리 없거나 Cargo 파일이 더 최신이면 빌드
+needs_build=false
+if [ ! -f "$BINARY" ]; then
+  needs_build=true
+elif [ "$CARGO_TOML" -nt "$BINARY" ]; then
+  needs_build=true
+elif [ -f "$CARGO_LOCK" ] && [ "$CARGO_LOCK" -nt "$BINARY" ]; then
+  needs_build=true
+fi
+
+if [ "$needs_build" = true ]; then
   echo "Building claude-md-core..." >&2
-  if ! (cd "${PLUGIN_ROOT}/core" && cargo build --release 2>&1 | grep -E "(Compiling|Finished|error)" >&2); then
+  if ! (cd "$CORE_DIR" && cargo build --release >&2); then
     echo "Warning: Failed to build claude-md-core" >&2
   fi
 fi
