@@ -35,7 +35,7 @@ description: |
   ---------
   src/auth (양호)
     Drift: 0개 이슈
-    Export 커버리지: 95% (18/19 예측 성공)
+    Export 커버리지: 100% (19/19 예측 성공)
   </assistant_response>
   </example>
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill]
@@ -147,8 +147,8 @@ export_coverage: {0-100}
 
 | 디렉토리 | Drift 이슈 | Export 커버리지 점수 | 상태 |
 |----------|-----------|------------|------|
-| src/auth | 0 | 95% | 양호 |
-| src/utils | 2 | 72% | 개선 권장 |
+| src/auth | 0 | 100% | 양호 |
+| src/utils | 2 | 85% | 개선 필요 |
 
 ## 상세 결과
 
@@ -171,9 +171,9 @@ export_coverage: {0-100}
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 90% 이상 |
-| **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 70-89% |
-| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 70% 미만 |
+| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 100% |
+| **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 90-99% |
+| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 90% 미만 |
 
 ## 출력 예시
 
@@ -202,19 +202,19 @@ Complete: 3개 | Missing: 1개 | Unexpected: 0개
 
 src/auth (양호)
   Drift: 0개 이슈
-  Export 커버리지: 95% (18/19 예측 성공)
+  Export 커버리지: 100% (19/19 예측 성공)
 
 src/utils (개선 권장)
   Drift: 2개 이슈
     - STALE: formatDate export가 코드에 없음
     - MISSING: parseNumber export가 문서에 없음
-  Export 커버리지: 78% (14/18 예측 성공)
+  Export 커버리지: 95% (17/18 예측 성공)
 
 src/legacy (개선 필요)
   Drift: 5개 이슈
     - UNCOVERED: 3개 파일이 Structure에 없음
     - MISMATCH: 2개 시그니처 불일치
-  Export 커버리지: 45% (9/20 예측 성공)
+  Export 커버리지: 78% (14/18 예측 성공)
 ```
 
 ## 관련 컴포넌트

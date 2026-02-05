@@ -400,9 +400,9 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 
 | 상태 | 조건 | Healing |
 |------|------|---------|
-| **양호** | Drift 0개 AND Export ≥ 90% | 불필요 (SUCCESS) |
-| **개선 권장** | Drift 1-2개 OR Export 70-89% | 필요 |
-| **개선 필요** | Drift ≥ 3개 OR Export < 70% | 필요 |
+| **양호** | Drift 0개 AND Export = 100% | 불필요 (SUCCESS) |
+| **개선 권장** | Drift 1-2개 OR Export 90-99% | 필요 |
+| **개선 필요** | Drift ≥ 3개 OR Export < 90% | 필요 |
 
 **"양호"가 아니면 모두 healing 대상입니다.**
 
@@ -436,7 +436,7 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 [검증 결과 - 1차]
 | 디렉토리 | Drift | Export | 상태 |
 |----------|-------|--------|------|
-| src/auth | 0 | 95% | ✓ 양호 |
+| src/auth | 0 | 100% | ✓ 양호 |
 | src/utils | 2 | 72% | ✗ 개선 필요 |
 
 ⚠ src/utils에서 이슈 발견:
@@ -449,7 +449,7 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 [검증 결과 - 2차]
 | 디렉토리 | Drift | Export | 상태 |
 |----------|-------|--------|------|
-| src/utils | 0 | 95% | ✓ 양호 |
+| src/utils | 0 | 100% | ✓ 양호 |
 
 === 최종 결과 ===
 모든 모듈 검증 통과 (2/2)
