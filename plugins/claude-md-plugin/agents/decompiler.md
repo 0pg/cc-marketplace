@@ -8,13 +8,13 @@ description: |
   <context>
   The decompile skill has parsed the directory tree and calls decompiler agent for each directory in leaf-first order.
   </context>
-  <user_request>
+  <user>
   대상 디렉토리: src/auth
   직접 파일 수: 4
   하위 디렉토리 수: 1
   자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]
   결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 경로만 반환
-  </user_request>
+  </user>
   <assistant_response>
   I'll generate CLAUDE.md + IMPLEMENTS.md drafts for src/auth directory.
   1. Boundary Resolve - boundary analysis complete
@@ -34,6 +34,64 @@ description: |
   Not directly exposed to users; invoked only through decompile skill.
   </commentary>
   </example>
+
+  <example>
+  <context>
+  Processing a leaf directory with no subdirectories.
+  </context>
+  <user>
+  대상 디렉토리: src/utils/crypto
+  직접 파일 수: 2
+  하위 디렉토리 수: 0
+  자식 CLAUDE.md: []
+  결과는 .claude/tmp/{session-id}-decompile-src-utils-crypto 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll generate CLAUDE.md + IMPLEMENTS.md for src/utils/crypto (leaf node).
+  1. Boundary Resolve - 2 direct files, no subdirs
+  2. Code Analyze - found 2 exports, 3 behaviors
+  3. No Domain Context questions needed (standard crypto utilities)
+  4. CLAUDE.md draft created (WHAT)
+  5. IMPLEMENTS.md draft created (HOW)
+  6. Schema Validate - validation passed
+  ---decompiler-result---
+  claude_md_file: .claude/tmp/{session-id}-decompile-src-utils-crypto-claude.md
+  implements_md_file: .claude/tmp/{session-id}-decompile-src-utils-crypto-implements.md
+  status: success
+  ---end-decompiler-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Processing a directory where code intent is unclear and requires clarification.
+  </context>
+  <user>
+  대상 디렉토리: src/legacy/payment
+  직접 파일 수: 5
+  하위 디렉토리 수: 0
+  자식 CLAUDE.md: []
+  결과는 .claude/tmp/{session-id}-decompile-src-legacy-payment 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll generate CLAUDE.md + IMPLEMENTS.md for src/legacy/payment.
+  1. Boundary Resolve - 5 direct files
+  2. Code Analyze - found magic numbers and non-standard patterns
+  3. AskUserQuestion - clarifying PAYMENT_TIMEOUT=30000 rationale
+     → User answered: "PCI-DSS compliance requirement"
+  4. AskUserQuestion - clarifying legacy UUID format support
+     → User answered: "Required for backward compatibility with v1 API"
+  5. CLAUDE.md draft created with Domain Context
+  6. IMPLEMENTS.md draft created
+  7. Schema Validate - validation passed
+  ---decompiler-result---
+  claude_md_file: .claude/tmp/{session-id}-decompile-src-legacy-payment-claude.md
+  implements_md_file: .claude/tmp/{session-id}-decompile-src-legacy-payment-implements.md
+  status: success
+  questions_asked: 2
+  ---end-decompiler-result---
+  </assistant_response>
+  </example>
 model: inherit
 color: green
 tools:
@@ -43,6 +101,7 @@ tools:
   - Grep
   - Write
   - Skill
+  - Task
   - AskUserQuestion
 ---
 
@@ -279,11 +338,14 @@ write_file(f".claude/tmp/{session-id}-decompile-{target}-implements.md", impleme
 # CLAUDE.md Schema Validate Skill 호출
 Skill("claude-md-plugin:schema-validate")
 # 입력: claude_md_file_path
-# 출력: .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장
+# 출력: .claude/tmp/{session-id}-validation-{target}.json
+```
+
+##### 실행 단계
 
 `Skill("claude-md-plugin:schema-validate")`
 - 입력: claude_md_file_path
-- 출력: .claude/tmp/{session-id}-analysis-{target}.json
+- 출력: .claude/tmp/{session-id}-validation-{target}.json
 
 ##### 로직
 

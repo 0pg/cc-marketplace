@@ -9,14 +9,14 @@ description: |
   <context>
   The compile skill has scanned target directories and calls compiler agent for each CLAUDE.md + IMPLEMENTS.md pair.
   </context>
-  <user_request>
+  <user>
   CLAUDE.md 경로: src/auth/CLAUDE.md
   IMPLEMENTS.md 경로: src/auth/IMPLEMENTS.md
   대상 디렉토리: src/auth
   감지된 언어: (자동 감지됨)
   충돌 처리: skip
   결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
-  </user_request>
+  </user>
   <assistant_response>
   I'll compile source code based on src/auth/CLAUDE.md + IMPLEMENTS.md.
   1. Project CLAUDE.md loaded
@@ -46,6 +46,86 @@ description: |
   Not directly exposed to users; invoked only through compile skill.
   </commentary>
   </example>
+
+  <example>
+  <context>
+  Compiling with existing files that should be skipped.
+  </context>
+  <user>
+  CLAUDE.md 경로: src/utils/CLAUDE.md
+  IMPLEMENTS.md 경로: src/utils/IMPLEMENTS.md
+  대상 디렉토리: src/utils
+  감지된 언어: TypeScript
+  충돌 처리: skip
+  결과는 .claude/tmp/{session-id}-compile-src-utils.json 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll compile source code based on src/utils/CLAUDE.md + IMPLEMENTS.md.
+  1. Project CLAUDE.md loaded
+  2. CLAUDE.md parsed - 3 functions (WHAT)
+  3. IMPLEMENTS.md Planning Section loaded (HOW direction)
+  4. Language: TypeScript (from input)
+  5. Test framework detected: Jest
+  6. TDD Workflow:
+     - [RED] Tests generated
+     - [GREEN] Implementation generated
+     - [REFACTOR] Project conventions applied
+  7. Tests executed: 6 passed
+  8. File conflicts: 2 skipped (utils.ts, types.ts already exist), 1 compiled
+  9. IMPLEMENTS.md Implementation Section updated
+  ---compiler-result---
+  result_file: .claude/tmp/{session-id}-compile-src-utils.json
+  status: success
+  generated_files: ["utils.test.ts"]
+  skipped_files: ["utils.ts", "types.ts"]
+  tests_passed: 6
+  tests_failed: 0
+  implements_md_updated: true
+  ---end-compiler-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Compiling with test failures that require retries.
+  </context>
+  <user>
+  CLAUDE.md 경로: src/parser/CLAUDE.md
+  IMPLEMENTS.md 경로: src/parser/IMPLEMENTS.md
+  대상 디렉토리: src/parser
+  감지된 언어: (자동 감지됨)
+  충돌 처리: overwrite
+  결과는 .claude/tmp/{session-id}-compile-src-parser.json 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll compile source code based on src/parser/CLAUDE.md + IMPLEMENTS.md.
+  1. Project CLAUDE.md loaded
+  2. CLAUDE.md parsed - 2 functions, 1 type (WHAT)
+  3. IMPLEMENTS.md Planning Section loaded (HOW direction)
+  4. Language detected: TypeScript (from existing files)
+  5. Test framework detected: Vitest
+  6. TDD Workflow:
+     - [RED] Tests generated (4 test cases)
+     - [GREEN] Implementation attempt 1 - 2 tests failed
+     - [GREEN] Implementation attempt 2 - 1 test failed (edge case)
+     - [GREEN] Implementation attempt 3 - All tests passed
+     - [REFACTOR] Project conventions applied
+  7. Tests executed: 4 passed
+  8. File conflicts: 0 skipped, 3 overwritten
+  9. IMPLEMENTS.md Implementation Section updated
+  ---compiler-result---
+  result_file: .claude/tmp/{session-id}-compile-src-parser.json
+  status: success
+  generated_files: ["parser.ts", "types.ts", "parser.test.ts"]
+  skipped_files: []
+  overwritten_files: ["parser.ts", "types.ts", "parser.test.ts"]
+  tests_passed: 4
+  tests_failed: 0
+  retry_count: 2
+  implements_md_updated: true
+  ---end-compiler-result---
+  </assistant_response>
+  </example>
 model: inherit
 color: blue
 tools:
@@ -55,6 +135,7 @@ tools:
   - Grep
   - Write
   - Skill
+  - Task
   - AskUserQuestion
 ---
 

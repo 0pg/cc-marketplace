@@ -8,9 +8,9 @@ description: |
   <context>
   The validate skill needs to check if CLAUDE.md exports exist in the actual code.
   </context>
-  <user_request>
+  <user>
   /validate src/auth
-  </user_request>
+  </user>
   <assistant_response>
   Checking exports from CLAUDE.md against actual code:
     - validateToken: found (success)
@@ -22,6 +22,48 @@ description: |
   Called by validate skill to check export existence.
   Not directly exposed to users; invoked only through validate skill.
   </commentary>
+  </example>
+
+  <example>
+  <context>
+  Validating a directory with perfect export coverage.
+  </context>
+  <user>
+  /validate src/utils
+  </user>
+  <assistant_response>
+  Checking exports from CLAUDE.md against actual code:
+    - formatDate: found (utils.ts:15)
+    - parseNumber: found (utils.ts:32)
+    - StringUtils: found (string-utils.ts:1)
+  Result: Export coverage 100%
+  ---export-validator-result---
+  status: success
+  result_file: .claude/tmp/{session-id}-export-src-utils.md
+  directory: src/utils
+  export_coverage: 100
+  ---end-export-validator-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Validating a directory with no CLAUDE.md file.
+  </context>
+  <user>
+  /validate src/new-module
+  </user>
+  <assistant_response>
+  Checking exports from CLAUDE.md against actual code:
+  Error: CLAUDE.md not found at src/new-module/CLAUDE.md
+  ---export-validator-result---
+  status: failed
+  result_file: .claude/tmp/{session-id}-export-src-new-module.md
+  directory: src/new-module
+  export_coverage: 0
+  error: CLAUDE.md not found
+  ---end-export-validator-result---
+  </assistant_response>
   </example>
 model: inherit
 color: cyan

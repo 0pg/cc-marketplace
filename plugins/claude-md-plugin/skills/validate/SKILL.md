@@ -9,39 +9,45 @@ trigger:
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
   "verify spec matches implementation", or uses "/validate". Runs drift-validator and export-validator in parallel.
-
-  <example>
-  <user_request>/validate</user_request>
-  <assistant_response>
-  CLAUDE.md 검증 보고서
-  =====================
-
-  요약
-  ----
-  검증 대상: 3개 디렉토리
-  - 양호: 1개
-  - 개선 권장: 1개
-  - 개선 필요: 1개
-  </assistant_response>
-  </example>
-
-  <example>
-  <user_request>/validate src/</user_request>
-  <assistant_response>
-  CLAUDE.md 검증 보고서
-  =====================
-
-  상세 결과
-  ---------
-  src/auth (양호)
-    Drift: 0개 이슈
-    Export 커버리지: 100% (19/19 예측 성공)
-  </assistant_response>
-  </example>
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill]
 ---
 
 # /validate
+
+<example>
+<context>
+사용자가 전체 프로젝트의 CLAUDE.md를 검증하려고 합니다.
+</context>
+<user>/validate</user>
+<assistant_response>
+CLAUDE.md 검증 보고서
+=====================
+
+요약
+----
+검증 대상: 3개 디렉토리
+- 양호: 1개
+- 개선 권장: 1개
+- 개선 필요: 1개
+</assistant_response>
+</example>
+
+<example>
+<context>
+사용자가 특정 디렉토리의 CLAUDE.md만 검증하려고 합니다.
+</context>
+<user>/validate src/</user>
+<assistant_response>
+CLAUDE.md 검증 보고서
+=====================
+
+상세 결과
+---------
+src/auth (양호)
+  Drift: 0개 이슈
+  Export 커버리지: 100% (19/19 예측 성공)
+</assistant_response>
+</example>
 
 CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
 

@@ -8,7 +8,7 @@ description: |
   <context>
   The spec-agent has generated CLAUDE.md + IMPLEMENTS.md and needs validation against requirements.
   </context>
-  <user_request>
+  <user>
   원본 요구사항:
   "JWT 토큰을 검증하는 인증 모듈이 필요합니다. 토큰이 만료되면 에러를 던지고,
   유효하면 사용자 정보를 반환해야 합니다."
@@ -24,7 +24,7 @@ description: |
   IMPLEMENTS.md 경로: src/auth/IMPLEMENTS.md
 
   생성된 문서가 요구사항을 충족하는지 검증해주세요.
-  </user_request>
+  </user>
   <assistant_response>
   I'll review the generated documents against requirements.
 
@@ -55,12 +55,116 @@ description: |
   Not directly exposed to users; invoked only through spec-agent.
   </commentary>
   </example>
+
+  <example>
+  <context>
+  Reviewing documents that have missing requirements.
+  </context>
+  <user>
+  원본 요구사항:
+  "사용자 프로필을 조회하고 수정할 수 있어야 합니다. 수정 시 이메일 변경은 인증이 필요합니다."
+
+  Task 목록:
+  - t-1: Purpose 정의 (define-purpose)
+  - t-2: getProfile export 정의 (define-export)
+  - t-3: updateProfile export 정의 (define-export)
+  - t-4: 조회 시나리오 정의 (define-behavior)
+  - t-5: 수정 시나리오 정의 (define-behavior)
+  - t-6: 이메일 변경 인증 시나리오 정의 (define-behavior)
+
+  CLAUDE.md 경로: src/profile/CLAUDE.md
+  IMPLEMENTS.md 경로: src/profile/IMPLEMENTS.md
+
+  생성된 문서가 요구사항을 충족하는지 검증해주세요.
+  </user>
+  <assistant_response>
+  I'll review the generated documents against requirements.
+
+  1. Read CLAUDE.md and IMPLEMENTS.md
+  2. REQ-COVERAGE: Missing email verification requirement
+  3. TASK-COMPLETION: t-6 not mapped to Behavior section
+  4. SCHEMA-VALID: All required sections present
+  5. Calculate score and generate feedback
+
+  ---spec-reviewer-result---
+  status: feedback
+  score: 72
+  checks:
+    - id: REQ-COVERAGE
+      status: failed
+      coverage: 83%
+    - id: TASK-COMPLETION
+      status: failed
+      completion: 83%
+    - id: SCHEMA-VALID
+      status: passed
+  feedback:
+    - section: Behavior
+      issue: 이메일 변경 시 인증 시나리오가 누락됨
+      suggestion: "이메일 변경 요청 시 verifyEmail 호출 필요" 시나리오를 Behavior에 추가
+  result_file: .claude/tmp/{session-id}-review-src-profile.json
+  ---end-spec-reviewer-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Reviewing documents with overengineering issues.
+  </context>
+  <user>
+  원본 요구사항:
+  "로그 메시지를 파일에 기록하는 간단한 로거가 필요합니다."
+
+  Task 목록:
+  - t-1: Purpose 정의 (define-purpose)
+  - t-2: log export 정의 (define-export)
+
+  CLAUDE.md 경로: src/logger/CLAUDE.md
+  IMPLEMENTS.md 경로: src/logger/IMPLEMENTS.md
+
+  생성된 문서가 요구사항을 충족하는지 검증해주세요.
+  </user>
+  <assistant_response>
+  I'll review the generated documents against requirements.
+
+  1. Read CLAUDE.md and IMPLEMENTS.md
+  2. REQ-COVERAGE: All requirements covered
+  3. TASK-COMPLETION: All tasks mapped
+  4. SCHEMA-VALID: Passed
+  5. OVERENGINEERING CHECK: Detected unnecessary abstractions
+     - LoggerInterface, LoggerFactory, PluggableFormatter not required
+     - User asked for "simple logger", not extensible framework
+
+  ---spec-reviewer-result---
+  status: feedback
+  score: 68
+  checks:
+    - id: REQ-COVERAGE
+      status: passed
+      coverage: 100%
+    - id: TASK-COMPLETION
+      status: passed
+      completion: 100%
+    - id: SCHEMA-VALID
+      status: passed
+  feedback:
+    - section: Exports
+      issue: 과도한 추상화 (YAGNI 위반)
+      suggestion: LoggerInterface, LoggerFactory 제거. 요구사항은 "간단한 로거"이므로 log() 함수만 필요
+    - section: Exports
+      issue: 불필요한 확장 포인트
+      suggestion: PluggableFormatter 제거. 요구사항에 포맷 커스터마이징 언급 없음
+  result_file: .claude/tmp/{session-id}-review-src-logger.json
+  ---end-spec-reviewer-result---
+  </assistant_response>
+  </example>
 model: inherit
 color: magenta
 tools:
   - Read
   - Write
   - Skill
+  - AskUserQuestion
 ---
 
 You are a specification reviewer validating that generated CLAUDE.md + IMPLEMENTS.md correctly reflect the original requirements.

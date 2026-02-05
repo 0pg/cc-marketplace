@@ -8,7 +8,7 @@ description: |
   <context>
   The spec skill needs to create CLAUDE.md + IMPLEMENTS.md from user requirements.
   </context>
-  <user_request>
+  <user>
   사용자 요구사항:
   "JWT 토큰을 검증하는 인증 모듈이 필요합니다. 토큰이 만료되면 에러를 던지고,
   유효하면 사용자 정보를 반환해야 합니다."
@@ -16,7 +16,7 @@ description: |
   프로젝트 루트: /Users/dev/my-app
 
   요구사항을 분석하고 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
-  </user_request>
+  </user>
   <assistant_response>
   I'll analyze the requirements and generate CLAUDE.md + IMPLEMENTS.md.
 
@@ -46,6 +46,86 @@ description: |
   Not directly exposed to users; invoked only through spec skill.
   Includes automatic review-feedback iteration (max 3 times) to ensure quality.
   </commentary>
+  </example>
+
+  <example>
+  <context>
+  Updating an existing module with additional functionality.
+  </context>
+  <user>
+  사용자 요구사항:
+  "기존 auth 모듈에 비밀번호 재설정 기능을 추가해주세요.
+  이메일로 재설정 링크를 보내고, 링크 유효기간은 1시간입니다."
+
+  프로젝트 루트: /Users/dev/my-app
+
+  요구사항을 분석하고 CLAUDE.md와 IMPLEMENTS.md를 업데이트해주세요.
+  </user>
+  <assistant_response>
+  I'll analyze the requirements and update existing CLAUDE.md + IMPLEMENTS.md.
+
+  1. Requirements Analysis - extracted new function: resetPassword, sendResetEmail
+  2. Target path found: src/auth (existing module)
+  3. Existing CLAUDE.md parsed - merging with new requirements
+  4. Smart Merge: Exports (2 new), Behaviors (3 new), Dependencies (1 new: email service)
+  5. CLAUDE.md updated (WHAT)
+  6. IMPLEMENTS.md Planning Section updated (HOW)
+  7. Review iteration 1/3 - score: 92, status: approve
+
+  ---spec-agent-result---
+  status: success
+  claude_md_file: src/auth/CLAUDE.md
+  implements_md_file: src/auth/IMPLEMENTS.md
+  action: updated
+  exports_count: 4
+  behaviors_count: 6
+  review_iterations: 1
+  final_review_score: 92
+  review_status: approve
+  ---end-spec-agent-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Creating a new module with insufficient requirements that need clarification.
+  </context>
+  <user>
+  사용자 요구사항:
+  "캐시 모듈이 필요합니다."
+
+  프로젝트 루트: /Users/dev/my-app
+
+  요구사항을 분석하고 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
+  </user>
+  <assistant_response>
+  I'll analyze the requirements and generate CLAUDE.md + IMPLEMENTS.md.
+
+  1. Requirements Analysis - requirement is too vague
+  2. [AskUserQuestion: What type of cache? (In-memory, Redis, File-based)]
+     → User answered: "In-memory"
+  3. [AskUserQuestion: What data will be cached? What's the TTL?]
+     → User answered: "API responses, TTL 5 minutes"
+  4. [AskUserQuestion: Maximum cache size?]
+     → User answered: "1000 entries, LRU eviction"
+  5. Task definition - 6 tasks defined
+  6. Target path determined: src/cache (new module)
+  7. CLAUDE.md generated (WHAT)
+  8. IMPLEMENTS.md Planning Section generated (HOW)
+  9. Review iteration 1/3 - score: 88, status: approve
+
+  ---spec-agent-result---
+  status: success
+  claude_md_file: src/cache/CLAUDE.md
+  implements_md_file: src/cache/IMPLEMENTS.md
+  action: created
+  exports_count: 4
+  behaviors_count: 5
+  review_iterations: 1
+  final_review_score: 88
+  review_status: approve
+  ---end-spec-agent-result---
+  </assistant_response>
   </example>
 model: inherit
 color: cyan

@@ -8,9 +8,9 @@ description: |
   <context>
   A project directory src/auth has CLAUDE.md and source files that may have drifted.
   </context>
-  <user_request>
+  <user>
   src/auth 디렉토리의 CLAUDE.md와 실제 코드 일치 여부를 검증해주세요.
-  </user_request>
+  </user>
   <assistant_response>
   1. Parse CLAUDE.md → Extract Structure, Exports, Dependencies, Behavior sections
   2. Structure Drift validation → Detect UNCOVERED/ORPHAN files
@@ -23,6 +23,53 @@ description: |
   Called by validate skill to check documentation-code consistency.
   Not directly exposed to users; invoked only through validate skill.
   </commentary>
+  </example>
+
+  <example>
+  <context>
+  Validating a directory with no drift issues.
+  </context>
+  <user>
+  src/config 디렉토리의 CLAUDE.md와 실제 코드 일치 여부를 검증해주세요.
+  </user>
+  <assistant_response>
+  1. Parse CLAUDE.md → Extract all sections
+  2. Structure Drift validation → 0 issues
+  3. Exports Drift validation → 0 issues
+  4. Dependencies Drift validation → 0 issues
+  5. Behavior Drift validation → 0 issues
+  6. Save results to .claude/tmp/{session-id}-drift-src-config.md
+  ---drift-validator-result---
+  status: success
+  result_file: .claude/tmp/{session-id}-drift-src-config.md
+  directory: src/config
+  issues_count: 0
+  ---end-drift-validator-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Validating a directory with signature mismatch.
+  </context>
+  <user>
+  src/api 디렉토리의 CLAUDE.md와 실제 코드 일치 여부를 검증해주세요.
+  </user>
+  <assistant_response>
+  1. Parse CLAUDE.md → Extract all sections
+  2. Structure Drift validation → 1 UNCOVERED file (middleware.ts)
+  3. Exports Drift validation → 1 MISMATCH
+     - fetchUser: documented (id: string) => User, actual (id: string, options?: Options) => Promise<User>
+  4. Dependencies Drift validation → 0 issues
+  5. Behavior Drift validation → 0 issues
+  6. Save results to .claude/tmp/{session-id}-drift-src-api.md
+  ---drift-validator-result---
+  status: success
+  result_file: .claude/tmp/{session-id}-drift-src-api.md
+  directory: src/api
+  issues_count: 2
+  ---end-drift-validator-result---
+  </assistant_response>
   </example>
 model: inherit
 color: yellow

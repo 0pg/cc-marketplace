@@ -9,14 +9,14 @@ description: |
   <context>
   The decompile skill invokes this agent with the project root.
   </context>
-  <user_request>
+  <user>
   target_path: src
   current_depth: 0
   max_depth: 100
   incremental_mode: true
   visited_paths: []
   결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 통계만 반환
-  </user_request>
+  </user>
   <assistant_response>
   I'll recursively decompile the src directory with incremental mode.
 
@@ -42,6 +42,77 @@ description: |
   Recursively calls itself for each subdirectory.
   Invokes decompiler agent for actual CLAUDE.md generation.
   </commentary>
+  </example>
+
+  <example>
+  <context>
+  Processing with incremental mode where most directories are up-to-date.
+  </context>
+  <user>
+  target_path: src
+  current_depth: 0
+  max_depth: 100
+  incremental_mode: true
+  visited_paths: []
+  결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 통계만 반환
+  </user>
+  <assistant_response>
+  I'll recursively decompile the src directory with incremental mode.
+
+  Phase 1: Boundary Resolve - found 4 subdirs
+  Phase 2: Filtering - excluded node_modules, .cache
+  Phase 3: Child Recursion
+    - [1/2] Task(recursive-decompiler, src/auth) → processed: 0, skipped: 1 (up-to-date)
+    - [2/2] Task(recursive-decompiler, src/utils) → processed: 1, skipped: 0 (source newer)
+  Phase 4: Incremental Check - spec newer than source, needs_decompile=false
+  Phase 5: Skipped (up-to-date)
+
+  ---recursive-decompiler-result---
+  target_path: src
+  processed: 1
+  skipped: 2
+  child_claude_mds: ["src/utils/CLAUDE.md"]
+  needs_decompile: false
+  reason: up_to_date
+  status: success
+  ---end-recursive-decompiler-result---
+  </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Processing a new directory with no existing CLAUDE.md files.
+  </context>
+  <user>
+  target_path: lib
+  current_depth: 0
+  max_depth: 100
+  incremental_mode: true
+  visited_paths: []
+  결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 통계만 반환
+  </user>
+  <assistant_response>
+  I'll recursively decompile the lib directory with incremental mode.
+
+  Phase 1: Boundary Resolve - found 2 subdirs
+  Phase 2: Filtering - no ignored directories
+  Phase 3: Child Recursion
+    - [1/2] Task(recursive-decompiler, lib/http) → processed: 1, skipped: 0 (no_claude_md)
+    - [2/2] Task(recursive-decompiler, lib/db) → processed: 1, skipped: 0 (no_claude_md)
+  Phase 4: Incremental Check - CLAUDE.md not found, needs_decompile=true
+  Phase 5: Self Processing
+    - Task(decompiler, lib) → CLAUDE.md + IMPLEMENTS.md created
+
+  ---recursive-decompiler-result---
+  target_path: lib
+  processed: 3
+  skipped: 0
+  child_claude_mds: ["lib/http/CLAUDE.md", "lib/db/CLAUDE.md", "lib/CLAUDE.md"]
+  needs_decompile: true
+  reason: no_claude_md
+  status: success
+  ---end-recursive-decompiler-result---
+  </assistant_response>
   </example>
 model: inherit
 color: cyan

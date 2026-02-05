@@ -10,92 +10,92 @@ description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement spec",
   "create source files", or uses "/compile". Processes all CLAUDE.md files in the target path.
   Performs TDD workflow (RED→GREEN→REFACTOR) to ensure compiled code passes tests.
-
-  <example>
-  <context>
-  사용자가 프로젝트의 CLAUDE.md를 처리하려고 합니다.
-  </context>
-  <user_request>/compile</user_request>
-  <assistant_response>
-  프로젝트에서 CLAUDE.md 파일을 검색합니다...
-
-  발견된 CLAUDE.md 파일:
-  1. src/auth/CLAUDE.md
-  2. src/utils/CLAUDE.md
-
-  코드 생성을 시작합니다...
-
-  [1/2] src/auth/CLAUDE.md
-  ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
-  ✓ 테스트 생성
-  ✓ 구현 생성
-  ✓ 테스트 실행: 5 passed
-
-  [2/2] src/utils/CLAUDE.md
-  ✓ CLAUDE.md 파싱 완료 - 함수 3개
-  ✓ 테스트 생성
-  ✓ 구현 생성
-  ✓ 테스트 실행: 3 passed
-
-  === 생성 완료 ===
-  총 CLAUDE.md: 2개
-  생성된 파일: 7개
-  테스트: 8 passed, 0 failed
-  </assistant_response>
-  </example>
-
-  <example>
-  <context>
-  사용자가 변경된 스펙만 compile하려고 합니다.
-  </context>
-  <user_request>/compile --incremental</user_request>
-  <assistant_response>
-  증분 compile 모드로 실행합니다...
-
-  [변경 분석]
-  ✓ Uncommitted 변경 감지: 1개
-    - src/auth/CLAUDE.md (modified)
-  ✓ Outdated 스펙 감지: 1개
-    - src/utils (스펙이 소스보다 최신)
-
-  Compile 대상: 2개
-  1. src/auth (uncommitted)
-  2. src/utils (outdated)
-
-  코드 생성을 시작합니다...
-
-  [1/2] src/auth/CLAUDE.md
-  ✓ CLAUDE.md 파싱 완료 - 함수 2개
-  ✓ 테스트 생성
-  ✓ 구현 생성
-  ✓ 테스트 실행: 5 passed
-  ✓ Interface 변경 감지: validateToken 시그니처 변경 (breaking)
-
-  [2/2] src/utils/CLAUDE.md
-  ✓ CLAUDE.md 파싱 완료 - 함수 3개
-  ✓ 테스트 생성
-  ✓ 구현 생성
-  ✓ 테스트 실행: 3 passed
-
-  === 생성 완료 ===
-  Compile된 모듈: 2개
-  건너뛴 모듈: 3개 (변경 없음)
-
-  [영향 분석]
-  ⚠ Breaking change 감지: src/auth
-  영향받는 모듈:
-    - src/api (validateToken 사용)
-    - src/middleware (validateToken 사용)
-
-  권장 조치:
-    /compile --path src/api
-    /compile --path src/middleware
-  </assistant_response>
-  </example>
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
 # Compile Skill
+
+<example>
+<context>
+사용자가 프로젝트의 CLAUDE.md를 처리하려고 합니다.
+</context>
+<user>/compile</user>
+<assistant_response>
+프로젝트에서 CLAUDE.md 파일을 검색합니다...
+
+발견된 CLAUDE.md 파일:
+1. src/auth/CLAUDE.md
+2. src/utils/CLAUDE.md
+
+코드 생성을 시작합니다...
+
+[1/2] src/auth/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 5 passed
+
+[2/2] src/utils/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 3개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 3 passed
+
+=== 생성 완료 ===
+총 CLAUDE.md: 2개
+생성된 파일: 7개
+테스트: 8 passed, 0 failed
+</assistant_response>
+</example>
+
+<example>
+<context>
+사용자가 변경된 스펙만 compile하려고 합니다.
+</context>
+<user>/compile --incremental</user>
+<assistant_response>
+증분 compile 모드로 실행합니다...
+
+[변경 분석]
+✓ Uncommitted 변경 감지: 1개
+  - src/auth/CLAUDE.md (modified)
+✓ Outdated 스펙 감지: 1개
+  - src/utils (스펙이 소스보다 최신)
+
+Compile 대상: 2개
+1. src/auth (uncommitted)
+2. src/utils (outdated)
+
+코드 생성을 시작합니다...
+
+[1/2] src/auth/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 2개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 5 passed
+✓ Interface 변경 감지: validateToken 시그니처 변경 (breaking)
+
+[2/2] src/utils/CLAUDE.md
+✓ CLAUDE.md 파싱 완료 - 함수 3개
+✓ 테스트 생성
+✓ 구현 생성
+✓ 테스트 실행: 3 passed
+
+=== 생성 완료 ===
+Compile된 모듈: 2개
+건너뛴 모듈: 3개 (변경 없음)
+
+[영향 분석]
+⚠ Breaking change 감지: src/auth
+영향받는 모듈:
+  - src/api (validateToken 사용)
+  - src/middleware (validateToken 사용)
+
+권장 조치:
+  /compile --path src/api
+  /compile --path src/middleware
+</assistant_response>
+</example>
 
 ## Core Philosophy
 
