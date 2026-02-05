@@ -2,6 +2,10 @@
 name: decompile
 version: 2.0.0
 aliases: [decom]
+trigger:
+  - /decompile
+  - 소스코드에서 CLAUDE.md 추출
+  - extract spec from code
 description: |
   This skill should be used when the user asks to "decompile code to CLAUDE.md", "extract CLAUDE.md from code",
   "document existing codebase", "reverse engineer spec", or uses "/decompile" or "/decom".

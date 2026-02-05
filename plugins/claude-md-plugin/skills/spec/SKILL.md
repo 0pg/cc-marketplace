@@ -2,6 +2,10 @@
 name: spec
 version: 1.0.0
 aliases: [define, requirements, spec-out]
+trigger:
+  - /spec
+  - 요구사항 정의
+  - write specification
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
   "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".

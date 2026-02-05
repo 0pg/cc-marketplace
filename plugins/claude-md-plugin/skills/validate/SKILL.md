@@ -2,6 +2,10 @@
 name: validate
 version: 1.1.0
 aliases: [check, verify, lint]
+trigger:
+  - /validate
+  - 문서 검증
+  - check documentation
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
   "verify spec matches implementation", or uses "/validate". Runs drift-validator and export-validator in parallel.
