@@ -241,3 +241,130 @@ IMPLEMENTS.md Implementation Section 업데이트
      ▼
 결과 반환
 ```
+
+---
+
+## Post-Compile 검증 + Self-Healing
+
+### 전체 흐름
+
+```
+결과 수집 완료
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│ Post-Compile 검증 + Self-Healing                │
+│                                                 │
+│ retry_count = 0                                 │
+│ WHILE retry_count < 3:                          │
+│   1. 검증 실행 (drift/export-validator 병렬)    │
+│   2. 이슈 분류: compile_related vs unrelated    │
+│   3. if 모두 "양호": break                      │
+│   4. compile_related → 자동 healing → 재컴파일 │
+│   5. unrelated만 → AskUserQuestion → 선택 적용 │
+│   6. retry_count++                              │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+최종 검증 결과 보고
+```
+
+### 이슈 분류 기준
+
+compile 결과의 `generated_files`, `modified_symbols`를 validator 이슈와 비교하여 분류합니다.
+
+| Validator 이슈 | 변경된 파일/export에 해당? | 처리 |
+|---------------|-------------------------|------|
+| MISSING export | O (이번에 생성된 함수) | 자동 healing |
+| MISMATCH signature | O (이번에 수정된 함수) | 자동 healing |
+| UNCOVERED file | O (이번에 생성된 파일) | 자동 healing |
+| MISSING export | X (기존 함수) | AskUserQuestion |
+| MISMATCH signature | X (기존 함수) | AskUserQuestion |
+| UNCOVERED file | X (기존 파일) | AskUserQuestion |
+
+### 자동 Healing 흐름 (compile_related_issues)
+
+```
+1. 이슈 분석
+   "이번 compile에서 생성한 validateToken 함수의 시그니처가 CLAUDE.md와 다름"
+
+2. CLAUDE.md 맥락 추가:
+   - Domain Context에 변경 이유 추가
+   - Exports 시그니처 업데이트
+
+3. 재컴파일 (compiler Agent 재호출)
+
+4. 재검증
+```
+
+### 수동 Healing 흐름 (unrelated_issues)
+
+```
+1. AskUserQuestion:
+   "기존 코드에서 발견된 이슈입니다:
+    - src/legacy/helper.ts: parseDate export가 CLAUDE.md에 없음
+
+    어떻게 처리할까요?"
+
+   옵션:
+   - CLAUDE.md 수정 (코드에 맞춤) - Recommended
+   - 코드 수정 (CLAUDE.md에 맞춤)
+   - 무시하고 진행
+
+2. 선택에 따라 처리
+```
+
+### 이슈 분류 로직 (CLASSIFY_ISSUES)
+
+```
+INPUT: validator_issues, compile_result
+OUTPUT: compile_related[], unrelated[]
+
+generated_files = compile_result.generated_files
+modified_symbols = compile_result에서 생성된 심볼들 추출
+
+FOR EACH issue IN validator_issues:
+    IF issue.file IN generated_files OR issue.symbol IN modified_symbols:
+        compile_related에 추가
+    ELSE:
+        unrelated에 추가
+
+RETURN compile_related, unrelated
+```
+
+### 통합 재시도 흐름
+
+```
+retry_count = 0
+WHILE retry_count < 3:
+    issues = VALIDATE(compiled_nodes)
+
+    IF issues 없음:
+        RETURN SUCCESS
+
+    # 이슈 분류
+    compile_related, unrelated = CLASSIFY_ISSUES(issues, compile_result)
+
+    # 1. compile_related 이슈: 자동 healing
+    IF compile_related 있음:
+        CLAUDE.md 맥락 추가
+        재컴파일 실행
+        retry_count++
+        CONTINUE  # 재검증으로 돌아감
+
+    # 2. unrelated 이슈만 있음: 사용자 확인
+    IF unrelated 있음:
+        choice = AskUserQuestion(
+            "CLAUDE.md 수정 (코드에 맞춤)",
+            "코드 수정 (CLAUDE.md에 맞춤)",
+            "무시하고 진행"
+        )
+
+        IF choice == "무시":
+            RETURN WARNING
+
+        선택에 따라 수정 적용
+        retry_count++
+
+RETURN WARNING  # 3회 후에도 실패
+```

@@ -388,6 +388,67 @@ src/utils:
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
 | Git 저장소 아님 (증분 모드) | 경고 출력, 전체 compile로 fallback |
 
+## Post-Compile 검증 + Self-Healing
+
+compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
+
+### 검증 실행
+
+각 compiled node에 대해 병렬로 drift-validator, export-validator를 호출합니다.
+
+### 상태 판정
+
+| 상태 | 조건 |
+|------|------|
+| **양호** | Drift 0개 AND Export ≥ 90% |
+| **개선 권장** | Drift 1-2개 OR Export 70-89% |
+| **개선 필요** | Drift ≥ 3개 OR Export < 70% |
+
+### Self-Healing
+
+이슈 유형에 따라 자동 또는 수동으로 처리합니다.
+
+| 이슈 유형 | 처리 |
+|----------|------|
+| **compile_related** (이번 compile에서 발생) | 자동 healing → CLAUDE.md 맥락 추가 → 재컴파일 |
+| **unrelated** (기존 이슈) | AskUserQuestion으로 사용자 확인 |
+
+최대 3회 재시도합니다. 상세 흐름은 `references/workflow.md` 참조.
+
+### 출력 예시
+
+```
+=== 생성 완료 ===
+총 CLAUDE.md: 2개
+생성된 파일: 7개
+테스트: 8 passed, 0 failed
+
+=== Post-Compile 검증 ===
+검증 대상: 2개
+
+[검증 결과 - 1차]
+| 디렉토리 | Drift | Export | 상태 |
+|----------|-------|--------|------|
+| src/auth | 0 | 95% | ✓ 양호 |
+| src/utils | 2 | 72% | ✗ 개선 필요 |
+
+⚠ src/utils에서 이슈 발견:
+  - MISSING: parseNumber export (이번 compile에서 생성됨)
+
+[자동 Healing - compile 관련 이슈]
+✓ src/utils/CLAUDE.md 맥락 추가
+✓ 재컴파일 실행
+
+[검증 결과 - 2차]
+| 디렉토리 | Drift | Export | 상태 |
+|----------|-------|--------|------|
+| src/utils | 0 | 95% | ✓ 양호 |
+
+=== 최종 결과 ===
+모든 모듈 검증 통과 (2/2)
+자동 healing: 1건 처리됨
+```
+
 ## 관련 Internal Skills
 
 | Skill | 용도 |
