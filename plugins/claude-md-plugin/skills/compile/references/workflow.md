@@ -311,7 +311,20 @@ compile 결과의 `generated_files`, `modified_symbols`를 validator 이슈와 �
    - 코드 수정 (CLAUDE.md에 맞춤)
    - 무시하고 진행
 
-2. 선택에 따라 처리
+2. 선택에 따라 처리:
+
+   [CLAUDE.md 수정]
+   → CLAUDE.md의 Structure/Exports 섹션 업데이트
+   → 기존 코드에 맞게 문서를 수정
+
+   [코드 수정]
+   → Skill("compile") 재실행
+   → CLAUDE.md 스펙에 맞게 코드를 재생성
+   → 기존 코드가 스펙과 다르면 덮어쓰기
+
+   [무시하고 진행]
+   → WARNING 상태로 종료
+   → 이슈는 남아있지만 compile 완료 처리
 ```
 
 ### 이슈 분류 로직 (CLASSIFY_ISSUES)
@@ -337,10 +350,14 @@ RETURN compile_related, unrelated
 ```
 retry_count = 0
 WHILE retry_count < 3:
-    issues = VALIDATE(compiled_nodes)
+    validation_results = VALIDATE(compiled_nodes)
 
-    IF issues 없음:
+    # 상태 판정: "양호"가 아니면 모두 healing 대상
+    IF ALL nodes are "양호":
         RETURN SUCCESS
+
+    # 이슈 추출 (개선 권장 + 개선 필요 모두 대상)
+    issues = EXTRACT_ISSUES(validation_results)
 
     # 이슈 분류
     compile_related, unrelated = CLASSIFY_ISSUES(issues, compile_result)
@@ -355,15 +372,20 @@ WHILE retry_count < 3:
     # 2. unrelated 이슈만 있음: 사용자 확인
     IF unrelated 있음:
         choice = AskUserQuestion(
-            "CLAUDE.md 수정 (코드에 맞춤)",
-            "코드 수정 (CLAUDE.md에 맞춤)",
+            "CLAUDE.md 수정 (코드에 맞춤)",      # → CLAUDE.md 편집
+            "코드 수정 (CLAUDE.md에 맞춤)",      # → compile skill 재실행
             "무시하고 진행"
         )
 
         IF choice == "무시":
             RETURN WARNING
 
-        선택에 따라 수정 적용
+        IF choice == "CLAUDE.md 수정":
+            CLAUDE.md 편집 (Structure/Exports 섹션 업데이트)
+
+        IF choice == "코드 수정":
+            Skill("compile") 재실행  # CLAUDE.md 스펙에 맞게 코드 재생성
+
         retry_count++
 
 RETURN WARNING  # 3회 후에도 실패

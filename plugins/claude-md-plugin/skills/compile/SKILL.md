@@ -398,11 +398,13 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 
 ### 상태 판정
 
-| 상태 | 조건 |
-|------|------|
-| **양호** | Drift 0개 AND Export ≥ 90% |
-| **개선 권장** | Drift 1-2개 OR Export 70-89% |
-| **개선 필요** | Drift ≥ 3개 OR Export < 70% |
+| 상태 | 조건 | Healing |
+|------|------|---------|
+| **양호** | Drift 0개 AND Export ≥ 90% | 불필요 (SUCCESS) |
+| **개선 권장** | Drift 1-2개 OR Export 70-89% | 필요 |
+| **개선 필요** | Drift ≥ 3개 OR Export < 70% | 필요 |
+
+**"양호"가 아니면 모두 healing 대상입니다.**
 
 ### Self-Healing
 
@@ -412,6 +414,11 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 |----------|------|
 | **compile_related** (이번 compile에서 발생) | 자동 healing → CLAUDE.md 맥락 추가 → 재컴파일 |
 | **unrelated** (기존 이슈) | AskUserQuestion으로 사용자 확인 |
+
+**AskUserQuestion 옵션:**
+- CLAUDE.md 수정 (코드에 맞춤) - Recommended
+- 코드 수정 (CLAUDE.md에 맞춤) → **compile skill 재실행**
+- 무시하고 진행
 
 최대 3회 재시도합니다. 상세 흐름은 `references/workflow.md` 참조.
 
