@@ -28,9 +28,6 @@ pub enum AnalyzerError {
 
     #[error("Unsupported language for file: {0}")]
     UnsupportedLanguage(String),
-
-    #[error("Analysis failed: {0}")]
-    AnalysisFailed(String),
 }
 
 /// Result of code analysis.
@@ -206,9 +203,6 @@ pub struct StateTransition {
 pub trait LanguageAnalyzer {
     /// Analyze a single file and return partial results.
     fn analyze_file(&self, path: &Path, content: &str) -> Result<PartialAnalysis, AnalyzerError>;
-
-    /// Get the file extensions this analyzer handles.
-    fn extensions(&self) -> &[&str];
 }
 
 /// Partial analysis result from a single file.

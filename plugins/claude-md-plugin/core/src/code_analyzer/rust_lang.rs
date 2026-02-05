@@ -387,10 +387,6 @@ impl LanguageAnalyzer for RustAnalyzer {
 
         Ok(analysis)
     }
-
-    fn extensions(&self) -> &[&str] {
-        &["rs"]
-    }
 }
 
 impl Default for RustAnalyzer {

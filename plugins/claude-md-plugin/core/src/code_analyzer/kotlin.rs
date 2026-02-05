@@ -25,7 +25,6 @@ pub struct KotlinAnalyzer {
     param_tag_re: Regex,
     return_tag_re: Regex,
     throws_tag_re: Regex,
-    throws_annotation_re: Regex,
     // Protocol patterns
     enum_body_re: Regex,
     enum_constant_re: Regex,
@@ -97,11 +96,6 @@ impl KotlinAnalyzer {
             // @throws/@exception ExceptionName description
             throws_tag_re: Regex::new(
                 r"@throws\s+(\w+)"
-            ).unwrap(),
-
-            // @Throws(ExceptionName::class) annotation
-            throws_annotation_re: Regex::new(
-                r"@Throws\((\w+)::class\)"
             ).unwrap(),
 
             // enum class EnumName { CONSTANT1, CONSTANT2, ... }
@@ -439,10 +433,6 @@ impl LanguageAnalyzer for KotlinAnalyzer {
         }
 
         Ok(analysis)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["kt", "kts"]
     }
 }
 

@@ -396,10 +396,6 @@ impl LanguageAnalyzer for PythonAnalyzer {
 
         Ok(analysis)
     }
-
-    fn extensions(&self) -> &[&str] {
-        &["py"]
-    }
 }
 
 impl Default for PythonAnalyzer {

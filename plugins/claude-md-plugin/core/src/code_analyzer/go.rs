@@ -351,10 +351,6 @@ impl LanguageAnalyzer for GoAnalyzer {
 
         Ok(analysis)
     }
-
-    fn extensions(&self) -> &[&str] {
-        &["go"]
-    }
 }
 
 impl Default for GoAnalyzer {

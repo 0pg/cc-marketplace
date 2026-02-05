@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
-pub use crate::bracket_utils::split_respecting_brackets;
-
 // Include generated constants from schema-rules.yaml (SSOT)
 include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
 

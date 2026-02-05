@@ -20,9 +20,6 @@ pub enum DependencyGraphError {
     #[error("Failed to read directory: {0}")]
     DirectoryReadError(#[from] std::io::Error),
 
-    #[error("Failed to parse CLAUDE.md at {path}: {message}")]
-    ClaudeMdParseError { path: String, message: String },
-
     #[error("Root path does not exist: {0}")]
     RootNotFound(String),
 }

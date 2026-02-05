@@ -402,10 +402,6 @@ impl LanguageAnalyzer for JavaAnalyzer {
 
         Ok(analysis)
     }
-
-    fn extensions(&self) -> &[&str] {
-        &["java"]
-    }
 }
 
 impl Default for JavaAnalyzer {

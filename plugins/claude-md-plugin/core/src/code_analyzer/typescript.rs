@@ -22,18 +22,14 @@ pub struct TypeScriptAnalyzer {
     re_export_default_re: Regex,
     import_re: Regex,
     throw_error_re: Regex,
-    catch_block_re: Regex,
     // Contract extraction patterns
     jsdoc_block_re: Regex,
     precondition_re: Regex,
     postcondition_re: Regex,
     invariant_re: Regex,
     throws_re: Regex,
-    // Validation pattern inference
-    validation_throw_re: Regex,
     // Protocol patterns
     state_enum_re: Regex,
-    lifecycle_re: Regex,
     // Discriminated union patterns
     discriminated_union_re: Regex,
     union_variant_re: Regex,
@@ -95,11 +91,6 @@ impl TypeScriptAnalyzer {
                 r"throw\s+new\s+(\w+)\s*\("
             ).unwrap(),
 
-            // catch (e) { ... throw new ErrorName }
-            catch_block_re: Regex::new(
-                r"catch\s*\([^)]*\)\s*\{[^}]*throw\s+new\s+(\w+)"
-            ).unwrap(),
-
             // JSDoc block followed by export function
             // Matches: /** ... */ followed by export function name
             jsdoc_block_re: Regex::new(
@@ -126,20 +117,9 @@ impl TypeScriptAnalyzer {
                 r"@throws?\s+(\w+)"
             ).unwrap(),
 
-            // Validation patterns: if (!x.prop) throw new Error
-            // or if (x.prop.length === 0) throw new Error
-            validation_throw_re: Regex::new(
-                r"if\s*\(\s*!?(\w+(?:\.\w+)*)\s*(?:===?\s*0|\.length\s*===?\s*0)?\s*\)\s*\{\s*throw\s+new\s+\w+\s*\([^)]*\)"
-            ).unwrap(),
-
             // State enum pattern: enum State { Idle, Loading, ... }
             state_enum_re: Regex::new(
                 r"(?s)export\s+enum\s+State\s*\{([^}]+)\}"
-            ).unwrap(),
-
-            // Lifecycle method pattern: @lifecycle N or common lifecycle names
-            lifecycle_re: Regex::new(
-                r"@lifecycle\s+\d+\s*\n[^}]*?(\w+)\s*\([^)]*\)\s*(?::\s*\w+)?\s*\{"
             ).unwrap(),
 
             // Discriminated union pattern: type State = | { kind: 'idle' } | { kind: 'loading' } ...
@@ -561,10 +541,6 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
         }
 
         Ok(analysis)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["ts", "tsx", "js", "jsx", "mjs", "cjs"]
     }
 }
 
