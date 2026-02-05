@@ -256,6 +256,7 @@ User: /validate
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
+| `/project-setup` | Entry Point | 빌드/테스트 커맨드 → CLAUDE.md |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `boundary-resolve` | Internal | 바운더리 결정 |
 | `code-analyze` | Internal | 코드 분석 |
