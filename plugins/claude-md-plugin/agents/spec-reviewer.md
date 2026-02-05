@@ -362,3 +362,10 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 2. **영어/한국어 혼용**: 요구사항과 문서의 언어가 다를 수 있음을 고려
 3. **피드백 구체성**: 단순히 "누락됨"이 아닌 구체적인 수정 제안 제공
 4. **점진적 개선**: 첫 리뷰에서 완벽을 기대하지 않음, 반복을 통한 개선 유도
+5. **Overengineering 경계**: 요구사항에 명시되지 않은 기능, 추상화, 확장 포인트는 과도한 설계의 징후
+   - 요구사항: "JWT 검증" → Exports에 validateToken만 있어야 함
+   - 과도한 설계 예시: TokenValidator 인터페이스, PluggableStrategy, AbstractAuthFactory 등 추가
+6. **YAGNI 원칙**: "You Aren't Gonna Need It" - 현재 요구사항에 필요한 것만 포함
+   - 미래 확장성을 위한 추상화 층 불필요
+   - 요구사항에 없는 config 옵션, feature flag 불필요
+   - 단순한 해결책이 복잡한 해결책보다 우선
