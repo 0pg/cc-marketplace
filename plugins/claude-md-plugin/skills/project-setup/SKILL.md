@@ -87,8 +87,34 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 
 **업데이트 로직:**
 1. CLAUDE.md가 없으면 새로 생성
-2. "Build and Test Commands" 섹션이 있으면 내용 교체
-3. 섹션이 없으면 파일 시작 부분에 추가
+2. "Build and Test Commands" 섹션이 없으면 파일 시작 부분에 추가
+3. 섹션이 있으면 **부족한 항목만 추가** (기존 항목 유지)
+
+**병합 규칙:**
+
+| 항목 | 기존 값 있음 | 기존 값 없음 |
+|------|------------|------------|
+| Build | 유지 | 감지된 값 추가 |
+| Test | 유지 | 감지된 값 추가 |
+| Lint | 유지 | 감지된 값 추가 |
+
+**예시:**
+
+기존 CLAUDE.md:
+```markdown
+# Build and Test Commands
+- **Build**: `make build`
+```
+
+감지된 커맨드: Build=`pnpm build`, Test=`pnpm test`, Lint=`pnpm lint`
+
+결과:
+```markdown
+# Build and Test Commands
+- **Build**: `make build`  ← 기존 유지
+- **Test**: `pnpm test`    ← 새로 추가
+- **Lint**: `pnpm lint`    ← 새로 추가
+```
 
 ## 출력 형식
 
