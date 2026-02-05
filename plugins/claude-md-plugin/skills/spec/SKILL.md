@@ -47,7 +47,7 @@ User: /spec "요구사항"
 │                                             │
 │ Task(spec-agent) → 요구사항 분석 및         │
 │                    CLAUDE.md + IMPLEMENTS.md│
-│                    작성                     │
+│                    작성 + 자동 리뷰         │
 └─────────────────────────────────────────────┘
 
         │
@@ -57,8 +57,9 @@ User: /spec "요구사항"
 │                                             │
 │ Phase 1. 요구사항 분석                      │
 │ Phase 2. 모호한 부분 AskUserQuestion        │
+│ Phase 2.7. Task 정의 (상태 파일 저장)       │
 │                                             │
-│ [NEW] Phase 2.5. 아키텍처 설계 분석         │
+│ Phase 2.5. 아키텍처 설계 분석               │
 │   ├── Skill("tree-parse") → 프로젝트 구조   │
 │   ├── Skill("dependency-graph") → 의존성    │
 │   ├── 관련 모듈 CLAUDE.md Exports 파악      │
@@ -68,9 +69,22 @@ User: /spec "요구사항"
 │                                             │
 │ Phase 3. 대상 위치 결정 (Phase 2.5 결과)    │
 │ Phase 4. 기존 CLAUDE.md 존재시 병합         │
-│ Phase 5. CLAUDE.md 생성                     │
-│ Phase 5.5. IMPLEMENTS.md Planning Section   │
-│   └── Architecture Decisions 섹션 포함      │
+│                                             │
+│ ┌─────────────────────────────────────────┐ │
+│ │      ITERATION CYCLE (최대 3회)         │ │
+│ │                                         │ │
+│ │ Phase 5. CLAUDE.md 생성                 │ │
+│ │ Phase 5.5. IMPLEMENTS.md Planning       │ │
+│ │     │                                   │ │
+│ │     ▼                                   │ │
+│ │ Phase 5.7. Task(spec-reviewer) 자동리뷰 │ │
+│ │     │                                   │ │
+│ │     ▼                                   │ │
+│ │ Phase 5.8. 판정                         │ │
+│ │     ├── approve → Phase 6               │ │
+│ │     └── feedback → Phase 5 (재생성)     │ │
+│ └─────────────────────────────────────────┘ │
+│                                             │
 │ Phase 6. Skill("schema-validate") → 검증    │
 │ Phase 7. 최종 저장                          │
 └─────────────────────────────────────────────┘
@@ -107,19 +121,19 @@ Task(
 **spec-agent 워크플로우:**
 1. 요구사항에서 Purpose, Exports, Behaviors, Contracts 추출
 2. 모호한 부분은 AskUserQuestion으로 명확화
-3. **[NEW] 아키텍처 설계 분석**
+3. **Task 정의** - 요구사항을 구체적 Task로 분해 (상태 파일에 저장)
+4. **아키텍처 설계 분석**
    - tree-parse, dependency-graph로 기존 코드베이스 분석
    - 모듈 배치 결정 (신규 생성 vs 기존 확장)
    - 인터페이스 설계 가이드라인 생성
    - 경계 명확성 검증 (Exports 참조)
-4. 대상 경로 결정 (아키텍처 분석 결과 활용)
-5. 기존 CLAUDE.md 존재시 smart merge
-6. 템플릿 기반 CLAUDE.md 생성
-7. **IMPLEMENTS.md Planning Section 생성**
-   - Architecture Decisions: 모듈 배치, 인터페이스, 의존성 방향
-   - Dependencies Direction: 필요한 의존성과 위치
-   - Implementation Approach: 구현 전략과 대안
-   - Technology Choices: 기술 선택 근거
+5. 대상 경로 결정 (아키텍처 분석 결과 활용)
+6. 기존 CLAUDE.md 존재시 smart merge
+7. **리뷰-피드백 사이클 (최대 3회)**
+   - 템플릿 기반 CLAUDE.md 생성
+   - IMPLEMENTS.md Planning Section 생성
+   - **spec-reviewer Agent로 자동 리뷰**
+   - approve → 다음 단계 / feedback → 피드백 반영 후 재생성
 8. 스키마 검증 (1회)
 9. 최종 저장
 
@@ -149,12 +163,45 @@ Task(
   - Implementation Approach: {approach_summary}
   - Technology Choices: {choice_count}개
 
+리뷰 결과:
+  - 반복 횟수: {review_iterations}회
+  - 최종 점수: {final_review_score}
+  - 상태: {review_status} (approve|warning)
+
 검증 결과: 스키마 검증 통과
 
 다음 단계:
   - /compile로 코드 구현 가능 (IMPLEMENTS.md Implementation Section도 업데이트됨)
   - /validate로 문서-코드 일치 검증 가능
 ```
+
+### 리뷰-피드백 사이클
+
+spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
+
+**검증 항목:**
+
+| Check ID | 설명 | 필수 |
+|----------|------|------|
+| REQ-COVERAGE | 모든 요구사항이 문서에 반영 | Yes |
+| TASK-COMPLETION | 모든 Task가 문서에 매핑 | Yes |
+| SCHEMA-VALID | 스키마 준수 | Yes |
+| EXPORT-MATCH | 요구사항 함수/타입이 Exports에 존재 | No |
+| BEHAVIOR-MATCH | 요구사항 시나리오가 Behavior에 존재 | No |
+
+**Approve 기준:**
+
+| 조건 | 임계값 |
+|------|--------|
+| 총점 | >= 80 |
+| REQ-COVERAGE | 100% |
+| SCHEMA-VALID | passed |
+| TASK-COMPLETION | >= 80% |
+
+**반복 종료 조건:**
+- approve 판정
+- 최대 반복 횟수(3회) 도달
+- 개선 진전 없음 (이전 점수 대비 5점 미만 상승)
 
 ## 오류 처리
 

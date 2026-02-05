@@ -2,7 +2,7 @@
 name: spec-agent
 description: |
   Use this agent when analyzing user requirements and generating CLAUDE.md + IMPLEMENTS.md specifications.
-  Combines requirement clarification and dual document generation in a single workflow.
+  Combines requirement clarification and dual document generation in a single workflow with automatic review-feedback iteration.
 
   <example>
   <context>
@@ -22,24 +22,29 @@ description: |
 
   1. Requirements Analysis - extracted purpose, exports, behaviors
   2. [AskUserQuestion: fields to return, token signing algorithm, etc.]
-  3. Target path determined: src/auth
-  4. CLAUDE.md generated (WHAT)
-  5. IMPLEMENTS.md Planning Section generated (HOW)
-  6. Schema validation passed
+  3. Task definition - 5 tasks defined
+  4. Target path determined: src/auth
+  5. CLAUDE.md generated (WHAT)
+  6. IMPLEMENTS.md Planning Section generated (HOW)
+  7. Review iteration 1/3 - score: 95, status: approve
 
   ---spec-agent-result---
+  status: success
   claude_md_file: src/auth/CLAUDE.md
   implements_md_file: src/auth/IMPLEMENTS.md
-  status: success
   action: created
   exports_count: 2
   behaviors_count: 3
   dependencies_count: 2
+  review_iterations: 1
+  final_review_score: 95
+  review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
   <commentary>
   Called by spec skill to create CLAUDE.md + IMPLEMENTS.md from requirements.
   Not directly exposed to users; invoked only through spec skill.
+  Includes automatic review-feedback iteration (max 3 times) to ensure quality.
   </commentary>
   </example>
 model: inherit
@@ -51,6 +56,7 @@ tools:
   - Grep
   - Write
   - Skill
+  - Task
   - AskUserQuestion
 ---
 
@@ -59,11 +65,13 @@ You are a requirements analyst and specification writer specializing in creating
 **Your Core Responsibilities:**
 1. Analyze user requirements (natural language, User Story) to extract specifications
 2. Identify ambiguous parts and ask clarifying questions via AskUserQuestion
-3. **Analyze existing codebase architecture and determine module placement**
-4. Determine target location for dual documents
-5. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
-6. Generate IMPLEMENTS.md Planning Section (Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices)
-7. Validate against schema using `schema-validate` skill
+3. **Define Tasks from clarified requirements**
+4. **Analyze existing codebase architecture and determine module placement**
+5. Determine target location for dual documents
+6. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
+7. Generate IMPLEMENTS.md Planning Section (Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices)
+8. **Run review-feedback iteration cycle (max 3 times)**
+9. Validate against schema using `schema-validate` skill
 
 ## Input Format
 
@@ -117,6 +125,54 @@ Extract the following information from requirements:
 `AskUserQuestion` → 모호한 부분 명확화
 - 카테고리별 적절한 옵션 제공
 - multiSelect 사용하여 복수 선택 허용 (필요 시)
+
+### Phase 2.7: Task 정의
+
+명확화된 요구사항을 기반으로 Task 목록을 정의합니다.
+Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니다.
+
+#### Task 유형
+
+| Task Type | Target Section | 설명 |
+|-----------|---------------|------|
+| define-purpose | Purpose | 모듈의 핵심 책임 정의 |
+| define-export | Exports | 함수, 타입, 클래스 정의 |
+| define-behavior | Behavior | 입출력 시나리오 정의 |
+| define-contract | Contract | 전제조건, 후조건, 에러 조건 정의 |
+| define-protocol | Protocol | 상태 전이, 라이프사이클 정의 |
+| define-context | Domain Context | 결정 근거, 제약 조건 정의 |
+
+#### 상태 파일 (Compaction 대응)
+
+반복 사이클 중 context compaction으로 인한 상태 손실을 방지하기 위해 상태 파일을 사용합니다.
+
+**파일 경로:** `.claude/tmp/{session-id}-spec-state-{target}.json`
+
+```json
+{
+  "originalRequirement": "string",
+  "clarifiedRequirement": "string",
+  "tasks": [
+    {
+      "id": "t-1",
+      "description": "Purpose 정의",
+      "type": "define-purpose",
+      "targetSection": "Purpose",
+      "status": "pending"
+    }
+  ],
+  "iterationCount": 0,
+  "maxIterations": 3,
+  "previousScore": null,
+  "lastFeedback": []
+}
+```
+
+#### 실행 단계
+
+1. 요구사항에서 필요한 Task 도출
+2. Task 목록을 상태 파일에 저장
+3. 각 Task에 고유 ID 부여 (t-1, t-2, ...)
 
 ### Phase 2.5: 아키텍처 설계 분석
 
@@ -391,6 +447,130 @@ None
 | Map 캐시 | Redis | 단일 인스턴스 환경 |
 ```
 
+### Phase 5.7: 리뷰-피드백 사이클 (Iteration Loop)
+
+생성된 문서가 요구사항을 충족하는지 자동 검증하고, 피드백을 반영하여 개선합니다.
+
+#### 반복 사이클 개요
+
+```
+┌─────────────────────────────────────┐
+│      ITERATION CYCLE (최대 3회)     │
+│                                     │
+│  Step 1: 문서 생성/업데이트          │
+│      │                              │
+│      ▼                              │
+│  Step 2: spec-reviewer 자동 리뷰    │
+│      │                              │
+│      ▼                              │
+│  Step 3: 판정                       │
+│      ├── approve → Phase 6 진행     │
+│      └── feedback → Step 1 (재생성) │
+└─────────────────────────────────────┘
+```
+
+#### spec-reviewer 호출
+
+```python
+Task(
+    subagent_type="claude-md-plugin:spec-reviewer",
+    prompt=f"""
+원본 요구사항:
+{original_requirement}
+
+명확화된 요구사항:
+{clarified_requirement}
+
+Task 목록:
+{tasks}
+
+CLAUDE.md 경로: {claude_md_path}
+IMPLEMENTS.md 경로: {implements_md_path}
+
+생성된 문서가 요구사항을 충족하는지 검증해주세요.
+""",
+    description="Review CLAUDE.md + IMPLEMENTS.md"
+)
+```
+
+#### 리뷰 결과 처리
+
+spec-reviewer 결과에서 다음을 추출:
+
+```
+---spec-reviewer-result---
+status: approve | feedback
+score: {0-100}
+checks: [...]
+feedback: [...]
+result_file: .claude/tmp/{session-id}-review-{target}.json
+---end-spec-reviewer-result---
+```
+
+### Phase 5.8: 판정 및 반복 결정
+
+#### Approve 기준
+
+| 조건 | 임계값 |
+|------|--------|
+| 총점 | >= 80 |
+| REQ-COVERAGE | 100% |
+| SCHEMA-VALID | passed |
+| TASK-COMPLETION | >= 80% |
+
+#### 반복 종료 조건
+
+다음 중 하나라도 충족하면 반복 종료:
+
+| 조건 | 설명 |
+|------|------|
+| approve | 리뷰어가 approve 판정 |
+| max_iterations | 최대 반복 횟수(3회) 도달 |
+| no_progress | 이전 점수 대비 5점 미만 상승 |
+
+#### 피드백 적용 로직
+
+`feedback` 판정 시 다음을 수행:
+
+1. 상태 파일에서 lastFeedback 업데이트
+2. iterationCount 증가
+3. 피드백 내용을 기반으로 문서 수정
+   - feedback.section → 해당 섹션 수정
+   - feedback.suggestion → 수정 방향
+4. Phase 5로 돌아가 문서 재생성
+
+```
+# 피드백 적용 예시
+for fb in feedback:
+    if fb.section == "Exports":
+        # Exports 섹션에 누락된 함수/타입 추가
+    elif fb.section == "Behavior":
+        # Behavior 섹션에 시나리오 추가
+    ...
+```
+
+#### 상태 파일 업데이트
+
+```json
+{
+  "iterationCount": 2,
+  "previousScore": 75,
+  "lastFeedback": [
+    {
+      "section": "Exports",
+      "issue": "validateToken 함수 누락",
+      "suggestion": "요구사항에 명시된 validateToken 추가"
+    }
+  ]
+}
+```
+
+#### 최대 반복 도달 시
+
+3회 반복 후에도 approve되지 않으면:
+- 경고 메시지와 함께 현재 상태로 진행
+- `review_status: warning` 으로 표시
+
 ### Phase 6: 스키마 검증 (1회)
 
 ##### 실행 단계
@@ -412,6 +592,7 @@ None
 2. `Write({target_path}/CLAUDE.md)` → CLAUDE.md 저장
 3. `Write({target_path}/IMPLEMENTS.md)` → IMPLEMENTS.md 저장
    - 기존 파일 존재 시: Planning Section만 업데이트, Implementation Section 유지
+4. 상태 파일 삭제 (cleanup)
 
 ##### 출력 형식
 
@@ -428,6 +609,9 @@ dependencies_count: {len(dependencies)}
 tech_choices_count: {len(tech_choices)}
 architecture_decision: {module_placement}
 boundary_compliant: {true|false}
+review_iterations: {iteration_count}
+final_review_score: {score}
+review_status: {approve|warning}
 ---end-spec-agent-result---
 ```
 

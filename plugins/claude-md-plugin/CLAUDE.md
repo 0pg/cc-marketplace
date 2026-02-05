@@ -135,7 +135,7 @@ User: /spec "요구사항"
 │                                             │
 │ Task(spec-agent) → 요구사항 분석 및         │
 │                    CLAUDE.md + IMPLEMENTS.md│
-│                    작성                     │
+│                    작성 + 자동 리뷰         │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -144,11 +144,16 @@ User: /spec "요구사항"
 │                                             │
 │ 1. 요구사항 분석                            │
 │ 2. AskUserQuestion → 모호한 부분 명확화     │
-│ 3. 대상 경로 결정                           │
-│ 4. 기존 CLAUDE.md 병합 (필요시)             │
-│ 5. CLAUDE.md 생성 (WHAT)                    │
-│ 6. IMPLEMENTS.md Planning Section 생성 (HOW)│
-│ 7. Skill("schema-validate") → 검증 (1회)    │
+│ 3. Task 정의 (상태 파일 저장)               │
+│ 4. 대상 경로 결정                           │
+│ 5. 기존 CLAUDE.md 병합 (필요시)             │
+│ ┌─────────────────────────────────────────┐ │
+│ │     ITERATION CYCLE (최대 3회)          │ │
+│ │ 6. CLAUDE.md + IMPLEMENTS.md 생성       │ │
+│ │ 7. Task(spec-reviewer) → 자동 리뷰      │ │
+│ │ 8. approve → 다음 / feedback → 6으로   │ │
+│ └─────────────────────────────────────────┘ │
+│ 9. Skill("schema-validate") → 검증 (1회)    │
 └─────────────────────────────────────────────┘
 ```
 
@@ -236,7 +241,8 @@ User: /validate
 
 | Agent | 역할 |
 |-------|------|
-| `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 |
+| `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
+| `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
 | `drift-validator` | CLAUDE.md-코드 일치 검증 |
@@ -288,6 +294,38 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 3. **파일 기반 결과 전달**: Agent 결과는 파일로 저장, 경로만 반환
 4. **단순한 재시도**: 스키마 검증 1회, 테스트 재시도 3회
 
+## 문서 작성 규칙
+
+### 의사코드 가이드
+
+Agent/Skill 문서에서 로직 설명 시 의사코드 사용을 권장합니다.
+
+| 허용 | 비허용 |
+|------|--------|
+| 언어 중립적 의사코드 | 특정 언어 실행 코드 |
+| Tool call 형식 (`Task(...)`, `Skill(...)`) | 특정 언어 문법에 종속된 코드 |
+
+**좋은 예시:**
+```
+if score >= 80 AND req_coverage == 100%:
+    status = "approve"
+else:
+    status = "feedback"
+
+for item in items:
+    if item.type == "export":
+        # Exports 섹션에 추가
+```
+
+**피해야 할 예시:**
+```python
+# Python 특정 문법
+items = [x for x in data if x.valid]
+result = {"status": "approve"} | extra_fields
+```
+
+**예외:** 직접 실행 가능한 스크립트 제공 목적일 경우 특정 언어 코드 허용
+
 ## 임시파일 규칙
 
 Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
@@ -312,6 +350,8 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 | boundary-resolve | `{session-id}-boundary-{target}.json` |
 | code-analyze | `{session-id}-analysis-{target}.json` |
 | schema-validate | `{session-id}-validation-{target}.json` |
+| spec-agent (state) | `{session-id}-spec-state-{target}.json` |
+| spec-reviewer | `{session-id}-review-{target}.json` |
 
 **예시:** (session-id: a1b2c3d4)
 ```
@@ -323,7 +363,9 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 ├── a1b2c3d4-compile-src-auth.json
 ├── a1b2c3d4-boundary-src-auth.json
 ├── a1b2c3d4-analysis-src-auth.json
-└── a1b2c3d4-audit-result.json
+├── a1b2c3d4-audit-result.json
+├── a1b2c3d4-spec-state-src-auth.json
+└── a1b2c3d4-review-src-auth.json
 ```
 
 **정리:** 세션 종료 시 해당 session-id 접두사의 파일들은 자동 정리됩니다.
