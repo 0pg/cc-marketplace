@@ -27,7 +27,7 @@ output_name: 출력 파일명 (디렉토리명 기반)
 
 ## 출력
 
-`.claude/extract-results/{output_name}-analysis.json` 파일 생성
+`.claude/tmp/{session-id}-analysis-{target}.json` 파일 생성
 
 ```json
 {
@@ -88,15 +88,15 @@ files_to_analyze = boundary.direct_files
 ### Step 4: JSON 결과 생성 및 저장
 
 ```
-mkdir -p .claude/extract-results
-Write → .claude/extract-results/{output_name}-analysis.json
+mkdir -p .claude/tmp
+Write → .claude/tmp/{session-id}-analysis-{target}.json
 ```
 
 ## 결과 반환
 
 ```
 ---code-analyze-result---
-output_file: .claude/extract-results/{output_name}-analysis.json
+output_file: .claude/tmp/{session-id}-analysis-{target}.json
 status: success
 exports_count: {함수 + 타입 + 클래스 수}
 dependencies_count: {외부 + 내부 의존성 수}

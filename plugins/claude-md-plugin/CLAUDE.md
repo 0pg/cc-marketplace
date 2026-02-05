@@ -288,37 +288,42 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 3. **파일 기반 결과 전달**: Agent 결과는 파일로 저장, 경로만 반환
 4. **단순한 재시도**: 스키마 검증 1회, 테스트 재시도 3회
 
-## Scratchpad 규칙
+## 임시파일 규칙
 
-Agent 간 결과 전달 시 임시 파일을 사용합니다.
+Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 
-**경로:** `.claude/tmp/{session-id}/{agent-prefix}-{target}.{ext}`
+**경로:** `.claude/tmp/{session-id}-{prefix}-{target}.{ext}`
 
 | 요소 | 설명 |
 |------|------|
 | `{session-id}` | 세션 ID (8자) - 세션별 격리 |
-| `{agent-prefix}` | Agent 고유 접두사 - Agent별 격리 |
+| `{prefix}` | Agent/Skill 고유 접두사 |
 | `{target}` | 대상 식별자 (경로의 `/`를 `-`로 변환) |
 
-**Agent별 파일명:**
+**파일명 패턴:**
 
-| Agent | 파일명 패턴 |
-|-------|-----------|
-| drift-validator | `drift-{target}.md` |
-| export-validator | `export-{target}.md` |
-| decompiler | `decompile-{target}-claude.md`, `decompile-{target}-implements.md` |
-| compiler | `compile-{target}.json` |
-| audit CLI | `audit-result.json` |
+| Component | 파일명 패턴 |
+|-----------|-----------|
+| drift-validator | `{session-id}-drift-{target}.md` |
+| export-validator | `{session-id}-export-{target}.md` |
+| decompiler | `{session-id}-decompile-{target}-claude.md`, `{session-id}-decompile-{target}-implements.md` |
+| compiler | `{session-id}-compile-{target}.json` |
+| audit CLI | `{session-id}-audit-result.json` |
+| boundary-resolve | `{session-id}-boundary-{target}.json` |
+| code-analyze | `{session-id}-analysis-{target}.json` |
+| schema-validate | `{session-id}-validation-{target}.json` |
 
-**예시:**
+**예시:** (session-id: a1b2c3d4)
 ```
-.claude/tmp/a1b2c3d4/
-├── drift-src-auth.md
-├── export-src-auth.md
-├── decompile-src-auth-claude.md
-├── decompile-src-auth-implements.md
-├── compile-src-auth.json
-└── audit-result.json
+.claude/tmp/
+├── a1b2c3d4-drift-src-auth.md
+├── a1b2c3d4-export-src-auth.md
+├── a1b2c3d4-decompile-src-auth-claude.md
+├── a1b2c3d4-decompile-src-auth-implements.md
+├── a1b2c3d4-compile-src-auth.json
+├── a1b2c3d4-boundary-src-auth.json
+├── a1b2c3d4-analysis-src-auth.json
+└── a1b2c3d4-audit-result.json
 ```
 
-**정리:** 세션 종료 시 해당 session-id 디렉토리의 파일들은 자동 정리됩니다.
+**정리:** 세션 종료 시 해당 session-id 접두사의 파일들은 자동 정리됩니다.

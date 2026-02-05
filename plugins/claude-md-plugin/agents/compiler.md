@@ -15,7 +15,7 @@ description: |
   대상 디렉토리: src/auth
   감지된 언어: (자동 감지됨)
   충돌 처리: skip
-  결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환
+  결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll compile source code based on src/auth/CLAUDE.md + IMPLEMENTS.md.
@@ -32,7 +32,7 @@ description: |
   8. File conflicts: 0 skipped, 4 compiled
   9. IMPLEMENTS.md Implementation Section updated
   ---compiler-result---
-  result_file: .claude/tmp/{session-id}/compile-src-auth.json
+  result_file: .claude/tmp/{session-id}-compile-src-auth.json
   status: success
   compiled_files: [...]
   skipped_files: []
@@ -76,7 +76,7 @@ IMPLEMENTS.md 경로: <path>
 대상 디렉토리: <path>
 감지된 언어: (optional, 자동 감지)
 충돌 처리: skip | overwrite
-결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환
+결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
 ```
 
 ## 워크플로우
@@ -283,7 +283,7 @@ exports와 contracts를 기반으로 구현 파일 생성하고, 테스트가 �
 
 ### Phase 6: 결과 반환
 
-결과 JSON을 scratchpad에 저장하고 구조화된 블록 출력:
+결과 JSON을 `.claude/tmp/{session-id}-compile-{target}.json`에 저장하고 구조화된 블록 출력:
 
 ##### 결과 포함 항목
 
@@ -411,4 +411,4 @@ implements_md_updated: true
 
 - CLAUDE.md만 읽고 코드 생성 (기존 소스 참조 최소화)
 - 시그니처 변환은 CLI 사용
-- 결과는 .claude/tmp/{session-id}에 저장, 경로만 반환
+- 결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장, 경로만 반환

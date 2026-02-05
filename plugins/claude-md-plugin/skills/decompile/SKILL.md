@@ -99,7 +99,7 @@ incremental_mode: {incremental_mode}
 visited_paths: []
 
 이 디렉토리와 모든 하위 디렉토리에 대해 재귀적으로 decompile을 수행해주세요.
-결과는 .claude/tmp/{session-id}에 저장하고 통계만 반환
+결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 통계만 반환
 """,
     description="Recursive decompile {target_path}"
 )
@@ -195,7 +195,7 @@ visited_paths: []
 
 ## 파일 기반 결과 전달
 
-Agent는 결과를 .claude/tmp/{session-id}에 저장하고 경로만 반환합니다.
+Agent는 결과를 `.claude/tmp/{session-id}-{prefix}-{target}` 형태로 저장하고 경로만 반환합니다.
 이로써 context 폭발을 방지합니다.
 
 ## 오류 처리

@@ -83,7 +83,7 @@ total_count가 0이면 coverage는 100%
 
 ### 5. 결과 저장
 
-결과를 .claude/tmp/{session-id}에 저장합니다 (예: `export-src-auth.md`).
+결과를 `.claude/tmp/{session-id}-export-{target}.md` 형태로 저장합니다.
 
 ```markdown
 # Export 검증 결과: {directory}
@@ -115,7 +115,7 @@ total_count가 0이면 coverage는 100%
 ```
 ---export-validator-result---
 status: success | failed
-result_file: .claude/tmp/{session-id}/export-{dir-safe-name}.md
+result_file: .claude/tmp/{session-id}-export-{dir-safe-name}.md
 directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---

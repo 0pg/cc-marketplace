@@ -13,7 +13,7 @@ description: |
   직접 파일 수: 4
   하위 디렉토리 수: 1
   자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]
-  결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환
+  결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll generate CLAUDE.md + IMPLEMENTS.md drafts for src/auth directory.
@@ -24,8 +24,8 @@ description: |
   5. IMPLEMENTS.md draft created (HOW - Planning + Implementation)
   6. Schema Validate - validation passed
   ---decompiler-result---
-  claude_md_file: .claude/tmp/{session-id}/decompile-src-auth-claude.md
-  implements_md_file: .claude/tmp/{session-id}/decompile-src-auth-implements.md
+  claude_md_file: .claude/tmp/{session-id}-decompile-src-auth-claude.md
+  implements_md_file: .claude/tmp/{session-id}-decompile-src-auth-implements.md
   status: success
   ---end-decompiler-result---
   </assistant_response>
@@ -63,7 +63,7 @@ You are a code analyst specializing in extracting CLAUDE.md + IMPLEMENTS.md spec
 자식 CLAUDE.md: ["src/auth/jwt/CLAUDE.md"]  # 이미 생성된 자식들
 
 이 디렉토리의 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
-결과는 .claude/tmp/{session-id}에 저장하고 경로만 반환
+결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장하고 경로만 반환
 ```
 
 ## 워크플로우
@@ -74,7 +74,7 @@ You are a code analyst specializing in extracting CLAUDE.md + IMPLEMENTS.md spec
 # 1. Boundary Resolve Skill 호출
 Skill("claude-md-plugin:boundary-resolve")
 # 입력: target_path
-# 출력: .claude/tmp/{session-id}에 저장
+# 출력: .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장
 ```
 
 - 직접 소스 파일 목록
@@ -86,12 +86,12 @@ Skill("claude-md-plugin:boundary-resolve")
 # 2. Code Analyze Skill 호출
 Skill("claude-md-plugin:code-analyze")
 # 입력: target_path, boundary_file
-# 출력: .claude/tmp/{session-id}에 저장
+# 출력: .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장
 ```
 
 `Skill("claude-md-plugin:code-analyze")`
 - 입력: target_path, boundary_file
-- 출력: scratchpad에 저장
+- 출력: .claude/tmp/{session-id}-analysis-{target}.json
 
 ##### 획득 정보
 
@@ -203,13 +203,13 @@ Domain Context는 코드에서 추론할 수 없는 "왜?"에 해당합니다.
 - internal: {analysis.dependencies.internal}
 """
 
-# .claude/tmp/{session-id}에 저장
-write_file(f".claude/tmp/{session-id}/decompile-{target}-claude.md", claude_md)
+# .claude/tmp/{session-id}-decompile-{target} 형태로 저장
+write_file(f".claude/tmp/{session-id}-decompile-{target}-claude.md", claude_md)
 ```
 
 ##### 실행 단계
 
-`Write({scratchpad}/{output_name}-claude.md)` → CLAUDE.md 초안 저장
+`Write(.claude/tmp/{session-id}-decompile-{target}-claude.md)` → CLAUDE.md 초안 저장
 
 ### Phase 4.5: IMPLEMENTS.md 초안 생성 (HOW - 전체 섹션)
 
@@ -265,13 +265,13 @@ write_file(f".claude/tmp/{session-id}/decompile-{target}-claude.md", claude_md)
 - {current_date}: Initial extraction from existing code
 """
 
-# .claude/tmp/{session-id}에 저장
-write_file(f".claude/tmp/{session-id}/decompile-{target}-implements.md", implements_md)
+# .claude/tmp/{session-id}-decompile-{target} 형태로 저장
+write_file(f".claude/tmp/{session-id}-decompile-{target}-implements.md", implements_md)
 ```
 
 ##### 실행 단계
 
-`Write({scratchpad}/{output_name}-implements.md)` → IMPLEMENTS.md 초안 저장
+`Write(.claude/tmp/{session-id}-decompile-{target}-implements.md)` → IMPLEMENTS.md 초안 저장
 
 ### Phase 5: 스키마 검증 (1회)
 
@@ -279,11 +279,11 @@ write_file(f".claude/tmp/{session-id}/decompile-{target}-implements.md", impleme
 # CLAUDE.md Schema Validate Skill 호출
 Skill("claude-md-plugin:schema-validate")
 # 입력: claude_md_file_path
-# 출력: .claude/tmp/{session-id}에 저장
+# 출력: .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장
 
 `Skill("claude-md-plugin:schema-validate")`
 - 입력: claude_md_file_path
-- 출력: scratchpad에 저장
+- 출력: .claude/tmp/{session-id}-analysis-{target}.json
 
 ##### 로직
 
@@ -294,7 +294,7 @@ Skill("claude-md-plugin:schema-validate")
 ### Phase 6: 결과 반환
 
 ```python
-# 결과 반환 (.claude/tmp/{session-id} 경로 - 두 파일)
+# 결과 반환 (.claude/tmp/{session-id}-decompile-{target} 경로 - 두 파일)
 print(f"""
 ---decompiler-result---
 claude_md_file: {tmp_claude_md_file}
@@ -316,7 +316,7 @@ validation: {passed | failed_with_warnings}
 │                     decompiler Agent                          │
 │                                                              │
 │  ┌─ Skill("boundary-resolve") ─────────────────────────┐   │
-│  │ 바운더리 분석 → .claude/tmp/{session-id}에 저장       │   │
+│  │ 바운더리 분석 → .claude/tmp/{session-id}-boundary-*   │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
@@ -324,7 +324,7 @@ validation: {passed | failed_with_warnings}
 │  │ 코드 분석 (WHAT + HOW 모두)                          │   │
 │  │ - exports, deps, behaviors, contracts, protocol      │   │
 │  │ - algorithms, constants, error handling, state       │   │
-│  │ → .claude/tmp/{session-id}에 저장                    │   │
+│  │ → .claude/tmp/{session-id}-validation-* 저장         │   │
 │  └───────────────────────┬─────────────────────────────┘   │
 │                          │                                   │
 │                          ▼                                   │
@@ -346,7 +346,7 @@ validation: {passed | failed_with_warnings}
 │                          ▼                                   │
 │  ┌─ Skill("schema-validate") ──────────────────────────┐   │
 │  │ CLAUDE.md 스키마 검증 (1회, 실패 시 경고)            │   │
-│  │ → .claude/tmp/{session-id}에 저장                    │   │
+│  │ → .claude/tmp/{session-id}-validation-* 저장         │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -412,4 +412,4 @@ cat plugins/claude-md-plugin/templates/implements-md-schema.md
 
 - 전체 파일을 읽지 않고 symbol overview 우선 사용
 - 필요한 함수만 선택적으로 읽기
-- 결과는 .claude/tmp/{session-id}에 저장, 경로만 반환
+- 결과는 .claude/tmp/{session-id}-{prefix}-{target} 형태로 저장, 경로만 반환

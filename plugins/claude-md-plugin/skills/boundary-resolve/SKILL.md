@@ -24,7 +24,7 @@ output_name: 출력 파일명 (디렉토리명 기반)
 
 ## 출력
 
-`.claude/extract-results/{output_name}-boundary.json` 파일 생성
+`.claude/tmp/{session-id}-boundary-{target}.json` 파일 생성
 
 ```json
 {
@@ -48,16 +48,16 @@ output_name: 출력 파일명 (디렉토리명 기반)
 ### 1. CLI 실행
 
 ```bash
-mkdir -p .claude/extract-results
+mkdir -p .claude/tmp
 claude-md-core resolve-boundary \
   --path {target_path} \
-  --output .claude/extract-results/{output_name}-boundary.json
+  --output .claude/tmp/{session-id}-boundary-{target}.json
 ```
 
 ### 2. 결과 확인
 
 ```bash
-if [ -f ".claude/extract-results/{output_name}-boundary.json" ]; then
+if [ -f ".claude/tmp/{session-id}-boundary-{target}.json" ]; then
     echo "Boundary resolution completed"
 else
     echo "Error: Boundary resolution failed"
@@ -69,7 +69,7 @@ fi
 
 ```
 ---boundary-resolve-result---
-output_file: .claude/extract-results/{output_name}-boundary.json
+output_file: .claude/tmp/{session-id}-boundary-{target}.json
 status: success
 direct_files: {직접 파일 수}
 subdirs: {하위 디렉토리 수}

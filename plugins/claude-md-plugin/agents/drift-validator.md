@@ -17,7 +17,7 @@ description: |
   3. Exports Drift validation → Detect STALE/MISSING/MISMATCH exports
   4. Dependencies Drift validation → Detect STALE/ORPHAN dependencies
   5. Behavior Drift validation → Compare documented scenarios with actual behavior
-  6. Save results to .claude/tmp/{session-id}
+  6. Save results to .claude/tmp/{session-id}-drift-{target}.md
   </assistant_response>
   <commentary>
   Called by validate skill to check documentation-code consistency.
@@ -129,7 +129,7 @@ For each documented_dependency:
 
 ### 3. 결과 저장
 
-결과를 .claude/tmp/{session-id}에 저장합니다 (예: `drift-src-auth.md`).
+결과를 `.claude/tmp/{session-id}-drift-{target}.md` 형태로 저장합니다.
 
 ```markdown
 # Drift 검증 결과: {directory}
@@ -183,7 +183,7 @@ For each documented_dependency:
 ```
 ---drift-validator-result---
 status: success | failed
-result_file: .claude/tmp/{session-id}/drift-{dir-safe-name}.md
+result_file: .claude/tmp/{session-id}-drift-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
 ---end-drift-validator-result---

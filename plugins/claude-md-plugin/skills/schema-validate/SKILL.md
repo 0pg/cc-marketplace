@@ -21,11 +21,11 @@ output_name: 출력 파일명 (디렉토리명 기반)
 
 ## 출력
 
-`.claude/extract-results/{output_name}-validation.json` 파일 생성
+`.claude/tmp/{session-id}-validation-{target}.json` 파일 생성
 
 ```json
 {
-  "file": ".claude/extract-results/src-auth-draft.md",
+  "file": ".claude/tmp/{session-id}-decompile-src-auth-claude.md",
   "valid": true,
   "issues": [],
   "warnings": []
@@ -36,7 +36,7 @@ output_name: 출력 파일명 (디렉토리명 기반)
 
 ```json
 {
-  "file": ".claude/extract-results/src-auth-draft.md",
+  "file": ".claude/tmp/{session-id}-decompile-src-auth-claude.md",
   "valid": false,
   "issues": [
     {
@@ -68,13 +68,13 @@ output_name: 출력 파일명 (디렉토리명 기반)
 ```bash
 claude-md-core validate-schema \
   --file {file_path} \
-  --output .claude/extract-results/{output_name}-validation.json
+  --output .claude/tmp/{session-id}-validation-{target}.json
 ```
 
 ### 2. 결과 확인
 
 ```bash
-validation=$(cat .claude/extract-results/{output_name}-validation.json)
+validation=$(cat .claude/tmp/{session-id}-validation-{target}.json)
 if [ "$(echo $validation | jq -r '.valid')" = "true" ]; then
     echo "Validation passed"
 else
@@ -89,7 +89,7 @@ fi
 **검증 통과 시:**
 ```
 ---schema-validate-result---
-output_file: .claude/extract-results/{output_name}-validation.json
+output_file: .claude/tmp/{session-id}-validation-{target}.json
 status: passed
 issues: 0
 warnings: {경고 수}
@@ -99,7 +99,7 @@ warnings: {경고 수}
 **검증 실패 시:**
 ```
 ---schema-validate-result---
-output_file: .claude/extract-results/{output_name}-validation.json
+output_file: .claude/tmp/{session-id}-validation-{target}.json
 status: failed
 issues: {이슈 수}
 issue_details:
