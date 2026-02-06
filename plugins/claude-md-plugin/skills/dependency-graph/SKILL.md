@@ -105,7 +105,7 @@ fi
 
 ```
 ---dependency-graph-result---
-status: success
+status: approve
 output_file: .claude/dependency-graph.json
 total_nodes: {nodes 수}
 total_edges: {edges 수}

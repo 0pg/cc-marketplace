@@ -82,7 +82,7 @@ fi
 ```
 ---tree-parse-result---
 output_file: .claude/extract-tree.json
-status: success
+status: approve
 directory_count: {needs_claude_md 배열 길이}
 ---end-tree-parse-result---
 ```

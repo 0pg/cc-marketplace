@@ -70,7 +70,7 @@ fi
 ```
 ---boundary-resolve-result---
 output_file: .claude/tmp/{session-id}-boundary-{target}.json
-status: success
+status: approve
 direct_files: {직접 파일 수}
 subdirs: {하위 디렉토리 수}
 ---end-boundary-resolve-result---

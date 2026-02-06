@@ -154,8 +154,8 @@ For each claude_md_file:
 
 ```
 ---drift-validator-result---
-status: success | failed
-result_file: .claude/tmp/{session-id}-drift-{dir-safe-name}.md
+status: approve | error
+result_file: .claude/tmp/{session-id}-drift-{target}.md
 directory: {directory}
 issues_count: {N}
 ---end-drift-validator-result---
@@ -163,8 +163,8 @@ issues_count: {N}
 
 ```
 ---export-validator-result---
-status: success | failed
-result_file: .claude/tmp/{session-id}-export-{dir-safe-name}.md
+status: approve | error
+result_file: .claude/tmp/{session-id}-export-{target}.md
 directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---
@@ -172,8 +172,8 @@ export_coverage: {0-100}
 
 ```
 ---code-reviewer-result---
-status: passed | fixed | warning
-result_file: .claude/tmp/{session-id}-convention-review-{dir-safe-name}.json
+status: approve | feedback | warning
+result_file: .claude/tmp/{session-id}-convention-review-{target}.json
 directory: {directory}
 convention_score: {0-100}
 violations_count: {N}
@@ -183,8 +183,8 @@ auto_fixed_count: {N}
 
 ```
 ---schema-validate-result---
-status: passed | failed
-output_file: .claude/tmp/{session-id}-validation-{dir-safe-name}.json
+status: approve | error
+output_file: .claude/tmp/{session-id}-validation-{target}.json
 directory: {directory}
 unresolved_references: {N}
 ---end-schema-validate-result---

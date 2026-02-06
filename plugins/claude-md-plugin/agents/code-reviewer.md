@@ -22,7 +22,7 @@ description: |
   4. Auto-fix applied: 3 fixes
   5. Results saved
   ---code-reviewer-result---
-  status: fixed
+  status: approve
   result_file: .claude/tmp/{session-id}-convention-review-src-auth.json
   directory: src/auth
   convention_score: 92
@@ -51,7 +51,7 @@ description: |
   3. Convention check: all passed
   4. Results saved
   ---code-reviewer-result---
-  status: passed
+  status: approve
   result_file: .claude/tmp/{session-id}-convention-review-src-utils.json
   directory: src/utils
   convention_score: 100
@@ -120,41 +120,16 @@ auto-fixable한 위반을 자동 수정합니다:
 | Naming (파일 내부) | Edit으로 이름 변경 (해당 파일 내에서만 참조되는 심볼) |
 | Naming (외부 참조) | auto_fixable=false, 경고만 표시 (다른 파일에서 import하는 심볼) |
 | Formatting | 프로젝트 린트 커맨드 실행 (CLAUDE.md에서 확인) |
-| Import Order | 린트 도구 실행 (CLAUDE.md의 Lint 커맨드 사용). 린트 없으면 경고만 |
+| Import Order | 린트 도구 실행. 린트 없으면 경고만 |
 
 **자동 수정 불가한 경우:**
-- 다른 파일에서 import/참조하는 심볼의 이름 변경 (참조 깨짐 위험)
-- 구조적 변경이 필요한 경우 (함수 분리 등)
-- 로직 변경이 필요한 경우
-- 모호한 경우 (여러 해석 가능)
+- 다른 파일에서 import/참조하는 심볼의 이름 변경
+- 구조적/로직 변경이 필요한 경우
+- 모호한 경우
 
 ### Phase 4: 결과 생성
 
-결과를 `.claude/tmp/{session-id}-convention-review-{target}.json`에 저장:
-
-```json
-{
-  "directory": "src/auth",
-  "convention_score": 92,
-  "files_analyzed": 5,
-  "violations": [
-    {
-      "category": "naming",
-      "file": "auth-service.ts",
-      "line": 15,
-      "issue": "Variable 'user_id' does not match camelCase pattern",
-      "suggestion": "userId",
-      "auto_fixable": true,
-      "fixed": true
-    }
-  ],
-  "summary": {
-    "total_violations": 3,
-    "auto_fixed": 3,
-    "manual_required": 0
-  }
-}
-```
+결과를 `.claude/tmp/{session-id}-convention-review-{target}.json`에 저장.
 
 ### 점수 계산
 
@@ -162,14 +137,11 @@ auto-fixable한 위반을 자동 수정합니다:
 convention_score = max(0, 100 - (manual_required_count * 5) - (auto_fixed_count * 1))
 ```
 
-- 자동 수정된 위반: -1점
-- 수동 수정 필요한 위반: -5점
-
 ## 출력 형식
 
 ```
 ---code-reviewer-result---
-status: passed | fixed | warning
+status: approve | feedback | warning
 result_file: .claude/tmp/{session-id}-convention-review-{target}.json
 directory: {directory}
 convention_score: {0-100}
@@ -180,6 +152,6 @@ auto_fixed_count: {N}
 
 | status | 조건 |
 |--------|------|
-| `passed` | 위반 0건 |
-| `fixed` | 위반 있었으나 모두 자동 수정 |
-| `warning` | 수동 수정 필요한 위반 존재 |
+| `approve` | 위반 0건 또는 모두 자동 수정 완료 |
+| `feedback` | 수동 수정 필요한 위반 존재 |
+| `warning` | 심각한 구조적 이슈 존재 |

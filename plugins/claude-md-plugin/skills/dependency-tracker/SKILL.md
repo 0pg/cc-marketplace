@@ -166,7 +166,7 @@ Write → .claude/incremental/{output_name}-impact.json
 ```
 ---dependency-tracker-result---
 output_file: .claude/incremental/{output_name}-impact.json
-status: success
+status: approve
 total_modules: {전체 모듈 수}
 changed_modules: {변경된 모듈 수}
 direct_impact: {직접 영향받는 모듈 수}

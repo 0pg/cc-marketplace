@@ -58,57 +58,6 @@ description: |
 
   <example>
   <context>
-  Reviewing documents that have missing requirements.
-  </context>
-  <user>
-  원본 요구사항:
-  "사용자 프로필을 조회하고 수정할 수 있어야 합니다. 수정 시 이메일 변경은 인증이 필요합니다."
-
-  Task 목록:
-  - t-1: Purpose 정의 (define-purpose)
-  - t-2: getProfile export 정의 (define-export)
-  - t-3: updateProfile export 정의 (define-export)
-  - t-4: 조회 시나리오 정의 (define-behavior)
-  - t-5: 수정 시나리오 정의 (define-behavior)
-  - t-6: 이메일 변경 인증 시나리오 정의 (define-behavior)
-
-  CLAUDE.md 경로: src/profile/CLAUDE.md
-  IMPLEMENTS.md 경로: src/profile/IMPLEMENTS.md
-
-  생성된 문서가 요구사항을 충족하는지 검증해주세요.
-  </user>
-  <assistant_response>
-  I'll review the generated documents against requirements.
-
-  1. Read CLAUDE.md and IMPLEMENTS.md
-  2. REQ-COVERAGE: Missing email verification requirement
-  3. TASK-COMPLETION: t-6 not mapped to Behavior section
-  4. SCHEMA-VALID: All required sections present
-  5. Calculate score and generate feedback
-
-  ---spec-reviewer-result---
-  status: feedback
-  score: 72
-  checks:
-    - id: REQ-COVERAGE
-      status: failed
-      coverage: 83%
-    - id: TASK-COMPLETION
-      status: failed
-      completion: 83%
-    - id: SCHEMA-VALID
-      status: passed
-  feedback:
-    - section: Behavior
-      issue: 이메일 변경 시 인증 시나리오가 누락됨
-      suggestion: "이메일 변경 요청 시 verifyEmail 호출 필요" 시나리오를 Behavior에 추가
-  result_file: .claude/tmp/{session-id}-review-src-profile.json
-  ---end-spec-reviewer-result---
-  </assistant_response>
-  </example>
-
-  <example>
-  <context>
   Reviewing documents with overengineering issues.
   </context>
   <user>
@@ -121,8 +70,6 @@ description: |
 
   CLAUDE.md 경로: src/logger/CLAUDE.md
   IMPLEMENTS.md 경로: src/logger/IMPLEMENTS.md
-
-  생성된 문서가 요구사항을 충족하는지 검증해주세요.
   </user>
   <assistant_response>
   I'll review the generated documents against requirements.
@@ -130,10 +77,7 @@ description: |
   1. Read CLAUDE.md and IMPLEMENTS.md
   2. REQ-COVERAGE: All requirements covered
   3. TASK-COMPLETION: All tasks mapped
-  4. SCHEMA-VALID: Passed
-  5. OVERENGINEERING CHECK: Detected unnecessary abstractions
-     - LoggerInterface, LoggerFactory, PluggableFormatter not required
-     - User asked for "simple logger", not extensible framework
+  4. OVERENGINEERING CHECK: LoggerInterface, LoggerFactory not required
 
   ---spec-reviewer-result---
   status: feedback
@@ -151,9 +95,6 @@ description: |
     - section: Exports
       issue: 과도한 추상화 (YAGNI 위반)
       suggestion: LoggerInterface, LoggerFactory 제거. 요구사항은 "간단한 로거"이므로 log() 함수만 필요
-    - section: Exports
-      issue: 불필요한 확장 포인트
-      suggestion: PluggableFormatter 제거. 요구사항에 포맷 커스터마이징 언급 없음
   result_file: .claude/tmp/{session-id}-review-src-logger.json
   ---end-spec-reviewer-result---
   </assistant_response>
@@ -202,29 +143,17 @@ Read(implements_md_path)
 
 ### Phase 2: 검증 수행
 
-#### Check 1: REQ-COVERAGE (필수)
+#### Check 1: REQ-COVERAGE (40%)
 
 모든 요구사항이 문서에 반영되었는지 확인합니다.
 
-**검증 방법:**
 1. 원본 요구사항에서 핵심 키워드/기능 추출
 2. CLAUDE.md의 각 섹션에서 매칭 확인
-3. 누락된 요구사항 식별
+3. `coverage = (매칭된 요구사항 수 / 전체 요구사항 수) × 100`
 
-**점수 계산:**
-
-`coverage = (매칭된 요구사항 수 / 전체 요구사항 수) × 100`
-
-#### Check 2: TASK-COMPLETION (필수)
+#### Check 2: TASK-COMPLETION (30%)
 
 모든 Task가 문서에 매핑되었는지 확인합니다.
-
-**검증 방법:**
-1. 각 Task의 targetSection 확인
-2. 해당 섹션에 Task 내용이 반영되었는지 확인
-3. 누락된 Task 식별
-
-**Task 유형별 매핑:**
 
 | Task Type | Target Section | 검증 기준 |
 |-----------|---------------|----------|
@@ -235,55 +164,29 @@ Read(implements_md_path)
 | define-protocol | Protocol | 상태 전이가 Protocol에 존재 |
 | define-context | Domain Context | 결정 근거가 Domain Context에 존재 |
 
-**점수 계산:**
-
 `completion = (완료된 Task 수 / 전체 Task 수) × 100`
 
-#### Check 3: SCHEMA-VALID (필수)
-
-스키마 준수 여부를 확인합니다.
+#### Check 3: SCHEMA-VALID (20%)
 
 ```
 Skill("claude-md-plugin:schema-validate", file=claude_md_path)
 ```
 
-**검증 기준:**
-- 필수 섹션 존재: Purpose, Summary, Exports, Behavior, Contract, Protocol, Domain Context
-- Exports 형식 준수
-- Behavior 형식 준수
+> 필수 섹션 목록은 `references/shared/claude-md-sections.md` 참조
 
-#### Check 4: EXPORT-MATCH (권장)
+#### Check 4: EXPORT-MATCH (5%)
 
 요구사항에 언급된 함수/타입이 Exports에 존재하는지 확인합니다.
 
-**검증 방법:**
-1. 원본 요구사항에서 함수명/타입명 패턴 추출
-2. CLAUDE.md Exports 섹션에서 매칭 확인
-
-#### Check 5: BEHAVIOR-MATCH (권장)
+#### Check 5: BEHAVIOR-MATCH (5%)
 
 요구사항에 언급된 시나리오가 Behavior에 존재하는지 확인합니다.
 
-**검증 방법:**
-1. 요구사항에서 "~하면 ~한다" 패턴 추출
-2. CLAUDE.md Behavior 섹션에서 매칭 확인
-
 ### Phase 3: 점수 계산
 
-**종합 점수:**
 ```
 score = (REQ-COVERAGE * 0.4) + (TASK-COMPLETION * 0.3) + (SCHEMA-VALID * 0.2) + (EXPORT-MATCH * 0.05) + (BEHAVIOR-MATCH * 0.05)
 ```
-
-**가중치:**
-
-| Check | 가중치 | 필수 |
-|-------|-------|------|
-| REQ-COVERAGE | 40% | Yes |
-| TASK-COMPLETION | 30% | Yes |
-| SCHEMA-VALID | 20% | Yes |
-| EXPORT-MATCH | 5% | No |
-| BEHAVIOR-MATCH | 5% | No |
 
 ### Phase 4: 판정
 
@@ -296,7 +199,6 @@ score = (REQ-COVERAGE * 0.4) + (TASK-COMPLETION * 0.3) + (SCHEMA-VALID * 0.2) + 
 | SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
 
-**판정 로직:**
 ```
 if score >= 80 AND req_coverage == 100% AND schema_valid == passed AND task_completion >= 80%:
     status = "approve"
@@ -308,15 +210,6 @@ else:
 
 누락된 부분에 대한 구체적인 피드백을 생성합니다.
 
-**피드백 형식:**
-```json
-{
-  "section": "Exports",
-  "issue": "validateToken 함수가 누락됨",
-  "suggestion": "요구사항에 명시된 validateToken(token: string): Claims 함수를 Exports에 추가하세요"
-}
-```
-
 **피드백 카테고리:**
 
 | Category | 예시 |
@@ -326,75 +219,9 @@ else:
 | SCHEMA_ERROR | "Contract 섹션이 누락됨" |
 | WEAK_BEHAVIOR | "에러 시나리오가 불충분함" |
 
-### Phase 6: 결과 저장
+### Phase 6: 결과 저장 및 반환
 
-결과를 `.claude/tmp/{session-id}-review-{target}.json` 형태로 저장합니다.
-
-```json
-{
-  "status": "approve | feedback",
-  "score": 95,
-  "checks": [
-    {
-      "id": "REQ-COVERAGE",
-      "status": "passed | failed",
-      "coverage": 100,
-      "details": {
-        "total_requirements": 5,
-        "matched_requirements": 5,
-        "missing": []
-      }
-    },
-    {
-      "id": "TASK-COMPLETION",
-      "status": "passed | failed",
-      "completion": 100,
-      "details": {
-        "total_tasks": 5,
-        "completed_tasks": 5,
-        "incomplete": []
-      }
-    },
-    {
-      "id": "SCHEMA-VALID",
-      "status": "passed | failed",
-      "details": {
-        "missing_sections": [],
-        "format_errors": []
-      }
-    },
-    {
-      "id": "EXPORT-MATCH",
-      "status": "passed | partial | failed",
-      "details": {
-        "expected": ["validateToken", "Claims"],
-        "found": ["validateToken", "Claims"],
-        "missing": []
-      }
-    },
-    {
-      "id": "BEHAVIOR-MATCH",
-      "status": "passed | partial | failed",
-      "details": {
-        "expected": ["유효한 토큰 → Claims 반환", "만료된 토큰 → 에러"],
-        "found": ["valid token → Claims object", "expired token → TokenExpiredError"],
-        "missing": []
-      }
-    }
-  ],
-  "feedback": [
-    {
-      "section": "Exports",
-      "issue": "설명",
-      "suggestion": "제안"
-    }
-  ]
-}
-```
-
-### Phase 7: 결과 반환
-
-**반드시** 다음 형식의 구조화된 블록을 출력에 포함:
+결과를 `.claude/tmp/{session-id}-review-{target}.json`에 저장합니다.
 
 ```
 ---spec-reviewer-result---
@@ -421,45 +248,6 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 ---end-spec-reviewer-result---
 ```
 
-## 판정 흐름도
-
-```
-                    ┌─────────────────┐
-                    │  Score >= 80?   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │ No           │ Yes          │
-              ▼              ▼              │
-        ┌─────────┐    ┌─────────────┐     │
-        │ feedback│    │REQ-COVERAGE │     │
-        └─────────┘    │  == 100%?   │     │
-                       └──────┬──────┘     │
-                              │            │
-               ┌──────────────┼────────┐   │
-               │ No           │ Yes    │   │
-               ▼              ▼        │   │
-         ┌─────────┐    ┌───────────┐ │   │
-         │ feedback│    │SCHEMA-VALID│ │   │
-         └─────────┘    │ == passed? │ │   │
-                        └─────┬─────┘ │   │
-                              │       │   │
-              ┌───────────────┼───────┤   │
-              │ No            │ Yes   │   │
-              ▼               ▼       │   │
-        ┌─────────┐     ┌──────────┐ │   │
-        │ feedback│     │TASK-COMP │ │   │
-        └─────────┘     │ >= 80%?  │ │   │
-                        └────┬─────┘ │   │
-                             │       │   │
-             ┌───────────────┼───────┤   │
-             │ No            │ Yes   │   │
-             ▼               ▼       │   │
-       ┌─────────┐     ┌─────────┐  │   │
-       │ feedback│     │ approve │  │   │
-       └─────────┘     └─────────┘  │   │
-```
-
 ## 주의사항
 
 1. **의미론적 매칭**: 키워드가 정확히 일치하지 않아도 의미가 같으면 매칭으로 인정
@@ -467,9 +255,4 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 3. **피드백 구체성**: 단순히 "누락됨"이 아닌 구체적인 수정 제안 제공
 4. **점진적 개선**: 첫 리뷰에서 완벽을 기대하지 않음, 반복을 통한 개선 유도
 5. **Overengineering 경계**: 요구사항에 명시되지 않은 기능, 추상화, 확장 포인트는 과도한 설계의 징후
-   - 요구사항: "JWT 검증" → Exports에 validateToken만 있어야 함
-   - 과도한 설계 예시: TokenValidator 인터페이스, PluggableStrategy, AbstractAuthFactory 등 추가
-6. **YAGNI 원칙**: "You Aren't Gonna Need It" - 현재 요구사항에 필요한 것만 포함
-   - 미래 확장성을 위한 추상화 층 불필요
-   - 요구사항에 없는 config 옵션, feature flag 불필요
-   - 단순한 해결책이 복잡한 해결책보다 우선
+6. **YAGNI 원칙**: 현재 요구사항에 필요한 것만 포함

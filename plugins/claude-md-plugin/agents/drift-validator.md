@@ -40,7 +40,7 @@ description: |
   5. Behavior Drift validation → 0 issues
   6. Save results to .claude/tmp/{session-id}-drift-src-config.md
   ---drift-validator-result---
-  status: success
+  status: approve
   result_file: .claude/tmp/{session-id}-drift-src-config.md
   directory: src/config
   issues_count: 0
@@ -64,7 +64,7 @@ description: |
   5. Behavior Drift validation → 0 issues
   6. Save results to .claude/tmp/{session-id}-drift-src-api.md
   ---drift-validator-result---
-  status: success
+  status: approve
   result_file: .claude/tmp/{session-id}-drift-src-api.md
   directory: src/api
   issues_count: 2
@@ -229,14 +229,14 @@ For each documented_dependency:
 
 ```
 ---drift-validator-result---
-status: success | failed
-result_file: .claude/tmp/{session-id}-drift-{dir-safe-name}.md
+status: approve | error
+result_file: .claude/tmp/{session-id}-drift-{target}.md
 directory: {directory}
 issues_count: {N}
 ---end-drift-validator-result---
 ```
 
-- `status`: 검증 완료 여부 (에러 없이 완료되면 success)
+- `status`: 검증 완료 여부 (에러 없이 완료되면 approve)
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
 - `issues_count`: 총 drift 이슈 수

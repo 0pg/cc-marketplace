@@ -97,7 +97,7 @@ Write → .claude/tmp/{session-id}-analysis-{target}.json
 ```
 ---code-analyze-result---
 output_file: .claude/tmp/{session-id}-analysis-{target}.json
-status: success
+status: approve
 exports_count: {함수 + 타입 + 클래스 수}
 dependencies_count: {외부 + 내부 의존성 수}
 behaviors_count: {동작 패턴 수}

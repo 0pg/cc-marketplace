@@ -86,7 +86,7 @@ Write → .claude/incremental/{output_name}-uncommitted.json
 ```
 ---git-status-analyzer-result---
 output_file: .claude/incremental/{output_name}-uncommitted.json
-status: success
+status: approve
 uncommitted_count: {uncommitted 파일 수}
 directories: [{고유 디렉토리 목록}]
 ---end-git-status-analyzer-result---

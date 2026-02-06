@@ -114,7 +114,7 @@ fi
 ```
 ---schema-validate-result---
 output_file: .claude/tmp/{session-id}-validation-{target}.json
-status: passed
+status: approve
 issues: 0
 warnings: {경고 수}
 unresolved_references: 0
@@ -125,7 +125,7 @@ unresolved_references: 0
 ```
 ---schema-validate-result---
 output_file: .claude/tmp/{session-id}-validation-{target}.json
-status: failed
+status: error
 issues: {이슈 수}
 issue_details:
   - [missing_section] Behavior: 필수 섹션이 없습니다

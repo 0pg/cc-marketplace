@@ -55,6 +55,23 @@
 
 를 알 수 있어야 합니다.
 
+**섹션 구성 (7 required + 3 optional)**:
+
+| 섹션 | 필수 | 설명 |
+|------|------|------|
+| Purpose | required | 디렉토리의 책임 (1-2문장) |
+| Summary | required | 모듈의 역할/기능 요약 |
+| Exports | required | public interface 카탈로그 (`None` 허용) |
+| Behavior | required | 동작 시나리오 (input → output) (`None` 허용) |
+| Contract | required | 사전/사후 조건, 불변식 (`None` 허용) |
+| Protocol | required | 상태 전이, 호출 순서 (`None` 허용) |
+| Domain Context | required | compile 재현을 위한 맥락 (`None` 허용) |
+| Structure | optional | 하위 디렉토리/파일이 있을 때 |
+| Dependencies | optional | 외부/내부 의존성이 있을 때 |
+| Constraints | optional | 제약사항이 있을 때 |
+
+> SSOT: `skills/schema-validate/references/schema-rules.yaml`
+
 ### 트리 구조 의존성
 - **부모 → 자식**: 참조 가능
 - **자식 → 부모**: 참조 불가
@@ -272,7 +289,8 @@ User: /validate
 |-------|------|
 | `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
 | `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 |
-| `decompiler` | 소스코드에서 CLAUDE.md 추출 |
+| `decompiler` | 단일 디렉토리 CLAUDE.md + IMPLEMENTS.md 추출 |
+| `recursive-decompiler` | 재귀적 디렉토리 탐색 + incremental 판단 + decompiler 오케스트레이션 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD, phase 지원: red/green-refactor/full) |
 | `test-reviewer` | 생성된 테스트 코드의 스펙 커버리지 검증 (100% 기준) |
 | `drift-validator` | CLAUDE.md-코드 일치 검증 |
@@ -294,6 +312,11 @@ User: /validate
 | `code-analyze` | Internal | 코드 분석 |
 | `claude-md-parse` | Internal | CLAUDE.md 파싱 |
 | `schema-validate` | Internal | 스키마 검증 |
+| `dependency-graph` | Internal | 모듈 의존성 그래프 생성 |
+| `git-status-analyzer` | Internal | uncommitted 스펙 파일 찾기 |
+| `commit-comparator` | Internal | 스펙 vs 소스 커밋 시점 비교 |
+| `interface-diff` | Internal | Exports 시그니처 변경 감지 |
+| `dependency-tracker` | Internal | 의존 모듈 영향 분석 |
 
 ## Core Rust Modules (core/src/)
 
