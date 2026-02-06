@@ -100,7 +100,9 @@ auth/
 │
 └── IMPLEMENTS.md   ← HOW (구현 명세)
     ├── [Planning Section] - /spec이 업데이트
-    │   ├── Dependencies Direction
+    │   ├── Architecture Decisions
+    │   ├── Module Integration Map
+    │   ├── External Dependencies
     │   ├── Implementation Approach
     │   └── Technology Choices
     │

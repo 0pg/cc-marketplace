@@ -149,7 +149,7 @@ You are a requirements analyst and specification writer specializing in creating
 4. **Analyze existing codebase architecture and determine module placement**
 5. Determine target location for dual documents
 6. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
-7. Generate IMPLEMENTS.md Planning Section (Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices)
+7. Generate IMPLEMENTS.md Planning Section (Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices)
 8. **Run review-feedback iteration cycle (max 3 times)**
 9. Validate against schema using `schema-validate` skill
 

@@ -284,13 +284,25 @@ write_file(f".claude/tmp/{session-id}-decompile-{target}-claude.md", claude_md)
 <!-- PLANNING SECTION - /spec 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
 
-## Dependencies Direction
+## Architecture Decisions
 
-### External
-{format_external_deps_direction(analysis.dependencies.external, impl_answers)}
+### Module Placement
+- **Decision**: {directory_name}
+- **Rationale**: 기존 코드에서 추출
 
-### Internal
-{format_internal_deps_direction(analysis.dependencies.internal)}
+### Interface Guidelines
+- 내부 모듈 통합: Module Integration Map 참조
+
+### Dependency Direction
+- 경계 명확성 준수: {boundary_analysis or "N/A"}
+
+## Module Integration Map
+
+{format_module_integration_map(analysis.dependencies.internal) or "None"}
+
+## External Dependencies
+
+{format_external_dependencies(analysis.dependencies.external) or "None"}
 
 ## Implementation Approach
 

@@ -188,7 +188,9 @@ IMPLEMENTS.md 경로: <path>
 - `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
 
 **IMPLEMENTS.md Planning Section (HOW)**에서 추출:
-- `dependencies_direction`: 의존성 위치와 사용 목적
+- `architecture_decisions`: 모듈 배치, 인터페이스 설계, 의존성 방향
+- `module_integration_map`: 내부 의존 모듈 Export 시그니처 스냅샷 (import 구성에 활용)
+- `external_dependencies`: 외부 패키지 의존성과 선택 근거
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
