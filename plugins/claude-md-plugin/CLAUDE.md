@@ -262,6 +262,7 @@ User: /validate
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
 | `drift-validator` | CLAUDE.md-코드 일치 검증 |
 | `export-validator` | Export 존재 검증 |
+| `code-reviewer` | 코드 품질 + 컨벤션 검증 (code-convention.md 기반) |
 
 ## Skills
 
@@ -271,7 +272,8 @@ User: /validate
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
-| `/project-setup` | Entry Point | 빌드/테스트 커맨드 → CLAUDE.md |
+| `/project-setup` | Entry Point | 빌드/테스트 커맨드 → CLAUDE.md + code-convention.md |
+| `/convention` | Entry Point | code-convention.md 조회/업데이트 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `boundary-resolve` | Internal | 바운더리 결정 |
 | `code-analyze` | Internal | 코드 분석 |
@@ -316,6 +318,13 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /spec → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
+```
+
+### INV-5: code-convention.md 업데이트 책임
+```
+/project-setup → code-convention.md (최초 생성)
+/convention → code-convention.md (재분석/수동 수정)
+/compile, /validate → code-convention.md (읽기 전용)
 ```
 
 ## 개발 원칙
@@ -383,6 +392,7 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 | schema-validate | `{session-id}-validation-{target}.json` |
 | spec-agent (state) | `{session-id}-spec-state-{target}.json` |
 | spec-reviewer | `{session-id}-review-{target}.json` |
+| code-reviewer | `{session-id}-convention-review-{target}.json` |
 
 **예시:** (session-id: a1b2c3d4)
 ```
@@ -396,7 +406,8 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 ├── a1b2c3d4-analysis-src-auth.json
 ├── a1b2c3d4-audit-result.json
 ├── a1b2c3d4-spec-state-src-auth.json
-└── a1b2c3d4-review-src-auth.json
+├── a1b2c3d4-review-src-auth.json
+└── a1b2c3d4-convention-review-src-auth.json
 ```
 
 **정리:** 세션 종료 시 해당 session-id 접두사의 파일들은 자동 정리됩니다.

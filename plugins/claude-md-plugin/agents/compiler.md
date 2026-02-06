@@ -169,16 +169,23 @@ IMPLEMENTS.md 경로: <path>
 ##### 실행 단계
 
 1. `Read({project_root}/CLAUDE.md)` → 프로젝트 코딩 컨벤션 로드
-2. `Skill("claude-md-plugin:claude-md-parse")` → CLAUDE.md 파싱
+2. `Read({project_root}/code-convention.md)` → 코드 스타일/컨벤션 가이드 로드 (존재 시)
+3. `Skill("claude-md-plugin:claude-md-parse")` → CLAUDE.md 파싱
    - 입력: claude_md_path
    - 출력: ClaudeMdSpec JSON (stdout)
-3. `Read({target_dir}/IMPLEMENTS.md)` → Planning Section 로드 (파일 존재 시)
+4. `Read({target_dir}/IMPLEMENTS.md)` → Planning Section 로드 (파일 존재 시)
 
 ##### 로직
 
 - 프로젝트 루트 탐지: `.git` 또는 `package.json` 위치 기반
 - IMPLEMENTS.md 경로: CLAUDE.md 경로에서 파일명만 교체
 - IMPLEMENTS.md가 없으면 기본값 사용
+- **code-convention.md가 없으면 경고 출력**, 언어 기본 컨벤션 사용
+
+**컨벤션 우선순위:**
+1. code-convention.md (전문 스타일 가이드)
+2. 프로젝트 루트 CLAUDE.md (일반 프로젝트 규칙)
+3. 언어 기본 컨벤션 (위 두 파일이 없을 때)
 
 **CLAUDE.md (WHAT)**에서 추출:
 - `exports`: 함수, 타입, 클래스 정의
@@ -192,8 +199,7 @@ IMPLEMENTS.md 경로: <path>
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
-**중요**: 코드 생성 시 `project_claude_md`의 규칙(파일 구조, 네이밍 컨벤션, 코딩 스타일 등)을 따르고,
-`implements_spec`의 구현 방향을 참조합니다.
+**중요**: 코드 생성 시 `project_claude_md`의 규칙(파일 구조 등)과 `code-convention.md`의 코딩 스타일(네이밍, 포맷팅, 구조 등)을 따르고, `implements_spec`의 구현 방향을 참조합니다.
 
 #### 1.2 의존성 인터페이스 탐색 (CLAUDE.md Tree Discovery)
 
@@ -345,17 +351,22 @@ exports와 contracts를 기반으로 구현 파일 생성하고, 테스트가 �
 
 #### 3.3 REFACTOR Phase - 코드 개선
 
-테스트 통과 후, 프로젝트 CLAUDE.md의 코딩 규칙에 맞게 리팩토링:
+테스트 통과 후, **code-convention.md** 및 프로젝트 CLAUDE.md의 코딩 규칙에 맞게 리팩토링:
 
 ##### 로직
 
 1. 테스트가 통과한 경우에만 실행
-2. 프로젝트 컨벤션 적용:
-   - 네이밍 컨벤션 적용
-   - 코드 스타일 정리 (포매터 실행 등)
+2. **code-convention.md 규칙 적용** (존재 시):
+   - **Naming**: 변수/함수/타입/상수 이름이 컨벤션과 일치하는지 검증 및 수정
+   - **Formatting**: 들여쓰기, 따옴표, 세미콜론 등 포맷팅 적용 (린트 커맨드 실행)
+   - **Code Structure**: 린트 도구로 import 순서 정리 (린트 커맨드 없으면 생략), export 스타일 정리
+   - **Error Handling**: 에러 처리 패턴 적용
+3. 프로젝트 CLAUDE.md 컨벤션 적용:
    - 중복 제거, 가독성 개선
-3. 리팩토링 후 회귀 테스트 실행
-4. 리팩토링으로 테스트 실패 시 롤백
+4. Naming 변경이 있었으면 회귀 테스트 실행 (포맷팅만 변경 시 생략)
+5. 테스트 실패 시 Naming 변경 롤백
+
+> code-convention.md가 없으면 2단계를 건너뛰고 3단계만 수행합니다.
 
 ### Phase 4: 파일 충돌 처리
 

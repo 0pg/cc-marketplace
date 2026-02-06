@@ -158,6 +158,7 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
     │
     ▼
 병렬 처리: compiler Agent 호출 (run_in_background=True)
+    │   └─ compiler Agent는 내부적으로 code-convention.md를 로드하여 REFACTOR 단계에서 적용
     │
     ▼
 결과 수집 및 보고
