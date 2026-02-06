@@ -8,7 +8,7 @@ Feature: Symbol Index Caching with Incremental Rebuild
     When I build the symbol index with cache
     Then ".claude/.cache/symbol-index.json" should exist
     And the cache should contain all indexed symbols
-    And the cache should contain file_mtimes for each CLAUDE.md
+    And the cache should contain file_hashes for each CLAUDE.md
 
   Scenario: Cache hit when files unchanged
     Given a project with a valid cache

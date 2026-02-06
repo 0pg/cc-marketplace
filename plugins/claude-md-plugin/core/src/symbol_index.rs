@@ -96,11 +96,11 @@ pub struct CachedSymbolIndex {
     pub cache_version: u32,
     /// The full index result
     pub index: SymbolIndexResult,
-    /// File modification times (relative path → epoch seconds)
-    pub file_mtimes: HashMap<String, i64>,
+    /// File content hashes (relative path → git blob SHA-1)
+    pub file_hashes: HashMap<String, String>,
 }
 
-const CACHE_VERSION: u32 = 2;
+const CACHE_VERSION: u32 = 3;
 const CACHE_DIR: &str = ".claude/.cache";
 const CACHE_FILE: &str = ".claude/.cache/symbol-index.json";
 
@@ -187,22 +187,24 @@ impl SymbolIndexBuilder {
     /// Build symbol index with caching support for incremental rebuilds
     pub fn build_with_cache(&self, root: &Path, no_cache: bool) -> Result<SymbolIndexResult, SymbolIndexError> {
         if no_cache {
+            let claude_md_paths = self.collect_claude_md_paths(root);
             let result = self.build(root)?;
-            self.save_cache(root, &result, &self.collect_claude_md_paths(root));
+            let hashes = Self::collect_claude_md_hashes(&claude_md_paths);
+            self.save_cache(root, &result, &hashes);
             return Ok(result);
         }
 
         // Try to load existing cache
         let cache = self.load_cache(root);
 
-        // Collect current CLAUDE.md paths and mtimes
+        // Collect current CLAUDE.md paths and content hashes
         let claude_md_paths = self.collect_claude_md_paths(root);
-        let current_mtimes = Self::collect_claude_md_mtimes(&claude_md_paths);
+        let current_hashes = Self::collect_claude_md_hashes(&claude_md_paths);
 
         match cache {
             Some(cached) if cached.cache_version == CACHE_VERSION => {
-                // Diff mtimes to find changes
-                let (changed, added, removed) = Self::diff_mtimes(&cached.file_mtimes, &current_mtimes);
+                // Diff hashes to find changes
+                let (changed, added, removed) = Self::diff_hashes(&cached.file_hashes, &current_hashes);
 
                 if changed.is_empty() && added.is_empty() && removed.is_empty() {
                     // Cache hit - no changes
@@ -217,13 +219,13 @@ impl SymbolIndexBuilder {
                     &added,
                     &removed,
                 )?;
-                self.save_cache(root, &result, &claude_md_paths);
+                self.save_cache(root, &result, &current_hashes);
                 Ok(result)
             }
             _ => {
                 // No cache or incompatible version - full rebuild
                 let result = self.build(root)?;
-                self.save_cache(root, &result, &claude_md_paths);
+                self.save_cache(root, &result, &current_hashes);
                 Ok(result)
             }
         }
@@ -465,19 +467,17 @@ impl SymbolIndexBuilder {
         &self,
         root: &Path,
         result: &SymbolIndexResult,
-        claude_md_paths: &[(String, std::path::PathBuf)],
+        file_hashes: &HashMap<String, String>,
     ) {
         let cache_dir = root.join(CACHE_DIR);
         if std::fs::create_dir_all(&cache_dir).is_err() {
             return;
         }
 
-        let current_mtimes = Self::collect_claude_md_mtimes(claude_md_paths);
-
         let cached = CachedSymbolIndex {
             cache_version: CACHE_VERSION,
             index: result.clone(),
-            file_mtimes: current_mtimes,
+            file_hashes: file_hashes.clone(),
         };
 
         let cache_path = root.join(CACHE_FILE);
@@ -486,34 +486,70 @@ impl SymbolIndexBuilder {
         }
     }
 
-    fn collect_claude_md_mtimes(paths: &[(String, std::path::PathBuf)]) -> HashMap<String, i64> {
-        let mut mtimes = HashMap::new();
-        for (module_path, file_path) in paths {
-            if let Ok(metadata) = std::fs::metadata(file_path) {
-                if let Ok(modified) = metadata.modified() {
-                    if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-                        mtimes.insert(module_path.clone(), duration.as_secs() as i64);
-                    }
-                }
+    /// Collect content hashes for all CLAUDE.md files using `git hash-object --stdin-paths`.
+    /// Falls back to empty HashMap on any git failure (triggers full rebuild).
+    fn collect_claude_md_hashes(paths: &[(String, std::path::PathBuf)]) -> HashMap<String, String> {
+        if paths.is_empty() {
+            return HashMap::new();
+        }
+
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+
+        let mut child = match Command::new("git")
+            .args(["hash-object", "--stdin-paths"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(_) => return HashMap::new(), // git not installed → full rebuild
+        };
+
+        // Write all file paths to stdin
+        if let Some(ref mut stdin) = child.stdin {
+            for (_, file_path) in paths {
+                let _ = writeln!(stdin, "{}", file_path.display());
             }
         }
-        mtimes
+        // Drop stdin to signal EOF
+        drop(child.stdin.take());
+
+        let output = match child.wait_with_output() {
+            Ok(output) if output.status.success() => output,
+            _ => return HashMap::new(), // subprocess failed → full rebuild
+        };
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let hashes: Vec<&str> = stdout.lines().collect();
+
+        let mut result = HashMap::new();
+        for (i, (module_path, _)) in paths.iter().enumerate() {
+            if let Some(&hash) = hashes.get(i) {
+                if hash.len() >= 40 {
+                    result.insert(module_path.clone(), hash[..40].to_string());
+                }
+            }
+            // Missing hash entries stay absent → treated as "added" in diff
+        }
+        result
     }
 
-    fn diff_mtimes(
-        cached: &HashMap<String, i64>,
-        current: &HashMap<String, i64>,
+    fn diff_hashes(
+        cached: &HashMap<String, String>,
+        current: &HashMap<String, String>,
     ) -> (Vec<String>, Vec<String>, Vec<String>) {
         let mut changed = Vec::new();
         let mut added = Vec::new();
         let mut removed = Vec::new();
 
         // Find changed and added
-        for (path, &mtime) in current {
+        for (path, hash) in current {
             match cached.get(path) {
-                Some(&cached_mtime) if cached_mtime == mtime => {} // unchanged
-                Some(_) => changed.push(path.clone()),              // mtime differs
-                None => added.push(path.clone()),                    // new file
+                Some(cached_hash) if cached_hash == hash => {} // unchanged
+                Some(_) => changed.push(path.clone()),          // hash differs
+                None => added.push(path.clone()),                // new file
             }
         }
 
@@ -801,7 +837,7 @@ None
         ).unwrap();
         assert_eq!(cached.cache_version, CACHE_VERSION);
         assert_eq!(cached.index.summary.total_symbols, 1);
-        assert!(!cached.file_mtimes.is_empty());
+        assert!(!cached.file_hashes.is_empty());
     }
 
     #[test]
@@ -884,6 +920,61 @@ None
 
         assert_eq!(result.summary.total_symbols, 1);
         // Cache should be replaced with valid content
+        let cached: CachedSymbolIndex = serde_json::from_str(
+            &fs::read_to_string(root.join(CACHE_FILE)).unwrap()
+        ).unwrap();
+        assert_eq!(cached.cache_version, CACHE_VERSION);
+    }
+
+    #[test]
+    fn test_cache_version_mismatch_triggers_rebuild() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+
+        let auth_dir = root.join("auth");
+        fs::create_dir_all(&auth_dir).unwrap();
+        create_claude_md(&auth_dir, &with_required_sections(
+            "auth",
+            "Auth module.",
+            r#"
+### Functions
+- `validateToken(token: string): Claims`"#,
+            "- token → Claims",
+        ));
+
+        // Write a cache file with old version (2)
+        let cache_dir = root.join(CACHE_DIR);
+        fs::create_dir_all(&cache_dir).unwrap();
+        let old_cache = CachedSymbolIndex {
+            cache_version: 2,
+            index: SymbolIndexResult {
+                root: root.to_string_lossy().to_string(),
+                indexed_at: "2024-01-01T00:00:00Z".to_string(),
+                symbols: vec![],
+                references: vec![],
+                unresolved: vec![],
+                summary: SymbolIndexSummary {
+                    total_modules: 0,
+                    total_symbols: 0,
+                    total_references: 0,
+                    unresolved_count: 0,
+                },
+            },
+            file_hashes: HashMap::new(),
+        };
+        fs::write(
+            root.join(CACHE_FILE),
+            serde_json::to_string(&old_cache).unwrap(),
+        ).unwrap();
+
+        let builder = SymbolIndexBuilder::new();
+        let result = builder.build_with_cache(root, false).unwrap();
+
+        // Should have done a full rebuild and found the symbol
+        assert_eq!(result.summary.total_symbols, 1);
+        assert!(result.symbols.iter().any(|s| s.name == "validateToken"));
+
+        // Cache should now have current version
         let cached: CachedSymbolIndex = serde_json::from_str(
             &fs::read_to_string(root.join(CACHE_FILE)).unwrap()
         ).unwrap();
@@ -975,22 +1066,25 @@ None
     }
 
     #[test]
-    fn test_diff_mtimes() {
+    fn test_diff_hashes() {
         let mut cached = HashMap::new();
-        cached.insert("auth".to_string(), 100);
-        cached.insert("api".to_string(), 200);
-        cached.insert("legacy".to_string(), 300);
+        cached.insert("auth".to_string(), "aaa111".to_string());
+        cached.insert("api".to_string(), "bbb222".to_string());
+        cached.insert("legacy".to_string(), "ccc333".to_string());
 
         let mut current = HashMap::new();
-        current.insert("auth".to_string(), 100);  // unchanged
-        current.insert("api".to_string(), 250);   // changed
-        current.insert("payments".to_string(), 400); // added
+        current.insert("auth".to_string(), "aaa111".to_string());   // unchanged
+        current.insert("api".to_string(), "ddd444".to_string());    // changed
+        current.insert("payments".to_string(), "eee555".to_string()); // added
 
-        let (changed, added, removed) = SymbolIndexBuilder::diff_mtimes(&cached, &current);
+        let (changed, added, removed) = SymbolIndexBuilder::diff_hashes(&cached, &current);
 
-        assert_eq!(changed, vec!["api".to_string()]);
-        assert_eq!(added, vec!["payments".to_string()]);
-        assert_eq!(removed, vec!["legacy".to_string()]);
+        assert_eq!(changed.len(), 1);
+        assert!(changed.contains(&"api".to_string()));
+        assert_eq!(added.len(), 1);
+        assert!(added.contains(&"payments".to_string()));
+        assert_eq!(removed.len(), 1);
+        assert!(removed.contains(&"legacy".to_string()));
     }
 
     #[test]
@@ -1031,9 +1125,7 @@ None
         assert!(result1.symbols.iter().any(|s| s.name == "processPayment"));
         assert!(result1.symbols.iter().any(|s| s.name == "handleRequest"));
 
-        // Build 2: Modify auth → incremental rebuild
-        // Sleep briefly to ensure mtime changes
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        // Build 2: Modify auth → incremental rebuild (no sleep needed: content hash detects change)
         create_claude_md(&auth_dir, &with_required_sections(
             "auth", "Auth module.",
             "\n### Functions\n- `verifyJWT(token: string): Claims`",
@@ -1048,7 +1140,6 @@ None
         assert!(result2.symbols.iter().any(|s| s.name == "handleRequest"), "api symbol should be unchanged");
 
         // Build 3: Modify payments → incremental rebuild
-        std::thread::sleep(std::time::Duration::from_millis(1100));
         create_claude_md(&payments_dir, &with_required_sections(
             "payments", "Payments module.",
             "\n### Functions\n- `chargeCard(card: Card): Transaction`",
@@ -1063,7 +1154,6 @@ None
         assert!(result3.symbols.iter().any(|s| s.name == "handleRequest"), "api symbol should be unchanged");
 
         // Build 4: Remove api → incremental rebuild
-        std::thread::sleep(std::time::Duration::from_millis(1100));
         fs::remove_file(api_dir.join("CLAUDE.md")).unwrap();
 
         let result4 = builder.build_with_cache(root, false).unwrap();
