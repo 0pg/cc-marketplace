@@ -5,8 +5,8 @@
 #   - Documentation (templates/claude-md-schema.md)
 #   - Schema-validate skill (skills/schema-validate/SKILL.md)
 
-version: "1.0.0"
-description: "CLAUDE.md 스키마 검증 규칙 - Single Source of Truth"
+version: "2.0.0"
+description: "CLAUDE.md 스키마 검증 규칙 - Single Source of Truth (v2: Symbol Index + Diagrams)"
 
 sections:
   purpose:
@@ -28,20 +28,35 @@ sections:
     required: true
     condition: "always"
     allow_none: true
-    description: "모듈의 public interface를 시그니처 레벨로"
+    description: "모듈의 public interface를 시그니처 레벨로, 각 심볼은 cross-reference 앵커"
     validation:
       pattern: "^[A-Za-z_][A-Za-z0-9_]*\\s*\\([^)]*\\).*"
       description: "함수 시그니처 형식: Name(params): ReturnType"
+    indexable: true
+    anchor_source: "name"
+    v2_format:
+      heading_required: true
+      heading_pattern: "^####\\s+([A-Za-z_][A-Za-z0-9_]*)"
+      description_follows_signature: true
 
   behavior:
     name: "Behavior"
     required: true
     condition: "always"
     allow_none: true
-    description: "동작을 시나리오 레벨 (input → output)로 명시"
+    description: "동작을 시나리오 레벨 (input → output)로 명시, UseCase 다이어그램 생성 가능"
     validation:
       pattern: ".+\\s*[→->].+"
       description: "시나리오 형식: input → output"
+    subsections:
+      - actors
+      - use_cases
+    usecase_metadata:
+      actor_pattern: "^-\\s+(.+?):\\s+(.+)"
+      id_pattern: "^###\\s+UC-(\\d+):\\s+(.+)"
+      include_pattern: "^-\\s+Includes?:\\s+(.+)"
+      extend_pattern: "^-\\s+Extends?:\\s+(.+)"
+      actor_ref_pattern: "^-\\s+Actor:\\s+(.+)"
 
   contract:
     name: "Contract"
@@ -115,3 +130,14 @@ none_marker:
     - "N/A"
     - "n/a"
   description: "명시적으로 해당 섹션이 비어있음을 표시하는 값"
+
+cross_reference:
+  format: "{path}/CLAUDE.md#{symbolName}"
+  anchor_source: "export_name"
+
+schema_version:
+  marker_pattern: "^<!--\\s*schema:\\s*(\\d+\\.\\d+)\\s*-->"
+  current: "2.0"
+  supported:
+    - "1.0"
+    - "2.0"

@@ -415,6 +415,72 @@ Phase 2.5에서 결정된 모듈 배치를 기반으로 대상 위치를 확정�
 | error | `expired token → TokenExpiredError` |
 | edge | `empty token → InvalidTokenError` |
 
+#### v2 Behavior 구조 (UseCase 다이어그램 지원)
+
+요구사항에서 여러 Actor와 UseCase가 식별되면 v2 구조를 사용합니다:
+
+```markdown
+## Behavior
+
+### Actors
+- User: 인증이 필요한 사용자
+- System: 내부 토큰 검증 시스템
+
+### UC-1: Token Validation
+- Actor: User
+- 유효한 토큰 → Claims 객체 반환
+- 만료된 토큰 → TokenExpiredError
+- Includes: UC-3
+
+### UC-2: Token Issuance
+- Actor: System
+- 사용자 정보 + 역할 → 서명된 JWT 토큰
+- Extends: UC-1
+```
+
+- Actor 식별: 요구사항에서 역할(User, Admin, System 등) 추출
+- UC-ID 부여: `UC-{N}` 형식, 순차 번호
+- Include/Extend: UseCase 간 관계 명시
+
+#### v2 Exports 형식 (Symbol Cross-Reference 지원)
+
+v2에서는 `#### symbolName` heading 형식을 사용하여 GitHub 앵커 링크를 지원합니다:
+
+```markdown
+### Functions
+
+#### validateToken
+`validateToken(token: string): Promise<Claims>`
+
+JWT 토큰을 검증하고 Claims를 추출합니다.
+
+#### issueToken
+`issueToken(userId: string): Promise<string>`
+
+새로운 JWT 토큰을 발급합니다.
+```
+
+크로스 레퍼런스: `src/auth/CLAUDE.md#validateToken` 형식으로 다른 모듈에서 참조 가능
+
+#### Schema Version Marker
+
+v2 CLAUDE.md 파일에는 첫 줄에 버전 마커를 추가합니다:
+
+```markdown
+<!-- schema: 2.0 -->
+# module-name
+```
+
+#### Backward Compatibility (v1 ↔ v2)
+
+| 상황 | 동작 |
+|------|------|
+| 신규 /spec | v2 형식으로 생성 (마커 + heading exports + Actor/UC) |
+| 기존 v1 CLAUDE.md에 /spec 추가 | 기존 형식 유지. 필요시 사용자에게 v2 전환 제안 |
+| v2 감지 기준 | 파일 첫 5줄에 `<!-- schema: 2.0 -->` 마커 존재 여부 |
+
+v1 형식의 CLAUDE.md도 /compile, /validate에서 정상 동작합니다. v2는 symbol indexing, diagram generation 등 추가 기능을 활성화합니다.
+
 ### Phase 5.5: IMPLEMENTS.md Planning Section 생성 (HOW 계획)
 
 요구사항 분석 결과와 **Phase 2.5 아키텍처 설계**를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다.

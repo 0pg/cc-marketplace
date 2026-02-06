@@ -28,16 +28,34 @@ pub struct ValidationError {
     /// Section where error was found
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+    /// Suggested fix for the error
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
 }
 
 // Include generated constants from schema-rules.yaml (SSOT)
-include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+// Not all constants are used in every module that includes them
+#[allow(dead_code)]
+mod schema_rules {
+    include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+}
+use schema_rules::*;
 
 pub struct SchemaValidator {
     /// Pattern to match section headers
     section_pattern: Regex,
     /// Pattern to match behavior scenarios
     behavior_pattern: Regex,
+    /// Pattern to detect schema version marker
+    schema_version_pattern: Regex,
+    /// Pattern to match use case IDs
+    usecase_id_pattern: Regex,
+    /// Pattern to match include references
+    include_pattern: Regex,
+    /// Pattern to match extend references
+    extend_pattern: Regex,
+    /// Pattern to match cross-references (CLAUDE.md#symbol)
+    cross_ref_pattern: Regex,
 }
 
 impl SchemaValidator {
@@ -48,9 +66,25 @@ impl SchemaValidator {
         // Match behavior scenarios: input → output
         let behavior_pattern = Regex::new(r"→|->").unwrap();
 
+        // Schema version marker: <!-- schema: 2.0 -->
+        let schema_version_pattern = Regex::new(SCHEMA_VERSION_MARKER_PATTERN).unwrap();
+
+        // v2 behavior patterns
+        let usecase_id_pattern = Regex::new(USECASE_ID_PATTERN).unwrap();
+        let include_pattern = Regex::new(INCLUDE_PATTERN).unwrap();
+        let extend_pattern = Regex::new(EXTEND_PATTERN).unwrap();
+
+        // Cross-reference pattern: path/CLAUDE.md#symbolName
+        let cross_ref_pattern = Regex::new(r"([A-Za-z0-9_./-]*CLAUDE\.md)#([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+
         Self {
             section_pattern,
             behavior_pattern,
+            schema_version_pattern,
+            usecase_id_pattern,
+            include_pattern,
+            extend_pattern,
+            cross_ref_pattern,
         }
     }
 
@@ -69,6 +103,7 @@ impl SchemaValidator {
                         message: format!("Cannot read file: {}", e),
                         line_number: None,
                         section: None,
+                        suggestion: None,
                     }],
                     warnings: vec![],
                 };
@@ -92,6 +127,7 @@ impl SchemaValidator {
                         message: format!("Missing required section: {}", required),
                         line_number: None,
                         section: Some(required.to_string()),
+                        suggestion: Some(format!("Add a '## {}' section to the CLAUDE.md file", required)),
                     });
                 }
                 Some(section) => {
@@ -105,11 +141,15 @@ impl SchemaValidator {
                             message: format!("Section '{}' does not allow 'None' as value", required),
                             line_number: Some(section.start_line),
                             section: Some(required.to_string()),
+                            suggestion: Some(format!("Add content to the '{}' section instead of 'None'", required)),
                         });
                     }
                 }
             }
         }
+
+        // Detect schema version
+        let schema_version = self.detect_schema_version(&content);
 
         // Validate Exports section format
         if let Some(exports) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports")) {
@@ -118,8 +158,17 @@ impl SchemaValidator {
 
         // Validate Behavior section format
         if let Some(behavior) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Behavior")) {
-            self.validate_behavior(behavior, &mut errors, &mut warnings);
+            let is_v2 = schema_version.as_deref() == Some("2.0");
+            self.validate_behavior(behavior, &content, &sections, is_v2, &mut errors, &mut warnings);
+
+            // v2-specific: validate actors and use cases
+            if is_v2 {
+                self.validate_v2_behavior(&content, behavior, &sections, &mut errors, &mut warnings);
+            }
         }
+
+        // Validate cross-references in all content
+        self.validate_cross_references(&content, &mut warnings);
 
         ValidationResult {
             file: file_str,
@@ -238,19 +287,62 @@ impl SchemaValidator {
                 message: "Exports section must contain valid function signatures or 'None'".to_string(),
                 line_number: Some(section.start_line),
                 section: Some("Exports".to_string()),
+                suggestion: Some("Use format: `functionName(param: Type): ReturnType` or 'None' if no exports".to_string()),
             });
         }
+    }
+
+    /// Get the full content lines belonging to a ## section (including ### subsections).
+    /// Since parse_sections splits at every # heading, subsections are separate Section objects.
+    /// This method finds the range from the section start to the next ## section.
+    fn get_full_section_lines<'a>(&self, content: &'a str, section: &Section, all_sections: &[Section]) -> Vec<(usize, &'a str)> {
+        let start_line = section.start_line; // 1-based
+
+        // Find the next ## section (same or higher level)
+        let end_line = all_sections.iter()
+            .filter(|s| s.start_line > start_line)
+            .filter(|s| {
+                // Only stop at ## level (not ### which are subsections)
+                // Check the original content to determine heading level
+                let line_idx = s.start_line - 1;
+                content.lines().nth(line_idx)
+                    .map(|l| l.starts_with("## ") && !l.starts_with("### "))
+                    .unwrap_or(false)
+            })
+            .map(|s| s.start_line)
+            .next()
+            .unwrap_or(content.lines().count() + 1);
+
+        content.lines()
+            .enumerate()
+            .skip(start_line) // skip the ## heading itself (0-indexed skip = start_line since it's 1-based)
+            .take_while(|(i, _)| i + 1 < end_line)
+            .map(|(i, line)| (i + 1, line))
+            .collect()
     }
 
     fn validate_behavior(
         &self,
         section: &Section,
+        content: &str,
+        all_sections: &[Section],
+        is_v2: bool,
         errors: &mut Vec<ValidationError>,
         _warnings: &mut Vec<String>,
     ) {
         let mut found_valid_behavior = false;
 
-        for (_, line) in &section.content {
+        // For v2 files, scan the full section range including ### subsections
+        let lines_to_check: Vec<(usize, String)> = if is_v2 {
+            self.get_full_section_lines(content, section, all_sections)
+                .into_iter()
+                .map(|(n, l)| (n, l.to_string()))
+                .collect()
+        } else {
+            section.content.clone()
+        };
+
+        for (_, line) in &lines_to_check {
             let trimmed = line.trim();
 
             // Skip empty lines and headers
@@ -264,19 +356,145 @@ impl SchemaValidator {
                 continue;
             }
 
+            // v2 markers count as valid behavior
+            if trimmed.starts_with("- Actor:") || trimmed.starts_with("- Includes:") || trimmed.starts_with("- Extends:") {
+                found_valid_behavior = true;
+                continue;
+            }
+
             // Check for scenario pattern: input → output
             if self.behavior_pattern.is_match(trimmed) {
                 found_valid_behavior = true;
             }
         }
 
-        if !found_valid_behavior && !section.content.is_empty() {
+        if !found_valid_behavior && !lines_to_check.is_empty() {
             errors.push(ValidationError {
                 error_type: "InvalidBehavior".to_string(),
                 message: "Behavior section must contain scenarios in 'input → output' format or 'None'".to_string(),
                 line_number: Some(section.start_line),
                 section: Some("Behavior".to_string()),
+                suggestion: Some("Use format: '- input → output' (e.g., '- valid token → Claims')".to_string()),
             });
+        }
+    }
+
+    /// Detect schema version from content (first 5 lines)
+    fn detect_schema_version(&self, content: &str) -> Option<String> {
+        for line in content.lines().take(5) {
+            if let Some(caps) = self.schema_version_pattern.captures(line) {
+                return caps.get(1).map(|m| m.as_str().to_string());
+            }
+        }
+        None
+    }
+
+    /// Validate v2-specific Behavior section (Actors, Use Cases)
+    /// Uses full content range to capture ### subsections
+    fn validate_v2_behavior(
+        &self,
+        content: &str,
+        section: &Section,
+        all_sections: &[Section],
+        errors: &mut Vec<ValidationError>,
+        _warnings: &mut Vec<String>,
+    ) {
+        let full_lines = self.get_full_section_lines(content, section, all_sections);
+
+        let mut uc_ids: Vec<String> = Vec::new();
+        let mut include_targets: Vec<String> = Vec::new();
+        let mut extend_targets: Vec<String> = Vec::new();
+
+        for (line_num, line) in &full_lines {
+            let trimmed = line.trim();
+
+            // Collect UC IDs from ### UC-N: Name headings
+            if let Some(caps) = self.usecase_id_pattern.captures(trimmed) {
+                let id = format!("UC-{}", caps.get(1).map(|m| m.as_str()).unwrap_or(""));
+                if uc_ids.contains(&id) {
+                    errors.push(ValidationError {
+                        error_type: "DuplicateUseCaseId".to_string(),
+                        message: format!("Duplicate use case ID: {}", id),
+                        line_number: Some(*line_num),
+                        section: Some("Behavior".to_string()),
+                        suggestion: Some(format!("Rename one of the duplicate '{}' use cases to a unique ID (e.g., UC-N with a different number)", id)),
+                    });
+                }
+                uc_ids.push(id);
+            }
+
+            // Collect include targets
+            if let Some(caps) = self.include_pattern.captures(trimmed) {
+                if let Some(targets) = caps.get(1) {
+                    for target in targets.as_str().split(',').map(|s| s.trim().to_string()) {
+                        include_targets.push(target);
+                    }
+                }
+            }
+
+            // Collect extend targets
+            if let Some(caps) = self.extend_pattern.captures(trimmed) {
+                if let Some(targets) = caps.get(1) {
+                    for target in targets.as_str().split(',').map(|s| s.trim().to_string()) {
+                        extend_targets.push(target);
+                    }
+                }
+            }
+        }
+
+        // Validate include/extend targets exist
+        for target in &include_targets {
+            if !uc_ids.contains(target) {
+                errors.push(ValidationError {
+                    error_type: "InvalidIncludeTarget".to_string(),
+                    message: format!("Include target '{}' does not match any defined use case", target),
+                    line_number: None,
+                    section: Some("Behavior".to_string()),
+                    suggestion: Some(format!("Add '### {}: <Name>' subsection to the Behavior section, or fix the Includes reference", target)),
+                });
+            }
+        }
+
+        for target in &extend_targets {
+            if !uc_ids.contains(target) {
+                errors.push(ValidationError {
+                    error_type: "InvalidExtendTarget".to_string(),
+                    message: format!("Extend target '{}' does not match any defined use case", target),
+                    line_number: None,
+                    section: Some("Behavior".to_string()),
+                    suggestion: Some(format!("Add '### {}: <Name>' subsection to the Behavior section, or fix the Extends reference", target)),
+                });
+            }
+        }
+    }
+
+    /// Validate cross-reference syntax in content
+    fn validate_cross_references(
+        &self,
+        content: &str,
+        warnings: &mut Vec<String>,
+    ) {
+        for (line_num, line) in content.lines().enumerate() {
+            for caps in self.cross_ref_pattern.captures_iter(line) {
+                let full_path = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let symbol_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+
+                // Warn if path looks malformed (double slashes, trailing slash before CLAUDE.md)
+                if full_path.contains("//") {
+                    warnings.push(format!(
+                        "Line {}: Cross-reference path '{}#{}' contains double slashes",
+                        line_num + 1, full_path, symbol_name
+                    ));
+                }
+
+                // Warn if symbol name starts with uppercase but looks like a path component
+                if symbol_name.contains('/') {
+                    warnings.push(format!(
+                        "Line {}: Cross-reference symbol '{}' should not contain path separators",
+                        line_num + 1, symbol_name
+                    ));
+                }
+            }
         }
     }
 
@@ -543,6 +761,174 @@ None
             .errors
             .iter()
             .any(|e| e.message.contains("Protocol")));
+    }
+
+    #[test]
+    fn test_v2_duplicate_usecase_id() {
+        let content = r#"<!-- schema: 2.0 -->
+# Test Module
+
+## Purpose
+Auth module.
+
+## Summary
+Test module summary.
+
+## Exports
+- `validateToken(token: string): Claims`
+
+## Behavior
+
+### Actors
+- User: End user
+
+### UC-1: Token Validation
+- Actor: User
+- valid token → Claims
+
+### UC-1: Duplicate Validation
+- Actor: User
+- expired token → Error
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+None
+"#;
+        let (_temp, path) = create_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| e.error_type == "DuplicateUseCaseId"));
+    }
+
+    #[test]
+    fn test_v2_invalid_include_target() {
+        let content = r#"<!-- schema: 2.0 -->
+# Test Module
+
+## Purpose
+Auth module.
+
+## Summary
+Test module summary.
+
+## Exports
+- `validateToken(token: string): Claims`
+
+## Behavior
+
+### UC-1: Token Validation
+- Actor: User
+- valid token → Claims
+- Includes: UC-99
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+None
+"#;
+        let (_temp, path) = create_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| e.error_type == "InvalidIncludeTarget"));
+    }
+
+    #[test]
+    fn test_v2_valid_include_target() {
+        let content = r#"<!-- schema: 2.0 -->
+# Test Module
+
+## Purpose
+Auth module.
+
+## Summary
+Test module summary.
+
+## Exports
+- `validateToken(token: string): Claims`
+
+## Behavior
+
+### UC-1: Token Validation
+- Actor: User
+- valid token → Claims
+- Includes: UC-2
+
+### UC-2: Token Parsing
+- Actor: System
+- JWT string → parsed token
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+None
+"#;
+        let (_temp, path) = create_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_v1_file_skips_v2_validation() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Auth module.
+
+## Exports
+- `validateToken(token: string): Claims`
+
+## Behavior
+- valid token → Claims
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        // v1 file should pass without v2-specific checks
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_cross_reference_double_slash_warning() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Auth module. Uses src//auth/CLAUDE.md#validateToken.
+
+## Exports
+- `validateToken(token: string): Claims`
+
+## Behavior
+- valid token → Claims
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.warnings.iter().any(|w| w.contains("double slashes")));
     }
 
     #[test]

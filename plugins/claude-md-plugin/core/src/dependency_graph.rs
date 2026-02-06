@@ -53,6 +53,12 @@ pub struct ModuleNode {
     pub summary: Option<String>,
     /// Exported symbols from CLAUDE.md Exports section
     pub exports: Vec<String>,
+    /// Detailed symbol entries for cross-reference indexing.
+    /// Currently populated as empty vec; will be filled by SymbolIndexBuilder
+    /// when symbol-level dependency tracking is integrated into the dependency graph pipeline.
+    /// See: symbol_index.rs SymbolEntry for the entry structure.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub symbol_entries: Vec<crate::symbol_index::SymbolEntry>,
 }
 
 /// A dependency edge between two modules.
@@ -150,6 +156,7 @@ impl DependencyGraphBuilder {
                     has_claude_md: true,
                     summary,
                     exports: export_names,
+                    symbol_entries: vec![],
                 });
             } else {
                 // Module without CLAUDE.md
@@ -159,6 +166,7 @@ impl DependencyGraphBuilder {
                     has_claude_md: false,
                     summary: None,
                     exports: Vec::new(),
+                    symbol_entries: vec![],
                 });
             }
         }

@@ -452,6 +452,40 @@ cat plugins/claude-md-plugin/templates/implements-md-schema.md
 - 자식 Purpose를 Structure 섹션에 반영
 - 예: `auth/jwt/: JWT 토큰 생성 및 검증 (상세는 auth/jwt/CLAUDE.md 참조)`
 
+### v2 형식 생성
+
+소스코드에서 v2 CLAUDE.md를 생성할 때:
+
+1. **Schema Version Marker**: `<!-- schema: 2.0 -->` 첫 줄에 추가
+2. **Actor 추론**: 코드에서 역할 식별 (예: 클래스/인터페이스의 사용자 유형)
+3. **UseCase 구조**: 관련 함수들을 UC로 그룹핑, Include/Extend 관계 추론
+4. **Export Heading 형식**: `#### symbolName` heading으로 각 export 작성, 설명 텍스트 추가
+5. **Cross-Reference**: 다른 모듈 의존성이 있으면 `path/CLAUDE.md#symbolName` 형식으로 참조
+
+```markdown
+<!-- schema: 2.0 -->
+# module-name
+
+## Exports
+
+### Functions
+
+#### validateToken
+`validateToken(token: string): Promise<Claims>`
+
+JWT 토큰을 검증하고 Claims를 추출합니다.
+```
+
+### Backward Compatibility (v1 ↔ v2)
+
+| 상황 | 동작 |
+|------|------|
+| 신규 decompile | v2 형식으로 생성 (`<!-- schema: 2.0 -->` 마커 포함) |
+| 기존 v1 CLAUDE.md 존재 | v1 형식 유지, 기존 구조 보존. v2 변환은 `migrate` CLI 사용 |
+| `--force` 옵션 | v2 형식으로 덮어쓰기 (사용자 확인 후) |
+
+v1 파일은 여전히 모든 명령어에서 정상 동작합니다. v2 마이그레이션은 선택적입니다.
+
 ### 참조 규칙 준수
 
 **허용**:

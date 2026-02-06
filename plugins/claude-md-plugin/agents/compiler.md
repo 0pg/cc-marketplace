@@ -246,6 +246,32 @@ IMPLEMENTS.md 경로: <path>
 **이유**: CLAUDE.md의 Exports는 **Interface Catalog**로서 설계되었습니다.
 코드 탐색보다 CLAUDE.md 탐색이 더 효율적이고, 캡슐화 원칙을 준수합니다.
 
+#### 1.2.1 Symbol Cross-Reference Resolution (v2)
+
+v2 CLAUDE.md에서 크로스 레퍼런스(`path/CLAUDE.md#symbolName`)가 있을 때,
+`symbol-index` CLI로 해소합니다:
+
+```bash
+# 심볼 찾기 (go-to-definition)
+claude-md-core symbol-index --root {project_root} --find validateToken
+
+# 레퍼런스 찾기 (find-references)
+claude-md-core symbol-index --root {project_root} --references "auth/CLAUDE.md#validateToken"
+```
+
+- 크로스 레퍼런스 발견 시 해당 심볼의 시그니처를 가져와 import 문 생성에 활용
+- 미해소 레퍼런스는 경고 로그
+
+#### 1.2.2 Backward Compatibility (v1 ↔ v2)
+
+| 입력 | 동작 |
+|------|------|
+| v1 CLAUDE.md (마커 없음) | 기존 방식 그대로 compile. Cross-reference resolution 건너뜀 |
+| v2 CLAUDE.md (`<!-- schema: 2.0 -->`) | Cross-reference resolution 활성, symbol-index 활용 |
+| v1/v2 혼합 프로젝트 | 파일 단위로 판단. v1 파일은 v1 방식, v2 파일은 v2 방식 |
+
+**Migration**: `claude-md-core migrate --root .` 으로 v1 → v2 일괄 변환 가능 (dry-run 지원)
+
 #### 1.3 Domain Context 반영
 
 **Domain Context는 compile 재현성의 핵심입니다.** 동일한 CLAUDE.md에서 동일한 코드를 생성하려면 Domain Context의 값들이 코드에 그대로 반영되어야 합니다.

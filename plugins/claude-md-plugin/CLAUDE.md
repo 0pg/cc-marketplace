@@ -122,6 +122,21 @@ auth/
 
 **Exports = 인터페이스 카탈로그, Domain Context = 맥락 카탈로그, IMPLEMENTS.md = 구현 명세**
 
+### Schema v2 (Cross-Reference & Diagrams)
+
+v2는 CLAUDE.md를 **machine-readable, cross-referenceable** 스펙 시스템으로 진화시킵니다.
+
+| v1 (암묵적) | v2 (명시적) | 효과 |
+|------------|------------|------|
+| 버전 마커 없음 | `<!-- schema: 2.0 -->` | 파서가 버전별 분기 가능 |
+| 불릿 기반 Exports | `#### symbolName` 헤딩 | GitHub 앵커 → cross-reference |
+| 평면적 Behavior | Actors + UC-N + Include/Extend | UseCase 다이어그램 자동 생성 |
+| 참조 방법 없음 | `path/CLAUDE.md#symbol` | go-to-definition, find-references |
+
+**v1/v2 하위 호환성**: v1 파일은 모든 명령어에서 정상 동작. v2 마이그레이션은 선택적 (`claude-md-core migrate`).
+
+**SSOT 체인**: `schema-rules.yaml → build.rs (codegen) → Rust 상수 13개`
+
 ## Architecture
 
 ### /spec (요구사항 → CLAUDE.md + IMPLEMENTS.md)
@@ -262,6 +277,21 @@ User: /validate
 | `code-analyze` | Internal | 코드 분석 |
 | `claude-md-parse` | Internal | CLAUDE.md 파싱 |
 | `schema-validate` | Internal | 스키마 검증 |
+
+## Core Rust Modules (core/src/)
+
+| 모듈 | 역할 | CLI 명령어 |
+|------|------|-----------|
+| `tree_parser.rs` | 디렉토리 트리 스캔 | `parse-tree` |
+| `boundary_resolver.rs` | 바운더리 결정 | `resolve-boundary` |
+| `schema_validator.rs` | 스키마 검증 (v1/v2 듀얼) | `validate-schema` |
+| `claude_md_parser.rs` | CLAUDE.md 파싱 (v1/v2 듀얼) | `parse-claude-md` |
+| `dependency_graph.rs` | 모듈 의존성 그래프 | `dependency-graph` |
+| `auditor.rs` | 완성도 감사 | `audit` |
+| `code_analyzer.rs` | 소스코드 분석 | - |
+| `symbol_index.rs` | 크로스 모듈 심볼 인덱싱 (v2) | `symbol-index` |
+| `diagram_generator.rs` | Mermaid 다이어그램 생성 (v2) | `generate-usecase`, `generate-state`, `generate-component` |
+| `migrator.rs` | v1→v2 자동 마이그레이션 (v2) | `migrate` |
 
 ## 불변식
 

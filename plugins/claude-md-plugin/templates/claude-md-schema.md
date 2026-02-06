@@ -318,6 +318,82 @@ None
 | `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
 | `UUID v1 지원 필요` | UUID v1 파싱 함수 포함 |
 
+## Schema v2 기능
+
+### Schema Version Marker
+
+v2 파일은 첫 줄에 버전 마커를 포함합니다:
+
+```markdown
+<!-- schema: 2.0 -->
+# module-name
+```
+
+### v2 Behavior 구조 (UseCase 다이어그램 지원)
+
+v2에서는 Behavior 섹션에 Actor와 UseCase 구조를 추가할 수 있습니다:
+
+```markdown
+## Behavior
+
+### Actors
+- User: 인증이 필요한 사용자
+- System: 내부 토큰 검증 시스템
+
+### UC-1: Token Validation
+- Actor: User
+- 유효한 토큰 → Claims 객체 반환
+- 만료된 토큰 → TokenExpiredError
+- Includes: UC-3
+
+### UC-2: Token Issuance
+- Actor: System
+- 사용자 정보 + 역할 → 서명된 JWT 토큰
+- Extends: UC-1
+```
+
+이 구조는 `claude-md-core generate-usecase` CLI로 Mermaid UseCase 다이어그램 생성에 사용됩니다.
+
+### v2 Cross-Reference (Symbol-level Indexing)
+
+v2 Exports는 heading 형식으로 작성하여 cross-reference를 지원합니다:
+
+```markdown
+### Functions
+
+#### validateToken
+`validateToken(token: string): Promise<Claims>`
+
+JWT 토큰을 검증하고 Claims를 추출합니다.
+```
+
+다른 모듈에서 참조 시: `src/auth/CLAUDE.md#validateToken`
+
+`claude-md-core symbol-index` CLI를 사용하여 go-to-definition, find-references 기능을 제공합니다.
+
+### Diagram Generation CLI
+
+| 다이어그램 | 소스 | CLI 명령어 | Mermaid 타입 |
+|-----------|------|-----------|-------------|
+| UseCase | Behavior (Actors + UC) | `generate-usecase --file` | `flowchart LR` |
+| State | Protocol (States + Transitions) | `generate-state --file` | `stateDiagram-v2` |
+| Component | dependency-graph (Nodes + Edges) | `generate-component --root` | `flowchart TB` |
+
+### Migration (v1 → v2)
+
+```bash
+# 미리보기 (파일 변경 없음)
+claude-md-core migrate --root . --dry-run
+
+# 마이그레이션 실행
+claude-md-core migrate --root .
+```
+
+마이그레이션 작업:
+1. `<!-- schema: 2.0 -->` 마커 추가
+2. Exports bullet 형식 → heading 형식 변환
+3. Actor/UC 구조 추가 제안
+
 ## 검증 규칙
 
 > 규칙의 Single Source of Truth: `skills/schema-validate/references/schema-rules.yaml`

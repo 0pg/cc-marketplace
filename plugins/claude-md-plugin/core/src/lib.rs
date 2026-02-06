@@ -5,6 +5,9 @@ pub mod code_analyzer;
 pub mod claude_md_parser;
 pub mod dependency_graph;
 pub mod auditor;
+pub mod symbol_index;
+pub mod diagram_generator;
+pub mod migrator;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;
@@ -13,3 +16,6 @@ pub use code_analyzer::CodeAnalyzer;
 pub use claude_md_parser::ClaudeMdParser;
 pub use dependency_graph::DependencyGraphBuilder;
 pub use auditor::Auditor;
+pub use symbol_index::SymbolIndexBuilder;
+pub use diagram_generator::DiagramGenerator;
+pub use migrator::Migrator;

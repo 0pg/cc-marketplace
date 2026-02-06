@@ -4,7 +4,12 @@ use std::path::Path;
 use thiserror::Error;
 
 // Include generated constants from schema-rules.yaml (SSOT)
-include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+// Not all constants are used in every module that includes them
+#[allow(dead_code)]
+mod schema_rules {
+    include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+}
+use schema_rules::*;
 
 /// Error types for CLAUDE.md parsing
 #[derive(Debug, Error)]
@@ -37,6 +42,12 @@ pub struct ClaudeMdSpec {
     pub dependencies: DependenciesSpec,
     /// Behavioral scenarios
     pub behaviors: Vec<BehaviorSpec>,
+    /// Actors for UseCase diagrams (v2)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub actors: Vec<ActorSpec>,
+    /// Use cases (v2)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub use_cases: Vec<UseCaseSpec>,
     /// Function contracts
     pub contracts: Vec<ContractSpec>,
     /// Protocol (state machine, lifecycle)
@@ -45,6 +56,9 @@ pub struct ClaudeMdSpec {
     /// Directory structure
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structure: Option<StructureSpec>,
+    /// Schema version (v2: "2.0", v1: None)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<String>,
     /// Validation warnings (non-fatal issues found during parsing)
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -67,6 +81,10 @@ pub struct FunctionExport {
     pub signature: String,
     #[serde(default)]
     pub is_async: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 /// Type export
@@ -76,6 +94,10 @@ pub struct TypeExport {
     pub definition: String,
     #[serde(default)]
     pub kind: TypeKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -94,6 +116,10 @@ pub enum TypeKind {
 pub struct ClassExport {
     pub name: String,
     pub constructor_signature: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 /// Enum export
@@ -101,6 +127,10 @@ pub struct ClassExport {
 pub struct EnumExport {
     pub name: String,
     pub variants: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 /// Variable export
@@ -109,6 +139,10 @@ pub struct VariableExport {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 /// Dependencies specification
@@ -132,6 +166,34 @@ pub enum BehaviorCategory {
     #[default]
     Success,
     Error,
+}
+
+/// Actor in a UseCase diagram (v2)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActorSpec {
+    pub name: String,
+    pub description: String,
+}
+
+/// UseCase specification (v2)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UseCaseSpec {
+    /// UseCase ID (e.g. "UC-1")
+    pub id: String,
+    /// UseCase name (e.g. "Token Validation")
+    pub name: String,
+    /// Associated actor name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
+    /// Behavioral scenarios within this use case
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub behaviors: Vec<BehaviorSpec>,
+    /// Included use case IDs (e.g. ["UC-3"])
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub includes: Vec<String>,
+    /// Extended use case IDs (e.g. ["UC-1"])
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub extends: Vec<String>,
 }
 
 /// Contract specification
@@ -193,6 +255,16 @@ pub struct ClaudeMdParser {
     transition_pattern: Regex,
     lifecycle_pattern: Regex,
     structure_pattern: Regex,
+    // v2 patterns
+    schema_version_pattern: Regex,
+    actor_pattern: Regex,
+    usecase_id_pattern: Regex,
+    include_pattern: Regex,
+    extend_pattern: Regex,
+    actor_ref_pattern: Regex,
+    /// v2 export heading pattern (#### symbolName) - used for future v2 heading-format parsing
+    #[allow(dead_code)]
+    export_heading_pattern: Regex,
 }
 
 impl ClaudeMdParser {
@@ -216,6 +288,20 @@ impl ClaudeMdParser {
             lifecycle_pattern: Regex::new(r"^(\d+)\.\s*`?([A-Za-z_][A-Za-z0-9_]*(?:\(\))?)`?\s*[-–]\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match structure: name/: description or name.ext: description
             structure_pattern: Regex::new(r"^[-*]?\s*([A-Za-z0-9_.-]+/?)\s*[:\s]+(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Schema version marker: <!-- schema: 2.0 -->
+            schema_version_pattern: Regex::new(SCHEMA_VERSION_MARKER_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Actor pattern: - ActorName: description
+            actor_pattern: Regex::new(ACTOR_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: UseCase ID pattern: ### UC-1: Name
+            usecase_id_pattern: Regex::new(USECASE_ID_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Include pattern: - Includes: UC-3
+            include_pattern: Regex::new(INCLUDE_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Extend pattern: - Extends: UC-1
+            extend_pattern: Regex::new(EXTEND_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Actor reference: - Actor: User
+            actor_ref_pattern: Regex::new(ACTOR_REF_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // v2: Export heading: #### symbolName
+            export_heading_pattern: Regex::new(EXPORT_HEADING_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
         }
     }
 
@@ -234,6 +320,10 @@ impl ClaudeMdParser {
     /// Required sections are defined in schema-rules.yaml (SSOT).
     pub fn parse_content(&self, content: &str) -> Result<ClaudeMdSpec, ParseError> {
         let mut spec = ClaudeMdSpec::default();
+
+        // Detect schema version from marker comment
+        spec.schema_version = self.detect_schema_version(content);
+
         let sections = self.extract_sections(content);
 
         // Extract module name from first H1 header
@@ -295,6 +385,10 @@ impl ClaudeMdParser {
 
         // Parse Behavior section
         self.parse_behaviors(&sections, &mut spec);
+
+        // Parse v2 UseCase elements (Actors + Use Cases) from Behavior subsections
+        self.parse_actors(&sections, &mut spec);
+        self.parse_use_cases(&sections, &mut spec);
 
         // Parse Contract section
         self.parse_contracts(&sections, &mut spec);
@@ -507,6 +601,8 @@ impl ClaudeMdParser {
                 name,
                 signature,
                 is_async,
+                description: None,
+                anchor: None,
             });
         }
 
@@ -590,6 +686,8 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async,
+            description: None,
+            anchor: None,
         })
     }
 
@@ -628,6 +726,8 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async: return_type.contains("CompletableFuture"),
+            description: None,
+            anchor: None,
         })
     }
 
@@ -661,6 +761,8 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async: is_suspend,
+            description: None,
+            anchor: None,
         })
     }
 
@@ -685,6 +787,8 @@ impl ClaudeMdParser {
                 name,
                 signature,
                 is_async: false,
+                description: None,
+                anchor: None,
             });
         }
 
@@ -693,6 +797,8 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async: false,
+            description: None,
+            anchor: None,
         })
     }
 
@@ -722,6 +828,8 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async,
+            description: None,
+            anchor: None,
         })
     }
 
@@ -746,6 +854,8 @@ impl ClaudeMdParser {
                 name,
                 definition,
                 kind,
+                description: None,
+                anchor: None,
             });
         }
 
@@ -759,6 +869,8 @@ impl ClaudeMdParser {
                 name: name.clone(),
                 definition: format!("data class {}({})", name, fields),
                 kind: TypeKind::DataClass,
+                description: None,
+                anchor: None,
             });
         }
 
@@ -777,6 +889,8 @@ impl ClaudeMdParser {
             return Some(ClassExport {
                 name,
                 constructor_signature,
+                description: None,
+                anchor: None,
             });
         }
 
@@ -1065,6 +1179,137 @@ impl ClaudeMdParser {
         }
 
         structure
+    }
+
+    // ==================== v2 Methods ====================
+
+    /// Detect schema version from `<!-- schema: X.Y -->` marker
+    fn detect_schema_version(&self, content: &str) -> Option<String> {
+        for line in content.lines().take(5) {
+            if let Some(caps) = self.schema_version_pattern.captures(line.trim()) {
+                if let Some(version) = caps.get(1) {
+                    return Some(version.as_str().to_string());
+                }
+            }
+        }
+        None
+    }
+
+    /// Parse Actors subsection under Behavior (v2)
+    fn parse_actors(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
+        // Find the "Actors" subsection under Behavior
+        let behavior_idx = match sections.iter().position(|s| s.name.eq_ignore_ascii_case("Behavior")) {
+            Some(idx) => idx,
+            None => return,
+        };
+
+        // Look for ### Actors subsection after Behavior
+        for section in sections.iter().skip(behavior_idx + 1) {
+            if section.level <= 2 && !section.name.eq_ignore_ascii_case("Behavior") {
+                break;
+            }
+
+            if section.name.eq_ignore_ascii_case("Actors") {
+                for line in &section.content {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if let Some(caps) = self.actor_pattern.captures(trimmed) {
+                        let name = caps.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                        let description = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                        if !name.is_empty() {
+                            spec.actors.push(ActorSpec { name, description });
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    /// Parse UseCase subsections under Behavior (v2)
+    fn parse_use_cases(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
+        let behavior_idx = match sections.iter().position(|s| s.name.eq_ignore_ascii_case("Behavior")) {
+            Some(idx) => idx,
+            None => return,
+        };
+
+        // Look for ### UC-N: Name subsections after Behavior
+        for section in sections.iter().skip(behavior_idx + 1) {
+            if section.level <= 2 && !section.name.eq_ignore_ascii_case("Behavior") {
+                break;
+            }
+
+            // Skip the Actors subsection
+            if section.name.eq_ignore_ascii_case("Actors") {
+                continue;
+            }
+
+            // Match UC-N: Name pattern in section name
+            if let Some(caps) = self.usecase_id_pattern.captures(&format!("### {}", section.name)) {
+                let id_num = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
+                let uc_id = format!("UC-{}", id_num);
+                let uc_name = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+
+                let mut use_case = UseCaseSpec {
+                    id: uc_id,
+                    name: uc_name,
+                    actor: None,
+                    behaviors: Vec::new(),
+                    includes: Vec::new(),
+                    extends: Vec::new(),
+                };
+
+                // Parse content lines for Actor, behaviors, Includes, Extends
+                for line in &section.content {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+
+                    // Check for Actor reference
+                    if let Some(caps) = self.actor_ref_pattern.captures(trimmed) {
+                        use_case.actor = caps.get(1).map(|m| m.as_str().trim().to_string());
+                    }
+                    // Check for Includes
+                    else if let Some(caps) = self.include_pattern.captures(trimmed) {
+                        if let Some(refs) = caps.get(1) {
+                            for r in refs.as_str().split(',') {
+                                let r = r.trim();
+                                if !r.is_empty() {
+                                    use_case.includes.push(r.to_string());
+                                }
+                            }
+                        }
+                    }
+                    // Check for Extends
+                    else if let Some(caps) = self.extend_pattern.captures(trimmed) {
+                        if let Some(refs) = caps.get(1) {
+                            for r in refs.as_str().split(',') {
+                                let r = r.trim();
+                                if !r.is_empty() {
+                                    use_case.extends.push(r.to_string());
+                                }
+                            }
+                        }
+                    }
+                    // Check for behavior pattern (input → output)
+                    else if let Some(caps) = self.behavior_pattern.captures(trimmed) {
+                        let input = caps.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                        let output = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                        let category = if output.contains("Error") || output.contains("Exception") || output.contains("Err") {
+                            BehaviorCategory::Error
+                        } else {
+                            BehaviorCategory::Success
+                        };
+                        use_case.behaviors.push(BehaviorSpec { input, output, category });
+                    }
+                }
+
+                spec.use_cases.push(use_case);
+            }
+        }
     }
 }
 
