@@ -206,26 +206,40 @@ User: /compile
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ compile SKILL (Entry Point)                 │
+│ compile SKILL (Entry Point + Orchestrator)  │
 │                                             │
 │ 1. 모든 CLAUDE.md + IMPLEMENTS.md 검색      │
 │ 2. IMPLEMENTS.md 없으면 자동 생성           │
 │ 3. 언어 자동 감지                           │
-│ 4. For each pair (병렬):                    │
-│    Task(compiler) 호출                      │
+│ 4. For each pair:                           │
+│                                             │
+│  [RED] Task(compiler, phase=red)            │
+│    └─ test_files + spec_json_path 반환      │
+│              │                              │
+│              ▼                              │
+│  [TEST REVIEW] review_loop (최대 3회):      │
+│    Task(test-reviewer) ← 독립 맥락          │
+│    ├─ approve (score==100) → break          │
+│    ├─ feedback → Task(compiler, phase=red)  │
+│    │            피드백 기반 테스트 재생성     │
+│    └─ else → warning, break                 │
+│              │                              │
+│              ▼                              │
+│  [GREEN+REFACTOR]                           │
+│    Task(compiler, phase=green-refactor)      │
+│    └─ 기존 test_files 사용하여 구현          │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ compiler AGENT (TDD Workflow)               │
+│ compiler AGENT (phase별 실행)               │
 │                                             │
-│ CLAUDE.md 읽기 (WHAT)                       │
-│ IMPLEMENTS.md Planning Section 읽기 (HOW)   │
-│ Skill("claude-md-parse") → JSON 변환        │
-│ [RED] 테스트 생성                           │
-│ [GREEN] 구현 생성 (최대 3회 재시도)         │
-│ [REFACTOR] 프로젝트 컨벤션 적용             │
-│ IMPLEMENTS.md Implementation Section 업데이트│
+│ [phase=red]                                 │
+│   CLAUDE.md 읽기 → 테스트 생성만            │
+│                                             │
+│ [phase=green-refactor]                      │
+│   기존 테스트 로드 → 구현 + 리팩토링        │
+│   IMPLEMENTS.md Implementation Section 업데이트│
 └─────────────────────────────────────────────┘
 ```
 
@@ -259,7 +273,8 @@ User: /validate
 | `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
 | `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
-| `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
+| `compiler` | CLAUDE.md에서 소스코드 생성 (TDD, phase 지원: red/green-refactor/full) |
+| `test-reviewer` | 생성된 테스트 코드의 스펙 커버리지 검증 (100% 기준) |
 | `drift-validator` | CLAUDE.md-코드 일치 검증 |
 | `export-validator` | Export 존재 검증 |
 | `code-reviewer` | 코드 품질 + 컨벤션 검증 (code-convention.md 기반) |
@@ -386,6 +401,7 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 | export-validator | `{session-id}-export-{target}.md` |
 | decompiler | `{session-id}-decompile-{target}-claude.md`, `{session-id}-decompile-{target}-implements.md` |
 | compiler | `{session-id}-compile-{target}.json` |
+| test-reviewer | `{session-id}-test-review-{target}.json` |
 | audit CLI | `{session-id}-audit-result.json` |
 | boundary-resolve | `{session-id}-boundary-{target}.json` |
 | code-analyze | `{session-id}-analysis-{target}.json` |
@@ -402,6 +418,7 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 ├── a1b2c3d4-decompile-src-auth-claude.md
 ├── a1b2c3d4-decompile-src-auth-implements.md
 ├── a1b2c3d4-compile-src-auth.json
+├── a1b2c3d4-test-review-src-auth.json
 ├── a1b2c3d4-boundary-src-auth.json
 ├── a1b2c3d4-analysis-src-auth.json
 ├── a1b2c3d4-audit-result.json

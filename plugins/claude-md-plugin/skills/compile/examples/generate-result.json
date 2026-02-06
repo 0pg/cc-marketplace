@@ -15,5 +15,10 @@
     "passed": 5,
     "failed": 0
   },
+  "test_review": {
+    "iterations": 1,
+    "final_score": 100,
+    "status": "approve"
+  },
   "status": "success"
 }

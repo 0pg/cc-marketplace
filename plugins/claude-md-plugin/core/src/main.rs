@@ -67,6 +67,10 @@ enum Commands {
         /// Output JSON file path
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Root directory for symbol index (enables cross-reference validation)
+        #[arg(long)]
+        with_index: Option<PathBuf>,
     },
 
     /// Parse CLAUDE.md into structured JSON spec
@@ -123,6 +127,10 @@ enum Commands {
         /// Find references to a symbol anchor
         #[arg(long)]
         references: Option<String>,
+
+        /// Skip cache and force full rebuild
+        #[arg(long, default_value = "false")]
+        no_cache: bool,
     },
 
     /// Generate UseCase diagram (Mermaid) from CLAUDE.md Behavior section
@@ -188,9 +196,17 @@ fn main() {
             let boundary_result = resolver.resolve(path, claude_md.as_ref());
             output_result(&boundary_result, output.as_ref(), "resolve-boundary")
         }
-        Commands::ValidateSchema { file, output } => {
+        Commands::ValidateSchema { file, output, with_index } => {
             let validator = SchemaValidator::new();
-            let validation_result = validator.validate(file);
+            let validation_result = if let Some(root) = with_index {
+                let index_builder = SymbolIndexBuilder::new();
+                match index_builder.build_with_cache(root, false) {
+                    Ok(index) => validator.validate_with_index(file, &index),
+                    Err(_) => validator.validate(file),
+                }
+            } else {
+                validator.validate(file)
+            };
             output_result(&validation_result, output.as_ref(), "validate-schema")
         }
         Commands::ParseClaudeMd { file, output } => {
@@ -212,9 +228,9 @@ fn main() {
             let result = auditor.audit(root, *only_issues);
             output_result(&result, output.as_ref(), "audit")
         }
-        Commands::SymbolIndex { root, output, find, references } => {
+        Commands::SymbolIndex { root, output, find, references, no_cache } => {
             let builder = SymbolIndexBuilder::new();
-            match builder.build(root) {
+            match builder.build_with_cache(root, *no_cache) {
                 Ok(index) => {
                     // If --find is specified, filter to matching symbols
                     if let Some(name) = find {

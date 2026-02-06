@@ -4,6 +4,7 @@ description: |
   Use this agent when compiling source code from CLAUDE.md + IMPLEMENTS.md specifications.
   Automatically performs TDD workflow (RED→GREEN→REFACTOR) to ensure tests pass.
   Updates IMPLEMENTS.md Implementation Section after code generation.
+  Supports phase parameter: `full` (default), `red` (tests only), `green-refactor` (implementation only).
 
   <example>
   <context>
@@ -44,6 +45,82 @@ description: |
   <commentary>
   Called by compile skill when processing each CLAUDE.md + IMPLEMENTS.md pair.
   Not directly exposed to users; invoked only through compile skill.
+  </commentary>
+  </example>
+
+  <example>
+  <context>
+  Compile skill calls compiler with phase=red to generate tests only.
+  </context>
+  <user>
+  CLAUDE.md 경로: src/auth/CLAUDE.md
+  IMPLEMENTS.md 경로: src/auth/IMPLEMENTS.md
+  대상 디렉토리: src/auth
+  감지된 언어: TypeScript
+  phase: red
+  결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll generate tests only (phase=red) based on src/auth/CLAUDE.md + IMPLEMENTS.md.
+  1. Project CLAUDE.md loaded
+  2. CLAUDE.md parsed - 2 functions, 2 types (WHAT)
+  3. IMPLEMENTS.md Planning Section loaded (HOW direction)
+  4. Language: TypeScript (from input)
+  5. Test framework detected: Jest
+  6. [RED] Tests generated (5 test cases)
+  ---compiler-result---
+  phase: red
+  result_file: .claude/tmp/{session-id}-compile-src-auth.json
+  status: success
+  test_files: ["src/auth/auth.test.ts"]
+  spec_json_path: .claude/tmp/{session-id}-spec-src-auth.json
+  detected_language: TypeScript
+  ---end-compiler-result---
+  </assistant_response>
+  <commentary>
+  Called by compile skill with phase=red. Generates tests only, no implementation.
+  Test files and spec JSON path are returned for test-reviewer validation.
+  </commentary>
+  </example>
+
+  <example>
+  <context>
+  Compile skill calls compiler with phase=green-refactor after test-reviewer approval.
+  </context>
+  <user>
+  CLAUDE.md 경로: src/auth/CLAUDE.md
+  IMPLEMENTS.md 경로: src/auth/IMPLEMENTS.md
+  대상 디렉토리: src/auth
+  감지된 언어: TypeScript
+  충돌 처리: skip
+  phase: green-refactor
+  test_files: ["src/auth/auth.test.ts"]
+  spec_json_path: .claude/tmp/{session-id}-spec-src-auth.json
+  결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
+  </user>
+  <assistant_response>
+  I'll implement code (phase=green-refactor) based on src/auth/CLAUDE.md + IMPLEMENTS.md.
+  1. Project CLAUDE.md loaded
+  2. Spec JSON loaded from provided path
+  3. Existing test files loaded: ["src/auth/auth.test.ts"]
+  4. [GREEN] Implementation generated - all 5 tests passed
+  5. [REFACTOR] Project conventions applied
+  6. File conflicts: 0 skipped, 3 compiled
+  7. IMPLEMENTS.md Implementation Section updated
+  ---compiler-result---
+  phase: green-refactor
+  result_file: .claude/tmp/{session-id}-compile-src-auth.json
+  status: success
+  generated_files: ["src/auth/index.ts", "src/auth/types.ts", "src/auth/errors.ts"]
+  skipped_files: []
+  tests_passed: 5
+  tests_failed: 0
+  implements_md_updated: true
+  ---end-compiler-result---
+  </assistant_response>
+  <commentary>
+  Called by compile skill with phase=green-refactor after test-reviewer approves.
+  Uses existing test files; skips RED phase entirely.
   </commentary>
   </example>
 
@@ -157,7 +234,37 @@ IMPLEMENTS.md 경로: <path>
 대상 디렉토리: <path>
 감지된 언어: (optional, 자동 감지)
 충돌 처리: skip | overwrite
+phase: full | red | green-refactor  (기본: full)
 결과는 .claude/tmp/{session-id}-compile-{target}.json 형태로 저장하고 경로만 반환
+```
+
+**phase=green-refactor 추가 입력:**
+```
+test_files: [<existing_test_file_paths>]
+spec_json_path: <path_to_spec_json>
+```
+
+**phase=red + 피드백 기반 재생성 시 추가 입력:**
+```
+test_review_feedback: [<feedback_items>]
+```
+
+## Phase 분기
+
+| phase | 실행 범위 | 출력 |
+|-------|----------|------|
+| `full` (기본) | Phase 1~6 전체 | 기존과 동일 |
+| `red` | Phase 1~2 → Phase 3.1 (RED) → Phase 6 (red 결과) | test_files + spec_json_path |
+| `green-refactor` | Phase 3.2 (GREEN) → Phase 3.3 (REFACTOR) → Phase 4~6 | generated_files + tests |
+
+```
+if phase == "red":
+    Phase 1 → Phase 2 → Phase 3.1 (RED) → Phase 6 (red 결과)
+elif phase == "green-refactor":
+    test_files, spec_json_path를 입력에서 받음
+    Phase 3.2 (GREEN) → Phase 3.3 (REFACTOR) → Phase 4 → Phase 5 → Phase 6
+else:  # full
+    Phase 1 → Phase 2 → Phase 3 (RED→GREEN→REFACTOR) → Phase 4 → Phase 5 → Phase 6
 ```
 
 ## 워크플로우
@@ -416,7 +523,7 @@ exports와 contracts를 기반으로 구현 파일 생성하고, 테스트가 �
 - `implements_md_updated`: IMPLEMENTS.md 업데이트 여부
 - `status`: success | warning
 
-##### 출력 형식
+##### 출력 형식 (phase=full 또는 phase=green-refactor)
 
 ```
 ---compiler-result---
@@ -429,6 +536,22 @@ tests_failed: {tests.failed}
 implements_md_updated: true
 ---end-compiler-result---
 ```
+
+##### 출력 형식 (phase=red)
+
+```
+---compiler-result---
+phase: red
+result_file: {result_file}
+status: success
+test_files: [{test_file_paths}]
+spec_json_path: {spec_json_path}
+detected_language: {language}
+---end-compiler-result---
+```
+
+`phase=red`에서는 테스트 파일 생성만 수행하고, spec JSON (claude-md-parse 결과)의 경로를 반환합니다.
+이 정보는 compile SKILL이 test-reviewer와 phase=green-refactor에 전달합니다.
 
 ## 파일 구조 결정
 
@@ -464,33 +587,29 @@ implements_md_updated: true
 │  └───────────────────────┬────────────────────────────────┘ │
 │                          │                                   │
 │                          ▼                                   │
-│  ┌─ TDD Workflow (내부 자동) ────────────────────────────┐ │
+│  ┌─ Phase 분기 ──────────────────────────────────────────┐ │
 │  │                                                        │ │
-│  │  [RED] behaviors → 테스트 파일 생성 (실패 확인)       │ │
-│  │                     │                                  │ │
-│  │                     ▼                                  │ │
-│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)    │ │
-│  │         └─ CLAUDE.md + IMPLEMENTS.md Planning 참조    │ │
-│  │                     │                                  │ │
-│  │                     ▼                                  │ │
-│  │  [REFACTOR] 프로젝트 컨벤션에 맞게 코드 정리          │ │
-│  │         └─ 회귀 테스트로 안전성 확인                  │ │
+│  │  [phase=red]                                           │ │
+│  │    [RED] behaviors → 테스트 파일 생성                  │ │
+│  │    → test_files + spec_json_path 반환 (여기서 종료)    │ │
 │  │                                                        │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ 파일 충돌 처리 ──────────────────────────────────────┐ │
-│  │ skip (기본) 또는 overwrite 모드                        │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ IMPLEMENTS.md Implementation Section 업데이트 ───────┐ │
-│  │ Algorithm, Key Constants, Error Handling 등 기록       │ │
+│  │  [phase=green-refactor]                                │ │
+│  │    기존 test_files + spec_json_path 입력에서 로드      │ │
+│  │    [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)   │ │
+│  │    [REFACTOR] 프로젝트 컨벤션에 맞게 코드 정리         │ │
+│  │    → 파일 충돌 처리 → IMPLEMENTS.md 업데이트 → 결과    │ │
+│  │                                                        │ │
+│  │  [phase=full] (기본값)                                 │ │
+│  │    [RED] behaviors → 테스트 파일 생성                  │ │
+│  │    [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)   │ │
+│  │    [REFACTOR] 프로젝트 컨벤션에 맞게 코드 정리         │ │
+│  │    → 파일 충돌 처리 → IMPLEMENTS.md 업데이트 → 결과    │ │
+│  │                                                        │ │
 │  └───────────────────────┬────────────────────────────────┘ │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─ 결과 반환 ───────────────────────────────────────────┐ │
-│  │ 생성된 파일 목록, 테스트 결과, 상태                    │ │
+│  │ phase별 결과 형식에 따라 출력                          │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘

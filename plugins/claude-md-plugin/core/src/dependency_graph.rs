@@ -8,6 +8,7 @@
 
 use crate::claude_md_parser::ClaudeMdParser;
 use crate::code_analyzer::CodeAnalyzer;
+use crate::symbol_index::SymbolIndexBuilder;
 use crate::tree_parser::TreeParser;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -168,6 +169,26 @@ impl DependencyGraphBuilder {
                     exports: Vec::new(),
                     symbol_entries: vec![],
                 });
+            }
+        }
+
+        // 2.5. Build symbol index and populate symbol_entries for each node
+        let symbol_builder = SymbolIndexBuilder::new();
+        if let Ok(symbol_index) = symbol_builder.build_with_cache(&root, false) {
+            // Group symbols by module_path
+            let mut symbols_by_module: HashMap<String, Vec<crate::symbol_index::SymbolEntry>> = HashMap::new();
+            for sym in &symbol_index.symbols {
+                symbols_by_module.entry(sym.module_path.clone())
+                    .or_default()
+                    .push(sym.clone());
+            }
+
+            // Fill symbol_entries for each node
+            for node in &mut nodes {
+                let module_key = if node.path == "." { "" } else { &node.path };
+                if let Some(entries) = symbols_by_module.remove(module_key) {
+                    node.symbol_entries = entries;
+                }
             }
         }
 

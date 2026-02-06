@@ -2,6 +2,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::symbol_index::SymbolIndexResult;
+
 /// Result of schema validation
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ValidationResult {
@@ -498,6 +500,73 @@ impl SchemaValidator {
         }
     }
 
+    /// Validate a CLAUDE.md file with cross-reference resolution against a symbol index.
+    /// This extends the basic validate() with actual cross-reference verification.
+    pub fn validate_with_index(&self, file: &Path, index: &SymbolIndexResult) -> ValidationResult {
+        // First perform standard validation
+        let mut result = self.validate(file);
+
+        // Then verify cross-references against the symbol index
+        let content = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(_) => return result,
+        };
+
+        let anchor_set: std::collections::HashSet<&str> = index.symbols.iter()
+            .map(|s| s.anchor.as_str())
+            .collect();
+
+        for (line_num, line) in content.lines().enumerate() {
+            for caps in self.cross_ref_pattern.captures_iter(line) {
+                let full_path = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let symbol_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+                let to_anchor = format!("{}#{}", full_path, symbol_name);
+
+                // Skip self-references
+                let file_str = file.to_string_lossy();
+                if file_str.ends_with("CLAUDE.md") && to_anchor.ends_with(&format!("CLAUDE.md#{}", symbol_name)) {
+                    // Check if it's truly a self-reference
+                    let self_path = file.parent()
+                        .and_then(|p| {
+                            if let Some(root) = index.root.strip_suffix('/') {
+                                p.to_string_lossy().strip_prefix(root).map(|s| s.trim_start_matches('/').to_string())
+                            } else {
+                                p.strip_prefix(&index.root).ok().map(|s| s.to_string_lossy().to_string())
+                            }
+                        })
+                        .unwrap_or_default();
+                    let self_anchor = if self_path.is_empty() {
+                        format!("CLAUDE.md#{}", symbol_name)
+                    } else {
+                        format!("{}/CLAUDE.md#{}", self_path, symbol_name)
+                    };
+                    if to_anchor == self_anchor {
+                        continue;
+                    }
+                }
+
+                if !anchor_set.contains(to_anchor.as_str()) {
+                    result.errors.push(ValidationError {
+                        error_type: "UnresolvedCrossReference".to_string(),
+                        message: format!(
+                            "Cross-reference '{}' does not resolve to any known symbol",
+                            to_anchor
+                        ),
+                        line_number: Some(line_num + 1),
+                        section: None,
+                        suggestion: Some(format!(
+                            "Check that '{}' exists in {} Exports section, or fix the reference",
+                            symbol_name, full_path
+                        )),
+                    });
+                    result.valid = false;
+                }
+            }
+        }
+
+        result
+    }
+
     fn looks_like_export_line(&self, line: &str) -> bool {
         // Has a function name pattern followed by parentheses
         line.contains('(') && line.contains(')')
@@ -929,6 +998,116 @@ Auth module. Uses src//auth/CLAUDE.md#validateToken.
         let result = validator.validate(&path);
 
         assert!(result.warnings.iter().any(|w| w.contains("double slashes")));
+    }
+
+    #[test]
+    fn test_validate_with_index_valid_reference() {
+        use crate::symbol_index::{SymbolEntry, SymbolKind, SymbolIndexResult, SymbolIndexSummary};
+
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+API module. Uses auth/CLAUDE.md#validateToken for auth.
+
+## Exports
+- `handleRequest(req: Request): Response`
+
+## Behavior
+- request → response
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let index = SymbolIndexResult {
+            root: _temp.path().to_string_lossy().to_string(),
+            indexed_at: String::new(),
+            symbols: vec![SymbolEntry {
+                name: "validateToken".to_string(),
+                kind: SymbolKind::Function,
+                module_path: "auth".to_string(),
+                signature: Some("validateToken(token: string): Claims".to_string()),
+                anchor: "auth/CLAUDE.md#validateToken".to_string(),
+            }],
+            references: vec![],
+            unresolved: vec![],
+            summary: SymbolIndexSummary {
+                total_modules: 1,
+                total_symbols: 1,
+                total_references: 0,
+                unresolved_count: 0,
+            },
+        };
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_with_index(&path, &index);
+
+        assert!(result.valid, "Expected validation to pass, got: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_validate_with_index_unresolved_reference() {
+        use crate::symbol_index::{SymbolIndexResult, SymbolIndexSummary};
+
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+API module. Uses auth/CLAUDE.md#nonExistent for auth.
+
+## Exports
+- `handleRequest(req: Request): Response`
+
+## Behavior
+- request → response
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let index = SymbolIndexResult {
+            root: _temp.path().to_string_lossy().to_string(),
+            indexed_at: String::new(),
+            symbols: vec![],
+            references: vec![],
+            unresolved: vec![],
+            summary: SymbolIndexSummary {
+                total_modules: 0,
+                total_symbols: 0,
+                total_references: 0,
+                unresolved_count: 0,
+            },
+        };
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_with_index(&path, &index);
+
+        assert!(!result.valid, "Expected validation to fail");
+        assert!(result.errors.iter().any(|e| e.error_type == "UnresolvedCrossReference"));
+        assert!(result.errors.iter().any(|e| e.suggestion.as_deref().unwrap_or("").contains("auth/CLAUDE.md")));
+    }
+
+    #[test]
+    fn test_validate_without_index_passes_syntax_only() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+API module. Uses auth/CLAUDE.md#anything for auth.
+
+## Exports
+- `handleRequest(req: Request): Response`
+
+## Behavior
+- request → response
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        // Without index, only syntax check is performed, cross-references pass
+        assert!(result.valid, "Expected syntax-only validation to pass, got: {:?}", result.errors);
     }
 
     #[test]
