@@ -264,7 +264,8 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
 
 1. `Skill("claude-md-plugin:tree-parse")` → 프로젝트 구조 파싱
 2. `Skill("claude-md-plugin:dependency-graph")` → 의존성 그래프 분석
-3. 관련 모듈 CLAUDE.md 읽기 → Exports/Behavior 파악
+3. 관련 모듈 CLAUDE.md 읽기 → **Exports 시그니처 레벨**로 파악
+4. **Module Integration Map 데이터 수집** → 사용할 Export 시그니처 스냅샷 준비
 
 ##### 분석 항목
 
@@ -272,7 +273,7 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
 |------|----------|------|
 | 프로젝트 구조 | tree-parse | 기존 디렉토리 구조 파악 |
 | 의존성 방향 | dependency-graph | 경계 침범 여부 확인 |
-| 관련 모듈 | CLAUDE.md Exports | 통합 포인트 파악 |
+| 관련 모듈 Exports | CLAUDE.md Exports 섹션 직접 읽기 | **시그니처 레벨 스냅샷 수집** |
 
 #### 2.5.2 모듈 배치 결정
 
@@ -295,7 +296,7 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
 ##### 로직
 
 1. 새로 정의할 인터페이스 시그니처 도출
-2. 기존 모듈과의 통합 포인트 식별
+2. 기존 모듈 Exports에서 **재사용할 시그니처 식별 및 복사**
 3. 경계 명확성 검증 (Exports 참조 여부)
 
 ##### 인터페이스 설계 원칙
@@ -306,7 +307,55 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
 | 최소 인터페이스 | 필요한 것만 export |
 | 경계 명확성 | 다른 모듈의 Exports만 참조 |
 
-#### 2.5.4 Architecture Decisions 생성
+#### 2.5.4 Module Integration Map 데이터 수집
+
+내부 모듈 재사용이 필요한 경우, 대상 CLAUDE.md Exports에서 사용할 시그니처를 **스냅샷**으로 수집합니다.
+
+##### 실행 단계
+
+1. 요구사항 분석에서 식별된 내부 의존성 목록 도출
+2. 각 의존 모듈의 CLAUDE.md Exports 섹션 읽기
+3. 필요한 Export 시그니처를 **원본 그대로 복사**
+4. 각 Export의 사용 목적(Integration Context) 도출
+5. Module Integration Map 엔트리 구성
+
+##### 데이터 수집 구조
+
+```python
+integration_entries = []
+for dep in internal_dependencies:
+    claude_md = Read(f"{dep.path}/CLAUDE.md")
+    exports_section = parse_exports(claude_md)
+
+    needed_exports = identify_needed_exports(
+        requirements=clarified_requirement,
+        available_exports=exports_section
+    )
+
+    integration_entries.append({
+        "relative_path": dep.relative_path,      # e.g., "../auth"
+        "claude_md_ref": f"{dep.name}/CLAUDE.md", # e.g., "auth/CLAUDE.md"
+        "exports_used": [
+            {
+                "signature": export.full_signature,  # 원본 시그니처 복사
+                "role": export.role_in_this_module   # 이 모듈에서의 역할
+            }
+            for export in needed_exports
+        ],
+        "integration_context": derive_context(dep, needed_exports)
+    })
+```
+
+##### 스키마 준수 검증
+
+| 검증 항목 | 기준 |
+|----------|------|
+| Entry Header | `### \`{path}\` → {name}/CLAUDE.md` 형식 |
+| Exports Used | 최소 1개, CLAUDE.md Exports 시그니처 형식 |
+| Integration Context | 비어있지 않음, 1-3문장 |
+| 시그니처 원본 일치 | 대상 CLAUDE.md Exports와 동일한 시그니처 |
+
+#### 2.5.5 Architecture Decisions 생성
 
 ##### 생성 구조
 
@@ -320,12 +369,11 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
 
 ### Interface Guidelines
 - 새로 정의할 인터페이스: {new_exports}
-- 기존 모듈과의 통합 포인트: {integration_points}
+- 내부 모듈 통합: Module Integration Map 참조
 
 ### Dependency Direction
 - 의존성 분석: `.claude/dependency-graph.json`
 - 경계 명확성 준수: {boundary_compliant}
-- 검증 결과: {dependency_validations}
 ```
 
 ### Phase 3: 대상 위치 결정
@@ -440,22 +488,19 @@ Phase 2.5에서 결정된 모듈 배치를 기반으로 대상 위치를 확정�
 ### Interface Guidelines
 - 새로 정의할 인터페이스:
 {format_new_exports(interface_guidelines.new_exports)}
-- 기존 모듈과의 통합 포인트:
-{format_integration_points(interface_guidelines.integration_points)}
+- 내부 모듈 통합: Module Integration Map 참조
 
 ### Dependency Direction
 - 의존성 분석: `.claude/dependency-graph.json`
 - 경계 명확성 준수: {interface_guidelines.boundary_compliant}
-- 검증 결과:
-{format_dependency_validations(interface_guidelines.dependency_direction)}
 
-## Dependencies Direction
+## Module Integration Map
 
-### External
-{format_external_dependencies(spec.dependencies)}
+{format_module_integration_map(integration_entries) or "None"}
 
-### Internal
-{format_internal_dependencies(spec.dependencies)}
+## External Dependencies
+
+{format_external_dependencies(spec.dependencies) or "None"}
 
 ## Implementation Approach
 
@@ -495,15 +540,54 @@ None
 (To be filled by /compile)
 ```
 
-#### Dependencies Direction 형식
+#### Module Integration Map 형식
+
+```python
+def format_module_integration_map(integration_entries):
+    """
+    Module Integration Map 엔트리를 정형화된 마크다운으로 포맷.
+    스키마 규칙을 엄격히 준수하여 programmatic 파싱 가능하도록 생성.
+    """
+    if not integration_entries:
+        return "None"
+
+    lines = []
+    for entry in integration_entries:
+        # Entry Header (필수): ### `{path}` → {name}/CLAUDE.md
+        lines.append(f"### `{entry['relative_path']}` → {entry['claude_md_ref']}")
+        lines.append("")
+
+        # Exports Used (필수): #### Exports Used
+        lines.append("#### Exports Used")
+        for export in entry['exports_used']:
+            sig = export['signature']
+            role = export.get('role', '')
+            if role:
+                lines.append(f"- `{sig}` — {role}")
+            else:
+                lines.append(f"- `{sig}`")
+        lines.append("")
+
+        # Integration Context (필수): #### Integration Context
+        lines.append("#### Integration Context")
+        lines.append(entry['integration_context'])
+        lines.append("")
+
+    return "\n".join(lines)
+```
+
+**스키마 준수 체크리스트:**
+- [ ] Entry Header가 `### \`path\` → name/CLAUDE.md` 형식인가
+- [ ] 각 엔트리에 `#### Exports Used`가 있는가
+- [ ] Exports Used에 최소 1개 시그니처가 있는가
+- [ ] 시그니처가 대상 CLAUDE.md Exports와 동일한가
+- [ ] 각 엔트리에 `#### Integration Context`가 있는가
+- [ ] Integration Context가 비어있지 않은가
+
+#### External Dependencies 형식
 
 ```markdown
-### External
 - `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 성숙한 라이브러리, 프로젝트 호환)
-
-### Internal
-- `../utils/crypto`: 해시 유틸리티 (hashPassword, verifyPassword)
-- `../config`: 환경 설정 (JWT_SECRET 로드)
 ```
 
 #### Implementation Approach 형식
@@ -685,7 +769,8 @@ action: {created|updated}
 validation: {passed|failed_with_warnings}
 exports_count: {len(exports)}
 behaviors_count: {len(behaviors)}
-dependencies_count: {len(dependencies)}
+integration_map_entries: {len(integration_entries)}
+external_dependencies_count: {len(external_deps)}
 tech_choices_count: {len(tech_choices)}
 architecture_decision: {module_placement}
 boundary_compliant: {true|false}
@@ -711,8 +796,9 @@ cat plugins/claude-md-plugin/templates/implements-md-schema.md
 - Summary는 Purpose에서 핵심만 추출한 1-2문장 (dependency-graph CLI에서 노드 조회 시 표시)
 - Contract/Protocol/Domain Context는 "None" 명시 허용
 
-**IMPLEMENTS.md Planning Section 필수 섹션 4개**: Architecture Decisions, Dependencies Direction, Implementation Approach, Technology Choices
-- Architecture Decisions와 Technology Choices는 "None" 명시 허용
+**IMPLEMENTS.md Planning Section 필수 섹션 5개**: Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices
+- Architecture Decisions, Module Integration Map, External Dependencies, Technology Choices는 "None" 명시 허용
+- Module Integration Map은 내부 의존성이 있는 경우 정형화된 스키마 필수 준수
 
 ## 오류 처리
 
