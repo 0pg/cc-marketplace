@@ -161,6 +161,21 @@ unresolved_references: {N}
 
 *자세한 규칙과 패턴은 `references/schema-rules.yaml` 참조*
 
+### Schema Version Support (v1/v2 듀얼 모드)
+
+파서는 `<!-- schema: 2.0 -->` 마커 존재 여부로 스키마 버전을 자동 감지합니다 (파일 첫 5줄 내 탐색).
+
+| 항목 | v1 (기본) | v2 (`<!-- schema: 2.0 -->`) |
+|------|-----------|---------------------------|
+| Exports 포맷 | `### Functions/Types` + bullet | `#### symbolName` 헤딩 + 메타데이터 |
+| Behavior 포맷 | `input → output` | Actors + `### UC-N:` UseCase |
+| Cross-Reference | 검증 안함 | `path/CLAUDE.md#symbol` 앵커 검증 |
+| Diagrams | 없음 | Mermaid UseCase/State/Component |
+
+v1 파일은 모든 명령어에서 정상 동작하며, v2 마이그레이션은 선택적입니다 (`claude-md-core migrate`).
+
+**SSOT**: `references/schema-rules.yaml` → `build.rs (codegen)` → Rust 상수 13개
+
 ### 참조 규칙
 - 부모 참조 (`../`) 금지
 - 형제 참조 금지

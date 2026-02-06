@@ -390,7 +390,9 @@ impl SymbolIndexBuilder {
                 let full_path = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                 let symbol_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
 
-                let to_anchor = format!("{}#{}", full_path, symbol_name);
+                // Resolve relative paths to canonical form
+                let canonical_path = Self::resolve_reference_path(from_module, full_path);
+                let to_anchor = format!("{}#{}", canonical_path, symbol_name);
 
                 // Don't track self-references
                 let self_anchor = if from_module.is_empty() {
@@ -413,6 +415,42 @@ impl SymbolIndexBuilder {
                 });
             }
         }
+    }
+
+    /// Resolve a relative reference path to a canonical absolute path.
+    /// Given `from_module` = "src/auth" and `ref_path` = "../utils/CLAUDE.md",
+    /// returns "src/utils/CLAUDE.md".
+    fn resolve_reference_path(from_module: &str, ref_path: &str) -> String {
+        if !ref_path.starts_with("./") && !ref_path.starts_with("../") {
+            // Already absolute or non-relative - return as-is
+            return ref_path.to_string();
+        }
+
+        use std::path::PathBuf;
+
+        let base = if from_module.is_empty() {
+            PathBuf::new()
+        } else {
+            PathBuf::from(from_module)
+        };
+
+        let import = PathBuf::from(ref_path);
+        let mut result = base;
+
+        for component in import.components() {
+            match component {
+                std::path::Component::CurDir => {}
+                std::path::Component::ParentDir => {
+                    result.pop();
+                }
+                std::path::Component::Normal(name) => {
+                    result.push(name);
+                }
+                _ => {}
+            }
+        }
+
+        result.display().to_string()
     }
 
     // --- Cache methods (P1) ---
@@ -1033,5 +1071,84 @@ None
         assert!(result4.symbols.iter().any(|s| s.name == "verifyJWT"), "auth symbol should remain");
         assert!(result4.symbols.iter().any(|s| s.name == "chargeCard"), "payments symbol should remain");
         assert!(!result4.symbols.iter().any(|s| s.name == "handleRequest"), "api symbol should be gone");
+    }
+
+    // ============== Relative Path Resolution Tests ==============
+
+    #[test]
+    fn test_relative_path_resolution_parent_dir() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+
+        // Create src/auth and src/utils modules
+        let auth_dir = root.join("src").join("auth");
+        let utils_dir = root.join("src").join("utils");
+        fs::create_dir_all(&auth_dir).unwrap();
+        fs::create_dir_all(&utils_dir).unwrap();
+
+        // src/utils exports formatError
+        create_claude_md(&utils_dir, &with_required_sections(
+            "utils", "Utility module.",
+            "\n### Functions\n- `formatError(err: Error): string`",
+            "- error → formatted string",
+        ));
+
+        // src/auth references ../utils/CLAUDE.md#formatError
+        let auth_content = with_required_sections(
+            "auth", "Auth module.",
+            "\n### Functions\n- `validate(): void`",
+            "- See [formatError](../utils/CLAUDE.md#formatError) for error formatting",
+        );
+        create_claude_md(&auth_dir, &auth_content);
+
+        let builder = SymbolIndexBuilder::new();
+        let result = builder.build(root).unwrap();
+
+        // The reference from src/auth should resolve to src/utils/CLAUDE.md#formatError
+        let ref_from_auth = result.references.iter()
+            .find(|r| r.from_module == "src/auth" && r.to_symbol == "formatError");
+        assert!(ref_from_auth.is_some(), "Expected reference from src/auth to formatError, got: {:?}", result.references);
+
+        let reference = ref_from_auth.unwrap();
+        assert_eq!(reference.to_anchor, "src/utils/CLAUDE.md#formatError");
+        assert!(reference.valid, "Reference should be valid (symbol exists)");
+    }
+
+    #[test]
+    fn test_relative_path_resolution_current_dir() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+
+        // Create src/auth and src/auth/jwt modules
+        let auth_dir = root.join("src").join("auth");
+        let jwt_dir = root.join("src").join("auth").join("jwt");
+        fs::create_dir_all(&auth_dir).unwrap();
+        fs::create_dir_all(&jwt_dir).unwrap();
+
+        // src/auth/jwt exports signToken
+        create_claude_md(&jwt_dir, &with_required_sections(
+            "jwt", "JWT module.",
+            "\n### Functions\n- `signToken(claims: Claims): string`",
+            "- claims → signed token",
+        ));
+
+        // src/auth references ./jwt/CLAUDE.md#signToken
+        let auth_content = with_required_sections(
+            "auth", "Auth module.",
+            "\n### Functions\n- `validate(): void`",
+            "- See [signToken](./jwt/CLAUDE.md#signToken) for token signing",
+        );
+        create_claude_md(&auth_dir, &auth_content);
+
+        let builder = SymbolIndexBuilder::new();
+        let result = builder.build(root).unwrap();
+
+        let ref_from_auth = result.references.iter()
+            .find(|r| r.from_module == "src/auth" && r.to_symbol == "signToken");
+        assert!(ref_from_auth.is_some(), "Expected reference from src/auth to signToken, got: {:?}", result.references);
+
+        let reference = ref_from_auth.unwrap();
+        assert_eq!(reference.to_anchor, "src/auth/jwt/CLAUDE.md#signToken");
+        assert!(reference.valid, "Reference should be valid (symbol exists)");
     }
 }

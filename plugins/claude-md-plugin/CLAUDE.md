@@ -288,7 +288,7 @@ User: /validate
 | Agent | 역할 |
 |-------|------|
 | `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
-| `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 |
+| `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 (승인 조건: `score >= 80`, `req_coverage == 100%`, `schema_valid == passed`, `task_completion >= 80%`) |
 | `decompiler` | 단일 디렉토리 CLAUDE.md + IMPLEMENTS.md 추출 |
 | `recursive-decompiler` | 재귀적 디렉토리 탐색 + incremental 판단 + decompiler 오케스트레이션 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD, phase 지원: red/green-refactor/full) |

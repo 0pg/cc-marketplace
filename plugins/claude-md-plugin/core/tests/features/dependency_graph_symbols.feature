@@ -14,3 +14,20 @@ Feature: Dependency Graph Symbol Entries
     And module "api" depends on "auth" importing "validateToken"
     When I build the dependency graph
     Then the edge from "api" to "auth" should list "validateToken"
+
+  # =============================================================================
+  # CLAUDE.md Dependencies → Graph Edges
+  # =============================================================================
+
+  Scenario: CLAUDE.md Dependencies section creates graph edges
+    Given module "src/auth" has Dependencies "internal: ../utils"
+    And module "src/utils" exports "formatError"
+    When I build the dependency graph
+    Then edges should contain edge from "src/auth" to "src/utils"
+    And the edge type should be "spec"
+
+  Scenario: Both code and spec edges coexist
+    Given module "src/auth" imports "../utils/format" in source code
+    And module "src/auth" has Dependencies "internal: ../utils"
+    When I build the dependency graph
+    Then there should be at least 1 edge from "src/auth" to "src/utils"

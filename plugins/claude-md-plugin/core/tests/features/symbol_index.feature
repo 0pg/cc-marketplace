@@ -66,3 +66,20 @@ Feature: Symbol Index
     When I build the symbol index
     And I find references to "auth/CLAUDE.md#validateToken"
     Then I should get 2 references
+
+  # =============================================================================
+  # Relative Path Resolution
+  # =============================================================================
+
+  Scenario: Relative cross-reference path resolved to canonical
+    Given module "src/auth" references "../utils/CLAUDE.md#formatError" in Purpose section
+    And module "src/utils" exports function "formatError"
+    When I build the symbol index
+    Then the reference from "src/auth" to "formatError" should be resolved as valid
+    And the canonical anchor should be "src/utils/CLAUDE.md#formatError"
+
+  Scenario: Current-dir relative reference resolved
+    Given module "src/auth" references "./jwt/CLAUDE.md#signToken" in Purpose section
+    And module "src/auth/jwt" exports function "signToken"
+    When I build the symbol index
+    Then the reference from "src/auth" to "signToken" should be resolved as valid

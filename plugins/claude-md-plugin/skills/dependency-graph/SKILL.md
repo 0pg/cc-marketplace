@@ -41,7 +41,16 @@ target_path: 분석 대상 경로 (기본: 프로젝트 루트)
       "path": "src/auth",
       "has_claude_md": true,
       "summary": "인증 모듈. JWT 토큰 생성/검증/갱신 및 세션 관리 담당.",
-      "exports": ["validateToken", "Claims"]
+      "exports": ["validateToken", "Claims"],
+      "symbol_entries": [
+        {
+          "name": "validateToken",
+          "kind": "function",
+          "module_path": "src/auth",
+          "signature": "validateToken(token: string): Promise<Claims>",
+          "anchor": "src/auth/CLAUDE.md#validateToken"
+        }
+      ]
     }
   ],
   "edges": [
@@ -49,6 +58,13 @@ target_path: 분석 대상 경로 (기본: 프로젝트 루트)
       "from": "src/auth",
       "to": "src/config",
       "edge_type": "internal",
+      "imported_symbols": [],
+      "valid": true
+    },
+    {
+      "from": "src/auth",
+      "to": "src/utils",
+      "edge_type": "spec",
       "imported_symbols": [],
       "valid": true
     }
@@ -119,6 +135,19 @@ violations_count: {violations 수}
 |----------|------|------|
 | missing-exports | CLAUDE.md에 Exports 섹션이 없거나 비어있음 | `auth`가 `config` 참조, `config`에 Exports 없음 |
 | boundary-violation | Exports에 없는 심볼 직접 참조 | `auth`가 `config` 내부 함수 사용 |
+
+## Edge Types
+
+| edge_type | 소스 | 설명 |
+|-----------|------|------|
+| `internal` | 소스코드 import 분석 (CodeAnalyzer) | 실제 코드의 import/require문에서 추출 |
+| `spec` | CLAUDE.md Dependencies 섹션 | 스펙에 선언된 의존성 (v2.4.0+) |
+| `external` | 외부 패키지 | npm, pip, cargo 등 외부 의존성 |
+
+## Node symbol_entries (v2.2.0+)
+
+노드의 `symbol_entries` 필드는 `SymbolIndexBuilder`를 통해 채워집니다.
+`#[serde(skip_serializing_if = "Vec::is_empty")]` 속성으로, 비어있으면 JSON 출력에서 생략됩니다.
 
 ## 활용
 

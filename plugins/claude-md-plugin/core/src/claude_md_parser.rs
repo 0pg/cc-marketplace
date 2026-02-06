@@ -262,8 +262,7 @@ pub struct ClaudeMdParser {
     include_pattern: Regex,
     extend_pattern: Regex,
     actor_ref_pattern: Regex,
-    /// v2 export heading pattern (#### symbolName) - used for future v2 heading-format parsing
-    #[allow(dead_code)]
+    /// v2 export heading pattern (#### symbolName)
     export_heading_pattern: Regex,
 }
 
@@ -461,6 +460,13 @@ impl ClaudeMdParser {
             return;
         }
 
+        // v2: Use #### heading format for exports
+        if spec.schema_version.as_deref() == Some("2.0") {
+            self.parse_v2_exports(sections, spec);
+            return;
+        }
+
+        // v1: Original subsection-based parsing
         // Find subsections under Exports
         let mut in_functions = false;
         let mut in_types = false;
@@ -568,6 +574,168 @@ impl ClaudeMdParser {
             && spec.exports.types.is_empty()
             && spec.exports.classes.is_empty()
         {
+            spec.warnings.push("Exports section contains no valid exports".to_string());
+        }
+    }
+
+    /// Parse v2 exports using `#### symbolName` heading format.
+    /// Each symbol has metadata lines: Type, Signature, Description, Variants, Value.
+    fn parse_v2_exports(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
+        // Find all level-4 sections under Exports
+        let mut in_exports = false;
+
+        for section in sections {
+            if section.name.eq_ignore_ascii_case("Exports") {
+                in_exports = true;
+                continue;
+            }
+
+            // Stop when we hit a non-subsection (level <= 2 is a new major section)
+            if section.level <= 2 && in_exports {
+                break;
+            }
+
+            if !in_exports {
+                continue;
+            }
+
+            // Only process level 4 headings (#### symbolName)
+            if section.level != 4 {
+                continue;
+            }
+
+            // Extract symbol name from the heading via regex
+            let symbol_name = if let Some(caps) = self.export_heading_pattern.captures(&section.name) {
+                caps.get(1).map(|m| m.as_str().to_string())
+            } else {
+                // Fallback: use section name directly
+                Some(section.name.clone())
+            };
+
+            let symbol_name = match symbol_name {
+                Some(name) => name,
+                None => continue,
+            };
+
+            // Parse metadata from content lines
+            let mut type_kind: Option<String> = None;
+            let mut signature: Option<String> = None;
+            let mut description: Option<String> = None;
+            let mut variants: Option<Vec<String>> = None;
+            let mut value: Option<String> = None;
+
+            for line in &section.content {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                if let Some(rest) = trimmed.strip_prefix("- **Type**:") {
+                    type_kind = Some(rest.trim().to_lowercase());
+                } else if let Some(rest) = trimmed.strip_prefix("- **Signature**:") {
+                    // Strip backticks from signature
+                    let sig = rest.trim().trim_matches('`').to_string();
+                    signature = Some(sig);
+                } else if let Some(rest) = trimmed.strip_prefix("- **Description**:") {
+                    description = Some(rest.trim().to_string());
+                } else if let Some(rest) = trimmed.strip_prefix("- **Variants**:") {
+                    let v: Vec<String> = rest.split(',').map(|s| s.trim().to_string()).collect();
+                    variants = Some(v);
+                } else if let Some(rest) = trimmed.strip_prefix("- **Value**:") {
+                    value = Some(rest.trim().to_string());
+                }
+            }
+
+            let anchor = Some(symbol_name.clone());
+
+            match type_kind.as_deref() {
+                Some("function") => {
+                    let sig = signature.unwrap_or_else(|| format!("{}()", symbol_name));
+                    spec.exports.functions.push(FunctionExport {
+                        name: symbol_name,
+                        signature: sig,
+                        is_async: false,
+                        description,
+                        anchor,
+                    });
+                }
+                Some("class") => {
+                    let sig = signature.unwrap_or_else(|| format!("{}()", symbol_name));
+                    spec.exports.classes.push(ClassExport {
+                        name: symbol_name,
+                        constructor_signature: sig,
+                        description,
+                        anchor,
+                    });
+                }
+                Some("type") => {
+                    let def = signature.unwrap_or_else(|| symbol_name.clone());
+                    spec.exports.types.push(TypeExport {
+                        name: symbol_name,
+                        definition: def,
+                        kind: TypeKind::TypeAlias,
+                        description,
+                        anchor,
+                    });
+                }
+                Some("enum") => {
+                    spec.exports.enums.push(EnumExport {
+                        name: symbol_name,
+                        variants: variants.unwrap_or_default(),
+                        description,
+                        anchor,
+                    });
+                }
+                Some("variable") => {
+                    spec.exports.variables.push(VariableExport {
+                        name: symbol_name,
+                        value,
+                        description,
+                        anchor,
+                    });
+                }
+                _ => {
+                    // Unknown type: try to infer from signature
+                    if let Some(sig) = signature {
+                        if sig.contains('(') && sig.contains(')') {
+                            if sig.contains('{') {
+                                spec.exports.types.push(TypeExport {
+                                    name: symbol_name,
+                                    definition: sig,
+                                    kind: TypeKind::TypeAlias,
+                                    description,
+                                    anchor,
+                                });
+                            } else {
+                                spec.exports.functions.push(FunctionExport {
+                                    name: symbol_name,
+                                    signature: sig,
+                                    is_async: false,
+                                    description,
+                                    anchor,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if we found anything
+        if spec.exports.functions.is_empty()
+            && spec.exports.types.is_empty()
+            && spec.exports.classes.is_empty()
+            && spec.exports.enums.is_empty()
+            && spec.exports.variables.is_empty()
+        {
+            // Check for "None" marker
+            let exports_section = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports"));
+            if let Some(exports) = exports_section {
+                let content_lower = exports.content.join("\n").to_lowercase();
+                if content_lower.contains("none") {
+                    return;
+                }
+            }
             spec.warnings.push("Exports section contains no valid exports".to_string());
         }
     }
@@ -1654,5 +1822,172 @@ Test module.
             .functions[0]
             .signature
             .contains("Map<string, List<CacheEntry>>"));
+    }
+
+    // ============== v2 Exports Parsing Tests ==============
+
+    #[test]
+    fn test_parse_v2_exports_function() {
+        let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"<!-- schema: 2.0 -->
+# test-module
+
+## Purpose
+Test module.
+
+## Exports
+
+#### validateToken
+
+- **Type**: function
+- **Signature**: `validateToken(token: string): Promise<Claims>`
+- **Description**: Validates a JWT token
+
+## Behavior
+- valid token → Claims
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
+        assert_eq!(spec.schema_version, Some("2.0".to_string()));
+        assert_eq!(spec.exports.functions.len(), 1);
+        assert_eq!(spec.exports.functions[0].name, "validateToken");
+        assert_eq!(
+            spec.exports.functions[0].signature,
+            "validateToken(token: string): Promise<Claims>"
+        );
+        assert_eq!(
+            spec.exports.functions[0].description,
+            Some("Validates a JWT token".to_string())
+        );
+        assert_eq!(
+            spec.exports.functions[0].anchor,
+            Some("validateToken".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_v2_exports_mixed_types() {
+        let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"<!-- schema: 2.0 -->
+# test-module
+
+## Purpose
+Test module.
+
+## Exports
+
+#### processData
+
+- **Type**: function
+- **Signature**: `processData(input: Data): Result`
+
+#### DataProcessor
+
+- **Type**: class
+- **Signature**: `DataProcessor(config: Config)`
+- **Description**: Main processor class
+
+#### Status
+
+- **Type**: enum
+- **Variants**: Active, Inactive, Pending
+
+#### MAX_RETRIES
+
+- **Type**: variable
+- **Value**: 3
+
+#### DataConfig
+
+- **Type**: type
+- **Signature**: `DataConfig { timeout: number, retries: number }`
+
+## Behavior
+- input → output
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
+        assert_eq!(spec.schema_version, Some("2.0".to_string()));
+        assert_eq!(spec.exports.functions.len(), 1);
+        assert_eq!(spec.exports.functions[0].name, "processData");
+        assert_eq!(spec.exports.classes.len(), 1);
+        assert_eq!(spec.exports.classes[0].name, "DataProcessor");
+        assert_eq!(spec.exports.enums.len(), 1);
+        assert_eq!(spec.exports.enums[0].name, "Status");
+        assert_eq!(
+            spec.exports.enums[0].variants,
+            vec!["Active", "Inactive", "Pending"]
+        );
+        assert_eq!(spec.exports.variables.len(), 1);
+        assert_eq!(spec.exports.variables[0].name, "MAX_RETRIES");
+        assert_eq!(
+            spec.exports.variables[0].value,
+            Some("3".to_string())
+        );
+        assert_eq!(spec.exports.types.len(), 1);
+        assert_eq!(spec.exports.types[0].name, "DataConfig");
+    }
+
+    #[test]
+    fn test_parse_v2_exports_with_anchors() {
+        let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"<!-- schema: 2.0 -->
+# test-module
+
+## Purpose
+Test module.
+
+## Exports
+
+#### formatError
+
+- **Type**: function
+- **Signature**: `formatError(err: Error): string`
+
+#### ErrorCode
+
+- **Type**: enum
+- **Variants**: NotFound, Unauthorized
+
+## Behavior
+- error → formatted string
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
+        assert_eq!(spec.exports.functions[0].anchor, Some("formatError".to_string()));
+        assert_eq!(spec.exports.enums[0].anchor, Some("ErrorCode".to_string()));
+    }
+
+    #[test]
+    fn test_v1_exports_unchanged_with_v2_parser() {
+        // v1 format should still work - no regression
+        let parser = ClaudeMdParser::new();
+        let content = with_required_sections(
+            r#"# test-module
+
+## Purpose
+Test module.
+
+## Exports
+
+### Functions
+- `validate(input: string): boolean`
+
+### Types
+- `Config { timeout: number }`
+
+## Behavior
+- input → output
+"#,
+        );
+        let spec = parser.parse_content(&content).unwrap();
+        assert!(spec.schema_version.is_none());
+        assert_eq!(spec.exports.functions.len(), 1);
+        assert_eq!(spec.exports.functions[0].name, "validate");
+        assert_eq!(spec.exports.types.len(), 1);
+        assert_eq!(spec.exports.types[0].name, "Config");
     }
 }
