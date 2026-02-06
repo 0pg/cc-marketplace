@@ -71,7 +71,7 @@ CLAUDE.md 문서의 품질과 코드 일치 여부를 검증합니다.
 CLI로 CLAUDE.md 완성도를 먼저 검사합니다:
 
 ```bash
-./plugins/claude-md-plugin/core/target/release/claude-md-core audit \
+claude-md-core audit \
   --root {path} \
   --only-issues \
   --output .claude/tmp/{session-id}-audit-result.json
@@ -129,6 +129,25 @@ if convention_exists:
 
 **중요**: 성능 최적화를 위해 모든 Task를 하나의 응답에서 호출해야 합니다.
 
+### 2.5. Schema + Cross-Reference 검증
+
+각 CLAUDE.md에 대해 schema-validate를 `--with-index`와 함께 실행합니다.
+이 단계는 cross-reference가 **실제로 해석 가능한지** 검증합니다 (symbol index 대조).
+
+```
+For each claude_md_file:
+  target = path_to_target(claude_md_file)
+
+  Bash: claude-md-core validate-schema \
+    --file {claude_md_file} \
+    --output .claude/tmp/{session-id}-validation-{target}.json \
+    --with-index {project_root}
+```
+
+**참고**: 이 Bash 호출은 섹션 2의 Task들과 **단일 메시지에서 병렬로** 호출 가능합니다.
+- drift-validator, export-validator: Task (agent)
+- schema-validate: Bash (CLI) 직접 호출
+
 ### 3. 결과 수집
 
 각 validator는 구조화된 블록으로 결과를 반환합니다:
@@ -162,6 +181,15 @@ auto_fixed_count: {N}
 ---end-code-reviewer-result---
 ```
 
+```
+---schema-validate-result---
+status: passed | failed
+output_file: .claude/tmp/{session-id}-validation-{dir-safe-name}.json
+directory: {directory}
+unresolved_references: {N}
+---end-schema-validate-result---
+```
+
 ### 4. 통합 보고서 생성
 
 결과 파일들을 Read하여 다음 형식으로 통합 보고서 생성:
@@ -186,10 +214,10 @@ auto_fixed_count: {N}
 
 ## 요약
 
-| 디렉토리 | Drift 이슈 | Export 커버리지 점수 | Convention | 상태 |
-|----------|-----------|------------|------------|------|
-| src/auth | 0 | 100% | 95% | 양호 |
-| src/utils | 2 | 85% | 88% | 개선 필요 |
+| 디렉토리 | Drift 이슈 | Export 커버리지 점수 | Schema/Cross-Ref | Convention | 상태 |
+|----------|-----------|------------|-----------------|------------|------|
+| src/auth | 0 | 100% | 0 unresolved | 95% | 양호 |
+| src/utils | 2 | 85% | 1 unresolved | 88% | 개선 필요 |
 
 > Convention 열은 code-convention.md가 존재할 때만 표시됩니다.
 > code-convention.md가 없으면 `/project-setup`을 실행하여 생성할 수 있습니다.
@@ -218,9 +246,9 @@ auto_fixed_count: {N}
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 100% AND Convention 90% 이상 |
+| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 100% AND unresolved_references == 0 AND Convention 90% 이상 |
 | **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 90-99% OR Convention 80-89% |
-| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 90% 미만 OR Convention 80% 미만 |
+| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 90% 미만 OR unresolved_references > 0 OR Convention 80% 미만 |
 
 | code-convention.md | 판정 로직 |
 |--------------------|----------|
@@ -277,7 +305,8 @@ src/legacy (개선 필요)
 
 ## 관련 컴포넌트
 
-- `core/target/release/claude-md-core audit`: CLAUDE.md 완성도 검증 (CLI)
+- `claude-md-core audit`: CLAUDE.md 완성도 검증 (CLI)
+- `claude-md-core validate-schema --with-index`: Schema + Cross-Reference 검증 (CLI)
 - `agents/drift-validator.md`: 코드-문서 일치 검증
 - `agents/export-validator.md`: Export 커버리지 검증
 - `agents/code-reviewer.md`: 코드 품질 + 컨벤션 검증 (code-convention.md 기반)

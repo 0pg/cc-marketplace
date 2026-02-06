@@ -133,8 +133,8 @@ impl SymbolIndexBuilder {
         let mut file_contents: Vec<(String, String)> = Vec::new(); // (module_path, content)
         for (module_path, claude_md_file) in &claude_md_paths {
             if let Ok(content) = std::fs::read_to_string(claude_md_file) {
-                // Parse from content string
-                match self.claude_md_parser.parse(claude_md_file) {
+                // Parse from already-read content string (P0.4: no double read)
+                match self.claude_md_parser.parse_content(&content) {
                     Ok(spec) => {
                         Self::extract_symbols(&spec.exports, module_path, &mut symbols);
                     }
@@ -506,16 +506,21 @@ impl SymbolIndexBuilder {
             .collect();
         symbols.retain(|s| !files_to_remove.contains(s.module_path.as_str()));
 
-        // Re-parse changed + added files and add their symbols
+        // Re-parse changed + added files and add their symbols (P0.4: single read)
         let files_to_parse: Vec<&String> = changed.iter().chain(added.iter()).collect();
         let path_map: HashMap<&str, &std::path::PathBuf> = claude_md_paths.iter()
             .map(|(m, p)| (m.as_str(), p))
             .collect();
 
+        // Read and parse changed/added files once, store content for reference extraction
+        let mut parsed_contents: HashMap<String, String> = HashMap::new();
         for module_path in &files_to_parse {
             if let Some(file_path) = path_map.get(module_path.as_str()) {
-                if let Ok(spec) = self.claude_md_parser.parse(file_path.as_ref()) {
-                    Self::extract_symbols(&spec.exports, module_path, &mut symbols);
+                if let Ok(content) = std::fs::read_to_string(file_path.as_ref() as &Path) {
+                    if let Ok(spec) = self.claude_md_parser.parse_content(&content) {
+                        Self::extract_symbols(&spec.exports, module_path, &mut symbols);
+                    }
+                    parsed_contents.insert(module_path.to_string(), content);
                 }
             }
         }
@@ -528,9 +533,15 @@ impl SymbolIndexBuilder {
 
         let mut references = Vec::new();
         for (module_path, file_path) in claude_md_paths {
-            if let Ok(content) = std::fs::read_to_string(file_path) {
-                self.extract_references(&content, module_path, &anchor_set, &mut references);
-            }
+            // Reuse already-read content for changed/added files (P0.4: no double read)
+            let content = if let Some(cached_content) = parsed_contents.get(module_path) {
+                cached_content.clone()
+            } else if let Ok(content) = std::fs::read_to_string(file_path) {
+                content
+            } else {
+                continue;
+            };
+            self.extract_references(&content, module_path, &anchor_set, &mut references);
         }
 
         let mut unresolved = Vec::new();

@@ -17,6 +17,7 @@ Rust CLI `claude-md-core validate-schema`를 래핑합니다.
 ```
 file_path: 검증할 CLAUDE.md 파일 경로
 output_name: 출력 파일명 (디렉토리명 기반)
+with_index: (선택) 프로젝트 루트 경로 — 지정 시 symbol index를 빌드하여 cross-reference 실제 해석 검증
 ```
 
 ## 출력
@@ -27,8 +28,9 @@ output_name: 출력 파일명 (디렉토리명 기반)
 {
   "file": ".claude/tmp/{session-id}-decompile-src-auth-claude.md",
   "valid": true,
-  "issues": [],
-  "warnings": []
+  "errors": [],
+  "warnings": [],
+  "unresolved_references": []
 }
 ```
 
@@ -71,6 +73,28 @@ claude-md-core validate-schema \
   --output .claude/tmp/{session-id}-validation-{target}.json
 ```
 
+### 1-b. Cross-Reference 검증 (v2, --with-index)
+
+`with_index`가 지정된 경우, symbol index를 빌드하여 cross-reference가 실제로 해석 가능한지 검증합니다.
+
+```bash
+claude-md-core validate-schema \
+  --file {file_path} \
+  --output .claude/tmp/{session-id}-validation-{target}.json \
+  --with-index {project_root}
+```
+
+**--with-index 유무에 따른 동작 차이:**
+
+| 항목 | without (기본) | with --with-index |
+|------|---------------|-------------------|
+| 필수 섹션 확인 | O | O |
+| 섹션 형식 검증 | O | O |
+| cross-ref 구문 검증 | O (warning) | O |
+| cross-ref 실제 해석 | X | O — symbol index 대조, 미해석 시 error |
+
+미해석 cross-reference가 발견되면 `valid: false`가 되며, `unresolved_references` 배열에 상세 정보가 포함됩니다.
+
 ### 2. 결과 확인
 
 ```bash
@@ -93,6 +117,7 @@ output_file: .claude/tmp/{session-id}-validation-{target}.json
 status: passed
 issues: 0
 warnings: {경고 수}
+unresolved_references: 0
 ---end-schema-validate-result---
 ```
 
@@ -106,6 +131,7 @@ issue_details:
   - [missing_section] Behavior: 필수 섹션이 없습니다
   - [invalid_format] Exports:15: 함수 시그니처 형식이 잘못되었습니다
 warnings: {경고 수}
+unresolved_references: {N}
 ---end-schema-validate-result---
 ```
 
@@ -113,15 +139,17 @@ warnings: {경고 수}
 
 검증 규칙은 `references/schema-rules.yaml`에서 정의됩니다 (Single Source of Truth).
 
-### 현재 필수 섹션 (5개)
+### 현재 필수 섹션 (7개)
 
 | 섹션 | 필수 | "None" 허용 |
 |------|------|-------------|
 | Purpose | ✓ | ✗ |
+| Summary | ✓ | ✗ |
 | Exports | ✓ | ✓ |
 | Behavior | ✓ | ✓ |
 | Contract | ✓ | ✓ |
 | Protocol | ✓ | ✓ |
+| Domain Context | ✓ | ✓ |
 
 ### 조건부/선택 섹션
 
