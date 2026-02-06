@@ -5,6 +5,7 @@ mod tree_parser;
 mod boundary_resolver;
 mod schema_validator;
 mod claude_md_parser;
+mod implements_md_parser;
 mod code_analyzer;
 mod dependency_graph;
 mod auditor;
@@ -13,6 +14,7 @@ use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
 use schema_validator::SchemaValidator;
 use claude_md_parser::ClaudeMdParser;
+use implements_md_parser::ImplementsMdParser;
 use dependency_graph::DependencyGraphBuilder;
 use auditor::Auditor;
 
@@ -74,6 +76,17 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Parse IMPLEMENTS.md into structured JSON spec
+    ParseImplementsMd {
+        /// IMPLEMENTS.md file to parse
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Build dependency graph for the project
     DependencyGraph {
         /// Root directory to scan
@@ -127,6 +140,13 @@ fn main() {
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
+        Commands::ParseImplementsMd { file, output } => {
+            let parser = ImplementsMdParser::new();
+            match parser.parse(file) {
+                Ok(spec) => output_result(&spec, output.as_ref(), "parse-implements-md"),
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+            }
+        }
         Commands::DependencyGraph { root, output } => {
             let builder = DependencyGraphBuilder::new();
             match builder.build(root) {
@@ -147,6 +167,7 @@ fn main() {
             Commands::ResolveBoundary { .. } => "resolve-boundary",
             Commands::ValidateSchema { .. } => "validate-schema",
             Commands::ParseClaudeMd { .. } => "parse-claude-md",
+            Commands::ParseImplementsMd { .. } => "parse-implements-md",
             Commands::DependencyGraph { .. } => "dependency-graph",
             Commands::Audit { .. } => "audit",
         };

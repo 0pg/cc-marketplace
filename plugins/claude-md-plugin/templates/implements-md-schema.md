@@ -226,7 +226,7 @@ None
 
 **목적**: 외부 패키지의 버전과 선택 근거를 기록
 
-### 3. Implementation Approach (필수)
+### 4. Implementation Approach (필수)
 
 구현의 전략적 방향과 고려했으나 선택하지 않은 대안을 명시합니다.
 
@@ -246,7 +246,7 @@ None
 
 **목적**: "왜 이 방식인가?"에 대한 근거 제공
 
-### 4. Technology Choices (필수, "None" 허용)
+### 5. Technology Choices (필수, "None" 허용)
 
 기술 선택과 그 근거를 테이블 형태로 명시합니다.
 
@@ -274,7 +274,7 @@ None
 
 > `/compile`이 업데이트하는 섹션. 실제 구현 후 발견된 사항을 기록.
 
-### 5. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
+### 6. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
 
 소스코드를 보기 전에 알아야 할 구현 로직만 기술합니다.
 **단순한 구현은 기술하지 않습니다** (소스코드로 충분).
@@ -297,7 +297,7 @@ None
 - Yes → Algorithm 섹션에 기술
 - No → 생략 (코드로 충분)
 
-### 6. Key Constants (조건부 - 도메인 의미가 있는 값만)
+### 7. Key Constants (조건부 - 도메인 의미가 있는 값만)
 
 다른 세션이 알아야 할 상수만 기술합니다.
 코드에서 명확한 상수는 생략합니다.
@@ -316,7 +316,7 @@ None
 - Yes → Key Constants 섹션에 기술
 - No → 생략 (코드에서 명확)
 
-### 7. Error Handling (필수, "None" 허용)
+### 8. Error Handling (필수, "None" 허용)
 
 에러 유형별 처리 전략을 명시합니다.
 
@@ -339,7 +339,7 @@ None
 None
 ```
 
-### 8. State Management (필수, "None" 허용)
+### 9. State Management (필수, "None" 허용)
 
 내부 상태의 초기화, 저장, 복구 방식을 명시합니다.
 
@@ -367,7 +367,7 @@ None
 None
 ```
 
-### 9. Implementation Guide (선택)
+### 10. Implementation Guide (선택)
 
 `/compile` 과정에서 발견된 추가 참고 정보를 기록합니다.
 Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하지 않습니다**.

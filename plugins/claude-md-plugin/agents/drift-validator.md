@@ -111,6 +111,11 @@ Skill("claude-md-plugin:claude-md-parse", file="{directory}/CLAUDE.md")
 - Dependencies
 - Behavior
 
+동일 디렉토리의 IMPLEMENTS.md도 읽기 시도:
+```
+Read({directory}/IMPLEMENTS.md) → IMPLEMENTS.md 내용 로드 (없으면 skip)
+```
+
 ### 2. Drift 검증
 
 #### Structure Drift
@@ -174,6 +179,53 @@ For each documented_dependency:
 # 테스트 파일이 없으면 코드 분석으로 동작 추론
 ```
 
+#### Module Integration Map 교차 검증
+
+IMPLEMENTS.md의 Module Integration Map 섹션이 존재하고 "None"이 아닌 경우에만 실행합니다.
+
+**Entry 파싱:**
+```
+# Entry header 패턴 (schema-rules.yaml 참조)
+entry_header_pattern = ^###\s+`([^`]+)`\s*→\s*(.+/CLAUDE\.md)$
+
+For each entry in Module Integration Map:
+  relative_path = capture_group_1    # e.g., ../auth
+  claude_md_ref = capture_group_2    # e.g., auth/CLAUDE.md
+```
+
+**boundary_valid** (severity: error):
+```
+resolved_path = resolve(directory, relative_path)
+target_claude_md = resolved_path + "/CLAUDE.md"
+
+if not exists(target_claude_md):
+  BOUNDARY_INVALID: `{relative_path}` → 유효한 모듈이 아님 (CLAUDE.md 없음)
+  # boundary_valid 실패 시 해당 entry의 export_exists, signature_match는 skip
+```
+
+**export_exists** (severity: error):
+```
+target_exports = parse Exports section from target_claude_md
+
+# Exports Used 항목 파싱 (schema-rules.yaml 참조)
+exports_used_pattern = ^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$
+
+For each export_signature in entry.exports_used:
+  export_name = extract function/type/class name from export_signature
+  if export_name not found in target_exports:
+    EXPORT_NOT_FOUND: `{export_name}` 이 대상 CLAUDE.md Exports에 없음
+```
+
+**signature_match** (severity: warning):
+```
+For each export_signature in entry.exports_used:
+  target_signature = find matching export in target_exports by name
+  if target_signature exists AND export_signature != target_signature:
+    SIGNATURE_MISMATCH:
+      - 스냅샷: `{export_signature}`
+      - 대상: `{target_signature}`
+```
+
 ### 3. 결과 저장
 
 결과를 `.claude/tmp/{session-id}-drift-{target}.md` 형태로 저장합니다.
@@ -188,6 +240,7 @@ For each documented_dependency:
 - Exports: {n2}개
 - Dependencies: {n3}개
 - Behavior: {n4}개
+- Module Integration Map: {n5}개
 
 ## 상세
 
@@ -221,6 +274,19 @@ For each documented_dependency:
 
 #### MISMATCH (동작 불일치)
 - "빈 입력 시 빈 배열 반환": 실제로는 null 반환
+
+### Module Integration Map 교차 검증
+
+#### BOUNDARY_INVALID (error)
+- `../removed-module` → removed-module/CLAUDE.md: 유효한 모듈이 아님 (CLAUDE.md 없음)
+
+#### EXPORT_NOT_FOUND (error)
+- `../auth` → auth/CLAUDE.md: `refreshToken` 이 대상 CLAUDE.md Exports에 없음
+
+#### SIGNATURE_MISMATCH (warning)
+- `../auth` → auth/CLAUDE.md: `validateToken`
+  - 스냅샷: `validateToken(token: string): Claims`
+  - 대상: `validateToken(token: string, options?: Options): Promise<Claims>`
 ```
 
 ### 4. 결과 반환
@@ -233,26 +299,31 @@ status: success | failed
 result_file: .claude/tmp/{session-id}-drift-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
+integration_map_issues: {M}
 ---end-drift-validator-result---
 ```
 
 - `status`: 검증 완료 여부 (에러 없이 완료되면 success)
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
-- `issues_count`: 총 drift 이슈 수
+- `issues_count`: 총 drift 이슈 수 (Structure + Exports + Dependencies + Behavior)
+- `integration_map_issues`: Module Integration Map 교차 검증 이슈 수 (IMPLEMENTS.md 없거나 "None"이면 0)
 
 ## Drift 유형 정리
 
-| 섹션 | Drift 유형 | 설명 |
-|------|-----------|------|
-| Structure | UNCOVERED | 디렉토리 내 파일이 Structure에 없음 |
-| Structure | ORPHAN | Structure의 파일이 실제로 없음 |
-| Exports | STALE | 문서의 export가 코드에 없음 |
-| Exports | MISSING | 코드의 export가 문서에 없음 |
-| Exports | MISMATCH | 시그니처가 다름 |
-| Dependencies | STALE | 문서의 의존성이 실제로 없음 |
-| Dependencies | ORPHAN | 코드의 의존성이 문서에 없음 |
-| Behavior | MISMATCH | 문서화된 시나리오와 실제 동작 불일치 |
+| 섹션 | Drift 유형 | Severity | 설명 |
+|------|-----------|----------|------|
+| Structure | UNCOVERED | error | 디렉토리 내 파일이 Structure에 없음 |
+| Structure | ORPHAN | error | Structure의 파일이 실제로 없음 |
+| Exports | STALE | error | 문서의 export가 코드에 없음 |
+| Exports | MISSING | error | 코드의 export가 문서에 없음 |
+| Exports | MISMATCH | warning | 시그니처가 다름 |
+| Dependencies | STALE | error | 문서의 의존성이 실제로 없음 |
+| Dependencies | ORPHAN | error | 코드의 의존성이 문서에 없음 |
+| Behavior | MISMATCH | warning | 문서화된 시나리오와 실제 동작 불일치 |
+| Integration Map | BOUNDARY_INVALID | error | 상대 경로가 유효한 모듈을 가리키지 않음 |
+| Integration Map | EXPORT_NOT_FOUND | error | 참조한 Export가 대상 CLAUDE.md에 없음 |
+| Integration Map | SIGNATURE_MISMATCH | warning | 스냅샷 시그니처와 대상 시그니처 불일치 |
 
 ## 주의사항
 

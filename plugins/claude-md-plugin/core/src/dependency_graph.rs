@@ -8,6 +8,7 @@
 
 use crate::claude_md_parser::ClaudeMdParser;
 use crate::code_analyzer::CodeAnalyzer;
+use crate::implements_md_parser::ImplementsMdParser;
 use crate::tree_parser::TreeParser;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -98,6 +99,7 @@ pub struct Summary {
 pub struct DependencyGraphBuilder {
     tree_parser: TreeParser,
     claude_md_parser: ClaudeMdParser,
+    implements_md_parser: ImplementsMdParser,
     code_analyzer: CodeAnalyzer,
 }
 
@@ -107,6 +109,7 @@ impl DependencyGraphBuilder {
         Self {
             tree_parser: TreeParser::new(),
             claude_md_parser: ClaudeMdParser::new(),
+            implements_md_parser: ImplementsMdParser::new(),
             code_analyzer: CodeAnalyzer::new(),
         }
     }
@@ -167,6 +170,29 @@ impl DependencyGraphBuilder {
         let mut edges = Vec::new();
         let mut violations = Vec::new();
 
+        // 3a. Collect IMPLEMENTS.md integration map data per module
+        let mut integration_maps: HashMap<String, Vec<crate::implements_md_parser::IntegrationMapEntry>> =
+            HashMap::new();
+
+        for node in &nodes {
+            let dir_path = if node.path == "." {
+                root.clone()
+            } else {
+                root.join(&node.path)
+            };
+
+            let implements_md_path = dir_path.join("IMPLEMENTS.md");
+            if implements_md_path.exists() {
+                if let Ok(impl_spec) = self.implements_md_parser.parse(&implements_md_path) {
+                    if !impl_spec.module_integration_map.is_empty() {
+                        integration_maps
+                            .insert(node.path.clone(), impl_spec.module_integration_map);
+                    }
+                }
+            }
+        }
+
+        // 3b. Build edges from code analysis and enrich with IMPLEMENTS.md data
         for node in &nodes {
             let dir_path = if node.path == "." {
                 root.clone()
@@ -178,8 +204,13 @@ impl DependencyGraphBuilder {
             if let Ok(analysis) = self.code_analyzer.analyze_directory(&dir_path, None) {
                 // Process internal dependencies
                 for internal_dep in &analysis.dependencies.internal {
-                    let (target_path, edge, violation) =
+                    let (target_path, mut edge, violation) =
                         self.process_internal_dependency(&node.path, internal_dep, &module_exports);
+
+                    // Enrich imported_symbols from IMPLEMENTS.md integration map
+                    if let Some(map_entries) = integration_maps.get(&node.path) {
+                        self.enrich_edge_from_integration_map(&mut edge, map_entries);
+                    }
 
                     edges.push(edge);
                     if let Some(v) = violation {
@@ -201,6 +232,44 @@ impl DependencyGraphBuilder {
                         imported_symbols: Vec::new(),
                         valid: true, // External deps are always valid
                     });
+                }
+            }
+
+            // 3c. Also create edges from IMPLEMENTS.md entries not found by code analysis
+            if let Some(map_entries) = integration_maps.get(&node.path) {
+                for entry in map_entries {
+                    let target_path =
+                        self.normalize_import_path(&node.path, &entry.relative_path);
+
+                    // Check if edge already exists (created by code analysis above)
+                    let edge_exists = edges
+                        .iter()
+                        .any(|e| e.from == node.path && e.to == target_path);
+
+                    if !edge_exists {
+                        let imported_symbols: Vec<String> = entry
+                            .exports_used
+                            .iter()
+                            .map(|e| e.signature.clone())
+                            .collect();
+
+                        let target_exports =
+                            module_exports.get(&target_path).cloned().unwrap_or_default();
+                        let has_exports = !target_exports.is_empty();
+
+                        edges.push(DependencyEdge {
+                            from: node.path.clone(),
+                            to: target_path.clone(),
+                            edge_type: "internal".to_string(),
+                            imported_symbols,
+                            valid: has_exports
+                                || !module_exports.contains_key(&target_path),
+                        });
+
+                        if !module_exports.contains_key(&target_path) {
+                            module_exports.insert(target_path, Vec::new());
+                        }
+                    }
                 }
             }
         }
@@ -313,6 +382,31 @@ impl DependencyGraphBuilder {
         };
 
         (target_path, edge, violation)
+    }
+
+    /// Enrich a dependency edge's imported_symbols using IMPLEMENTS.md integration map data.
+    ///
+    /// If the edge target matches an integration map entry (by normalized path),
+    /// the export signatures from the map are added to the edge's imported_symbols.
+    fn enrich_edge_from_integration_map(
+        &self,
+        edge: &mut DependencyEdge,
+        map_entries: &[crate::implements_md_parser::IntegrationMapEntry],
+    ) {
+        for entry in map_entries {
+            let normalized_target =
+                self.normalize_import_path(&edge.from, &entry.relative_path);
+
+            if normalized_target == edge.to {
+                // Add all export signatures as imported symbols
+                for export in &entry.exports_used {
+                    if !edge.imported_symbols.contains(&export.signature) {
+                        edge.imported_symbols.push(export.signature.clone());
+                    }
+                }
+                break;
+            }
+        }
     }
 
     /// Normalize an import path relative to the importing module.

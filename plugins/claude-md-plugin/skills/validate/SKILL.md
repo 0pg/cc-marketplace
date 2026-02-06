@@ -115,6 +115,7 @@ status: success | failed
 result_file: .claude/tmp/{session-id}-drift-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
+integration_map_issues: {M}
 ---end-drift-validator-result---
 ```
 
@@ -126,6 +127,8 @@ directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---
 ```
+
+**참고**: `integration_map_issues`는 drift-validator가 IMPLEMENTS.md의 Module Integration Map 교차 검증에서 발견한 이슈 수입니다. IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0입니다.
 
 ### 4. 통합 보고서 생성
 
@@ -151,16 +154,19 @@ export_coverage: {0-100}
 
 ## 요약
 
-| 디렉토리 | Drift 이슈 | Export 커버리지 점수 | 상태 |
-|----------|-----------|------------|------|
-| src/auth | 0 | 100% | 양호 |
-| src/utils | 2 | 85% | 개선 필요 |
+| 디렉토리 | Drift 이슈 | Integration Map 이슈 | Export 커버리지 점수 | 상태 |
+|----------|-----------|---------------------|------------|------|
+| src/auth | 0 | 0 | 100% | 양호 |
+| src/utils | 2 | 1 | 85% | 개선 필요 |
 
 ## 상세 결과
 
 ### src/auth
 #### Drift 검증
-(drift-validator 결과 파일 내용)
+(drift-validator 결과 파일 내용 - Structure/Exports/Dependencies/Behavior drift)
+
+#### Module Integration Map 교차 검증
+(drift-validator 결과 파일 내용 - Integration Map cross-validation)
 
 #### Export 커버리지 검증
 (export-validator 결과 파일 내용)
@@ -177,9 +183,9 @@ export_coverage: {0-100}
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | Drift 이슈 0개 AND Export 커버리지 점수 100% |
-| **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 90-99% |
-| **개선 필요** | Drift 3개 이상 OR Export 커버리지 점수 90% 미만 |
+| **양호** | Drift 이슈 0개 AND Integration Map error 0개 AND Export 커버리지 점수 100% |
+| **개선 권장** | Drift 1-2개 OR Integration Map warning만 OR Export 커버리지 점수 90-99% |
+| **개선 필요** | Drift 3개 이상 OR Integration Map error 1개 이상 OR Export 커버리지 점수 90% 미만 |
 
 ## 출력 예시
 
@@ -208,18 +214,23 @@ Complete: 3개 | Missing: 1개 | Unexpected: 0개
 
 src/auth (양호)
   Drift: 0개 이슈
+  Integration Map: 0개 이슈 (2개 entry 검증)
   Export 커버리지: 100% (19/19 예측 성공)
 
 src/utils (개선 권장)
   Drift: 2개 이슈
     - STALE: formatDate export가 코드에 없음
     - MISSING: parseNumber export가 문서에 없음
+  Integration Map: 0개 이슈
   Export 커버리지: 95% (17/18 예측 성공)
 
 src/legacy (개선 필요)
   Drift: 5개 이슈
     - UNCOVERED: 3개 파일이 Structure에 없음
     - MISMATCH: 2개 시그니처 불일치
+  Integration Map: 2개 이슈
+    - ERROR: `../config` → config/CLAUDE.md - `loadConfig` export가 대상에 없음
+    - WARNING: `../auth` → auth/CLAUDE.md - `validateToken` 시그니처 불일치
   Export 커버리지: 78% (14/18 예측 성공)
 ```
 
