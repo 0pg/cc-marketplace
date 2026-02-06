@@ -355,6 +355,100 @@ for dep in internal_dependencies:
 | Integration Context | 비어있지 않음, 1-3문장 |
 | 시그니처 원본 일치 | 대상 CLAUDE.md Exports와 동일한 시그니처 |
 
+#### 2.5.4.1 Integration Map 사전 검증 (Pre-validation)
+
+Phase 2.5.4에서 수집한 Integration Map 데이터를 **spec-reviewer에 보내기 전에** 자체 검증합니다.
+이 단계에서 오류를 수정하면 iteration을 소비하지 않으므로 비용 효율적입니다.
+
+##### 검증 루프
+
+```python
+MAX_PREVALIDATION_ATTEMPTS = 2
+
+for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
+    validation_errors = validate_integration_map(integration_entries)
+
+    if not validation_errors:
+        break  # 검증 통과 → Phase 2.5.5 진행
+
+    # 오류 유형별 자체 수정
+    for error in validation_errors:
+        if error.type == "format_error":
+            # 형식 오류: 즉시 재포맷 (파일 읽기 불필요)
+            fix_entry_format(error.entry)
+
+        elif error.type == "export_not_found":
+            # Export 참조 오류: 대상 CLAUDE.md 재읽기 후 시그니처 재수집
+            target_claude_md = Read(error.target_path)
+            target_exports = parse_exports(target_claude_md)
+
+            if error.signature in target_exports:
+                # 시그니처 형식 불일치 → 원본으로 교체
+                update_signature(error.entry, error.signature, target_exports)
+            else:
+                # 실제로 존재하지 않는 Export → 엔트리에서 제거 또는 대체
+                remove_or_replace_export(error.entry, error.signature, target_exports)
+
+        elif error.type == "missing_subsection":
+            # 누락된 하위 섹션: 데이터에서 재구성
+            reconstruct_subsection(error.entry, error.subsection)
+
+    # 수정된 integration_entries 재구성
+    integration_entries = rebuild_entries(integration_entries)
+```
+
+##### 검증 함수
+
+```python
+def validate_integration_map(entries):
+    """
+    Integration Map 엔트리를 스키마 규칙에 따라 검증.
+    spec-reviewer Check 6과 동일한 기준 적용.
+    """
+    errors = []
+
+    for entry in entries:
+        # 1. Entry Header 형식
+        header = f"### `{entry['relative_path']}` → {entry['claude_md_ref']}"
+        if not re.match(r"^###\s+`[^`]+`\s*→\s*.+/CLAUDE\.md$", header):
+            errors.append(ValidationError("format_error", entry, header))
+
+        # 2. Exports Used 존재 및 최소 1개
+        if not entry.get('exports_used') or len(entry['exports_used']) < 1:
+            errors.append(ValidationError("missing_subsection", entry, "exports_used"))
+
+        # 3. Integration Context 존재 및 비어있지 않음
+        if not entry.get('integration_context') or entry['integration_context'].strip() == "":
+            errors.append(ValidationError("missing_subsection", entry, "integration_context"))
+
+        # 4. Export 교차 참조 (대상 CLAUDE.md 접근 가능 시)
+        target_path = resolve(entry['relative_path'] + "/CLAUDE.md")
+        if file_exists(target_path):
+            target_exports = parse_exports(Read(target_path))
+            for export in entry['exports_used']:
+                if export['signature'] not in target_exports:
+                    errors.append(ValidationError(
+                        "export_not_found", entry,
+                        signature=export['signature'],
+                        target_path=target_path
+                    ))
+
+    return errors
+```
+
+##### 사전 검증 vs spec-reviewer 검증 역할 분담
+
+| 검증 항목 | Phase 2.5.4.1 (사전) | spec-reviewer Check 6 |
+|----------|----------------------|----------------------|
+| Entry Header 형식 | 자체 수정 | 최종 확인 |
+| Exports Used 존재 | 자체 수정 | 최종 확인 |
+| Integration Context | 자체 수정 | 최종 확인 |
+| Export 교차 참조 | 자체 수정 (재읽기) | 최종 확인 (점수 반영) |
+| **iteration 소비** | **없음** | **있음** |
+
+> 사전 검증은 "대부분의 오류를 iteration 소비 없이 해결"하는 것이 목적입니다.
+> spec-reviewer의 INTEGRATION-MAP-VALID는 사전 검증을 통과한 데이터에 대한 **최종 게이트** 역할입니다.
+
 #### 2.5.5 Architecture Decisions 생성
 
 ##### 생성 구조
@@ -681,6 +775,7 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 | REQ-COVERAGE | 100% |
 | SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
+| INTEGRATION-MAP-VALID | passed 또는 skipped |
 
 #### 반복 종료 조건
 

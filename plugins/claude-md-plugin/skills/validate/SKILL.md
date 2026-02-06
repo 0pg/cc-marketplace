@@ -184,7 +184,7 @@ export_coverage: {0-100}
 | 상태 | 조건 |
 |------|------|
 | **양호** | Drift 이슈 0개 AND Integration Map error 0개 AND Export 커버리지 점수 100% |
-| **개선 권장** | Drift 1-2개 OR Integration Map warning만 OR Export 커버리지 점수 90-99% |
+| **개선 권장** | Drift 1-2개 OR Export 커버리지 점수 90-99% |
 | **개선 필요** | Drift 3개 이상 OR Integration Map error 1개 이상 OR Export 커버리지 점수 90% 미만 |
 
 ## 출력 예시
