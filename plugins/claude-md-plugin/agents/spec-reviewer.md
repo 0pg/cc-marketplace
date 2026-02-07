@@ -32,11 +32,10 @@ description: |
   2. REQ-COVERAGE: Check all requirements reflected
   3. TASK-COMPLETION: Check all tasks mapped to documents
   4. SCHEMA-VALID: Validate schema compliance
-  5. Calculate score and generate feedback
+  5. Verify gates and generate feedback
 
   ---spec-reviewer-result---
   status: approve
-  score: 95
   checks:
     - id: REQ-COVERAGE
       status: passed
@@ -84,11 +83,10 @@ description: |
   2. REQ-COVERAGE: Missing email verification requirement
   3. TASK-COMPLETION: t-6 not mapped to Behavior section
   4. SCHEMA-VALID: All required sections present
-  5. Calculate score and generate feedback
+  5. Verify gates and generate feedback
 
   ---spec-reviewer-result---
   status: feedback
-  score: 72
   checks:
     - id: REQ-COVERAGE
       status: failed
@@ -137,7 +135,6 @@ description: |
 
   ---spec-reviewer-result---
   status: feedback
-  score: 68
   checks:
     - id: REQ-COVERAGE
       status: passed
@@ -211,9 +208,9 @@ Read(implements_md_path)
 2. CLAUDE.md의 각 섹션에서 매칭 확인
 3. 누락된 요구사항 식별
 
-**점수 계산:**
+**Gate 기준:**
 
-`coverage = (매칭된 요구사항 수 / 전체 요구사항 수) × 100`
+`coverage = (매칭된 요구사항 수 / 전체 요구사항 수) × 100` → **100% 필수**
 
 #### Check 2: TASK-COMPLETION (필수)
 
@@ -235,9 +232,9 @@ Read(implements_md_path)
 | define-protocol | Protocol | 상태 전이가 Protocol에 존재 |
 | define-context | Domain Context | 결정 근거가 Domain Context에 존재 |
 
-**점수 계산:**
+**Gate 기준:**
 
-`completion = (완료된 Task 수 / 전체 Task 수) × 100`
+`completion = (완료된 Task 수 / 전체 Task 수) × 100` → **>= 80% 필수**
 
 #### Check 3: SCHEMA-VALID (필수)
 
@@ -276,7 +273,7 @@ Module Integration Map 스키마 준수 및 Export 참조 유효성을 확인합
 
 **적용 조건:**
 - CLAUDE.md에 Dependencies > Internal 섹션이 있거나, IMPLEMENTS.md에 Module Integration Map이 "None"이 아닌 경우 수행
-- 내부 의존성이 없으면 `skipped` (점수 100% 처리)
+- 내부 의존성이 없으면 `skipped` (gate 자동 통과)
 
 **검증 방법:**
 
@@ -292,19 +289,6 @@ Module Integration Map 스키마 준수 및 Export 참조 유효성을 확인합
 4. **Integration Context 검증**: 각 엔트리에 `#### Integration Context` 헤더가 존재하고 비어있지 않음
 5. **Export 교차 참조** (가능한 경우): Entry Header의 상대 경로로 대상 CLAUDE.md를 읽고, Exports Used의 시그니처가 대상 Exports 섹션에 존재하는지 확인
 
-**점수 계산:**
-
-```
-integration_score = (통과한 검증 항목 수 / 전체 검증 항목 수) × 100
-
-# 검증 항목별 가중치
-# - 존재성 검증: 필수 (0이면 전체 0점)
-# - Entry Header 형식: 엔트리당 균등 배분
-# - Exports Used: 엔트리당 균등 배분
-# - Integration Context: 엔트리당 균등 배분
-# - Export 교차 참조: 엔트리당 균등 배분 (대상 접근 가능 시)
-```
-
 **검증 의사코드:**
 ```
 errors = []
@@ -312,7 +296,7 @@ errors = []
 if claude_md has "Dependencies > Internal":
     if implements_md has no "Module Integration Map" or value == "None":
         errors.append("Module Integration Map 누락: 내부 의존성이 있으나 Integration Map이 없음")
-        return status = "failed", score = 0
+        return status = "failed"
 
 for each entry in module_integration_map:
     # Header 형식 검증
@@ -340,55 +324,37 @@ for each entry in module_integration_map:
                 errors.append("Export 미존재: " + sig + " → " + target_path)
 
 if errors:
-    return status = "failed", score = integration_score
+    return status = "failed"
 else:
-    return status = "passed", score = 100
+    return status = "passed"
 ```
 
-### Phase 3: 점수 계산
+### Phase 3: Gate 판정
 
-**종합 점수:**
-```
-score = (REQ-COVERAGE * 0.35) + (TASK-COMPLETION * 0.25) + (SCHEMA-VALID * 0.15) + (INTEGRATION-MAP-VALID * 0.15) + (EXPORT-MATCH * 0.05) + (BEHAVIOR-MATCH * 0.05)
-```
+가중치 기반 점수 없이, 각 체크의 pass/fail 게이트만으로 판정합니다.
 
-**가중치:**
+**Gate 목록:**
 
-| Check | 가중치 | 필수 |
-|-------|-------|------|
-| REQ-COVERAGE | 35% | Yes |
-| TASK-COMPLETION | 25% | Yes |
-| SCHEMA-VALID | 15% | Yes |
-| INTEGRATION-MAP-VALID | 15% | Yes (내부 의존성 있을 때) |
-| EXPORT-MATCH | 5% | No |
-| BEHAVIOR-MATCH | 5% | No |
-
-> **INTEGRATION-MAP-VALID**는 내부 의존성이 없으면 `skipped` (100점 처리), 있으면 100% 통과 필수.
-> Integration Map 오류는 /compile 시 잘못된 코드 생성으로 직결되므로 spec 단계에서 차단합니다.
-
-### Phase 4: 판정
-
-**Approve 기준:**
-
-| 조건 | 임계값 |
-|------|--------|
-| 총점 | >= 80 |
-| REQ-COVERAGE | 100% |
-| SCHEMA-VALID | passed |
-| TASK-COMPLETION | >= 80% |
-| INTEGRATION-MAP-VALID | passed 또는 skipped |
+| Gate | 조건 | 필수 |
+|------|------|------|
+| REQ-COVERAGE | 100% | Yes |
+| TASK-COMPLETION | >= 80% | Yes |
+| SCHEMA-VALID | passed | Yes |
+| INTEGRATION-MAP-VALID | passed 또는 skipped | Yes |
 
 **판정 로직:**
 ```
 integration_ok = (integration_map_status == "passed" or integration_map_status == "skipped")
 
-if score >= 80 AND req_coverage == 100% AND schema_valid == passed AND task_completion >= 80% AND integration_ok:
+if req_coverage == 100% AND task_completion >= 80% AND schema_valid == passed AND integration_ok:
     status = "approve"
 else:
     status = "feedback"
 ```
 
-### Phase 5: 피드백 생성 (feedback인 경우)
+> EXPORT-MATCH, BEHAVIOR-MATCH는 참고 정보로 포함되지만 판정에 영향 없음.
+
+### Phase 4: 피드백 생성 (feedback인 경우)
 
 누락된 부분에 대한 구체적인 피드백을 생성합니다.
 
@@ -411,14 +377,13 @@ else:
 | WEAK_BEHAVIOR | "에러 시나리오가 불충분함" |
 | INTEGRATION_MAP_ERROR | "Module Integration Map Entry Header 형식 오류" 또는 "Export 교차 참조 불일치" |
 
-### Phase 6: 결과 저장
+### Phase 5: 결과 저장
 
 결과를 `.claude/tmp/{session-id}-review-{target}.json` 형태로 저장합니다.
 
 ```json
 {
   "status": "approve | feedback",
-  "score": 95,
   "checks": [
     {
       "id": "REQ-COVERAGE",
@@ -469,7 +434,6 @@ else:
     {
       "id": "INTEGRATION-MAP-VALID",
       "status": "passed | failed | skipped",
-      "score": 100,
       "details": {
         "has_internal_deps": true,
         "entries_checked": 2,
@@ -489,14 +453,13 @@ else:
 }
 ```
 
-### Phase 7: 결과 반환
+### Phase 6: 결과 반환
 
 **반드시** 다음 형식의 구조화된 블록을 출력에 포함:
 
 ```
 ---spec-reviewer-result---
 status: approve | feedback
-score: {0-100}
 checks:
   - id: REQ-COVERAGE
     status: passed | failed
@@ -512,7 +475,6 @@ checks:
     status: passed | partial | failed
   - id: INTEGRATION-MAP-VALID
     status: passed | failed | skipped
-    score: {0-100}
     errors: [...]
 feedback:
   - section: {section_name}
@@ -525,48 +487,41 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 ## 판정 흐름도
 
 ```
-                    ┌─────────────────┐
-                    │  Score >= 80?   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │ No           │ Yes          │
-              ▼              ▼              │
-        ┌─────────┐    ┌─────────────┐     │
-        │ feedback│    │REQ-COVERAGE │     │
-        └─────────┘    │  == 100%?   │     │
-                       └──────┬──────┘     │
-                              │            │
-               ┌──────────────┼────────┐   │
-               │ No           │ Yes    │   │
-               ▼              ▼        │   │
-         ┌─────────┐    ┌───────────┐ │   │
-         │ feedback│    │SCHEMA-VALID│ │   │
-         └─────────┘    │ == passed? │ │   │
-                        └─────┬─────┘ │   │
-                              │       │   │
-              ┌───────────────┼───────┤   │
-              │ No            │ Yes   │   │
-              ▼               ▼       │   │
-        ┌─────────┐     ┌──────────┐ │   │
-        │ feedback│     │TASK-COMP │ │   │
-        └─────────┘     │ >= 80%?  │ │   │
-                        └────┬─────┘ │   │
-                             │       │   │
-             ┌───────────────┼───────┤   │
-             │ No            │ Yes   │   │
-             ▼               ▼       │   │
-       ┌─────────┐  ┌──────────────┐│   │
-       │ feedback│  │INTEG-MAP     ││   │
-       └─────────┘  │passed|skip?  ││   │
-                    └──────┬───────┘│   │
-                           │       │   │
-           ┌───────────────┼───────┤   │
-           │ No            │ Yes   │   │
-           ▼               ▼       │   │
-     ┌─────────┐     ┌─────────┐  │   │
-     │ feedback│     │ approve │  │   │
-     └─────────┘     └─────────┘  │   │
+          ┌─────────────┐
+          │REQ-COVERAGE │
+          │  == 100%?   │
+          └──────┬──────┘
+                 │
+  ┌──────────────┼──────────────┐
+  │ No           │ Yes          │
+  ▼              ▼              │
+┌─────────┐ ┌───────────┐      │
+│ feedback│ │SCHEMA-VALID│      │
+└─────────┘ │ == passed? │      │
+            └─────┬─────┘      │
+                  │             │
+   ┌──────────────┼──────────┐ │
+   │ No           │ Yes      │ │
+   ▼              ▼          │ │
+┌─────────┐ ┌──────────┐    │ │
+│ feedback│ │TASK-COMP │    │ │
+└─────────┘ │ >= 80%?  │    │ │
+            └────┬─────┘    │ │
+                 │          │ │
+  ┌──────────────┼────────┐ │ │
+  │ No           │ Yes    │ │ │
+  ▼              ▼        │ │ │
+┌─────────┐ ┌──────────┐ │ │ │
+│ feedback│ │INTEG-MAP │ │ │ │
+└─────────┘ │pass|skip?│ │ │ │
+            └────┬─────┘ │ │ │
+                 │       │ │ │
+  ┌──────────────┼───────┘ │ │
+  │ No           │ Yes     │ │
+  ▼              ▼         │ │
+┌─────────┐ ┌─────────┐   │ │
+│ feedback│ │ approve │   │ │
+└─────────┘ └─────────┘   │ │
 ```
 
 ## 주의사항

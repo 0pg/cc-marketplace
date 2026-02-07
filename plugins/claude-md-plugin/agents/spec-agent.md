@@ -26,7 +26,7 @@ description: |
   4. Target path determined: src/auth
   5. CLAUDE.md generated (WHAT)
   6. IMPLEMENTS.md Planning Section generated (HOW)
-  7. Review iteration 1/3 - score: 95, status: approve
+  7. Review iteration 1/3 - all gates passed, status: approve
 
   ---spec-agent-result---
   status: success
@@ -37,7 +37,6 @@ description: |
   behaviors_count: 3
   dependencies_count: 2
   review_iterations: 1
-  final_review_score: 95
   review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
@@ -70,7 +69,7 @@ description: |
   4. Smart Merge: Exports (2 new), Behaviors (3 new), Dependencies (1 new: email service)
   5. CLAUDE.md updated (WHAT)
   6. IMPLEMENTS.md Planning Section updated (HOW)
-  7. Review iteration 1/3 - score: 92, status: approve
+  7. Review iteration 1/3 - all gates passed, status: approve
 
   ---spec-agent-result---
   status: success
@@ -80,7 +79,6 @@ description: |
   exports_count: 4
   behaviors_count: 6
   review_iterations: 1
-  final_review_score: 92
   review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
@@ -112,7 +110,7 @@ description: |
   6. Target path determined: src/cache (new module)
   7. CLAUDE.md generated (WHAT)
   8. IMPLEMENTS.md Planning Section generated (HOW)
-  9. Review iteration 1/3 - score: 88, status: approve
+  9. Review iteration 1/3 - all gates passed, status: approve
 
   ---spec-agent-result---
   status: success
@@ -122,7 +120,6 @@ description: |
   exports_count: 4
   behaviors_count: 5
   review_iterations: 1
-  final_review_score: 88
   review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
@@ -243,7 +240,7 @@ Task는 반복 사이클에서 진행 상황 추적 및 검증에 사용됩니�
   ],
   "iterationCount": 0,
   "maxIterations": 3,
-  "previousScore": null,
+  "previousFeedbackKeys": [],
   "lastFeedback": []
 }
 ```
@@ -758,7 +755,6 @@ spec-reviewer 결과에서 다음을 추출:
 ```
 ---spec-reviewer-result---
 status: approve | feedback
-score: {0-100}
 checks: [...]
 feedback: [...]
 result_file: .claude/tmp/{session-id}-review-{target}.json
@@ -767,15 +763,16 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 
 ### Phase 5.8: 판정 및 반복 결정
 
-#### Approve 기준
+#### Approve 기준 (Gate-only)
 
-| 조건 | 임계값 |
-|------|--------|
-| 총점 | >= 80 |
+| Gate | 조건 |
+|------|------|
 | REQ-COVERAGE | 100% |
 | SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
 | INTEGRATION-MAP-VALID | passed 또는 skipped |
+
+> 가중치 기반 점수 없음. 모든 gate 통과 = approve.
 
 #### 반복 종료 조건
 
@@ -783,9 +780,9 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 
 | 조건 | 설명 |
 |------|------|
-| approve | 리뷰어가 approve 판정 |
+| approve | 모든 gate 통과 |
 | max_iterations | 최대 반복 횟수(3회) 도달 |
-| no_progress | 이전 점수 대비 5점 미만 상승 |
+| no_progress | 이전 feedback 항목과 동일한 항목이 재등장 (동일 이슈 미해결) |
 
 #### 피드백 적용 로직
 
@@ -813,7 +810,7 @@ for fb in feedback:
 ```json
 {
   "iterationCount": 2,
-  "previousScore": 75,
+  "previousFeedbackKeys": ["Exports:validateToken 함수 누락"],
   "lastFeedback": [
     {
       "section": "Exports",
@@ -823,6 +820,8 @@ for fb in feedback:
   ]
 }
 ```
+
+> **no_progress 판정**: `previousFeedbackKeys`와 현재 feedback의 `{section}:{issue}` 키가 동일하면 진전 없음으로 판단.
 
 #### 최대 반복 도달 시
 
@@ -870,7 +869,6 @@ tech_choices_count: {len(tech_choices)}
 architecture_decision: {module_placement}
 boundary_compliant: {true|false}
 review_iterations: {iteration_count}
-final_review_score: {score}
 review_status: {approve|warning}
 ---end-spec-agent-result---
 ```

@@ -169,7 +169,6 @@ Task(
 
 리뷰 결과:
   - 반복 횟수: {review_iterations}회
-  - 최종 점수: {final_review_score}
   - 상태: {review_status} (approve|warning)
 
 검증 결과: 스키마 검증 통과
@@ -195,17 +194,17 @@ spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 **Approve 기준:**
 
-| 조건 | 임계값 |
-|------|--------|
-| 총점 | >= 80 |
+| Gate | 조건 |
+|------|------|
 | REQ-COVERAGE | 100% |
 | SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
+| INTEGRATION-MAP-VALID | passed 또는 skipped |
 
 **반복 종료 조건:**
-- approve 판정
+- 모든 gate 통과 (approve)
 - 최대 반복 횟수(3회) 도달
-- 개선 진전 없음 (이전 점수 대비 5점 미만 상승)
+- 이전과 동일한 feedback 재등장 (no_progress)
 
 ## 오류 처리
 
