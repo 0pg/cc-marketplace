@@ -330,7 +330,8 @@ User: /validate
 | `auditor.rs` | 완성도 감사 | `audit` |
 | `code_analyzer.rs` | 소스코드 분석 | - |
 | `symbol_index.rs` | 크로스 모듈 심볼 인덱싱 (v2) | `symbol-index` |
-| `diagram_generator.rs` | Mermaid 다이어그램 생성 (v2) | `generate-usecase`, `generate-state`, `generate-component` |
+| `tree_utils.rs` | TreeParser/Auditor 공통 디렉토리 스캐너 | - |
+| `diagram_generator.rs` | Mermaid 다이어그램 생성 (v2) | `generate-diagram --type usecase\|state\|component` |
 | `migrator.rs` | v1→v2 자동 마이그레이션 (v2) | `migrate` |
 
 ## 불변식

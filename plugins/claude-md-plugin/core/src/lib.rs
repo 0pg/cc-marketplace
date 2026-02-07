@@ -1,3 +1,4 @@
+pub(crate) mod tree_utils;
 pub mod tree_parser;
 pub mod boundary_resolver;
 pub mod schema_validator;

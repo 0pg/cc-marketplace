@@ -352,7 +352,7 @@ v2에서는 Behavior 섹션에 Actor와 UseCase 구조를 추가할 수 있습�
 - Extends: UC-1
 ```
 
-이 구조는 `claude-md-core generate-usecase` CLI로 Mermaid UseCase 다이어그램 생성에 사용됩니다.
+이 구조는 `claude-md-core generate-diagram --type usecase` CLI로 Mermaid UseCase 다이어그램 생성에 사용됩니다.
 
 ### v2 Cross-Reference (Symbol-level Indexing)
 
@@ -375,9 +375,9 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 
 | 다이어그램 | 소스 | CLI 명령어 | Mermaid 타입 |
 |-----------|------|-----------|-------------|
-| UseCase | Behavior (Actors + UC) | `generate-usecase --file` | `flowchart LR` |
-| State | Protocol (States + Transitions) | `generate-state --file` | `stateDiagram-v2` |
-| Component | dependency-graph (Nodes + Edges) | `generate-component --root` | `flowchart TB` |
+| UseCase | Behavior (Actors + UC) | `generate-diagram --type usecase --file` | `flowchart LR` |
+| State | Protocol (States + Transitions) | `generate-diagram --type state --file` | `stateDiagram-v2` |
+| Component | dependency-graph (Nodes + Edges) | `generate-diagram --type component --root` | `flowchart TB` |
 
 ### Migration (v1 → v2)
 

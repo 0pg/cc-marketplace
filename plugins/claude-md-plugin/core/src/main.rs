@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod tree_utils;
 mod tree_parser;
 mod boundary_resolver;
 mod schema_validator;
@@ -20,6 +21,7 @@ use claude_md_parser::ClaudeMdParser;
 use dependency_graph::DependencyGraphBuilder;
 use auditor::Auditor;
 use symbol_index::SymbolIndexBuilder;
+use symbol_index::SymbolIndexResult;
 use diagram_generator::DiagramGenerator;
 use migrator::Migrator;
 use prompt_validator::PromptValidator;
@@ -30,6 +32,13 @@ use prompt_validator::PromptValidator;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Clone, Debug, clap::ValueEnum)]
+enum DiagramType {
+    Usecase,
+    State,
+    Component,
 }
 
 #[derive(Subcommand)]
@@ -73,6 +82,10 @@ enum Commands {
         /// Root directory for symbol index (enables cross-reference validation)
         #[arg(long)]
         with_index: Option<PathBuf>,
+
+        /// Pre-built symbol index JSON file (avoids rebuilding index per file)
+        #[arg(long, conflicts_with = "with_index")]
+        index_file: Option<PathBuf>,
     },
 
     /// Parse CLAUDE.md into structured JSON spec
@@ -135,31 +148,17 @@ enum Commands {
         no_cache: bool,
     },
 
-    /// Generate UseCase diagram (Mermaid) from CLAUDE.md Behavior section
-    GenerateUsecase {
-        /// CLAUDE.md file to parse
-        #[arg(short, long)]
-        file: PathBuf,
+    /// Generate Mermaid diagram (usecase, state, or component)
+    GenerateDiagram {
+        /// Diagram type to generate
+        #[arg(short = 't', long = "type")]
+        diagram_type: DiagramType,
 
-        /// Output file path for Mermaid diagram
+        /// CLAUDE.md file (required for usecase/state)
         #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
+        file: Option<PathBuf>,
 
-    /// Generate State diagram (Mermaid) from CLAUDE.md Protocol section
-    GenerateState {
-        /// CLAUDE.md file to parse
-        #[arg(short, long)]
-        file: PathBuf,
-
-        /// Output file path for Mermaid diagram
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
-
-    /// Generate Component diagram (Mermaid) from dependency graph
-    GenerateComponent {
-        /// Root directory to scan
+        /// Root directory (for component diagram, default ".")
         #[arg(short, long, default_value = ".")]
         root: PathBuf,
 
@@ -209,18 +208,33 @@ fn main() {
             let boundary_result = resolver.resolve(path, claude_md.as_ref());
             output_result(&boundary_result, output.as_ref(), "resolve-boundary")
         }
-        Commands::ValidateSchema { file, output, with_index } => {
+        Commands::ValidateSchema { file, output, with_index, index_file } => {
             let validator = SchemaValidator::new();
-            let validation_result = if let Some(root) = with_index {
+            if let Some(path) = index_file {
+                let json_str = std::fs::read_to_string(path)
+                    .map_err(|e| format!("Failed to read index file: {}", e));
+                let index = json_str.and_then(|s| {
+                    serde_json::from_str::<SymbolIndexResult>(&s)
+                        .map_err(|e| format!("Failed to parse index file JSON: {}", e))
+                });
+                match index {
+                    Ok(idx) => {
+                        let validation_result = validator.validate_with_index(file, &idx);
+                        output_result(&validation_result, output.as_ref(), "validate-schema")
+                    }
+                    Err(e) => Err(Box::<dyn std::error::Error>::from(e)),
+                }
+            } else if let Some(root) = with_index {
                 let index_builder = SymbolIndexBuilder::new();
-                match index_builder.build_with_cache(root, false) {
+                let validation_result = match index_builder.build_with_cache(root, false) {
                     Ok(index) => validator.validate_with_index(file, &index),
                     Err(_) => validator.validate(file),
-                }
+                };
+                output_result(&validation_result, output.as_ref(), "validate-schema")
             } else {
-                validator.validate(file)
-            };
-            output_result(&validation_result, output.as_ref(), "validate-schema")
+                let validation_result = validator.validate(file);
+                output_result(&validation_result, output.as_ref(), "validate-schema")
+            }
         }
         Commands::ParseClaudeMd { file, output } => {
             let parser = ClaudeMdParser::new();
@@ -245,57 +259,72 @@ fn main() {
             let builder = SymbolIndexBuilder::new();
             match builder.build_with_cache(root, *no_cache) {
                 Ok(index) => {
-                    // If --find is specified, filter to matching symbols
                     if let Some(name) = find {
                         let found = SymbolIndexBuilder::find_symbol(&index, name);
                         output_result(&found, output.as_ref(), "symbol-index")
-                    }
-                    // If --references is specified, find references to anchor
-                    else if let Some(anchor) = references {
+                    } else if let Some(anchor) = references {
                         let refs = SymbolIndexBuilder::find_references(&index, anchor);
                         output_result(&refs, output.as_ref(), "symbol-index")
-                    }
-                    // Otherwise, output the full index
-                    else {
+                    } else {
                         output_result(&index, output.as_ref(), "symbol-index")
                     }
                 }
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
-        Commands::GenerateUsecase { file, output } => {
-            let parser = ClaudeMdParser::new();
-            match parser.parse(file) {
-                Ok(spec) => {
-                    let diagram = DiagramGenerator::generate_usecase(&spec);
-                    output_text(&diagram, output.as_ref(), "generate-usecase")
-                }
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-            }
-        }
-        Commands::GenerateState { file, output } => {
-            let parser = ClaudeMdParser::new();
-            match parser.parse(file) {
-                Ok(spec) => {
-                    match DiagramGenerator::generate_state(&spec) {
-                        Some(diagram) => output_text(&diagram, output.as_ref(), "generate-state"),
-                        None => {
-                            eprintln!("No Protocol section with states/transitions found");
-                            Ok(())
+        Commands::GenerateDiagram { diagram_type, file, root, output } => {
+            match diagram_type {
+                DiagramType::Usecase => {
+                    let file = file.as_ref().ok_or_else(|| {
+                        Box::<dyn std::error::Error>::from("--file is required for usecase diagram")
+                    });
+                    match file {
+                        Ok(f) => {
+                            let parser = ClaudeMdParser::new();
+                            match parser.parse(f) {
+                                Ok(spec) => {
+                                    let diagram = DiagramGenerator::generate_usecase(&spec);
+                                    output_text(&diagram, output.as_ref(), "generate-diagram")
+                                }
+                                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                            }
                         }
+                        Err(e) => Err(e),
                     }
                 }
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-            }
-        }
-        Commands::GenerateComponent { root, output } => {
-            let builder = DependencyGraphBuilder::new();
-            match builder.build(root) {
-                Ok(graph) => {
-                    let diagram = DiagramGenerator::generate_component(&graph);
-                    output_text(&diagram, output.as_ref(), "generate-component")
+                DiagramType::State => {
+                    let file = file.as_ref().ok_or_else(|| {
+                        Box::<dyn std::error::Error>::from("--file is required for state diagram")
+                    });
+                    match file {
+                        Ok(f) => {
+                            let parser = ClaudeMdParser::new();
+                            match parser.parse(f) {
+                                Ok(spec) => {
+                                    match DiagramGenerator::generate_state(&spec) {
+                                        Some(diagram) => output_text(&diagram, output.as_ref(), "generate-diagram"),
+                                        None => {
+                                            eprintln!("No Protocol section with states/transitions found");
+                                            Ok(())
+                                        }
+                                    }
+                                }
+                                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                            }
+                        }
+                        Err(e) => Err(e),
+                    }
                 }
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                DiagramType::Component => {
+                    let builder = DependencyGraphBuilder::new();
+                    match builder.build(root) {
+                        Ok(graph) => {
+                            let diagram = DiagramGenerator::generate_component(&graph);
+                            output_text(&diagram, output.as_ref(), "generate-diagram")
+                        }
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+                    }
+                }
             }
         }
         Commands::Migrate { root, output, dry_run } => {
@@ -319,9 +348,7 @@ fn main() {
             Commands::DependencyGraph { .. } => "dependency-graph",
             Commands::Audit { .. } => "audit",
             Commands::SymbolIndex { .. } => "symbol-index",
-            Commands::GenerateUsecase { .. } => "generate-usecase",
-            Commands::GenerateState { .. } => "generate-state",
-            Commands::GenerateComponent { .. } => "generate-component",
+            Commands::GenerateDiagram { .. } => "generate-diagram",
             Commands::Migrate { .. } => "migrate",
             Commands::ValidatePrompts { .. } => "validate-prompts",
         };
