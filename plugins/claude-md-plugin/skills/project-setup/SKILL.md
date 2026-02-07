@@ -1,6 +1,6 @@
 ---
 name: project-setup
-version: 1.1.0
+version: 1.2.0
 aliases: [setup, build-setup]
 trigger:
   - /project-setup
@@ -10,7 +10,8 @@ description: |
   This skill should be used when the user asks to "set up project", "configure build commands",
   "detect test commands", or uses "/project-setup".
   Auto-detects build/test/lint commands from project configuration files and persists them to CLAUDE.md.
-allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
+  Also analyzes existing code to generate code-convention.md with coding style/convention guide.
+allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion, Grep]
 ---
 
 # Project Setup Skill
@@ -29,7 +30,15 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 - **Test**: `pnpm test`
 - **Lint**: `pnpm lint`
 
-이 설정을 CLAUDE.md에 저장할까요?
+## Detected Code Convention
+
+소스 파일 42개 분석 완료
+
+- **Naming**: Variables=camelCase, Functions=camelCase, Types=PascalCase
+- **Formatting**: 2 spaces, single quotes, no semicolons
+- **Imports**: external → internal → relative
+
+이 설정을 CLAUDE.md와 code-convention.md에 저장할까요?
 </assistant_response>
 </example>
 
@@ -72,6 +81,7 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 ## 목적
 
 프로젝트의 빌드/테스트/린트 커맨드를 자동 감지하고 CLAUDE.md에 저장합니다.
+또한 기존 소스 코드를 분석하여 코딩 스타일/컨벤션 가이드(`code-convention.md`)를 생성합니다.
 
 ## 워크플로우
 
@@ -108,7 +118,58 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 이 설정을 CLAUDE.md에 저장할까요?
 ```
 
-### Phase 4: CLAUDE.md 저장
+### Phase 4: 코드 컨벤션 분석
+
+기존 소스 코드가 존재하면 코딩 스타일/컨벤션을 분석합니다.
+
+#### 4.1 소스 파일 수집
+
+Glob으로 소스 파일을 수집합니다:
+
+```
+Glob("**/*.{ts,tsx,js,jsx,py,rs,go,java,kt}", path={project_root})
+```
+
+소스 파일이 없으면 컨벤션 분석을 건너뛰고 사용자에게 알립니다.
+
+#### 4.2 패턴 분석
+
+수집된 소스 파일에서 다음 패턴을 추출합니다:
+
+| 분석 항목 | 추출 방법 |
+|----------|----------|
+| Naming (변수) | 변수 선언 패턴 → camelCase / snake_case 비율 |
+| Naming (함수) | 함수 선언 패턴 → camelCase / snake_case 비율 |
+| Naming (타입) | 타입/클래스 선언 패턴 → PascalCase 확인 |
+| Naming (상수) | 상수 선언 패턴 → UPPER_SNAKE_CASE 확인 |
+| Naming (파일) | 파일명 패턴 → kebab-case / snake_case / PascalCase |
+| Formatting | 들여쓰기 (spaces 수 / tab), 따옴표 (single / double) |
+| Code Structure | import 순서, export 스타일 |
+| Error Handling | 에러 처리 패턴 (throw / return / raise) |
+| Testing | 테스트 프레임워크, 파일 패턴 (*.test.* / *.spec.* / test_*) |
+
+**분석 방법:**
+- 샘플링: 최대 20개 소스 파일을 읽어 패턴 추출
+- 다수결: 70% 이상 동일 패턴이면 해당 패턴으로 결정
+- 불명확: 패턴이 혼재하면 사용자에게 AskUserQuestion으로 확인
+
+#### 4.3 사용자 확인
+
+분석 결과를 표시하고 AskUserQuestion으로 확인합니다:
+
+```
+## Detected Code Convention
+
+소스 파일 {N}개 분석 완료
+
+- **Naming**: Variables={pattern}, Functions={pattern}, Types={pattern}
+- **Formatting**: {indentation}, {quotes}, {semicolons}
+- **Imports**: {order}
+
+이 컨벤션을 code-convention.md에 저장할까요?
+```
+
+### Phase 5: CLAUDE.md 저장
 
 확인된 커맨드를 CLAUDE.md에 저장합니다:
 
@@ -155,6 +216,67 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 - **Lint**: `pnpm lint`    ← 새로 추가
 ```
 
+### Phase 6: code-convention.md 저장
+
+컨벤션 분석 결과가 확인되면 프로젝트 루트에 `code-convention.md`를 생성합니다.
+
+스키마는 `templates/code-convention-schema.md`를 따릅니다.
+
+**업데이트 로직:**
+1. code-convention.md가 없으면 새로 생성
+2. 이미 존재하면 기존 내용을 유지하고 부족한 항목만 추가 (Phase 5 CLAUDE.md와 동일 병합 규칙)
+
+**출력 예시:**
+
+```markdown
+# Code Convention
+
+## Naming
+
+### Variables
+- pattern: camelCase
+- examples: userId, tokenExpiry, isValid
+
+### Functions
+- pattern: camelCase
+- prefix: verb
+- examples: getUserById, validateToken
+
+### Types/Interfaces
+- pattern: PascalCase
+- examples: User, AuthConfig
+
+### Constants
+- pattern: UPPER_SNAKE_CASE
+- examples: MAX_RETRY_COUNT, API_TIMEOUT_MS
+
+### Files
+- pattern: kebab-case
+- test_suffix: .test
+- examples: auth-service.ts
+
+## Formatting
+
+- indentation: 2 spaces
+- line_length: 100
+- quotes: single
+- semicolons: false
+
+## Code Structure
+
+### Imports
+- order: [builtin, external, internal, relative]
+- grouping: true
+
+### Exports
+- style: named
+
+## Testing
+
+- framework: vitest
+- file_pattern: *.test.ts
+```
+
 ## 출력 형식
 
 ### 성공 시
@@ -168,6 +290,15 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 - Lint: `pnpm lint`
 
 파일: /path/to/project/CLAUDE.md
+
+✓ code-convention.md 생성 완료
+
+감지된 컨벤션:
+- Naming: camelCase (variables/functions), PascalCase (types)
+- Formatting: 2 spaces, single quotes
+- Testing: vitest, *.test.ts
+
+파일: /path/to/project/code-convention.md
 ```
 
 ### 부분 감지 시
@@ -194,6 +325,9 @@ allowed-tools: [Bash, Read, Glob, Write, AskUserQuestion]
 | CLAUDE.md 쓰기 실패 | 에러 메시지 출력, 수동 저장 안내 |
 | 커맨드 일부만 감지 | 감지된 것만 저장, 나머지는 사용자에게 안내 |
 | 잘못된 커맨드 형식 | 사용자에게 재입력 요청 |
+| 소스 파일 없음 | 컨벤션 분석 건너뛰기, 사용자에게 안내 |
+| 컨벤션 패턴 혼재 | AskUserQuestion으로 사용자에게 확인 |
+| code-convention.md 쓰기 실패 | 에러 메시지 출력, 수동 저장 안내 |
 
 ### 설정 파일 우선순위
 
@@ -216,6 +350,10 @@ command -v {package_manager} > /dev/null 2>&1
 ```
 
 검증 실패 시 경고를 출력하고 사용자에게 확인을 요청합니다.
+
+## Related Skills
+
+- `/convention`: 이미 생성된 code-convention.md을 재분석하거나 수동 수정할 때 사용
 
 ## 지원하는 프로젝트 타입
 

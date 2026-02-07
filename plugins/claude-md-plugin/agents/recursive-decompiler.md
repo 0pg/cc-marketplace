@@ -34,7 +34,7 @@ description: |
   processed: 3
   skipped: 0
   child_claude_mds: ["src/auth/CLAUDE.md", "src/utils/CLAUDE.md"]
-  status: success
+  status: approve
   ---end-recursive-decompiler-result---
   </assistant_response>
   <commentary>
@@ -74,7 +74,7 @@ description: |
   child_claude_mds: ["src/utils/CLAUDE.md"]
   needs_decompile: false
   reason: up_to_date
-  status: success
+  status: approve
   ---end-recursive-decompiler-result---
   </assistant_response>
   </example>
@@ -110,7 +110,7 @@ description: |
   child_claude_mds: ["lib/http/CLAUDE.md", "lib/db/CLAUDE.md", "lib/CLAUDE.md"]
   needs_decompile: true
   reason: no_claude_md
-  status: success
+  status: approve
   ---end-recursive-decompiler-result---
   </assistant_response>
   </example>
@@ -327,7 +327,7 @@ skipped: {스킵된 디렉토리 수}
 child_claude_mds: {생성된 CLAUDE.md 경로 목록}
 needs_decompile: {true/false}
 reason: {판단 이유}
-status: success
+status: approve
 ---end-recursive-decompiler-result---
 ```
 

@@ -124,7 +124,7 @@ claude-md-core parse-claude-md --file {claude_md_path}
 ```
 ---claude-md-parse-result---
 output_file: {output_path 또는 "stdout"}
-status: success | warning | error
+status: approve | warning | error
 parse_errors: [에러 목록 (있는 경우)]
 ---end-claude-md-parse-result---
 ```

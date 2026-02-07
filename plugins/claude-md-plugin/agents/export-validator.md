@@ -38,7 +38,7 @@ description: |
     - StringUtils: found (string-utils.ts:1)
   Result: Export coverage 100%
   ---export-validator-result---
-  status: success
+  status: approve
   result_file: .claude/tmp/{session-id}-export-src-utils.md
   directory: src/utils
   export_coverage: 100
@@ -57,7 +57,7 @@ description: |
   Checking exports from CLAUDE.md against actual code:
   Error: CLAUDE.md not found at src/new-module/CLAUDE.md
   ---export-validator-result---
-  status: failed
+  status: error
   result_file: .claude/tmp/{session-id}-export-src-new-module.md
   directory: src/new-module
   export_coverage: 0
@@ -156,8 +156,8 @@ total_count가 0이면 coverage는 100%
 
 ```
 ---export-validator-result---
-status: success | failed
-result_file: .claude/tmp/{session-id}-export-{dir-safe-name}.md
+status: approve | error
+result_file: .claude/tmp/{session-id}-export-{target}.md
 directory: {directory}
 export_coverage: {0-100}
 ---end-export-validator-result---

@@ -1,6 +1,6 @@
 ---
 name: compile
-version: 1.1.0
+version: 1.2.0
 aliases: [gen, generate, build]
 trigger:
   - /compile
@@ -9,7 +9,7 @@ trigger:
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement spec",
   "create source files", or uses "/compile". Processes all CLAUDE.md files in the target path.
-  Performs TDD workflow (RED→GREEN→REFACTOR) to ensure compiled code passes tests.
+  Performs TDD workflow with test quality review (RED → TEST REVIEW → GREEN → REFACTOR) to ensure compiled code passes comprehensive tests.
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
@@ -32,12 +32,14 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
 ✓ 테스트 생성
+✓ 테스트 리뷰: approve (score 100, 1회)
 ✓ 구현 생성
 ✓ 테스트 실행: 5 passed
 
 [2/2] src/utils/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
 ✓ 테스트 생성
+✓ 테스트 리뷰: approve (score 100, 1회)
 ✓ 구현 생성
 ✓ 테스트 실행: 3 passed
 
@@ -157,11 +159,39 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 언어 자동 감지
     │
     ▼
-병렬 처리: compiler Agent 호출 (run_in_background=True)
+For each CLAUDE.md + IMPLEMENTS.md pair:
+    │
+    ├─[RED] Task(compiler, phase=red)
+    │   결과: test_files, spec_json_path, detected_language
+    │
+    ├─[TEST REVIEW] review_loop (최대 3회):
+    │   │
+    │   ├─ Task(test-reviewer)  ← 독립 맥락에서 검증
+    │   │   입력: spec_json_path + test_files + target_dir + language
+    │   │
+    │   ├─ approve (score==100) → break
+    │   ├─ feedback + (iteration < 3) + (score_delta >= 5):
+    │   │   Task(compiler, phase=red)
+    │   │     └─ 피드백 기반 테스트 재생성
+    │   │   continue
+    │   └─ else → warning, break
+    │
+    └─[GREEN+REFACTOR] Task(compiler, phase=green-refactor)
+        입력: test_files + spec_json_path + detected_language
+        결과: 기존 compile 결과 + test_review 정보
     │
     ▼
 결과 수집 및 보고
 ```
+
+**review_loop 종료 조건:**
+1. `approve` 판정 (score == 100) → 정상 진행
+2. 최대 3회 도달 → `warning`으로 GREEN 진행
+3. 점수 상승 < 5점 (no_progress) → `warning`으로 GREEN 진행
+
+**score_delta 규칙:**
+- 첫 feedback iteration: delta 체크 건너뜀 (항상 재생성)
+- 2회차 이후: score_delta = current_score - previous_score. delta < 5이면 no_progress
 
 ### 증분 모드 (Incremental Compile)
 
@@ -209,7 +239,10 @@ IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
 │ Step 3: Compile 실행                         │
 │                                             │
 │ 각 compile_target에 대해:                    │
-│   Task(compiler) 호출                        │
+│   Task(compiler) 호출 (phase=full)           │
+│   ※ 증분 모드는 test-review 루프 미적용.    │
+│     전체 품질 검증 필요 시                    │
+│     /compile --path <dir>로 개별 실행 권장.  │
 └─────────────────────────────────────────────┘
     │
     ▼
@@ -294,6 +327,7 @@ if module in no_source:
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
 ✓ IMPLEMENTS.md Planning Section 로드
 ✓ 테스트 생성 (5 test cases)
+✓ 테스트 리뷰: score 100 → approve (1회)
 ✓ 구현 생성
 ✓ 테스트 실행: 5 passed
 ✓ IMPLEMENTS.md Implementation Section 업데이트
@@ -302,6 +336,9 @@ if module in no_source:
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
 ✓ IMPLEMENTS.md Planning Section 로드
 ✓ 테스트 생성 (3 test cases)
+✓ 테스트 리뷰: score 85 → feedback (1회)
+✓ 테스트 재생성 (피드백 반영)
+✓ 테스트 리뷰: score 100 → approve (2회)
 ✓ 구현 생성
 ✓ 테스트 실행: 3 passed
 ✓ IMPLEMENTS.md Implementation Section 업데이트
@@ -312,6 +349,7 @@ if module in no_source:
 건너뛴 파일: 0개
 테스트: 8 passed, 0 failed
 업데이트된 IMPLEMENTS.md: 2개
+테스트 리뷰: 2개 approve (평균 1.5회)
 ```
 
 ### 증분 모드
@@ -386,6 +424,8 @@ src/utils:
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | 테스트 실패 | 경고 표시, 수동 수정 필요 안내 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
+| test-reviewer 실패/크래시 | 경고 표시, test-review 건너뛰고 GREEN 진행 |
+| test-reviewer 출력 파싱 불가 | 경고 표시, test-review 건너뛰고 GREEN 진행 |
 | Git 저장소 아님 (증분 모드) | 경고 출력, 전체 compile로 fallback |
 
 ## Post-Compile 검증 + Self-Healing

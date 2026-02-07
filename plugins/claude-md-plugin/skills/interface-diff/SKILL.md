@@ -157,7 +157,7 @@ Write → .claude/incremental/{output_name}-interface-diff.json
 ```
 ---interface-diff-result---
 output_file: .claude/incremental/{output_name}-interface-diff.json
-status: success
+status: approve
 added_count: {추가된 export 수}
 removed_count: {제거된 export 수}
 modified_count: {변경된 export 수}

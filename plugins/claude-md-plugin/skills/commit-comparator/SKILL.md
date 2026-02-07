@@ -111,7 +111,7 @@ Write → .claude/incremental/{output_name}-outdated.json
 ```
 ---commit-comparator-result---
 output_file: .claude/incremental/{output_name}-outdated.json
-status: success
+status: approve
 outdated_count: {outdated 디렉토리 수}
 no_source_count: {소스 없는 디렉토리 수}
 up_to_date_count: {최신 상태 디렉토리 수}
