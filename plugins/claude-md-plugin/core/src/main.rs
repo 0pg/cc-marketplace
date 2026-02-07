@@ -11,6 +11,7 @@ mod auditor;
 mod symbol_index;
 mod diagram_generator;
 mod migrator;
+mod prompt_validator;
 
 use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
@@ -21,6 +22,7 @@ use auditor::Auditor;
 use symbol_index::SymbolIndexBuilder;
 use diagram_generator::DiagramGenerator;
 use migrator::Migrator;
+use prompt_validator::PromptValidator;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -180,6 +182,17 @@ enum Commands {
         #[arg(long, default_value = "false")]
         dry_run: bool,
     },
+
+    /// Validate skill and agent prompt files
+    ValidatePrompts {
+        /// Root directory containing skills/ and agents/
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -290,6 +303,11 @@ fn main() {
             let results = migrator.migrate_all(root, *dry_run);
             output_result(&results, output.as_ref(), "migrate")
         }
+        Commands::ValidatePrompts { root, output } => {
+            let validator = PromptValidator::new();
+            let result = validator.validate(root);
+            output_result(&result, output.as_ref(), "validate-prompts")
+        }
     };
 
     if let Err(e) = result {
@@ -305,6 +323,7 @@ fn main() {
             Commands::GenerateState { .. } => "generate-state",
             Commands::GenerateComponent { .. } => "generate-component",
             Commands::Migrate { .. } => "migrate",
+            Commands::ValidatePrompts { .. } => "validate-prompts",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");

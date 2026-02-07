@@ -8,6 +8,7 @@ pub mod auditor;
 pub mod symbol_index;
 pub mod diagram_generator;
 pub mod migrator;
+pub mod prompt_validator;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;

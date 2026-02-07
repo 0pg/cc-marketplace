@@ -11,6 +11,7 @@ use claude_md_core::tree_parser::TreeResult;
 use claude_md_core::boundary_resolver::BoundaryResult;
 use claude_md_core::schema_validator::ValidationResult;
 use claude_md_core::code_analyzer::{AnalysisResult, AnalyzerError};
+use claude_md_core::prompt_validator::{PromptValidator, PromptValidationResult, Severity};
 
 #[derive(Debug, Default, World)]
 pub struct TestWorld {
@@ -26,6 +27,8 @@ pub struct TestWorld {
     current_file_path: Option<PathBuf>,
     current_dir_path: Option<PathBuf>,
     boundary_files: Option<Vec<String>>,
+    // Prompt validator fields
+    prompt_validation_result: Option<PromptValidationResult>,
 }
 
 // ============== Common Steps ==============
@@ -1040,6 +1043,125 @@ fn result_should_include(world: &mut TestWorld, step: &cucumber::gherkin::Step) 
             assert_eq!(actual, expected, "Expected {} = {}, got {}", field, expected, actual);
         }
     }
+}
+
+// ============== Prompt Validator Steps ==============
+
+#[given("a clean prompt test directory")]
+fn setup_prompt_test_dir(world: &mut TestWorld) {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    fs::create_dir_all(dir.path().join("skills")).expect("Failed to create skills dir");
+    fs::create_dir_all(dir.path().join("agents")).expect("Failed to create agents dir");
+    world.temp_dir = Some(dir);
+}
+
+#[given(expr = "a skill directory {string} with SKILL.md:")]
+fn create_skill_directory(world: &mut TestWorld, name: String, step: &cucumber::gherkin::Step) {
+    let skill_dir = get_temp_path(world).join("skills").join(&name);
+    fs::create_dir_all(&skill_dir).expect("Failed to create skill dir");
+
+    let content = step.docstring.as_ref().expect("No content provided");
+    let mut file = File::create(skill_dir.join("SKILL.md")).expect("Failed to create SKILL.md");
+    write!(file, "{}", content).expect("Failed to write content");
+}
+
+#[given(expr = "an agent file {string}:")]
+fn create_agent_file(world: &mut TestWorld, name: String, step: &cucumber::gherkin::Step) {
+    let agents_dir = get_temp_path(world).join("agents");
+    let content = step.docstring.as_ref().expect("No content provided");
+    let mut file = File::create(agents_dir.join(&name)).expect("Failed to create agent file");
+    write!(file, "{}", content).expect("Failed to write content");
+}
+
+#[when("I validate prompts")]
+fn validate_prompts(world: &mut TestWorld) {
+    let validator = PromptValidator::new();
+    world.prompt_validation_result = Some(validator.validate(&get_temp_path(world)));
+}
+
+#[then("prompt validation should pass")]
+fn prompt_validation_pass(world: &mut TestWorld) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert!(result.valid, "Expected prompt validation to pass, but got issues: {:?}",
+            result.issues.iter().map(|i| &i.message).collect::<Vec<_>>());
+}
+
+#[then("prompt validation should fail")]
+fn prompt_validation_fail(world: &mut TestWorld) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert!(!result.valid, "Expected prompt validation to fail, but it passed");
+}
+
+#[then("prompt validation should pass with warnings")]
+fn prompt_validation_pass_with_warnings(world: &mut TestWorld) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert!(result.valid, "Expected validation to pass (warnings only), but got errors: {:?}",
+            result.issues.iter().filter(|i| i.severity == Severity::Error).map(|i| &i.message).collect::<Vec<_>>());
+    let has_warnings = result.issues.iter().any(|i| i.severity == Severity::Warning);
+    assert!(has_warnings, "Expected warnings, but got none");
+}
+
+#[then(expr = "skills count should be {int}")]
+fn skills_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.skills_count, count, "Expected {} skills, got {}", count, result.skills_count);
+}
+
+#[then(expr = "agents count should be {int}")]
+fn agents_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.agents_count, count, "Expected {} agents, got {}", count, result.agents_count);
+}
+
+#[then(expr = "issue should mention {string}")]
+fn issue_should_mention(world: &mut TestWorld, text: String) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    let found = result.issues.iter().any(|i| i.severity == Severity::Error && i.message.contains(&text));
+    assert!(found, "Expected error issue mentioning '{}', got: {:?}",
+            text, result.issues.iter().map(|i| &i.message).collect::<Vec<_>>());
+}
+
+#[then(expr = "prompt warning should mention {string}")]
+fn prompt_warning_should_mention(world: &mut TestWorld, text: String) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    let found = result.issues.iter().any(|i| i.severity == Severity::Warning && i.message.contains(&text));
+    assert!(found, "Expected warning mentioning '{}', got: {:?}",
+            text, result.issues.iter().map(|i| &i.message).collect::<Vec<_>>());
+}
+
+#[then(expr = "issue count should be {int}")]
+fn issue_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    let error_count = result.issues.iter().filter(|i| i.severity == Severity::Error).count();
+    assert_eq!(error_count, count, "Expected {} error issues, got {}", count, error_count);
+}
+
+#[then(regex = r"^cross-reference summary should show (\d+) task references?$")]
+fn task_references_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.cross_reference_summary.task_references, count,
+               "Expected {} task references, got {}", count, result.cross_reference_summary.task_references);
+}
+
+#[then(regex = r"^cross-reference summary should show (\d+) unresolved task references?$")]
+fn unresolved_task_references(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.cross_reference_summary.unresolved_task_refs.len(), count,
+               "Expected {} unresolved task refs, got {}", count, result.cross_reference_summary.unresolved_task_refs.len());
+}
+
+#[then(regex = r"^cross-reference summary should show (\d+) skill references?$")]
+fn skill_references_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.cross_reference_summary.skill_references, count,
+               "Expected {} skill references, got {}", count, result.cross_reference_summary.skill_references);
+}
+
+#[then(regex = r"^cross-reference summary should show (\d+) unresolved skill references?$")]
+fn unresolved_skill_references(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.cross_reference_summary.unresolved_skill_refs.len(), count,
+               "Expected {} unresolved skill refs, got {}", count, result.cross_reference_summary.unresolved_skill_refs.len());
 }
 
 #[tokio::main]
