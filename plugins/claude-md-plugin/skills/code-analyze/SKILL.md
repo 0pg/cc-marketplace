@@ -1,7 +1,9 @@
 ---
 name: code-analyze
 version: 1.0.0
-description: (internal) 소스 코드를 분석하여 Exports, Dependencies, Behavior 추출
+description: |
+  Analyzes source code to extract Exports, Dependencies, and Behavior patterns using regex-based parsing.
+  Invoked by decompiler agent to generate structured analysis JSON for CLAUDE.md generation.
 allowed-tools: [Read, Glob, Grep, Write]
 ---
 

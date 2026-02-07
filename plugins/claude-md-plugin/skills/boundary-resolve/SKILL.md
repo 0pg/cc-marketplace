@@ -1,7 +1,9 @@
 ---
 name: boundary-resolve
 version: 1.0.0
-description: (internal) 단일 디렉토리의 바운더리(직접 파일, 하위 디렉토리) 결정
+description: |
+  Resolves the boundary of a single directory by identifying direct source files and subdirectories.
+  Wraps `claude-md-core resolve-boundary` CLI. Invoked by decompiler agent during CLAUDE.md extraction.
 allowed-tools: [Bash, Read]
 ---
 
