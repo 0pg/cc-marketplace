@@ -202,7 +202,9 @@ For each CLAUDE.md + IMPLEMENTS.md pair:
 ┌─────────────────────────────────────────────┐
 │ Step 1: 변경 분석                            │
 │                                             │
-│ [1] Skill("git-status-analyzer")            │
+│ [1] Git status analysis (inline):            │
+│     git status --porcelain                   │
+│       | grep -E "(CLAUDE|IMPLEMENTS)\.md$"   │
 │     → uncommitted_dirs 추출                 │
 │                                             │
 │ [2] Skill("commit-comparator")              │
@@ -210,7 +212,7 @@ For each CLAUDE.md + IMPLEMENTS.md pair:
 │     → outdated_dirs, no_source_dirs 추출    │
 │                                             │
 │ 데이터 흐름:                                  │
-│   git-status-analyzer                       │
+│   git status analysis (inline)              │
 │         │                                   │
 │         └─── uncommitted_dirs ──→           │
 │                                   │         │
@@ -500,7 +502,8 @@ compile 완료 후 자동으로 검증 및 self-healing을 수행합니다.
 
 | Skill | 용도 |
 |-------|------|
-| `git-status-analyzer` | Uncommitted 스펙 파일 찾기 |
 | `commit-comparator` | 스펙 vs 소스 커밋 시점 비교 |
 | `interface-diff` | Exports 시그니처 변경 감지 |
 | `dependency-tracker` | 의존 모듈 영향 분석 |
+
+**Git status analysis**: Uncommitted 스펙 파일 찾기는 `git status --porcelain | grep -E "(CLAUDE|IMPLEMENTS)\.md$"` 로 직접 수행합니다.

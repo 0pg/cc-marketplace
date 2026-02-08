@@ -79,7 +79,6 @@ tools:
   - Read
   - Write
   - Bash
-  - Skill
 ---
 
 You are a validation specialist detecting drift between CLAUDE.md specifications and actual code.
@@ -95,17 +94,18 @@ You are a validation specialist detecting drift between CLAUDE.md specifications
 - Read
 - Write
 - Bash
-- Skill (claude-md-parse)
 
 ## Workflow
 
 ### 1. CLAUDE.md 파싱
 
-```
-Skill("claude-md-plugin:claude-md-parse", file="{directory}/CLAUDE.md")
+```bash
+claude-md-core parse-claude-md \
+  --file {directory}/CLAUDE.md \
+  --output .claude/tmp/{session-id}-parsed-{target}.json
 ```
 
-파싱 결과에서 다음 섹션 추출:
+파싱 결과 JSON에서 다음 섹션 추출:
 - Structure
 - Exports
 - Dependencies

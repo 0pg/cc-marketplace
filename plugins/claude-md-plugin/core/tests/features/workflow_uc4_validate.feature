@@ -37,6 +37,6 @@ Feature: UC-4 /validate Workflow Regression
       | drift-validator | drift-validator    |
       | report          | 통합 보고서        |
 
-  Scenario: drift-validator uses claude-md-parse
+  Scenario: drift-validator uses parse-claude-md CLI
     Given the content of agent "drift-validator" is loaded
-    Then the content should mention "claude-md-parse"
+    Then the content should mention "parse-claude-md"

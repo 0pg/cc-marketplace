@@ -78,12 +78,12 @@ Feature: Cross-Reference Validation
   # === Skill() References ===
 
   Scenario: Resolved Skill reference to existing skill
-    Given a skill directory "schema-validate" with SKILL.md:
+    Given a skill directory "code-analyze" with SKILL.md:
       """
       ---
-      name: schema-validate
-      description: Validate schema
-      allowed-tools: [Read]
+      name: code-analyze
+      description: Analyze code
+      allowed-tools: [Read, Glob]
       ---
       Body
       """
@@ -94,7 +94,7 @@ Feature: Cross-Reference Validation
       description: Decompile code
       tools: [Read, Skill]
       ---
-      Skill("claude-md-plugin:schema-validate")
+      Skill("claude-md-plugin:code-analyze")
       """
     When I validate prompts
     Then prompt validation should pass
@@ -102,12 +102,12 @@ Feature: Cross-Reference Validation
     And cross-reference summary should show 0 unresolved skill references
 
   Scenario: Skill reference without plugin prefix
-    Given a skill directory "boundary-resolve" with SKILL.md:
+    Given a skill directory "code-analyze" with SKILL.md:
       """
       ---
-      name: boundary-resolve
-      description: Resolve boundary
-      allowed-tools: [Read]
+      name: code-analyze
+      description: Analyze code
+      allowed-tools: [Read, Glob]
       ---
       Body
       """
@@ -118,7 +118,7 @@ Feature: Cross-Reference Validation
       description: Decompile code
       tools: [Read, Skill]
       ---
-      Skill("boundary-resolve")
+      Skill("code-analyze")
       """
     When I validate prompts
     Then prompt validation should pass
@@ -144,12 +144,12 @@ Feature: Cross-Reference Validation
   # === Mixed References ===
 
   Scenario: Both Task and Skill references resolved
-    Given a skill directory "schema-validate" with SKILL.md:
+    Given a skill directory "code-analyze" with SKILL.md:
       """
       ---
-      name: schema-validate
-      description: Validate schema
-      allowed-tools: [Read]
+      name: code-analyze
+      description: Analyze code
+      allowed-tools: [Read, Glob]
       ---
       Body
       """
@@ -160,7 +160,7 @@ Feature: Cross-Reference Validation
       description: Compile code
       tools: [Read, Skill]
       ---
-      Skill("schema-validate")
+      Skill("code-analyze")
       """
     And a skill directory "compile" with SKILL.md:
       """
@@ -170,7 +170,7 @@ Feature: Cross-Reference Validation
       allowed-tools: [Task, Skill]
       ---
       Task(compiler)
-      Skill("schema-validate")
+      Skill("code-analyze")
       """
     When I validate prompts
     Then prompt validation should pass

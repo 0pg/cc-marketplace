@@ -1,72 +1,10 @@
 Feature: Uncovered Skills Prompt Validation
   As a plugin developer
-  I want to validate the 4 uncovered skill prompts (git-status-analyzer, commit-comparator, interface-diff, dependency-tracker)
+  I want to validate the 3 uncovered skill prompts (commit-comparator, interface-diff, dependency-tracker)
   So that all skills have consistent frontmatter, valid result blocks, and correct cross-references
 
   Background:
     Given a clean prompt test directory
-
-  # === git-status-analyzer ===
-
-  Scenario: git-status-analyzer valid frontmatter
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      version: 1.1.0
-      description: Identifies uncommitted CLAUDE.md/IMPLEMENTS.md files
-      allowed-tools: [Bash, Write]
-      ---
-      Body content
-      """
-    When I validate prompts
-    Then prompt validation should pass
-    And skills count should be 1
-
-  Scenario: git-status-analyzer result block valid
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
-      ---
-
-      ---git-status-analyzer-result---
-      status: approve
-      ---end-git-status-analyzer-result---
-      """
-    When I validate prompts
-    Then prompt validation should pass
-
-  Scenario: git-status-analyzer mismatched delimiter fails
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
-      ---
-
-      ---git-status-analyzer-result---
-      status: approve
-      """
-    When I validate prompts
-    Then prompt validation should fail
-    And issue should mention "no matching end delimiter"
-
-  Scenario: git-status-analyzer valid tools
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
-      ---
-      Body
-      """
-    When I validate prompts
-    Then prompt validation should pass
 
   # === commit-comparator ===
 
@@ -227,17 +165,8 @@ Feature: Uncovered Skills Prompt Validation
 
   # === Cross-Reference ===
 
-  Scenario: compile references 4 incremental skills resolved
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
-      ---
-      Body
-      """
-    And a skill directory "commit-comparator" with SKILL.md:
+  Scenario: compile references 3 incremental skills resolved
+    Given a skill directory "commit-comparator" with SKILL.md:
       """
       ---
       name: commit-comparator
@@ -292,7 +221,7 @@ Feature: Uncovered Skills Prompt Validation
       Task(compiler, phase=red)
       Task(test-reviewer)
       Task(compiler, phase=green-refactor)
-      Skill("git-status-analyzer")
+      git status --porcelain for uncommitted analysis
       Skill("commit-comparator")
       Skill("interface-diff")
       Skill("dependency-tracker")
@@ -301,20 +230,11 @@ Feature: Uncovered Skills Prompt Validation
     Then prompt validation should pass
     And cross-reference summary should show 3 task references
     And cross-reference summary should show 0 unresolved task references
-    And cross-reference summary should show 4 skill references
+    And cross-reference summary should show 3 skill references
     And cross-reference summary should show 0 unresolved skill references
 
   Scenario: compile with missing incremental skills has unresolved refs
-    Given a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
-      ---
-      Body
-      """
-    And a skill directory "commit-comparator" with SKILL.md:
+    Given a skill directory "commit-comparator" with SKILL.md:
       """
       ---
       name: commit-comparator
@@ -340,12 +260,11 @@ Feature: Uncovered Skills Prompt Validation
       allowed-tools: [Task, Skill]
       ---
       Task(compiler)
-      Skill("git-status-analyzer")
       Skill("commit-comparator")
       Skill("interface-diff")
       Skill("dependency-tracker")
       """
     When I validate prompts
     Then prompt validation should fail
-    And cross-reference summary should show 4 skill references
+    And cross-reference summary should show 3 skill references
     And cross-reference summary should show 2 unresolved skill references

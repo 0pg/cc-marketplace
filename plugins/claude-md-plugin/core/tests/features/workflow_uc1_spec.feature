@@ -1,6 +1,6 @@
 Feature: UC-1 /spec Workflow Regression
   Ensures the /spec skill and spec-agent prompt files correctly describe
-  the specification workflow: spec skill → spec-agent → spec-reviewer → schema-validate.
+  the specification workflow: spec skill → spec-agent → spec-reviewer → validate-schema CLI.
 
   Scenario: spec skill delegates to spec-agent
     Given the content of skill "spec" is loaded
@@ -17,11 +17,11 @@ Feature: UC-1 /spec Workflow Regression
     Given the content of skill "spec" is loaded
     Then the content should mention "Phase 2.5"
 
-  Scenario: spec-agent invokes tree-parse and dependency-graph
+  Scenario: spec-agent uses parse-tree and dependency-graph CLI
     Given the content of agent "spec-agent" is loaded
     Then the content should contain all patterns:
       | pattern            |
-      | tree-parse         |
+      | parse-tree         |
       | dependency-graph   |
 
   Scenario: spec-agent invokes spec-reviewer
@@ -37,6 +37,6 @@ Feature: UC-1 /spec Workflow Regression
     Given the content of agent "spec-agent" is loaded
     Then the content should mention "AskUserQuestion"
 
-  Scenario: spec-agent runs schema-validate
+  Scenario: spec-agent runs validate-schema CLI
     Given the content of agent "spec-agent" is loaded
-    Then the content should mention "schema-validate"
+    Then the content should mention "validate-schema"

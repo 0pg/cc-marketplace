@@ -108,7 +108,7 @@ color: magenta
 tools:
   - Read
   - Write
-  - Skill
+  - Bash
   - AskUserQuestion
 ---
 
@@ -172,9 +172,13 @@ Read(implements_md_path)
 
 #### Check 3: SCHEMA-VALID (Required)
 
+```bash
+claude-md-core validate-schema \
+  --file {claude_md_path} \
+  --output .claude/tmp/{session-id}-validation-{target}.json
 ```
-Skill("claude-md-plugin:schema-validate", file=claude_md_path)
-```
+
+출력 JSON: `{ file, valid: bool, errors: [], warnings: [], unresolved_references: [] }`
 
 > 필수 섹션 목록은 `references/shared/claude-md-sections.md` 참조
 

@@ -61,8 +61,8 @@ User: /spec "요구사항"
 │ Phase 2.7. Task 정의 (상태 파일 저장)       │
 │                                             │
 │ Phase 2.5. 아키텍처 설계 분석               │
-│   ├── Skill("tree-parse") → 프로젝트 구조   │
-│   ├── Skill("dependency-graph") → 의존성    │
+│   ├── CLI: parse-tree → 프로젝트 구조        │
+│   ├── CLI: dependency-graph → 의존성         │
 │   ├── 관련 모듈 CLAUDE.md Exports 파악      │
 │   ├── 모듈 배치 결정 (신규 vs 확장)         │
 │   ├── Module Integration Map 데이터 수집    │
@@ -87,7 +87,7 @@ User: /spec "요구사항"
 │ │     └── feedback → Phase 5 (재생성)     │ │
 │ └─────────────────────────────────────────┘ │
 │                                             │
-│ Phase 6. Skill("schema-validate") → 검증    │
+│ Phase 6. CLI: validate-schema → 검증         │
 │ Phase 7. 최종 저장                          │
 └─────────────────────────────────────────────┘
 ```

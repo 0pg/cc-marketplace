@@ -30,11 +30,11 @@ Feature: UC-2 /compile Workflow Regression
     Given the content of skill "compile" is loaded
     Then the content should contain pattern "score.*==.*100"
 
-  Scenario: compile skill incremental uses 4 skills
+  Scenario: compile skill incremental uses 3 skills and inline git status
     Given the content of skill "compile" is loaded
     Then the content should contain all patterns:
       | pattern              |
-      | git-status-analyzer  |
+      | git status           |
       | commit-comparator    |
       | interface-diff       |
       | dependency-tracker   |
@@ -43,7 +43,7 @@ Feature: UC-2 /compile Workflow Regression
     Given the content of skill "compile" is loaded
     Then the content should describe workflow chain:
       | step             | pattern             |
-      | git-status       | git-status-analyzer |
+      | git-status       | git status          |
       | commit-compare   | commit-comparator   |
       | interface-diff   | interface-diff      |
       | dependency-track | dependency-tracker  |
@@ -55,9 +55,9 @@ Feature: UC-2 /compile Workflow Regression
       | phase.*red            |
       | phase.*green-refactor |
 
-  Scenario: compiler agent uses claude-md-parse
+  Scenario: compiler agent uses parse-claude-md CLI
     Given the content of agent "compiler" is loaded
-    Then the content should mention "claude-md-parse"
+    Then the content should mention "parse-claude-md"
 
   Scenario: compile skill IMPLEMENTS.md update responsibility
     Given the content of skill "compile" is loaded

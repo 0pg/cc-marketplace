@@ -8,12 +8,12 @@ Feature: Workflow Completeness Validation
 
   # === Actual Project File Validation ===
 
-  Scenario: All 16 project skills pass validation with agents loaded
+  Scenario: All 10 project skills pass validation with agents loaded
     Given the actual project skills directory is loaded
     And the actual project agents directory is loaded
     When I validate prompts
     Then prompt validation should pass
-    And skills count should be 16
+    And skills count should be 10
 
   Scenario: All 9 project agents pass validation with skills loaded
     Given the actual project skills directory is loaded
@@ -50,7 +50,6 @@ Feature: Workflow Completeness Validation
 
     Examples:
       | skill_name            |
-      | git-status-analyzer   |
       | commit-comparator     |
       | interface-diff        |
       | dependency-tracker    |
@@ -81,7 +80,7 @@ Feature: Workflow Completeness Validation
 
   # === Workflow Reference Chains ===
 
-  Scenario: spec skill references spec-agent and schema-validate
+  Scenario: spec skill references spec-agent
     Given an agent file "spec-agent.md":
       """
       ---
@@ -91,33 +90,24 @@ Feature: Workflow Completeness Validation
       ---
       Body
       """
-    And a skill directory "schema-validate" with SKILL.md:
-      """
-      ---
-      name: schema-validate
-      description: Validate schema
-      allowed-tools: [Read]
-      ---
-      Body
-      """
     And a skill directory "spec" with SKILL.md:
       """
       ---
       name: spec
       description: Generate CLAUDE.md from requirements
-      allowed-tools: [Task, Skill]
+      allowed-tools: [Task]
       ---
       Task(spec-agent) invocation
-      Skill("schema-validate") for final check
+      CLI: validate-schema for final check
       """
     When I validate prompts
     Then prompt validation should pass
     And cross-reference summary should show 1 task reference
     And cross-reference summary should show 0 unresolved task references
-    And cross-reference summary should show 1 skill reference
+    And cross-reference summary should show 0 skill references
     And cross-reference summary should show 0 unresolved skill references
 
-  Scenario: spec-agent references spec-reviewer and 3 skills
+  Scenario: spec-agent references spec-reviewer with CLI tools
     Given an agent file "spec-reviewer.md":
       """
       ---
@@ -127,63 +117,27 @@ Feature: Workflow Completeness Validation
       ---
       Body
       """
-    And a skill directory "tree-parse" with SKILL.md:
-      """
-      ---
-      name: tree-parse
-      description: Parse directory tree
-      allowed-tools: [Read, Glob]
-      ---
-      Body
-      """
-    And a skill directory "dependency-graph" with SKILL.md:
-      """
-      ---
-      name: dependency-graph
-      description: Build dependency graph
-      allowed-tools: [Read, Glob]
-      ---
-      Body
-      """
-    And a skill directory "schema-validate" with SKILL.md:
-      """
-      ---
-      name: schema-validate
-      description: Validate schema
-      allowed-tools: [Read]
-      ---
-      Body
-      """
     And an agent file "spec-agent.md":
       """
       ---
       name: spec-agent
       description: Generate spec from requirements
-      tools: [Read, Write, Task, Skill]
+      tools: [Read, Write, Task, Bash]
       ---
       Task(spec-reviewer) for review
-      Skill("tree-parse") for structure
-      Skill("dependency-graph") for deps
-      Skill("schema-validate") for validation
+      CLI: parse-tree for structure
+      CLI: dependency-graph for deps
+      CLI: validate-schema for validation
       """
     When I validate prompts
     Then prompt validation should pass
     And cross-reference summary should show 1 task reference
     And cross-reference summary should show 0 unresolved task references
-    And cross-reference summary should show 3 skill references
+    And cross-reference summary should show 0 skill references
     And cross-reference summary should show 0 unresolved skill references
 
-  Scenario: decompiler references boundary-resolve, code-analyze, and schema-validate
-    Given a skill directory "boundary-resolve" with SKILL.md:
-      """
-      ---
-      name: boundary-resolve
-      description: Resolve boundary
-      allowed-tools: [Read]
-      ---
-      Body
-      """
-    And a skill directory "code-analyze" with SKILL.md:
+  Scenario: decompiler references code-analyze skill with CLI tools
+    Given a skill directory "code-analyze" with SKILL.md:
       """
       ---
       name: code-analyze
@@ -192,32 +146,23 @@ Feature: Workflow Completeness Validation
       ---
       Body
       """
-    And a skill directory "schema-validate" with SKILL.md:
-      """
-      ---
-      name: schema-validate
-      description: Validate schema
-      allowed-tools: [Read]
-      ---
-      Body
-      """
     And an agent file "decompiler.md":
       """
       ---
       name: decompiler
       description: Decompile single directory
-      tools: [Read, Write, Skill]
+      tools: [Read, Write, Skill, Bash]
       ---
-      Skill("boundary-resolve") for boundary
+      CLI: resolve-boundary for boundary
       Skill("code-analyze") for analysis
-      Skill("schema-validate") for validation
+      CLI: validate-schema for validation
       """
     When I validate prompts
     Then prompt validation should pass
-    And cross-reference summary should show 3 skill references
+    And cross-reference summary should show 1 skill reference
     And cross-reference summary should show 0 unresolved skill references
 
-  Scenario: compile references compiler, test-reviewer, and 4 incremental skills
+  Scenario: compile references compiler, test-reviewer, and 3 incremental skills
     Given an agent file "compiler.md":
       """
       ---
@@ -233,15 +178,6 @@ Feature: Workflow Completeness Validation
       name: test-reviewer
       description: Review tests
       tools: [Read]
-      ---
-      Body
-      """
-    And a skill directory "git-status-analyzer" with SKILL.md:
-      """
-      ---
-      name: git-status-analyzer
-      description: Identifies uncommitted files
-      allowed-tools: [Bash, Write]
       ---
       Body
       """
@@ -282,7 +218,7 @@ Feature: Workflow Completeness Validation
       Task(compiler, phase=red)
       Task(test-reviewer)
       Task(compiler, phase=green-refactor)
-      Skill("git-status-analyzer")
+      git status --porcelain for uncommitted analysis
       Skill("commit-comparator")
       Skill("interface-diff")
       Skill("dependency-tracker")
@@ -291,7 +227,7 @@ Feature: Workflow Completeness Validation
     Then prompt validation should pass
     And cross-reference summary should show 3 task references
     And cross-reference summary should show 0 unresolved task references
-    And cross-reference summary should show 4 skill references
+    And cross-reference summary should show 3 skill references
     And cross-reference summary should show 0 unresolved skill references
 
   # === Special Status Values ===

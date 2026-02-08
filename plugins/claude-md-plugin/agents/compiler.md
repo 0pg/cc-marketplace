@@ -193,7 +193,10 @@ else:  # full
 
 1. `Read({project_root}/CLAUDE.md)` → 프로젝트 코딩 컨벤션 로드
 2. `Read({project_root}/code-convention.md)` → 코드 스타일/컨벤션 가이드 로드 (존재 시)
-3. `Skill("claude-md-plugin:claude-md-parse")` → CLAUDE.md 파싱
+3. CLAUDE.md 파싱 (CLI):
+   ```bash
+   claude-md-core parse-claude-md --file {claude_md_path} --output .claude/tmp/{session-id}-spec-{target}.json
+   ```
 4. `Read({target_dir}/IMPLEMENTS.md)` → Planning Section 로드
 
 **컨벤션 우선순위:**

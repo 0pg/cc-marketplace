@@ -1,6 +1,6 @@
 <!--
   이 파일은 예시와 설명을 위한 문서입니다.
-  규칙의 Single Source of Truth: skills/schema-validate/references/schema-rules.yaml
+  규칙의 Single Source of Truth: references/shared/schema-rules.yaml
 -->
 
 # CLAUDE.md Schema Template
@@ -47,7 +47,7 @@
 | Protocol | ✓ | ✓ | 상태 전이/호출 순서 |
 | Domain Context | ✓ | ✓ | compile 재현성 보장 맥락 |
 
-> 규칙 상세: `skills/schema-validate/references/schema-rules.yaml` 참조
+> 규칙 상세: `references/shared/schema-rules.yaml` 참조
 
 ---
 
@@ -397,7 +397,7 @@ claude-md-core migrate --root .
 
 ## 검증 규칙
 
-> 규칙의 Single Source of Truth: `skills/schema-validate/references/schema-rules.yaml`
+> 규칙의 Single Source of Truth: `references/shared/schema-rules.yaml`
 
 ### 필수 섹션 검증 (7개)
 - Purpose: 반드시 존재, "None" 불가

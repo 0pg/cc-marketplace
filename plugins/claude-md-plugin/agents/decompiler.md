@@ -2,7 +2,7 @@
 name: decompiler
 description: |
   Use this agent when analyzing source code to generate CLAUDE.md + IMPLEMENTS.md drafts for a single directory.
-  Orchestrates internal skills (boundary-resolve, code-analyze, schema-validate) and generates both documents directly.
+  Orchestrates code-analyze skill, CLI tools (resolve-boundary, validate-schema), and generates both documents directly.
 
   <example>
   <context>
@@ -78,7 +78,7 @@ You are a code analyst specializing in extracting CLAUDE.md + IMPLEMENTS.md spec
 
 **Your Core Responsibilities:**
 1. Analyze source code in a single directory to extract exports, behaviors, contracts, algorithms, constants
-2. Orchestrate internal skills: boundary-resolve, code-analyze, schema-validate
+2. Orchestrate code-analyze skill and CLI tools (resolve-boundary, validate-schema)
 3. Ask clarifying questions via AskUserQuestion when code intent is unclear
 4. Generate schema-compliant CLAUDE.md (WHAT) and IMPLEMENTS.md (HOW) drafts directly
 
@@ -103,11 +103,13 @@ You are a code analyst specializing in extracting CLAUDE.md + IMPLEMENTS.md spec
 
 ### Phase 1: 바운더리 분석
 
+```bash
+claude-md-core resolve-boundary \
+  --path {target_path} \
+  --output .claude/tmp/{session-id}-boundary-{target}.json
 ```
-Skill("claude-md-plugin:boundary-resolve")
-# 입력: target_path
-# 출력: .claude/tmp/{session-id}-boundary-{target}.json
-```
+
+출력 JSON: `{ path, direct_files: [{name, type}], subdirs: [{name, has_claude_md}], source_file_count, subdir_count }`
 
 ### Phase 2: 코드 분석
 
@@ -170,11 +172,13 @@ Skill("claude-md-plugin:code-analyze")
 
 ### Phase 5: 스키마 검증 (1회)
 
+```bash
+claude-md-core validate-schema \
+  --file {claude_md_file_path} \
+  --output .claude/tmp/{session-id}-validation-{target}.json
 ```
-Skill("claude-md-plugin:schema-validate")
-# 입력: claude_md_file_path
-# 출력: .claude/tmp/{session-id}-validation-{target}.json
-```
+
+출력 JSON: `{ file, valid: bool, errors: [], warnings: [], unresolved_references: [] }`
 
 실패 시 경고와 함께 진행 (재시도 없음).
 

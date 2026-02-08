@@ -63,30 +63,6 @@ Feature: Uncovered Agents Prompt Validation
     And cross-reference summary should show 2 task references
     And cross-reference summary should show 0 unresolved task references
 
-  Scenario: recursive-decompiler boundary-resolve Skill ref resolved
-    Given an agent file "recursive-decompiler.md":
-      """
-      ---
-      name: recursive-decompiler
-      description: Recursive orchestrator for decompile
-      tools: [Read, Write, Task, Skill]
-      ---
-      Skill("boundary-resolve")
-      """
-    And a skill directory "boundary-resolve" with SKILL.md:
-      """
-      ---
-      name: boundary-resolve
-      description: Resolve boundary
-      allowed-tools: [Read]
-      ---
-      Body
-      """
-    When I validate prompts
-    Then prompt validation should pass
-    And cross-reference summary should show 1 skill reference
-    And cross-reference summary should show 0 unresolved skill references
-
   Scenario: recursive-decompiler missing Task target fails
     Given an agent file "recursive-decompiler.md":
       """
@@ -149,30 +125,6 @@ Feature: Uncovered Agents Prompt Validation
       """
     When I validate prompts
     Then prompt validation should pass
-
-  Scenario: drift-validator Skill ref claude-md-parse resolved
-    Given an agent file "drift-validator.md":
-      """
-      ---
-      name: drift-validator
-      description: Validates CLAUDE.md-code consistency
-      tools: [Read, Write, Skill]
-      ---
-      Skill("claude-md-parse")
-      """
-    And a skill directory "claude-md-parse" with SKILL.md:
-      """
-      ---
-      name: claude-md-parse
-      description: Parse CLAUDE.md
-      allowed-tools: [Read]
-      ---
-      Body
-      """
-    When I validate prompts
-    Then prompt validation should pass
-    And cross-reference summary should show 1 skill reference
-    And cross-reference summary should show 0 unresolved skill references
 
   Scenario: drift-validator unmatched end delimiter fails
     Given an agent file "drift-validator.md":

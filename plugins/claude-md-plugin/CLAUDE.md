@@ -70,7 +70,7 @@
 | Dependencies | optional | 외부/내부 의존성이 있을 때 |
 | Constraints | optional | 제약사항이 있을 때 |
 
-> SSOT: `skills/schema-validate/references/schema-rules.yaml`
+> SSOT: `references/shared/schema-rules.yaml`
 
 ### 트리 구조 의존성
 - **부모 → 자식**: 참조 가능
@@ -187,7 +187,7 @@ User: /spec "요구사항"
 │ │ 7. Task(spec-reviewer) → 자동 리뷰      │ │
 │ │ 8. approve → 다음 / feedback → 6으로   │ │
 │ └─────────────────────────────────────────┘ │
-│ 9. Skill("schema-validate") → 검증 (1회)    │
+│ 9. CLI: validate-schema → 검증 (1회)         │
 └─────────────────────────────────────────────┘
 ```
 
@@ -200,7 +200,7 @@ User: /decompile
 ┌─────────────────────────────────────────────┐
 │ decompile SKILL (Entry Point)               │
 │                                             │
-│ 1. Skill("tree-parse") → 대상 목록          │
+│ 1. Task(recursive-decompiler) → 재귀 탐색    │
 │ 2. For each directory (leaf-first):         │
 │    Task(decompiler) 호출                    │
 └────────────────────┬────────────────────────┘
@@ -209,12 +209,12 @@ User: /decompile
 ┌─────────────────────────────────────────────┐
 │ decompiler AGENT                            │
 │                                             │
-│ Skill("boundary-resolve") → 바운더리 분석   │
+│ CLI: resolve-boundary → 바운더리 분석       │
 │ Skill("code-analyze") → 코드 분석           │
 │ AskUserQuestion → 불명확한 부분 질문        │
 │ CLAUDE.md 생성 (WHAT)                       │
 │ IMPLEMENTS.md 생성 (HOW - 전체 섹션)        │
-│ Skill("schema-validate") → 검증 (1회)       │
+│ CLI: validate-schema → 검증 (1회)           │
 └─────────────────────────────────────────────┘
 ```
 
@@ -309,13 +309,7 @@ User: /validate
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
 | `/project-setup` | Entry Point | 빌드/테스트 커맨드 → CLAUDE.md + code-convention.md |
 | `/convention` | Entry Point | code-convention.md 조회/업데이트 |
-| `tree-parse` | Internal | 디렉토리 구조 분석 |
-| `boundary-resolve` | Internal | 바운더리 결정 |
 | `code-analyze` | Internal | 코드 분석 |
-| `claude-md-parse` | Internal | CLAUDE.md 파싱 |
-| `schema-validate` | Internal | 스키마 검증 |
-| `dependency-graph` | Internal | 모듈 의존성 그래프 생성 |
-| `git-status-analyzer` | Internal | uncommitted 스펙 파일 찾기 |
 | `commit-comparator` | Internal | 스펙 vs 소스 커밋 시점 비교 |
 | `interface-diff` | Internal | Exports 시그니처 변경 감지 |
 | `dependency-tracker` | Internal | 의존 모듈 영향 분석 |

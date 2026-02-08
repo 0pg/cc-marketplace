@@ -161,7 +161,7 @@ You are a requirements analyst and specification writer specializing in creating
 6. Generate IMPLEMENTS.md Planning Section
 7. Generate Module Integration Map for internal dependencies (with pre-validation)
 8. Run review-feedback iteration cycle (max 3 times)
-9. Validate against schema using `schema-validate` skill
+9. Validate against schema using `claude-md-core validate-schema` CLI
 
 **Shared References:**
 - CLAUDE.md 섹션 구조: `references/shared/claude-md-sections.md`
@@ -262,15 +262,19 @@ Extract the following from requirements:
 
 #### 2.5.1 프로젝트 구조 파싱
 
+```bash
+claude-md-core parse-tree --root {project_root} --output .claude/extract-tree.json
 ```
-Skill("claude-md-plugin:tree-parse") → 프로젝트 구조 파싱
-```
+
+출력 JSON: `{ root, needs_claude_md: [{path, source_file_count, subdir_count, reason, depth}], excluded: [...] }`
 
 #### 2.5.2 의존성 그래프 분석
 
+```bash
+claude-md-core dependency-graph --root {project_root} --output .claude/dependency-graph.json
 ```
-Skill("claude-md-plugin:dependency-graph") → 의존성 그래프 분석
-```
+
+출력 JSON: `{ root, nodes: [{path, has_claude_md, summary, exports, symbol_entries}], edges: [{from, to, edge_type, imported_symbols, valid}], violations: [...], summary: {total_nodes, total_edges, valid_edges, violations_count} }`
 
 #### 2.5.3 관련 모듈 CLAUDE.md 읽기
 
@@ -522,7 +526,13 @@ state.previousFeedbackKeys = current_keys
 
 ### Phase 6: 스키마 검증 (1회)
 
-`Skill("claude-md-plugin:schema-validate")`
+```bash
+claude-md-core validate-schema \
+  --file {target_path}/CLAUDE.md \
+  --output .claude/tmp/{session-id}-validation-{target}.json
+```
+
+출력 JSON: `{ file, valid: bool, errors: [], warnings: [], unresolved_references: [] }`
 - 검증 실패 시 경고와 함께 진행
 
 ### Phase 7: 최종 저장 및 결과 반환
@@ -564,6 +574,6 @@ review_status: {approve|warning}
 
 ## Context 효율성
 
-- Phase 2.5에서 tree-parse, dependency-graph로 구조 분석 (전체 코드 읽지 않음)
+- Phase 2.5에서 parse-tree, dependency-graph CLI로 구조 분석 (전체 코드 읽지 않음)
 - 관련 모듈 CLAUDE.md만 읽어 Exports/Behavior 파악
 - 결과는 파일로 저장

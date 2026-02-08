@@ -10,7 +10,7 @@ description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
   "verify spec matches implementation", or uses "/validate". Runs drift-validator, export-validator,
   and convention-review in parallel.
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
 ---
 
 # /validate

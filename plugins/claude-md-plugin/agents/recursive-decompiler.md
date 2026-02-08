@@ -176,15 +176,15 @@ realpath "{target_path}"
 
 ### Phase 1: Boundary Resolve
 
-`boundary-resolve` Skill을 호출하여 하위 디렉토리 목록을 획득합니다.
+CLI를 호출하여 하위 디렉토리 목록을 획득합니다.
 
+```bash
+claude-md-core resolve-boundary \
+  --path {target_path} \
+  --output .claude/tmp/{session-id}-boundary-{target}.json
 ```
-Skill("claude-md-plugin:boundary-resolve")
-입력: target_path
-출력: .claude/tmp/{session-id}-boundary-{target}.json
-  - direct_files: 직접 소스 파일 목록
-  - subdirs: 하위 디렉토리 목록
-```
+
+출력 JSON: `{ path, direct_files: [{name, type}], subdirs: [{name, has_claude_md}], source_file_count, subdir_count }`
 
 ### Phase 2: Ignored Directory Filtering
 
@@ -356,7 +356,7 @@ Git 저장소가 아니면 경고를 출력하고 incremental mode를 비활성�
 
 | 상황 | 대응 |
 |------|------|
-| boundary-resolve 실패 | 에러 로그, 해당 디렉토리 스킵 |
+| resolve-boundary CLI 실패 | 에러 로그, 해당 디렉토리 스킵 |
 | decompiler 실패 | 경고 로그, 통계에 반영 |
 | Git 명령 실패 | incremental 비활성화, 전체 처리 |
 | max_depth 초과 | 경고 로그, 재귀 중단 |

@@ -24,9 +24,9 @@ Feature: UC-3 /decompile Workflow Regression
       | CLAUDE\.md.*WHAT           |
       | IMPLEMENTS\.md.*HOW        |
 
-  Scenario: recursive-decompiler invokes boundary-resolve
+  Scenario: recursive-decompiler uses resolve-boundary CLI
     Given the content of agent "recursive-decompiler" is loaded
-    Then the content should mention "boundary-resolve"
+    Then the content should mention "resolve-boundary"
 
   Scenario: recursive-decompiler is self-recursive
     Given the content of agent "recursive-decompiler" is loaded
@@ -36,10 +36,10 @@ Feature: UC-3 /decompile Workflow Regression
     Given the content of agent "recursive-decompiler" is loaded
     Then the content should contain pattern "Task\(decompiler"
 
-  Scenario: decompiler uses 3 core skills
+  Scenario: decompiler uses code-analyze skill and CLI tools
     Given the content of agent "decompiler" is loaded
     Then the content should contain all patterns:
-      | pattern          |
-      | boundary-resolve |
-      | code-analyze     |
-      | schema-validate  |
+      | pattern           |
+      | resolve-boundary  |
+      | code-analyze      |
+      | validate-schema   |

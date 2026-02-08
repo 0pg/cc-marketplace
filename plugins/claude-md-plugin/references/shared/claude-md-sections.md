@@ -1,6 +1,6 @@
 # CLAUDE.md Sections Reference
 
-> SSOT: `skills/schema-validate/references/schema-rules.yaml`
+> SSOT: `references/shared/schema-rules.yaml`
 
 ## 필수 섹션 (7개)
 
