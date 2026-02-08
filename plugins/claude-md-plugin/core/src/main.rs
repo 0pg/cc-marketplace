@@ -223,7 +223,14 @@ fn main() {
         }
         Commands::ValidateSchema { file, output, with_index, index_file } => {
             let validator = SchemaValidator::new();
-            if let Some(path) = index_file {
+            let is_implements = file.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.eq_ignore_ascii_case("IMPLEMENTS.md"))
+                .unwrap_or(false);
+            if is_implements {
+                let validation_result = validator.validate_implements(file);
+                output_result(&validation_result, output.as_ref(), "validate-schema")
+            } else if let Some(path) = index_file {
                 let json_str = std::fs::read_to_string(path)
                     .map_err(|e| format!("Failed to read index file: {}", e));
                 let index = json_str.and_then(|s| {

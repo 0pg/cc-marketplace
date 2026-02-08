@@ -173,6 +173,8 @@ export_coverage: {0-100}
 
 **참고**: `integration_map_issues`는 drift-validator가 IMPLEMENTS.md의 Module Integration Map 교차 검증에서 발견한 이슈 수입니다. IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0입니다.
 
+**Integration Map 열은 항상 표시됩니다.** IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0으로 표시됩니다.
+
 ```
 ---code-reviewer-result---
 status: approve | feedback | warning

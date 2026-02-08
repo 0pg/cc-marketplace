@@ -79,6 +79,7 @@ description: |
   action: updated
   exports_count: 4
   behaviors_count: 6
+  dependencies_count: 3
   integration_map_entries: 2
   review_iterations: 1
   review_status: approve
@@ -409,7 +410,7 @@ Implementation Section은 placeholder로 남깁니다 (`/compile` 시 자동 생
 
 #### Module Integration Map 생성
 
-내부 의존성이 있는 경우, Phase 2.5.4에서 수집한 데이터로 `format_module_integration_map()`을 사용하여 정형화된 스키마에 맞게 생성합니다.
+내부 의존성이 있는 경우, Phase 2.5.4에서 수집한 데이터를 implements-md-schema.md의 Module Integration Map 스키마에 맞게 생성합니다.
 
 ```markdown
 ## Module Integration Map
@@ -516,6 +517,7 @@ action: {created|updated}
 validation: {passed|failed_with_warnings}
 exports_count: {len(exports)}
 behaviors_count: {len(behaviors)}
+dependencies_count: {len(dependencies)}
 integration_map_entries: {len(integration_entries)}
 review_iterations: {iteration_count}
 review_status: {approve|warning}

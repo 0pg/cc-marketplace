@@ -567,6 +567,71 @@ impl SchemaValidator {
         result
     }
 
+    /// Validate an IMPLEMENTS.md file
+    pub fn validate_implements(&self, file: &Path) -> ValidationResult {
+        let file_str = file.to_string_lossy().to_string();
+
+        let content = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(e) => {
+                return ValidationResult {
+                    file: file_str,
+                    valid: false,
+                    errors: vec![ValidationError {
+                        error_type: "FileError".to_string(),
+                        message: format!("Cannot read file: {}", e),
+                        line_number: None,
+                        section: None,
+                        suggestion: None,
+                    }],
+                    warnings: vec![],
+                };
+            }
+        };
+
+        let mut errors = Vec::new();
+        let warnings = Vec::new();
+
+        let sections = self.parse_sections(&content);
+
+        for required in IMPLEMENTS_REQUIRED_SECTIONS {
+            let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
+
+            match section_found {
+                None => {
+                    errors.push(ValidationError {
+                        error_type: "MissingSection".to_string(),
+                        message: format!("Missing required section: {}", required),
+                        line_number: None,
+                        section: Some(required.to_string()),
+                        suggestion: None,
+                    });
+                }
+                Some(section) => {
+                    let allows_none = IMPLEMENTS_ALLOW_NONE_SECTIONS.iter().any(|s| s.eq_ignore_ascii_case(required));
+                    let is_none_marker = self.is_none_marker(section);
+
+                    if !allows_none && is_none_marker {
+                        errors.push(ValidationError {
+                            error_type: "InvalidSectionContent".to_string(),
+                            message: format!("Section '{}' does not allow 'None' as value", required),
+                            line_number: Some(section.start_line),
+                            section: Some(required.to_string()),
+                            suggestion: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        ValidationResult {
+            file: file_str,
+            valid: errors.is_empty(),
+            errors,
+            warnings,
+        }
+    }
+
     fn looks_like_export_line(&self, line: &str) -> bool {
         // Has a function name pattern followed by parentheses
         line.contains('(') && line.contains(')')
@@ -830,6 +895,111 @@ None
             .errors
             .iter()
             .any(|e| e.message.contains("Protocol")));
+    }
+
+    // ============== IMPLEMENTS.md Validation Tests ==============
+
+    fn create_implements_test_file(content: &str) -> (TempDir, std::path::PathBuf) {
+        let temp = TempDir::new().unwrap();
+        let file_path = temp.path().join("IMPLEMENTS.md");
+        let mut file = File::create(&file_path).unwrap();
+        write!(file, "{}", content).unwrap();
+        (temp, file_path)
+    }
+
+    #[test]
+    fn test_implements_valid_full() {
+        let content = r#"# auth/IMPLEMENTS.md
+
+## Architecture Decisions
+None
+
+## Module Integration Map
+None
+
+## External Dependencies
+- jsonwebtoken@9.0.0: JWT verification
+
+## Implementation Approach
+### Strategy
+- HMAC-SHA256 based token verification
+
+## Technology Choices
+None
+
+## Error Handling
+None
+
+## State Management
+None
+"#;
+        let (_temp, path) = create_implements_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate_implements(&path);
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_implements_missing_required_section() {
+        let content = r#"# auth/IMPLEMENTS.md
+
+## Architecture Decisions
+None
+
+## Module Integration Map
+None
+
+## External Dependencies
+- jsonwebtoken@9.0.0: JWT
+
+## Implementation Approach
+### Strategy
+- HMAC-SHA256
+
+## Technology Choices
+None
+"#;
+        // Missing: Error Handling, State Management
+        let (_temp, path) = create_implements_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate_implements(&path);
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| e.message.contains("Error Handling")));
+        assert!(result.errors.iter().any(|e| e.message.contains("State Management")));
+    }
+
+    #[test]
+    fn test_implements_none_not_allowed_for_impl_approach() {
+        let content = r#"# auth/IMPLEMENTS.md
+
+## Architecture Decisions
+None
+
+## Module Integration Map
+None
+
+## External Dependencies
+None
+
+## Implementation Approach
+None
+
+## Technology Choices
+None
+
+## Error Handling
+None
+
+## State Management
+None
+"#;
+        let (_temp, path) = create_implements_test_file(content);
+        let validator = SchemaValidator::new();
+        let result = validator.validate_implements(&path);
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| {
+            e.error_type == "InvalidSectionContent" && e.section.as_deref() == Some("Implementation Approach")
+        }));
     }
 
     #[test]

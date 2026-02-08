@@ -289,17 +289,31 @@ impl DependencyGraphBuilder {
                             .map(|e| e.signature.clone())
                             .collect();
 
-                        let target_exports =
-                            module_exports.get(&target_path).cloned().unwrap_or_default();
-                        let has_exports = !target_exports.is_empty();
+                        let target_has_exports = module_exports
+                            .get(&target_path)
+                            .map(|e| !e.is_empty())
+                            .unwrap_or(false);
+
+                        // Report unresolved integration targets as violations
+                        if !module_exports.contains_key(&target_path) {
+                            violations.push(Violation {
+                                from: node.path.clone(),
+                                to: target_path.clone(),
+                                violation_type: "unresolved_integration_target".to_string(),
+                                reason: format!(
+                                    "Integration map entry '{}' points to '{}' which is not a known module",
+                                    entry.relative_path, target_path
+                                ),
+                                suggestion: "Verify the relative path and ensure the target module exists with a CLAUDE.md".to_string(),
+                            });
+                        }
 
                         edges.push(DependencyEdge {
                             from: node.path.clone(),
                             to: target_path.clone(),
                             edge_type: "internal".to_string(),
                             imported_symbols,
-                            valid: has_exports
-                                || !module_exports.contains_key(&target_path),
+                            valid: target_has_exports,
                         });
 
                         if !module_exports.contains_key(&target_path) {

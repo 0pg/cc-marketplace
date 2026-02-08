@@ -9,11 +9,11 @@
 //! ```markdown
 //! ## Module Integration Map
 //!
-//! ### `../auth` -> auth/CLAUDE.md
+//! ### `../auth` → auth/CLAUDE.md
 //!
 //! #### Exports Used
-//! - `validateToken(token: string): Promise<Claims>` -- API auth gatekeeper
-//! - `Claims { userId: string, exp: number }` -- auth info type
+//! - `validateToken(token: string): Promise<Claims>` — API auth gatekeeper
+//! - `Claims { userId: string, exp: number }` — auth info type
 //!
 //! #### Integration Context
 //! Called as middleware for all protected API endpoints.
@@ -34,7 +34,6 @@ pub enum ImplementsParseError {
         source: std::io::Error,
     },
     #[error("Invalid entry format at line {line}: {details}")]
-    #[allow(dead_code)]
     InvalidEntryFormat { line: usize, details: String },
 }
 
@@ -71,6 +70,9 @@ pub struct ImplementsMdSpec {
     pub module_integration_map: Vec<IntegrationMapEntry>,
     /// External dependencies listed in the External Dependencies section
     pub external_dependencies: Vec<String>,
+    /// Validation errors (fatal format issues found during parsing)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
     /// Validation warnings (non-fatal issues found during parsing)
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -85,10 +87,10 @@ pub struct ImplementsMdParser {
     /// Matches markdown headers: ## Section, ### Entry, #### Subsection
     section_pattern: Regex,
     /// Matches integration map entry headers:
-    /// ### `../auth` -> auth/CLAUDE.md
+    /// ### `../auth` → auth/CLAUDE.md
     entry_header_pattern: Regex,
     /// Matches export items:
-    /// - `validateToken(token: string): Promise<Claims>` -- description
+    /// - `validateToken(token: string): Promise<Claims>` — description
     export_item_pattern: Regex,
 }
 
@@ -99,15 +101,15 @@ impl ImplementsMdParser {
             section_pattern: Regex::new(r"^(#{1,4})\s+(.+)$")
                 .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match entry header name (after ### prefix is stripped by extract_sections):
-            // `relative_path` -> name/CLAUDE.md
-            // Uses → (unicode arrow) or -> (ascii arrow)
+            // `relative_path` → name/CLAUDE.md
+            // SSOT: schema-rules.yaml specifies → (unicode arrow) only
             entry_header_pattern: Regex::new(
-                r"^`([^`]+)`\s*(?:→|->)\s*(.+/CLAUDE\.md)\s*$",
+                r"^`([^`]+)`\s*→\s*(.+/CLAUDE\.md)\s*$",
             )
             .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match export item: - `signature` — role_description
-            // The em-dash separator (— or --) and role are optional
-            export_item_pattern: Regex::new(r"^[-*]\s+`([^`]+)`(?:\s*(?:—|--)\s*(.+))?$")
+            // SSOT: schema-rules.yaml specifies — (em-dash) only; role is optional
+            export_item_pattern: Regex::new(r"^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$")
                 .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
         }
     }
@@ -179,10 +181,10 @@ impl ImplementsMdParser {
     /// ```markdown
     /// ## Module Integration Map
     ///
-    /// ### `../auth` -> auth/CLAUDE.md
+    /// ### `../auth` → auth/CLAUDE.md
     ///
     /// #### Exports Used
-    /// - `validateToken(token: string): Promise<Claims>` -- description
+    /// - `validateToken(token: string): Promise<Claims>` — description
     ///
     /// #### Integration Context
     /// Free-form text describing how the dependency is used.
@@ -243,8 +245,8 @@ impl ImplementsMdParser {
                         integration_context: String::new(),
                     });
                 } else {
-                    spec.warnings.push(format!(
-                        "Line {}: H3 header '{}' does not match integration map entry pattern",
+                    spec.errors.push(format!(
+                        "Line {}: H3 header '{}' does not match integration map entry pattern (`path` → name/CLAUDE.md)",
                         section.line_number, section.name
                     ));
                     continue;
@@ -322,8 +324,8 @@ impl ImplementsMdParser {
     /// Extracts dependency names from a simple list format:
     /// ```markdown
     /// ## External Dependencies
-    /// - jsonwebtoken@9.0.0 -- JWT signing/verification
-    /// - express@4.18 -- HTTP framework
+    /// - jsonwebtoken@9.0.0 — JWT signing/verification
+    /// - express@4.18 — HTTP framework
     /// ```
     fn parse_external_dependencies(&self, sections: &[Section], spec: &mut ImplementsMdSpec) {
         let ext_deps_section = match sections.iter().find(|s| {
@@ -474,7 +476,7 @@ None
     }
 
     #[test]
-    fn test_parse_ascii_arrow() {
+    fn test_ascii_arrow_rejected() {
         let parser = ImplementsMdParser::new();
         let content = r#"# test/IMPLEMENTS.md
 
@@ -490,9 +492,10 @@ UI 표시용 날짜 변환.
 "#;
 
         let spec = parser.parse_content(content);
-        assert_eq!(spec.module_integration_map.len(), 1);
-        assert_eq!(spec.module_integration_map[0].relative_path, "../utils");
-        assert_eq!(spec.module_integration_map[0].claude_md_ref, "utils/CLAUDE.md");
+        // ASCII arrow (->) is not SSOT-compliant; must use → (unicode)
+        assert!(spec.module_integration_map.is_empty());
+        assert!(!spec.errors.is_empty());
+        assert!(spec.errors[0].contains("does not match"));
     }
 
     #[test]
@@ -560,7 +563,7 @@ None
     }
 
     #[test]
-    fn test_warnings_on_invalid_entry_header() {
+    fn test_errors_on_invalid_entry_header() {
         let parser = ImplementsMdParser::new();
         let content = r#"# test/IMPLEMENTS.md
 
@@ -577,8 +580,8 @@ Some context.
 
         let spec = parser.parse_content(content);
         assert!(spec.module_integration_map.is_empty());
-        assert!(!spec.warnings.is_empty());
-        assert!(spec.warnings[0].contains("does not match"));
+        assert!(!spec.errors.is_empty());
+        assert!(spec.errors[0].contains("does not match"));
     }
 
     #[test]
