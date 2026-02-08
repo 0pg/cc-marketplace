@@ -1,7 +1,9 @@
 ---
 name: claude-md-parse
 version: 1.0.0
-description: (internal) CLAUDE.md 파일을 파싱하여 구조화된 JSON 스펙으로 변환
+description: |
+  Parses CLAUDE.md files into structured JSON spec (ClaudeMdSpec) for code generation.
+  Wraps `claude-md-core parse-claude-md` CLI. Invoked by compiler agent and spec-agent for spec consumption.
 allowed-tools: [Bash, Read]
 ---
 
@@ -97,10 +99,10 @@ ClaudeMdSpec JSON:
 ### 1. CLI 빌드 확인
 
 ```bash
-CLI_PATH="plugins/claude-md-plugin/core/target/release/claude-md-core"
+CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
 if [ ! -f "$CLI_PATH" ]; then
     echo "Building claude-md-core..."
-    cd plugins/claude-md-plugin/core && cargo build --release
+    cd "${CLAUDE_PLUGIN_ROOT}/core" && cargo build --release
 fi
 ```
 

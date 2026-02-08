@@ -26,6 +26,8 @@ elif [ "$CARGO_TOML" -nt "$BINARY" ]; then
   needs_build=true
 elif [ -f "$CARGO_LOCK" ] && [ "$CARGO_LOCK" -nt "$BINARY" ]; then
   needs_build=true
+elif [ -d "$CORE_DIR/src" ] && [ -n "$(find "$CORE_DIR/src" -name '*.rs' -newer "$BINARY" 2>/dev/null)" ]; then
+  needs_build=true
 fi
 
 if [ "$needs_build" = true ]; then

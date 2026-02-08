@@ -1,7 +1,11 @@
 ---
 name: tree-parse
 version: 1.0.0
-description: (internal) 프로젝트 디렉토리 구조를 파싱하여 CLAUDE.md가 필요한 위치 식별
+deprecated: true
+description: |
+  Parses project directory structure to identify locations that need CLAUDE.md files.
+  Wraps `claude-md-core parse-tree` CLI. Invoked by decompile skill during recursive directory traversal.
+  DEPRECATED: Use `claude-md-core parse-tree` directly via Bash instead.
 allowed-tools: [Bash, Read]
 ---
 
@@ -50,10 +54,10 @@ root_path: 프로젝트 루트 경로 (기본: 현재 디렉토리)
 ### 1. CLI 빌드 확인
 
 ```bash
-CLI_PATH="plugins/claude-md-plugin/core/target/release/claude-md-core"
+CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
 if [ ! -f "$CLI_PATH" ]; then
     echo "Building claude-md-core..."
-    cd plugins/claude-md-plugin/core && cargo build --release
+    cd "${CLAUDE_PLUGIN_ROOT}/core" && cargo build --release
 fi
 ```
 

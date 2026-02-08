@@ -1,7 +1,9 @@
 ---
 name: dependency-graph
 version: 1.0.0
-description: (internal) 프로젝트 의존성 방향 그래프를 분석하고 경계 침범을 탐지
+description: |
+  Analyzes project module dependency directed graph and detects boundary violations.
+  Wraps `claude-md-core dependency-graph` CLI. Invoked by spec-agent for architecture analysis.
 allowed-tools: [Bash, Read]
 ---
 
@@ -92,10 +94,10 @@ target_path: 분석 대상 경로 (기본: 프로젝트 루트)
 ### 1. CLI 빌드 확인
 
 ```bash
-CLI_PATH="plugins/claude-md-plugin/core/target/release/claude-md-core"
+CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
 if [ ! -f "$CLI_PATH" ]; then
     echo "Building claude-md-core..."
-    cd plugins/claude-md-plugin/core && cargo build --release
+    cd "${CLAUDE_PLUGIN_ROOT}/core" && cargo build --release
 fi
 ```
 
