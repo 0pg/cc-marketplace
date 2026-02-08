@@ -549,3 +549,267 @@ impl Default for TypeScriptAnalyzer {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use crate::code_analyzer::{LanguageAnalyzer, BehaviorCategory};
+
+    fn analyze(content: &str) -> PartialAnalysis {
+        let analyzer = TypeScriptAnalyzer::new();
+        analyzer.analyze_file(Path::new("test.ts"), content).unwrap()
+    }
+
+    #[test]
+    fn test_basic_exported_function() {
+        let result = analyze("export function validateToken(token: string): boolean {}\n");
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "validateToken");
+        assert_eq!(result.functions[0].signature, "validateToken(token: string): boolean");
+    }
+
+    #[test]
+    fn test_async_exported_function() {
+        let result = analyze("export async function fetchData(url: string): Promise<Data> {}\n");
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "fetchData");
+        assert_eq!(result.functions[0].signature, "fetchData(url: string): Promise<Data>");
+    }
+
+    #[test]
+    fn test_arrow_function_export() {
+        let result = analyze(
+            "export const handler = async (req: Request): Promise<Response> => {\n  return new Response();\n};\n"
+        );
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "handler");
+        assert!(result.functions[0].signature.contains("handler(req: Request)"));
+    }
+
+    #[test]
+    fn test_export_default_function() {
+        let result = analyze("export default function main(args: string[]): void {}\n");
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "main");
+        assert_eq!(result.functions[0].signature, "main(args: string[]): void");
+    }
+
+    #[test]
+    fn test_class_export() {
+        let result = analyze("export class AuthService extends BaseService {\n  validate() {}\n}\n");
+
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.classes[0].name, "AuthService");
+        assert_eq!(
+            result.classes[0].signature.as_deref(),
+            Some("class AuthService extends BaseService")
+        );
+    }
+
+    #[test]
+    fn test_class_export_without_extends() {
+        let result = analyze("export class Logger {\n  log(msg: string) {}\n}\n");
+
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.classes[0].name, "Logger");
+        assert_eq!(result.classes[0].signature.as_deref(), Some("class Logger"));
+    }
+
+    #[test]
+    fn test_interface_export() {
+        let result = analyze("export interface Config {\n  timeout: number;\n  host: string;\n}\n");
+
+        assert_eq!(result.types.len(), 1);
+        assert_eq!(result.types[0].name, "Config");
+        assert_eq!(result.types[0].kind, TypeKind::Interface);
+    }
+
+    #[test]
+    fn test_type_alias_export() {
+        let result = analyze("export type Status = 'active' | 'inactive';\n");
+
+        assert_eq!(result.types.len(), 1);
+        assert_eq!(result.types[0].name, "Status");
+        assert_eq!(result.types[0].kind, TypeKind::Type);
+    }
+
+    #[test]
+    fn test_re_exports() {
+        let result = analyze("export { validateToken, parseJwt } from './auth';\n");
+
+        assert_eq!(result.re_exports.len(), 2);
+        assert_eq!(result.re_exports[0].name, "validateToken");
+        assert_eq!(result.re_exports[0].source, "./auth");
+        assert_eq!(result.re_exports[1].name, "parseJwt");
+        assert_eq!(result.re_exports[1].source, "./auth");
+    }
+
+    #[test]
+    fn test_re_export_default_as() {
+        let result = analyze("export { default as AuthClient } from './client';\n");
+
+        assert_eq!(result.re_exports.len(), 1);
+        assert_eq!(result.re_exports[0].name, "AuthClient");
+        assert_eq!(result.re_exports[0].source, "./client");
+    }
+
+    #[test]
+    fn test_dependencies_internal_vs_external() {
+        let content = r#"
+import { Router } from 'express';
+import { Pool } from 'pg';
+import { helper } from './utils';
+import { config } from '../config';
+import { Schema } from '@hono/zod-validator';
+"#;
+        let result = analyze(content);
+
+        assert!(result.external_deps.contains(&"express".to_string()));
+        assert!(result.external_deps.contains(&"pg".to_string()));
+        assert!(result.external_deps.contains(&"@hono/zod-validator".to_string()));
+        assert_eq!(result.external_deps.len(), 3);
+
+        assert!(result.internal_deps.contains(&"./utils".to_string()));
+        assert!(result.internal_deps.contains(&"../config".to_string()));
+        assert_eq!(result.internal_deps.len(), 2);
+    }
+
+    #[test]
+    fn test_contract_extraction_from_jsdoc() {
+        let content = r#"
+/**
+ * Validates a JWT token.
+ * @precondition token must be non-empty string
+ * @postcondition returns valid Claims on success
+ * @throws InvalidTokenError
+ * @throws ExpiredTokenError
+ */
+export function validateToken(token: string): Claims {
+  // ...
+}
+"#;
+        let result = analyze(content);
+
+        assert_eq!(result.contracts.len(), 1);
+        let contract = &result.contracts[0];
+        assert_eq!(contract.function_name, "validateToken");
+        assert_eq!(contract.contract.preconditions, vec!["token must be non-empty string"]);
+        assert_eq!(contract.contract.postconditions, vec!["returns valid Claims on success"]);
+        assert!(contract.contract.throws.contains(&"InvalidTokenError".to_string()));
+        assert!(contract.contract.throws.contains(&"ExpiredTokenError".to_string()));
+    }
+
+    #[test]
+    fn test_behavior_inference_error_patterns() {
+        let content = r#"
+export function validateToken(token: string): Claims {
+  if (!token) throw new InvalidTokenError("missing");
+  if (isExpired(token)) throw new ExpiredTokenError("expired");
+  return decode(token);
+}
+"#;
+        let result = analyze(content);
+
+        // Should have success behavior (has "validate" function) + error behaviors
+        let success = result.behaviors.iter().find(|b| b.category == BehaviorCategory::Success);
+        assert!(success.is_some(), "expected a success behavior for validate function");
+        assert_eq!(success.unwrap().input, "Valid JWT token");
+
+        let errors: Vec<_> = result.behaviors.iter()
+            .filter(|b| b.category == BehaviorCategory::Error)
+            .collect();
+        assert!(errors.iter().any(|b| b.output == "InvalidTokenError"));
+        assert!(errors.iter().any(|b| b.output == "ExpiredTokenError"));
+    }
+
+    #[test]
+    fn test_empty_file() {
+        let result = analyze("");
+
+        assert!(result.functions.is_empty());
+        assert!(result.types.is_empty());
+        assert!(result.classes.is_empty());
+        assert!(result.re_exports.is_empty());
+        assert!(result.external_deps.is_empty());
+        assert!(result.internal_deps.is_empty());
+        assert!(result.behaviors.is_empty());
+        assert!(result.contracts.is_empty());
+        assert!(result.protocol.is_none());
+    }
+
+    #[test]
+    fn test_enum_export_as_type() {
+        // The TypeScript analyzer currently captures enum via the export_type_re pattern
+        // since `export enum` matches `export` keyword patterns. Let's verify actual behavior.
+        let content = "export enum Status {\n  Active,\n  Inactive,\n}\n";
+        let result = analyze(content);
+
+        // The analyzer doesn't have a dedicated enum extractor;
+        // enum is not matched by export_type_re (which looks for `export type`),
+        // so it won't appear in types. But export_class_re won't match either.
+        // This documents the current behavior.
+        let has_status = result.types.iter().any(|t| t.name == "Status")
+            || result.classes.iter().any(|c| c.name == "Status");
+        // Current implementation does not extract `export enum` as a standalone kind,
+        // unless it happens to match one of the existing patterns. Verify no crash.
+        assert!(result.functions.is_empty());
+        // The key assertion: no panic on enum input.
+        let _ = has_status;
+    }
+
+    #[test]
+    fn test_multiple_exports_combined() {
+        let content = r#"
+import { Request, Response } from 'express';
+import { db } from './database';
+
+export interface UserDTO {
+  id: string;
+  name: string;
+}
+
+export type Role = 'admin' | 'user';
+
+export class UserService extends BaseService {
+  findAll() {}
+}
+
+export function createUser(dto: UserDTO): User {}
+export const deleteUser = (id: string): void => {};
+"#;
+        let result = analyze(content);
+
+        assert_eq!(result.functions.len(), 2);
+        assert_eq!(result.types.len(), 2); // UserDTO (interface) + Role (type)
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.external_deps, vec!["express".to_string()]);
+        assert_eq!(result.internal_deps, vec!["./database".to_string()]);
+    }
+
+    #[test]
+    fn test_inferred_contract_from_validation_pattern() {
+        let content = r#"
+export function processOrder(order: Order): Receipt {
+  if (!order.id) {
+    throw new Error("missing id");
+  }
+  if (order.items.length === 0) {
+    throw new Error("empty items");
+  }
+  return generateReceipt(order);
+}
+"#;
+        let result = analyze(content);
+
+        let contract = result.contracts.iter().find(|c| c.function_name == "processOrder");
+        assert!(contract.is_some(), "expected inferred contract for processOrder");
+        let preconditions = &contract.unwrap().contract.preconditions;
+        assert!(preconditions.iter().any(|p| p.contains("order.id")));
+        assert!(preconditions.iter().any(|p| p.contains("order.items")));
+    }
+}

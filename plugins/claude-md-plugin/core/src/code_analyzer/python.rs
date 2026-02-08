@@ -403,3 +403,236 @@ impl Default for PythonAnalyzer {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use crate::code_analyzer::{LanguageAnalyzer, BehaviorCategory};
+
+    fn analyze(content: &str) -> PartialAnalysis {
+        let analyzer = PythonAnalyzer::new();
+        analyzer.analyze_file(Path::new("module.py"), content).unwrap()
+    }
+
+    #[test]
+    fn test_basic_function() {
+        let result = analyze("def process(data: str) -> bool:\n    pass\n");
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "process");
+        assert_eq!(result.functions[0].signature, "process(data: str) -> bool");
+    }
+
+    #[test]
+    fn test_function_without_return_type() {
+        let result = analyze("def setup(config):\n    pass\n");
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].signature, "setup(config)");
+    }
+
+    #[test]
+    fn test_private_function_excluded() {
+        let content = "def public_func():\n    pass\n\ndef _private_func():\n    pass\n";
+        let result = analyze(content);
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "public_func");
+    }
+
+    #[test]
+    fn test_all_filter() {
+        let content = r#"
+__all__ = ['exported_one', 'ExportedClass']
+
+def exported_one():
+    pass
+
+def not_exported():
+    pass
+
+class ExportedClass:
+    pass
+
+class NotExportedClass:
+    pass
+"#;
+        let result = analyze(content);
+
+        assert_eq!(result.functions.len(), 1);
+        assert_eq!(result.functions[0].name, "exported_one");
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.classes[0].name, "ExportedClass");
+    }
+
+    #[test]
+    fn test_class_extraction() {
+        let content = "class MyService:\n    pass\n\nclass _InternalHelper:\n    pass\n";
+        let result = analyze(content);
+
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.classes[0].name, "MyService");
+        assert_eq!(result.classes[0].signature.as_deref(), Some("class MyService"));
+    }
+
+    #[test]
+    fn test_class_with_parent() {
+        let result = analyze("class AuthService(BaseService):\n    pass\n");
+
+        assert_eq!(result.classes.len(), 1);
+        assert_eq!(result.classes[0].name, "AuthService");
+    }
+
+    #[test]
+    fn test_import_dependencies() {
+        let content = r#"
+import os
+import json
+from flask import Blueprint
+from sqlalchemy.orm import Session
+from .utils import helper
+from ..config import settings
+"#;
+        let result = analyze(content);
+
+        assert!(result.external_deps.contains(&"os".to_string()));
+        assert!(result.external_deps.contains(&"json".to_string()));
+        assert!(result.external_deps.contains(&"flask".to_string()));
+        assert!(result.external_deps.contains(&"sqlalchemy".to_string()));
+        assert!(result.internal_deps.contains(&".utils".to_string()));
+        assert!(result.internal_deps.contains(&"..config".to_string()));
+    }
+
+    #[test]
+    fn test_contract_from_docstring() {
+        let content = r#"
+def validate_token(token: str) -> dict:
+    """Validate a JWT token.
+
+    Args:
+        token: JWT token string (must be non-empty)
+
+    Returns:
+        Decoded claims dictionary
+
+    Raises:
+        InvalidTokenError: When token is malformed
+        ExpiredTokenError: When token is expired
+    """
+    pass
+"#;
+        let result = analyze(content);
+
+        assert_eq!(result.contracts.len(), 1);
+        let contract = &result.contracts[0];
+        assert_eq!(contract.function_name, "validate_token");
+        assert!(!contract.contract.preconditions.is_empty());
+        assert!(!contract.contract.postconditions.is_empty());
+        assert!(contract.contract.throws.contains(&"InvalidTokenError".to_string()));
+        assert!(contract.contract.throws.contains(&"ExpiredTokenError".to_string()));
+    }
+
+    #[test]
+    fn test_private_function_contract_excluded() {
+        let content = r#"
+def _internal_validate(data):
+    """Internal validation.
+
+    Args:
+        data: Input data (must be non-empty)
+
+    Raises:
+        ValueError: on bad input
+    """
+    pass
+"#;
+        let result = analyze(content);
+        assert!(result.contracts.is_empty());
+    }
+
+    #[test]
+    fn test_behavior_from_raise() {
+        let content = r#"
+def check():
+    raise InvalidTokenError("bad")
+    raise jwt.ExpiredSignatureError("expired")
+"#;
+        let result = analyze(content);
+
+        let errors: Vec<_> = result.behaviors.iter()
+            .filter(|b| b.category == BehaviorCategory::Error)
+            .collect();
+        assert!(errors.iter().any(|b| b.input == "Invalid token"));
+        assert!(errors.iter().any(|b| b.input == "Expired token"));
+    }
+
+    #[test]
+    fn test_protocol_from_enum() {
+        let content = r#"
+from enum import Enum
+
+class ConnectionState(Enum):
+    IDLE = "idle"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+"#;
+        let result = analyze(content);
+
+        let protocol = result.protocol.as_ref().expect("expected protocol");
+        assert!(protocol.states.contains(&"IDLE".to_string()));
+        assert!(protocol.states.contains(&"CONNECTING".to_string()));
+        assert!(protocol.states.contains(&"CONNECTED".to_string()));
+    }
+
+    #[test]
+    fn test_protocol_from_union_type() {
+        let content = "AppState = Union[Idle, Loading, Loaded, Error]\n";
+        let result = analyze(content);
+
+        let protocol = result.protocol.as_ref().expect("expected protocol");
+        assert_eq!(protocol.states.len(), 4);
+        assert!(protocol.states.contains(&"Idle".to_string()));
+        assert!(protocol.states.contains(&"Loading".to_string()));
+    }
+
+    #[test]
+    fn test_lifecycle_from_docstring() {
+        let content = r#"
+def teardown():
+    """Cleanup resources.
+    @lifecycle 3
+    """
+    pass
+
+def initialize():
+    """Setup resources.
+    @lifecycle 1
+    """
+    pass
+
+def run():
+    """Execute main loop.
+    @lifecycle 2
+    """
+    pass
+"#;
+        let result = analyze(content);
+
+        let protocol = result.protocol.as_ref().expect("expected protocol");
+        assert_eq!(protocol.lifecycle, vec!["initialize", "run", "teardown"]);
+    }
+
+    #[test]
+    fn test_empty_file() {
+        let result = analyze("");
+
+        assert!(result.functions.is_empty());
+        assert!(result.classes.is_empty());
+        assert!(result.external_deps.is_empty());
+        assert!(result.internal_deps.is_empty());
+        assert!(result.behaviors.is_empty());
+        assert!(result.contracts.is_empty());
+        assert!(result.protocol.is_none());
+    }
+}

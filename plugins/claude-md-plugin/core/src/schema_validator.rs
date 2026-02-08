@@ -91,6 +91,11 @@ impl SchemaValidator {
         }
     }
 
+    /// Returns the list of required sections for CLAUDE.md files.
+    pub fn required_sections() -> &'static [&'static str] {
+        &REQUIRED_SECTIONS
+    }
+
     /// Validate a CLAUDE.md file
     pub fn validate(&self, file: &Path) -> ValidationResult {
         let file_str = file.to_string_lossy().to_string();

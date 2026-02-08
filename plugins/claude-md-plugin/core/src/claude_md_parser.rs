@@ -275,8 +275,8 @@ impl ClaudeMdParser {
             behavior_pattern: Regex::new(r"^[-*]?\s*(.+?)\s*[→\->]+\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match function signature: `funcName(params): ReturnType` or Name(params): Type
             function_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*[:\s]*(.+?)`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // Match type definition: `TypeName { fields }` or TypeName { fields }
-            type_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\{([^}]*)\}`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // Match type definition: `TypeName { fields }` or TypeName<T> { fields }
+            type_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*(?:<[^>]+>)?)\s*\{([^}]*)\}`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match class: `ClassName(params)` or ClassName(params)
             class_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match dependency: external: pkg or internal: path
@@ -474,6 +474,7 @@ impl ClaudeMdParser {
         let mut in_methods = false;
         let mut in_structs = false;
         let mut in_data_classes = false;
+        let mut in_variables = false;
 
         for section in sections {
             let name_lower = section.name.to_lowercase();
@@ -486,24 +487,35 @@ impl ClaudeMdParser {
                 in_methods = name_lower == "methods";
                 in_structs = false;
                 in_data_classes = false;
+                in_variables = false;
             } else if name_lower == "types" || name_lower == "structs" {
                 in_functions = false;
                 in_types = true;
                 in_classes = false;
                 in_structs = name_lower == "structs";
                 in_data_classes = false;
+                in_variables = false;
             } else if name_lower == "classes" {
                 in_functions = false;
                 in_types = false;
                 in_classes = true;
                 in_structs = false;
                 in_data_classes = false;
+                in_variables = false;
             } else if name_lower == "data classes" {
                 in_functions = false;
                 in_types = true;
                 in_classes = false;
                 in_structs = false;
                 in_data_classes = true;
+                in_variables = false;
+            } else if name_lower == "variables" || name_lower == "constants" {
+                in_functions = false;
+                in_types = false;
+                in_classes = false;
+                in_structs = false;
+                in_data_classes = false;
+                in_variables = true;
             } else if section.level <= 2 {
                 // Reset context on new major section
                 in_functions = false;
@@ -511,6 +523,7 @@ impl ClaudeMdParser {
                 in_classes = false;
                 in_structs = false;
                 in_data_classes = false;
+                in_variables = false;
                 continue;
             }
 
@@ -532,6 +545,10 @@ impl ClaudeMdParser {
                 } else if in_classes {
                     if let Some(class) = self.parse_class_line(trimmed) {
                         spec.exports.classes.push(class);
+                    }
+                } else if in_variables {
+                    if let Some(var) = Self::parse_variable_line(trimmed) {
+                        spec.exports.variables.push(var);
                     }
                 }
             }
@@ -825,7 +842,7 @@ impl ClaudeMdParser {
             (name_part.to_string(), None)
         };
 
-        if name.is_empty() || !name.chars().next()?.is_alphabetic() {
+        if name.is_empty() || !name.chars().next()?.is_alphabetic() || name.contains(' ') {
             return None;
         }
 
@@ -1006,10 +1023,17 @@ impl ClaudeMdParser {
         let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
 
         if let Some(caps) = self.type_pattern.captures(cleaned) {
-            let name = caps.get(1)?.as_str().to_string();
+            let full_name = caps.get(1)?.as_str().to_string();
             let fields = caps.get(2)?.as_str();
 
-            let definition = format!("{} {{ {} }}", name, fields);
+            // Strip generic params from name for lookup (e.g. "PagedResult<T>" -> "PagedResult")
+            let name = if let Some(idx) = full_name.find('<') {
+                full_name[..idx].to_string()
+            } else {
+                full_name.clone()
+            };
+
+            let definition = format!("{} {{ {} }}", full_name, fields);
             let kind = if is_struct {
                 TypeKind::Struct
             } else if is_data_class {
@@ -1063,6 +1087,49 @@ impl ClaudeMdParser {
         }
 
         None
+    }
+
+    /// Parse a variable line like `JWT_SECRET: number = 42` or `MAX_RETRIES = 3`
+    fn parse_variable_line(line: &str) -> Option<VariableExport> {
+        let cleaned = line.trim_start_matches('-').trim_start_matches('*').trim();
+        let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
+        if cleaned.is_empty() {
+            return None;
+        }
+        // Pattern: NAME: type = value  OR  NAME = value  OR  NAME: type
+        if let Some(eq_pos) = cleaned.find('=') {
+            let before_eq = cleaned[..eq_pos].trim();
+            let after_eq = cleaned[eq_pos + 1..].trim();
+            let name = if let Some(colon_pos) = before_eq.find(':') {
+                before_eq[..colon_pos].trim().to_string()
+            } else {
+                before_eq.to_string()
+            };
+            if name.is_empty() { return None; }
+            Some(VariableExport {
+                name,
+                value: if after_eq.is_empty() { None } else { Some(after_eq.to_string()) },
+                description: None,
+                anchor: None,
+            })
+        } else if let Some(colon_pos) = cleaned.find(':') {
+            let name = cleaned[..colon_pos].trim().to_string();
+            if name.is_empty() { return None; }
+            Some(VariableExport {
+                name,
+                value: None,
+                description: None,
+                anchor: None,
+            })
+        } else {
+            // Just a name with no type or value
+            Some(VariableExport {
+                name: cleaned.to_string(),
+                value: None,
+                description: None,
+                anchor: None,
+            })
+        }
     }
 
     fn parse_dependencies(&self, content: &[String]) -> DependenciesSpec {

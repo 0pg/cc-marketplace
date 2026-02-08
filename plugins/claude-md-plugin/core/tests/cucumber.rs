@@ -1,4 +1,5 @@
 use cucumber::{given, then, when, World};
+use regex::Regex;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
@@ -69,6 +70,9 @@ pub struct TestWorld {
     // Code convention fields
     convention_md_content: Option<String>,
     convention_violations: Option<Vec<String>>,
+    // Workflow prompt content fields
+    loaded_prompt_content: Option<String>,
+    loaded_prompt_name: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -4562,6 +4566,94 @@ fn warning_missing_convention(_world: &mut TestWorld) {
 #[then("compilation should proceed with language defaults")]
 fn compilation_with_defaults(_world: &mut TestWorld) {
     // Verified by compile logic
+}
+
+// ============== Workflow Prompt Regression Steps ==============
+
+fn get_plugin_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
+}
+
+#[given(expr = "the content of skill {string} is loaded")]
+fn load_skill_content(world: &mut TestWorld, skill_name: String) {
+    let path = get_plugin_root().join("skills").join(&skill_name).join("SKILL.md");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to read skill '{}' at {:?}: {}", skill_name, path, e));
+    world.loaded_prompt_content = Some(content);
+    world.loaded_prompt_name = Some(format!("skill:{}", skill_name));
+}
+
+#[given(expr = "the content of agent {string} is loaded")]
+fn load_agent_content(world: &mut TestWorld, agent_name: String) {
+    let path = get_plugin_root().join("agents").join(format!("{}.md", agent_name));
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to read agent '{}' at {:?}: {}", agent_name, path, e));
+    world.loaded_prompt_content = Some(content);
+    world.loaded_prompt_name = Some(format!("agent:{}", agent_name));
+}
+
+#[then(expr = "the content should contain pattern {string}")]
+fn content_contains_pattern(world: &mut TestWorld, pattern: String) {
+    let content = world.loaded_prompt_content.as_ref().expect("No prompt content loaded");
+    let name = world.loaded_prompt_name.as_deref().unwrap_or("unknown");
+    let re = Regex::new(&pattern)
+        .unwrap_or_else(|e| panic!("Invalid regex '{}': {}", pattern, e));
+    assert!(re.is_match(content),
+        "[{}] Expected pattern '{}' not found in prompt content", name, pattern);
+}
+
+#[then(expr = "the content should not contain pattern {string}")]
+fn content_not_contains_pattern(world: &mut TestWorld, pattern: String) {
+    let content = world.loaded_prompt_content.as_ref().expect("No prompt content loaded");
+    let name = world.loaded_prompt_name.as_deref().unwrap_or("unknown");
+    let re = Regex::new(&pattern)
+        .unwrap_or_else(|e| panic!("Invalid regex '{}': {}", pattern, e));
+    assert!(!re.is_match(content),
+        "[{}] Pattern '{}' should NOT be present in prompt content", name, pattern);
+}
+
+#[then(expr = "the content should mention {string}")]
+fn content_mentions_text(world: &mut TestWorld, text: String) {
+    let content = world.loaded_prompt_content.as_ref().expect("No prompt content loaded");
+    let name = world.loaded_prompt_name.as_deref().unwrap_or("unknown");
+    assert!(content.contains(&text),
+        "[{}] Expected text '{}' not found in prompt content", name, text);
+}
+
+#[then("the content should contain all patterns:")]
+fn content_contains_all_patterns(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let content = world.loaded_prompt_content.as_ref().expect("No prompt content loaded");
+    let name = world.loaded_prompt_name.as_deref().unwrap_or("unknown");
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let pattern = row.first().expect("No pattern column");
+            let re = Regex::new(pattern)
+                .unwrap_or_else(|e| panic!("Invalid regex '{}': {}", pattern, e));
+            assert!(re.is_match(content),
+                "[{}] Expected pattern '{}' not found in prompt content", name, pattern);
+        }
+    }
+}
+
+#[then("the content should describe workflow chain:")]
+fn content_describes_workflow_chain(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let content = world.loaded_prompt_content.as_ref().expect("No prompt content loaded");
+    let name = world.loaded_prompt_name.as_deref().unwrap_or("unknown");
+    if let Some(table) = &step.table {
+        let mut last_pos: usize = 0;
+        for row in table.rows.iter().skip(1) {
+            let step_name = row.first().expect("No step column");
+            let pattern = row.get(1).expect("No pattern column");
+            let re = Regex::new(pattern)
+                .unwrap_or_else(|e| panic!("Invalid regex '{}': {}", pattern, e));
+            if let Some(m) = re.find(&content[last_pos..]) {
+                last_pos += m.start();
+            } else {
+                panic!("[{}] Workflow chain broken: step '{}' (pattern '{}') not found after position {}",
+                    name, step_name, pattern, last_pos);
+            }
+        }
+    }
 }
 
 #[tokio::main]
