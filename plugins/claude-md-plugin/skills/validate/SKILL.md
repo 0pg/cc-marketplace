@@ -158,7 +158,8 @@ status: approve | error
 result_file: .claude/tmp/{session-id}-drift-{target}.md
 directory: {directory}
 issues_count: {N}
-integration_map_issues: {M}
+integration_map_errors: {E}
+integration_map_warnings: {W}
 ---end-drift-validator-result---
 ```
 
@@ -171,9 +172,9 @@ export_coverage: {0-100}
 ---end-export-validator-result---
 ```
 
-**참고**: `integration_map_issues`는 drift-validator가 IMPLEMENTS.md의 Module Integration Map 교차 검증에서 발견한 이슈 수입니다. IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0입니다.
+**참고**: `integration_map_errors`는 BOUNDARY_INVALID, EXPORT_NOT_FOUND 이슈 수이고, `integration_map_warnings`는 SIGNATURE_MISMATCH 이슈 수입니다. IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 둘 다 0입니다.
 
-**Integration Map 열은 항상 표시됩니다.** IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0으로 표시됩니다.
+**Integration Map 열은 항상 표시됩니다.** error/warning 구분하여 표시합니다. IMPLEMENTS.md가 없거나 Module Integration Map이 "None"이면 0으로 표시됩니다.
 
 ```
 ---code-reviewer-result---
@@ -219,10 +220,10 @@ unresolved_references: {N}
 
 ## 요약
 
-| 디렉토리 | Drift 이슈 | Integration Map 이슈 | Export 커버리지 점수 | Schema/Cross-Ref | Convention | 상태 |
-|----------|-----------|---------------------|------------|-----------------|------------|------|
-| src/auth | 0 | 0 | 100% | 0 unresolved | 95% | 양호 |
-| src/utils | 2 | 1 | 85% | 1 unresolved | 88% | 개선 필요 |
+| 디렉토리 | Drift 이슈 | Integration Map (E/W) | Export 커버리지 점수 | Schema/Cross-Ref | Convention | 상태 |
+|----------|-----------|----------------------|------------|-----------------|------------|------|
+| src/auth | 0 | 0/0 | 100% | 0 unresolved | 95% | 양호 |
+| src/utils | 2 | 1/0 | 85% | 1 unresolved | 88% | 개선 필요 |
 
 > Convention 열은 code-convention.md가 존재할 때만 표시됩니다.
 > code-convention.md가 없으면 `/project-setup`을 실행하여 생성할 수 있습니다.
@@ -309,7 +310,7 @@ src/legacy (개선 필요)
   Drift: 5개 이슈
     - UNCOVERED: 3개 파일이 Structure에 없음
     - MISMATCH: 2개 시그니처 불일치
-  Integration Map: 2개 이슈
+  Integration Map: 1 error / 1 warning
     - ERROR: `../config` → config/CLAUDE.md - `loadConfig` export가 대상에 없음
     - WARNING: `../auth` → auth/CLAUDE.md - `validateToken` 시그니처 불일치
   Export 커버리지: 78% (14/18 예측 성공)

@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템. Schema v2: Symbol-level Indexing (go-to-definition, find-references), Mermaid Diagram Generation (UseCase, State, Component), v1→v2 Migration. /decompile로 소스코드에서 CLAUDE.md(WHAT) + IMPLEMENTS.md(HOW) 추출, /compile로 코드 생성, /validate로 문서-코드 일치 검증, /spec으로 요구사항에서 듀얼 문서 생성, /project-setup으로 빌드/테스트 커맨드 + 코드 컨벤션 자동 감지, /convention으로 코드 컨벤션 관리.",
-      "version": "2.8.2",
+      "version": "2.8.3",
       "author": {
         "name": "jhk"
       },

@@ -189,15 +189,20 @@ For each documented_dependency:
 # Module Integration Map 교차 검증 진입 조건:
 if not implements_md:
     # IMPLEMENTS.md 파일 자체가 없음 → skip (이슈 없음)
-    integration_map_issues = 0
+    integration_map_errors = 0
+    integration_map_warnings = 0
 elif not implements_md.has_section("Module Integration Map"):
     # 섹션 자체가 없음 → skip (schema_validator가 별도 검증)
-    integration_map_issues = 0
+    integration_map_errors = 0
+    integration_map_warnings = 0
 elif implements_md["Module Integration Map"].strip() == "None":
     # 명시적 None → skip
-    integration_map_issues = 0
+    integration_map_errors = 0
+    integration_map_warnings = 0
 else:
     # 실제 entry가 있음 → 교차 검증 실행
+    # BOUNDARY_INVALID, EXPORT_NOT_FOUND → integration_map_errors
+    # SIGNATURE_MISMATCH → integration_map_warnings
     run_cross_validation()
 ```
 
@@ -229,7 +234,12 @@ target_exports = parse Exports section from target_claude_md
 exports_used_pattern = ^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$
 
 For each export_signature in entry.exports_used:
-  export_name = extract function/type/class name from export_signature
+  # export_name 추출: 시그니처에서 첫 번째 식별자(이름)를 추출
+  # - 함수: `validateToken(token: string): Claims` → "validateToken"
+  # - 타입/클래스: `Claims { userId: string }` → "Claims"
+  # - 상수: `MAX_RETRY_COUNT: number` → "MAX_RETRY_COUNT"
+  # 규칙: 시그니처의 첫 번째 단어 (괄호/공백/콜론/{  이전까지)
+  export_name = regex_match(r"^([A-Za-z_][A-Za-z0-9_]*)", export_signature).group(1)
   if export_name not found in target_exports:
     EXPORT_NOT_FOUND: `{export_name}` 이 대상 CLAUDE.md Exports에 없음
 ```
@@ -317,7 +327,8 @@ status: approve | error
 result_file: .claude/tmp/{session-id}-drift-{target}.md
 directory: {directory}
 issues_count: {N}
-integration_map_issues: {M}
+integration_map_errors: {E}
+integration_map_warnings: {W}
 ---end-drift-validator-result---
 ```
 
@@ -325,7 +336,8 @@ integration_map_issues: {M}
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
 - `issues_count`: 총 drift 이슈 수 (Structure + Exports + Dependencies + Behavior)
-- `integration_map_issues`: Module Integration Map 교차 검증 이슈 수 (IMPLEMENTS.md 없거나 "None"이면 0)
+- `integration_map_errors`: Module Integration Map 교차 검증 error 수 (BOUNDARY_INVALID, EXPORT_NOT_FOUND). IMPLEMENTS.md 없거나 "None"이면 0
+- `integration_map_warnings`: Module Integration Map 교차 검증 warning 수 (SIGNATURE_MISMATCH). IMPLEMENTS.md 없거나 "None"이면 0
 
 ## Drift 유형 정리
 

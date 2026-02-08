@@ -102,7 +102,7 @@ impl ImplementsMdParser {
             // `relative_path` → name/CLAUDE.md
             // SSOT: schema-rules.yaml specifies → (unicode arrow) only
             entry_header_pattern: Regex::new(
-                r"^`([^`]+)`\s*→\s*(.+/CLAUDE\.md)\s*$",
+                r"^`([^`]+)`\s*→\s*([^\s]+/CLAUDE\.md)\s*$",
             )
             .expect("Failed to compile entry_header_pattern regex"),
             // Match export item: - `signature` — role_description

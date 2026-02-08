@@ -822,4 +822,369 @@ Utility context.
         // The default test project might not have Dependencies, so just check it doesn't panic
         assert!(deps.internal.is_empty() || !deps.internal.is_empty());
     }
+
+    // ============== IMPLEMENTS.md Integration Map Tests ==============
+
+    /// Helper: create a project with IMPLEMENTS.md containing a Module Integration Map.
+    fn create_project_with_integration_map() -> TempDir {
+        let temp = TempDir::new().unwrap();
+
+        // Create src/auth with CLAUDE.md + IMPLEMENTS.md + code that imports ../config
+        let auth_dir = temp.path().join("src").join("auth");
+        fs::create_dir_all(&auth_dir).unwrap();
+
+        let claude_md = auth_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# auth
+
+## Purpose
+Authentication module.
+
+## Summary
+인증 모듈.
+
+## Exports
+
+### Functions
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Test authentication context."#
+        )
+        .unwrap();
+
+        // IMPLEMENTS.md with Module Integration Map referencing ../config
+        let implements_md = auth_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# auth — Implementation Specification
+
+## Module Integration Map
+
+### `../config` → config/CLAUDE.md
+
+#### Exports Used
+- `loadConfig(): AppConfig` — 설정 로드
+
+#### Integration Context
+인증 시 config에서 secret key를 가져옴"#
+        )
+        .unwrap();
+
+        let token_ts = auth_dir.join("token.ts");
+        let mut f = File::create(&token_ts).unwrap();
+        writeln!(
+            f,
+            r#"
+import {{ loadConfig }} from '../config';
+
+export async function validateToken(token: string): Promise<Claims> {{
+    const config = loadConfig();
+    return {{ sub: 'user' }};
+}}
+"#
+        )
+        .unwrap();
+
+        // Create src/config with CLAUDE.md
+        let config_dir = temp.path().join("src").join("config");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        let claude_md_config = config_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md_config).unwrap();
+        writeln!(
+            f,
+            r#"# config
+
+## Purpose
+Configuration module.
+
+## Summary
+설정 관리 모듈.
+
+## Exports
+
+### Functions
+- `loadConfig(): AppConfig`
+
+## Behavior
+- load → AppConfig
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Config context."#
+        )
+        .unwrap();
+
+        let config_ts = config_dir.join("index.ts");
+        let mut f = File::create(&config_ts).unwrap();
+        writeln!(
+            f,
+            r#"
+export function loadConfig(): AppConfig {{
+    return {{ secret: 'xxx' }};
+}}
+"#
+        )
+        .unwrap();
+
+        temp
+    }
+
+    #[test]
+    fn test_enrich_edge_from_integration_map() {
+        let temp = create_project_with_integration_map();
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Find the edge from src/auth → src/config
+        let auth_to_config = result
+            .edges
+            .iter()
+            .find(|e| e.from.contains("auth") && e.to.contains("config") && e.edge_type == "internal");
+
+        assert!(
+            auth_to_config.is_some(),
+            "Expected an edge from auth to config, got edges: {:?}",
+            result.edges
+        );
+
+        let edge = auth_to_config.unwrap();
+        // The integration map should have enriched the edge with the export signature
+        assert!(
+            edge.imported_symbols
+                .iter()
+                .any(|s| s.contains("loadConfig")),
+            "Expected imported_symbols to contain 'loadConfig', got: {:?}",
+            edge.imported_symbols
+        );
+    }
+
+    #[test]
+    fn test_implements_md_only_edges() {
+        let temp = TempDir::new().unwrap();
+
+        // src/api with CLAUDE.md + IMPLEMENTS.md referencing ../utils, but NO code import
+        let api_dir = temp.path().join("src").join("api");
+        fs::create_dir_all(&api_dir).unwrap();
+
+        let claude_md = api_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# api
+
+## Purpose
+API module.
+
+## Summary
+API 모듈.
+
+## Exports
+None
+
+## Behavior
+None
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+API context."#
+        )
+        .unwrap();
+
+        // IMPLEMENTS.md referencing ../utils (not imported in code)
+        let implements_md = api_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# api — Implementation Specification
+
+## Module Integration Map
+
+### `../utils` → utils/CLAUDE.md
+
+#### Exports Used
+- `formatError(err: Error): string` — 에러 포맷
+
+#### Integration Context
+API에서 에러 응답 포맷팅에 사용"#
+        )
+        .unwrap();
+
+        // Source file with NO import of utils
+        let handler_ts = api_dir.join("handler.ts");
+        let mut f = File::create(&handler_ts).unwrap();
+        writeln!(f, "export function handle() {{ return 'ok'; }}").unwrap();
+
+        // src/utils with CLAUDE.md
+        let utils_dir = temp.path().join("src").join("utils");
+        fs::create_dir_all(&utils_dir).unwrap();
+
+        let claude_md_utils = utils_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md_utils).unwrap();
+        writeln!(
+            f,
+            r#"# utils
+
+## Purpose
+Utility module.
+
+## Summary
+유틸리티 모듈.
+
+## Exports
+
+### Functions
+- `formatError(err: Error): string`
+
+## Behavior
+- error → formatted string
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Utility context."#
+        )
+        .unwrap();
+
+        let utils_ts = utils_dir.join("index.ts");
+        File::create(&utils_ts).unwrap();
+
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Should have an edge from src/api → src/utils created solely from IMPLEMENTS.md
+        let api_to_utils = result
+            .edges
+            .iter()
+            .find(|e| e.from.contains("api") && e.to.contains("utils"));
+
+        assert!(
+            api_to_utils.is_some(),
+            "Expected an IMPLEMENTS.md-only edge from api to utils, got edges: {:?}",
+            result.edges
+        );
+
+        let edge = api_to_utils.unwrap();
+        assert!(
+            edge.imported_symbols
+                .iter()
+                .any(|s| s.contains("formatError")),
+            "Expected imported_symbols to contain 'formatError', got: {:?}",
+            edge.imported_symbols
+        );
+    }
+
+    #[test]
+    fn test_unresolved_integration_target_violation() {
+        let temp = TempDir::new().unwrap();
+
+        // src/api with IMPLEMENTS.md referencing ../nonexistent
+        let api_dir = temp.path().join("src").join("api");
+        fs::create_dir_all(&api_dir).unwrap();
+
+        let claude_md = api_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# api
+
+## Purpose
+API module.
+
+## Summary
+API 모듈.
+
+## Exports
+None
+
+## Behavior
+None
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+API context."#
+        )
+        .unwrap();
+
+        let implements_md = api_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# api — Implementation Specification
+
+## Module Integration Map
+
+### `../nonexistent` → nonexistent/CLAUDE.md
+
+#### Exports Used
+- `missingFunc(): void` — 존재하지 않는 함수
+
+#### Integration Context
+존재하지 않는 모듈 참조"#
+        )
+        .unwrap();
+
+        let handler_ts = api_dir.join("handler.ts");
+        let mut f = File::create(&handler_ts).unwrap();
+        writeln!(f, "export function handle() {{ return 'ok'; }}").unwrap();
+
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Should have an unresolved_integration_target violation
+        let violation = result
+            .violations
+            .iter()
+            .find(|v| v.violation_type == "unresolved_integration_target");
+
+        assert!(
+            violation.is_some(),
+            "Expected an 'unresolved_integration_target' violation, got violations: {:?}",
+            result.violations
+        );
+
+        let v = violation.unwrap();
+        assert!(
+            v.from.contains("api"),
+            "Expected violation from 'api', got: {}",
+            v.from
+        );
+        assert!(
+            v.reason.contains("nonexistent"),
+            "Expected reason to mention 'nonexistent', got: {}",
+            v.reason
+        );
+    }
 }

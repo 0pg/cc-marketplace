@@ -2,6 +2,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::implements_md_parser::ImplementsMdParser;
 use crate::symbol_index::SymbolIndexResult;
 
 /// Result of schema validation
@@ -590,7 +591,7 @@ impl SchemaValidator {
         };
 
         let mut errors = Vec::new();
-        let warnings = Vec::new();
+        let mut warnings = Vec::new();
 
         let sections = self.parse_sections(&content);
 
@@ -604,7 +605,7 @@ impl SchemaValidator {
                         message: format!("Missing required section: {}", required),
                         line_number: None,
                         section: Some(required.to_string()),
-                        suggestion: None,
+                        suggestion: Some(format!("Add a '## {}' section to the IMPLEMENTS.md file", required)),
                     });
                 }
                 Some(section) => {
@@ -617,11 +618,18 @@ impl SchemaValidator {
                             message: format!("Section '{}' does not allow 'None' as value", required),
                             line_number: Some(section.start_line),
                             section: Some(required.to_string()),
-                            suggestion: None,
+                            suggestion: Some(format!("Add content to the '{}' section instead of 'None'", required)),
                         });
                     }
                 }
             }
+        }
+
+        // Validate Module Integration Map format via parser
+        let parser = ImplementsMdParser::new();
+        let impl_spec = parser.parse_content(&content);
+        for parser_warning in &impl_spec.warnings {
+            warnings.push(format!("[Module Integration Map] {}", parser_warning));
         }
 
         ValidationResult {

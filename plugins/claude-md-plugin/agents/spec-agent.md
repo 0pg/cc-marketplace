@@ -37,6 +37,7 @@ description: |
   behaviors_count: 3
   dependencies_count: 2
   integration_map_entries: 1
+  external_dependencies_count: 0
   review_iterations: 1
   review_status: approve
   ---end-spec-agent-result---
@@ -81,6 +82,7 @@ description: |
   behaviors_count: 6
   dependencies_count: 3
   integration_map_entries: 2
+  external_dependencies_count: 0
   review_iterations: 1
   review_status: approve
   ---end-spec-agent-result---
@@ -332,6 +334,7 @@ MAX_PREVALIDATION_ATTEMPTS = 2
 for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
     for entry in integration_entries:
         dep_claude_md = Read(entry.target_claude_md)
+        exports_to_remove = []
         for export in entry.exports_used:
             if export.name not in dep_claude_md.exports:
                 # 유사한 이름 검색 (fuzzy match)
@@ -340,11 +343,14 @@ for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
                     export.name = similar.name
                     export.signature = similar.signature
                 else:
-                    entry.exports_used.remove(export)
+                    exports_to_remove.append(export)
                     warning: f"'{export.name}' not found in {entry.target_claude_md}, removed"
             elif export.signature != dep_claude_md.exports[export.name].signature:
                 export.signature = dep_claude_md.exports[export.name].signature
                 # 시그니처는 대상 CLAUDE.md 기준으로 무조건 갱신
+        # 루프 종료 후 제거 (반복 중 삭제 방지)
+        for export in exports_to_remove:
+            entry.exports_used.remove(export)
     if all_valid:
         break
 
@@ -352,6 +358,11 @@ for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
 # 2회 시도 후에도 entry.exports_used가 비어있는 entry가 있으면 = 실패
 # 실패 시: warning 로그 + 빈 entry 제거 후 진행
 ```
+
+**`find_similar_export` 유사성 기준:**
+1. **Case-insensitive 일치**: 대소문자만 다른 경우 (e.g., `ValidateToken` → `validateToken`)
+2. **Prefix 일치**: 이름이 대상 export의 prefix인 경우 (e.g., `validate` → `validateToken`)
+3. **단일 후보만 반환**: 여러 후보가 있으면 가장 짧은 이름 우선 (가장 정확한 매칭)
 
 - **비용**: 0 iteration (spec-reviewer 호출 전 자체 수정)
 - **실패 시**: 2회 시도 후에도 exports_used가 비어있는 entry가 있으면 해당 entry 제거 + 경고 로그 후 진행 (spec-reviewer에서 최종 검증)
@@ -535,6 +546,7 @@ exports_count: {len(exports)}
 behaviors_count: {len(behaviors)}
 dependencies_count: {len(dependencies)}
 integration_map_entries: {len(integration_entries)}
+external_dependencies_count: {len(external_dependencies)}
 review_iterations: {iteration_count}
 review_status: {approve|warning}
 ---end-spec-agent-result---
