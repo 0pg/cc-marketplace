@@ -33,8 +33,6 @@ pub enum ImplementsParseError {
         #[source]
         source: std::io::Error,
     },
-    #[error("Invalid entry format at line {line}: {details}")]
-    InvalidEntryFormat { line: usize, details: String },
 }
 
 /// A single export used from a dependency module.
@@ -99,18 +97,18 @@ impl ImplementsMdParser {
         Self {
             // Match markdown headers: ## Section, ### Entry, #### Subsection
             section_pattern: Regex::new(r"^(#{1,4})\s+(.+)$")
-                .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+                .expect("Failed to compile section_pattern regex"),
             // Match entry header name (after ### prefix is stripped by extract_sections):
             // `relative_path` → name/CLAUDE.md
             // SSOT: schema-rules.yaml specifies → (unicode arrow) only
             entry_header_pattern: Regex::new(
                 r"^`([^`]+)`\s*→\s*(.+/CLAUDE\.md)\s*$",
             )
-            .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            .expect("Failed to compile entry_header_pattern regex"),
             // Match export item: - `signature` — role_description
             // SSOT: schema-rules.yaml specifies — (em-dash) only; role is optional
             export_item_pattern: Regex::new(r"^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$")
-                .unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+                .expect("Failed to compile export_item_pattern regex"),
         }
     }
 

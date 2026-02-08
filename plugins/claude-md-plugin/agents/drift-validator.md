@@ -181,7 +181,25 @@ For each documented_dependency:
 
 #### Module Integration Map 교차 검증
 
-IMPLEMENTS.md의 Module Integration Map 섹션이 존재하고 "None"이 아닌 경우에만 실행합니다.
+**Scope**: drift-validator는 맵에 있는 entry만 검증합니다 (존재하는 것의 정확성).
+완전성 검증(모든 dep가 맵에 있는지)은 spec-reviewer의 책임입니다.
+
+**진입 조건:**
+```python
+# Module Integration Map 교차 검증 진입 조건:
+if not implements_md:
+    # IMPLEMENTS.md 파일 자체가 없음 → skip (이슈 없음)
+    integration_map_issues = 0
+elif not implements_md.has_section("Module Integration Map"):
+    # 섹션 자체가 없음 → skip (schema_validator가 별도 검증)
+    integration_map_issues = 0
+elif implements_md["Module Integration Map"].strip() == "None":
+    # 명시적 None → skip
+    integration_map_issues = 0
+else:
+    # 실제 entry가 있음 → 교차 검증 실행
+    run_cross_validation()
+```
 
 **Entry 파싱:**
 ```

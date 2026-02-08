@@ -217,6 +217,13 @@ for each entry in module_integration_map:
     if not entry.integration_context:
         errors.append(f"{entry.path}: Integration Context 누락")
 
+# 3. 완전성 검증: Dependencies > Internal의 모든 항목이 Map에 존재하는지
+internal_deps = extract_internal_dependencies(claude_md)
+map_paths = [entry.relative_path for entry in module_integration_map]
+for dep in internal_deps:
+    if dep not in map_paths:
+        errors.append(f"'{dep}': Dependencies에 있지만 Module Integration Map에 entry 없음")
+
 if errors:
     return status = "failed"
 else:

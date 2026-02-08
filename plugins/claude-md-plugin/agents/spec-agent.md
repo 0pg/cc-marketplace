@@ -301,6 +301,10 @@ Skill("claude-md-plugin:dependency-graph") → 의존성 그래프 분석
 - 경계 명확성 준수: {boundary_compliant}
 ```
 
+**Scope Rule**: Module Integration Map은 CLAUDE.md Dependencies > Internal에
+나열된 **모든** 내부 의존성에 대해 entry를 생성해야 합니다.
+Dependencies에 없지만 실제 코드에서 사용하는 의존성은 먼저 Dependencies에 추가합니다.
+
 #### 2.5.4 Module Integration Map 데이터 수집
 
 내부 의존성이 있는 경우, 의존 모듈의 CLAUDE.md에서 실제 Export 시그니처를 수집합니다.
@@ -322,7 +326,7 @@ for dep in internal_dependencies:
 
 spec-reviewer 호출 전에 Integration Map의 정합성을 자체 검증합니다.
 
-```
+```python
 MAX_PREVALIDATION_ATTEMPTS = 2
 
 for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
@@ -330,15 +334,27 @@ for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
         dep_claude_md = Read(entry.target_claude_md)
         for export in entry.exports_used:
             if export.name not in dep_claude_md.exports:
-                fix: entry에서 해당 export 제거 또는 올바른 이름으로 수정
-            if export.signature != dep_claude_md.exports[export.name].signature:
-                fix: 시그니처를 대상 CLAUDE.md에 맞게 갱신
+                # 유사한 이름 검색 (fuzzy match)
+                similar = find_similar_export(export.name, dep_claude_md.exports)
+                if similar:
+                    export.name = similar.name
+                    export.signature = similar.signature
+                else:
+                    entry.exports_used.remove(export)
+                    warning: f"'{export.name}' not found in {entry.target_claude_md}, removed"
+            elif export.signature != dep_claude_md.exports[export.name].signature:
+                export.signature = dep_claude_md.exports[export.name].signature
+                # 시그니처는 대상 CLAUDE.md 기준으로 무조건 갱신
     if all_valid:
         break
+
+# 실패 정의:
+# 2회 시도 후에도 entry.exports_used가 비어있는 entry가 있으면 = 실패
+# 실패 시: warning 로그 + 빈 entry 제거 후 진행
 ```
 
 - **비용**: 0 iteration (spec-reviewer 호출 전 자체 수정)
-- **실패 시**: 2회 시도 후에도 실패하면 경고와 함께 진행 (spec-reviewer에서 최종 검증)
+- **실패 시**: 2회 시도 후에도 exports_used가 비어있는 entry가 있으면 해당 entry 제거 + 경고 로그 후 진행 (spec-reviewer에서 최종 검증)
 
 #### 2.5.5 External Dependencies 수집
 
