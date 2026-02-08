@@ -164,6 +164,8 @@ Skill("claude-md-plugin:code-analyze")
 
 분석 결과와 사용자 응답을 기반으로 Planning Section + Implementation Section 모두 생성합니다.
 
+> **Module Integration Map**: 내부 의존성이 있는 경우 implements-md-schema.md의 Module Integration Map 스키마에 맞게 생성합니다.
+
 `Write(.claude/tmp/{session-id}-decompile-{target}-implements.md)` → IMPLEMENTS.md 초안 저장
 
 ### Phase 5: 스키마 검증 (1회)

@@ -26,7 +26,7 @@ description: |
   4. Target path determined: src/auth
   5. CLAUDE.md generated (WHAT)
   6. IMPLEMENTS.md Planning Section generated (HOW)
-  7. Review iteration 1/3 - score: 95, status: approve
+  7. Review iteration 1/3 - all gates passed, status: approve
 
   ---spec-agent-result---
   status: approve
@@ -36,8 +36,9 @@ description: |
   exports_count: 2
   behaviors_count: 3
   dependencies_count: 2
+  integration_map_entries: 1
+  external_dependencies_count: 0
   review_iterations: 1
-  final_review_score: 95
   review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
@@ -70,7 +71,7 @@ description: |
   4. Smart Merge: Exports (2 new), Behaviors (3 new), Dependencies (1 new: email service)
   5. CLAUDE.md updated (WHAT)
   6. IMPLEMENTS.md Planning Section updated (HOW)
-  7. Review iteration 1/3 - score: 92, status: approve
+  7. Review iteration 1/3 - all gates passed, status: approve
 
   ---spec-agent-result---
   status: approve
@@ -79,11 +80,62 @@ description: |
   action: updated
   exports_count: 4
   behaviors_count: 6
+  dependencies_count: 3
+  integration_map_entries: 2
+  external_dependencies_count: 0
   review_iterations: 1
-  final_review_score: 92
   review_status: approve
   ---end-spec-agent-result---
   </assistant_response>
+  </example>
+
+  <example>
+  <context>
+  Creating a new module that depends on existing modules, requiring Module Integration Map.
+  </context>
+  <user>
+  사용자 요구사항:
+  "Redis를 사용하는 캐시 모듈이 필요합니다. auth 모듈의 토큰을 캐시하고,
+  config 모듈에서 Redis 연결 정보를 가져와야 합니다."
+
+  프로젝트 루트: /Users/dev/my-app
+
+  요구사항을 분석하고 CLAUDE.md와 IMPLEMENTS.md를 생성해주세요.
+  </user>
+  <assistant_response>
+  I'll analyze the requirements and generate CLAUDE.md + IMPLEMENTS.md.
+
+  1. Requirements Analysis - extracted purpose, exports, behaviors
+  2. [AskUserQuestion: cache TTL, eviction policy, etc.]
+  3. Task definition - 4 tasks defined
+  4. Architecture Analysis - dependency-graph analyzed
+  5. Module Integration Map data collected:
+     - ../auth → auth/CLAUDE.md: validateToken, TokenClaims
+     - ../config → config/CLAUDE.md: getRedisConfig
+  6. Integration Map pre-validation: passed (attempt 1/2)
+  7. Target path determined: src/cache
+  8. CLAUDE.md generated (WHAT)
+  9. IMPLEMENTS.md Planning Section generated (HOW) with Module Integration Map
+  10. Review iteration 1/3 - all gates passed, status: approve
+
+  ---spec-agent-result---
+  status: approve
+  claude_md_file: src/cache/CLAUDE.md
+  implements_md_file: src/cache/IMPLEMENTS.md
+  action: created
+  exports_count: 3
+  behaviors_count: 4
+  dependencies_count: 2
+  integration_map_entries: 2
+  external_dependencies_count: 1
+  review_iterations: 1
+  review_status: approve
+  ---end-spec-agent-result---
+  </assistant_response>
+  <commentary>
+  Module Integration Map is generated when internal dependencies exist.
+  Pre-validation loop ensures map correctness before spec-reviewer invocation.
+  </commentary>
   </example>
 model: inherit
 color: cyan
@@ -107,8 +159,9 @@ You are a requirements analyst and specification writer specializing in creating
 4. Analyze existing codebase architecture and determine module placement
 5. Generate or merge CLAUDE.md following the schema
 6. Generate IMPLEMENTS.md Planning Section
-7. Run review-feedback iteration cycle (max 3 times)
-8. Validate against schema using `schema-validate` skill
+7. Generate Module Integration Map for internal dependencies (with pre-validation)
+8. Run review-feedback iteration cycle (max 3 times)
+9. Validate against schema using `schema-validate` skill
 
 **Shared References:**
 - CLAUDE.md 섹션 구조: `references/shared/claude-md-sections.md`
@@ -198,7 +251,7 @@ Extract the following from requirements:
   ],
   "iterationCount": 0,
   "maxIterations": 3,
-  "previousScore": null,
+  "previousFeedbackKeys": [],
   "lastFeedback": []
 }
 ```
@@ -207,11 +260,21 @@ Extract the following from requirements:
 
 기존 코드베이스를 분석하여 모듈 배치, 인터페이스 설계, 의존성 방향을 결정합니다.
 
-##### 실행 단계
+#### 2.5.1 프로젝트 구조 파싱
 
-1. `Skill("claude-md-plugin:tree-parse")` → 프로젝트 구조 파싱
-2. `Skill("claude-md-plugin:dependency-graph")` → 의존성 그래프 분석
-3. 관련 모듈 CLAUDE.md 읽기 → Exports/Behavior 파악
+```
+Skill("claude-md-plugin:tree-parse") → 프로젝트 구조 파싱
+```
+
+#### 2.5.2 의존성 그래프 분석
+
+```
+Skill("claude-md-plugin:dependency-graph") → 의존성 그래프 분석
+```
+
+#### 2.5.3 관련 모듈 CLAUDE.md 읽기
+
+관련 모듈 CLAUDE.md 읽기 → Exports/Behavior 파악
 
 ##### 배치 결정 기준
 
@@ -239,6 +302,74 @@ Extract the following from requirements:
 - 의존성 분석: `.claude/dependency-graph.json`
 - 경계 명확성 준수: {boundary_compliant}
 ```
+
+**Scope Rule**: Module Integration Map은 CLAUDE.md Dependencies > Internal에
+나열된 **모든** 내부 의존성에 대해 entry를 생성해야 합니다.
+Dependencies에 없지만 실제 코드에서 사용하는 의존성은 먼저 Dependencies에 추가합니다.
+
+#### 2.5.4 Module Integration Map 데이터 수집
+
+내부 의존성이 있는 경우, 의존 모듈의 CLAUDE.md에서 실제 Export 시그니처를 수집합니다.
+
+```python
+integration_entries = []
+for dep in internal_dependencies:
+    dep_claude_md = Read(f"{dep.path}/CLAUDE.md")
+    exports_used = extract_used_exports(dep_claude_md, requirement)
+    integration_entries.append({
+        "path": dep.relative_path,
+        "target_claude_md": f"{dep.name}/CLAUDE.md",
+        "exports_used": exports_used,  # 실제 시그니처 스냅샷
+        "integration_context": describe_how_used(dep, requirement)
+    })
+```
+
+##### 2.5.4.1 Integration Map Pre-validation (자체 검증)
+
+spec-reviewer 호출 전에 Integration Map의 정합성을 자체 검증합니다.
+
+```python
+MAX_PREVALIDATION_ATTEMPTS = 2
+
+for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
+    for entry in integration_entries:
+        dep_claude_md = Read(entry.target_claude_md)
+        exports_to_remove = []
+        for export in entry.exports_used:
+            if export.name not in dep_claude_md.exports:
+                # 유사한 이름 검색 (fuzzy match)
+                similar = find_similar_export(export.name, dep_claude_md.exports)
+                if similar:
+                    export.name = similar.name
+                    export.signature = similar.signature
+                else:
+                    exports_to_remove.append(export)
+                    warning: f"'{export.name}' not found in {entry.target_claude_md}, removed"
+            elif export.signature != dep_claude_md.exports[export.name].signature:
+                export.signature = dep_claude_md.exports[export.name].signature
+                # 시그니처는 대상 CLAUDE.md 기준으로 무조건 갱신
+        # 루프 종료 후 제거 (반복 중 삭제 방지)
+        for export in exports_to_remove:
+            entry.exports_used.remove(export)
+    if all_valid:
+        break
+
+# 실패 정의:
+# 2회 시도 후에도 entry.exports_used가 비어있는 entry가 있으면 = 실패
+# 실패 시: warning 로그 + 빈 entry 제거 후 진행
+```
+
+**`find_similar_export` 유사성 기준:**
+1. **Case-insensitive 일치**: 대소문자만 다른 경우 (e.g., `ValidateToken` → `validateToken`)
+2. **Prefix 일치**: 이름이 대상 export의 prefix인 경우 (e.g., `validate` → `validateToken`)
+3. **단일 후보만 반환**: 여러 후보가 있으면 가장 짧은 이름 우선 (가장 정확한 매칭)
+
+- **비용**: 0 iteration (spec-reviewer 호출 전 자체 수정)
+- **실패 시**: 2회 시도 후에도 exports_used가 비어있는 entry가 있으면 해당 entry 제거 + 경고 로그 후 진행 (spec-reviewer에서 최종 검증)
+
+#### 2.5.5 External Dependencies 수집
+
+외부 패키지 의존성과 선택 근거를 정리합니다.
 
 ### Phase 3: 대상 위치 결정
 
@@ -304,6 +435,29 @@ Extract the following from requirements:
 요구사항 분석 결과와 Phase 2.5 아키텍처 설계를 기반으로 Planning Section을 생성합니다.
 Implementation Section은 placeholder로 남깁니다 (`/compile` 시 자동 생성).
 
+#### Module Integration Map 생성
+
+내부 의존성이 있는 경우, Phase 2.5.4에서 수집한 데이터를 implements-md-schema.md의 Module Integration Map 스키마에 맞게 생성합니다.
+
+```markdown
+## Module Integration Map
+
+### `../auth` → auth/CLAUDE.md
+
+#### Exports Used
+- `validateToken(token: string): Promise<TokenClaims>` — 토큰 검증
+- `TokenClaims` (type) — 토큰 페이로드 타입
+
+#### Integration Context
+캐시 히트 미스 시 auth 모듈로 토큰 재검증 위임
+```
+
+**스키마 체크리스트:**
+- [ ] 각 entry의 header가 `### \`path\` → name/CLAUDE.md` 형식
+- [ ] `#### Exports Used`에 실제 시그니처 포함
+- [ ] `#### Integration Context`에 통합 맥락 설명
+- [ ] 대상 CLAUDE.md의 Exports에 실제로 존재하는 심볼만 참조
+
 ### Phase 5.7: 리뷰-피드백 사이클 (Iteration Loop)
 
 ```
@@ -347,9 +501,19 @@ IMPLEMENTS.md 경로: {implements_md_path}
 
 | 조건 | 설명 |
 |------|------|
-| approve | 리뷰어가 approve 판정 |
+| approve | 리뷰어가 모든 gate 통과 판정 |
 | max_iterations | 최대 반복 횟수(3회) 도달 |
-| no_progress | 이전 점수 대비 5점 미만 상승 |
+| no_progress | 이전 피드백과 동일한 피드백 키 반복 |
+
+#### no_progress 판정 (피드백 키 비교)
+
+```python
+current_keys = sorted([f"{fb.section}:{fb.issue}" for fb in feedback])
+if current_keys == state.previousFeedbackKeys:
+    # 동일 피드백 반복 → 진전 없음
+    break with review_status = "warning"
+state.previousFeedbackKeys = current_keys
+```
 
 #### 피드백 적용
 
@@ -380,8 +544,10 @@ action: {created|updated}
 validation: {passed|failed_with_warnings}
 exports_count: {len(exports)}
 behaviors_count: {len(behaviors)}
+dependencies_count: {len(dependencies)}
+integration_map_entries: {len(integration_entries)}
+external_dependencies_count: {len(external_dependencies)}
 review_iterations: {iteration_count}
-final_review_score: {score}
 review_status: {approve|warning}
 ---end-spec-agent-result---
 ```

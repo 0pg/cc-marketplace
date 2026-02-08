@@ -32,11 +32,11 @@ description: |
   2. REQ-COVERAGE: Check all requirements reflected
   3. TASK-COMPLETION: Check all tasks mapped to documents
   4. SCHEMA-VALID: Validate schema compliance
-  5. Calculate score and generate feedback
+  5. INTEGRATION-MAP-VALID: Check Module Integration Map correctness
+  6. Gate-only judgment - all gates passed
 
   ---spec-reviewer-result---
   status: approve
-  score: 95
   checks:
     - id: REQ-COVERAGE
       status: passed
@@ -45,6 +45,8 @@ description: |
       status: passed
       completion: 100%
     - id: SCHEMA-VALID
+      status: passed
+    - id: INTEGRATION-MAP-VALID
       status: passed
   feedback: []
   result_file: .claude/tmp/{session-id}-review-src-auth.json
@@ -77,11 +79,11 @@ description: |
   1. Read CLAUDE.md and IMPLEMENTS.md
   2. REQ-COVERAGE: All requirements covered
   3. TASK-COMPLETION: All tasks mapped
-  4. OVERENGINEERING CHECK: LoggerInterface, LoggerFactory not required
+  4. INTEGRATION-MAP-VALID: skipped (no internal dependencies)
+  5. OVERENGINEERING CHECK: LoggerInterface, LoggerFactory not required
 
   ---spec-reviewer-result---
   status: feedback
-  score: 68
   checks:
     - id: REQ-COVERAGE
       status: passed
@@ -91,6 +93,8 @@ description: |
       completion: 100%
     - id: SCHEMA-VALID
       status: passed
+    - id: INTEGRATION-MAP-VALID
+      status: skipped
   feedback:
     - section: Exports
       issue: 과도한 추상화 (YAGNI 위반)
@@ -143,7 +147,7 @@ Read(implements_md_path)
 
 ### Phase 2: 검증 수행
 
-#### Check 1: REQ-COVERAGE (40%)
+#### Check 1: REQ-COVERAGE (Required)
 
 모든 요구사항이 문서에 반영되었는지 확인합니다.
 
@@ -151,7 +155,7 @@ Read(implements_md_path)
 2. CLAUDE.md의 각 섹션에서 매칭 확인
 3. `coverage = (매칭된 요구사항 수 / 전체 요구사항 수) × 100`
 
-#### Check 2: TASK-COMPLETION (30%)
+#### Check 2: TASK-COMPLETION (Required)
 
 모든 Task가 문서에 매핑되었는지 확인합니다.
 
@@ -166,7 +170,7 @@ Read(implements_md_path)
 
 `completion = (완료된 Task 수 / 전체 Task 수) × 100`
 
-#### Check 3: SCHEMA-VALID (20%)
+#### Check 3: SCHEMA-VALID (Required)
 
 ```
 Skill("claude-md-plugin:schema-validate", file=claude_md_path)
@@ -174,33 +178,75 @@ Skill("claude-md-plugin:schema-validate", file=claude_md_path)
 
 > 필수 섹션 목록은 `references/shared/claude-md-sections.md` 참조
 
-#### Check 4: EXPORT-MATCH (5%)
+#### Check 4: EXPORT-MATCH
 
 요구사항에 언급된 함수/타입이 Exports에 존재하는지 확인합니다.
 
-#### Check 5: BEHAVIOR-MATCH (5%)
+#### Check 5: BEHAVIOR-MATCH
 
 요구사항에 언급된 시나리오가 Behavior에 존재하는지 확인합니다.
 
-### Phase 3: 점수 계산
+#### Check 6: INTEGRATION-MAP-VALID (Required Gate)
 
+CLAUDE.md에 내부 의존성이 있으면 IMPLEMENTS.md의 Module Integration Map을 교차 검증합니다.
+
+```python
+errors = []
+
+# 1. 내부 의존성 존재 여부 확인
+if claude_md has "Dependencies > Internal":
+    if implements_md has no "Module Integration Map" or value == "None":
+        errors.append("Module Integration Map 누락")
+        return status = "failed"
+
+# 2. 각 entry 검증
+for each entry in module_integration_map:
+    # Header 형식: ### `path` → name/CLAUDE.md
+    if not valid_header_format(entry):
+        errors.append(f"잘못된 header 형식: {entry.header}")
+
+    # Exports Used: 대상 CLAUDE.md에 실제 존재하는지 확인
+    target_claude_md = Read(entry.target_path)
+    for export in entry.exports_used:
+        if export.name not in target_claude_md.exports:
+            errors.append(f"{export.name} export가 {entry.target_path}에 없음")
+        elif export.signature != target_claude_md.exports[export.name].signature:
+            errors.append(f"{export.name} 시그니처 불일치")
+
+    # Integration Context 존재 확인
+    if not entry.integration_context:
+        errors.append(f"{entry.path}: Integration Context 누락")
+
+# 3. 완전성 검증: Dependencies > Internal의 모든 항목이 Map에 존재하는지
+internal_deps = extract_internal_dependencies(claude_md)
+map_paths = [entry.relative_path for entry in module_integration_map]
+for dep in internal_deps:
+    if dep not in map_paths:
+        errors.append(f"'{dep}': Dependencies에 있지만 Module Integration Map에 entry 없음")
+
+if errors:
+    return status = "failed"
+else:
+    return status = "passed"
 ```
-score = (REQ-COVERAGE * 0.4) + (TASK-COMPLETION * 0.3) + (SCHEMA-VALID * 0.2) + (EXPORT-MATCH * 0.05) + (BEHAVIOR-MATCH * 0.05)
-```
 
-### Phase 4: 판정
+**내부 의존성이 없으면** `status = "skipped"` (gate 통과로 간주).
 
-**Approve 기준:**
+### Phase 3: Gate-only 판정
 
-| 조건 | 임계값 |
-|------|--------|
-| 총점 | >= 80 |
+**Approve 기준 (모든 gate 통과 시):**
+
+| Gate | 통과 조건 |
+|------|----------|
 | REQ-COVERAGE | 100% |
-| SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
+| SCHEMA-VALID | passed |
+| INTEGRATION-MAP-VALID | passed 또는 skipped |
 
-```
-if score >= 80 AND req_coverage == 100% AND schema_valid == passed AND task_completion >= 80%:
+```python
+integration_ok = (integration_map_status == "passed" or integration_map_status == "skipped")
+
+if req_coverage == 100% AND task_completion >= 80% AND schema_valid == passed AND integration_ok:
     status = "approve"
 else:
     status = "feedback"
@@ -218,6 +264,7 @@ else:
 | INCOMPLETE_TASK | "t-3 (Claims 타입 정의)이 Exports에 매핑되지 않음" |
 | SCHEMA_ERROR | "Contract 섹션이 누락됨" |
 | WEAK_BEHAVIOR | "에러 시나리오가 불충분함" |
+| INTEGRATION_MAP_ERROR | "validateToken export가 auth/CLAUDE.md에 없음" |
 
 ### Phase 6: 결과 저장 및 반환
 
@@ -226,7 +273,6 @@ else:
 ```
 ---spec-reviewer-result---
 status: approve | feedback
-score: {0-100}
 checks:
   - id: REQ-COVERAGE
     status: passed | failed
@@ -240,6 +286,8 @@ checks:
     status: passed | partial | failed
   - id: BEHAVIOR-MATCH
     status: passed | partial | failed
+  - id: INTEGRATION-MAP-VALID
+    status: passed | failed | skipped
 feedback:
   - section: {section_name}
     issue: {issue_description}
@@ -253,6 +301,6 @@ result_file: .claude/tmp/{session-id}-review-{target}.json
 1. **의미론적 매칭**: 키워드가 정확히 일치하지 않아도 의미가 같으면 매칭으로 인정
 2. **영어/한국어 혼용**: 요구사항과 문서의 언어가 다를 수 있음을 고려
 3. **피드백 구체성**: 단순히 "누락됨"이 아닌 구체적인 수정 제안 제공
-4. **점진적 개선**: 첫 리뷰에서 완벽을 기대하지 않음, 반복을 통한 개선 유도
+4. **점진적 개선**: 첫 리뷰에서 완벽을 기대하지 않음, gate 기반 반복을 통한 개선 유도
 5. **Overengineering 경계**: 요구사항에 명시되지 않은 기능, 추상화, 확장 포인트는 과도한 설계의 징후
 6. **YAGNI 원칙**: 현재 요구사항에 필요한 것만 포함

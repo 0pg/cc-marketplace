@@ -111,6 +111,11 @@ Skill("claude-md-plugin:claude-md-parse", file="{directory}/CLAUDE.md")
 - Dependencies
 - Behavior
 
+동일 디렉토리의 IMPLEMENTS.md도 읽기 시도:
+```
+Read({directory}/IMPLEMENTS.md) → IMPLEMENTS.md 내용 로드 (없으면 skip)
+```
+
 ### 2. Drift 검증
 
 #### Structure Drift
@@ -174,6 +179,81 @@ For each documented_dependency:
 # 테스트 파일이 없으면 코드 분석으로 동작 추론
 ```
 
+#### Module Integration Map 교차 검증
+
+**Scope**: drift-validator는 맵에 있는 entry만 검증합니다 (존재하는 것의 정확성).
+완전성 검증(모든 dep가 맵에 있는지)은 spec-reviewer의 책임입니다.
+
+**진입 조건:**
+```python
+# Module Integration Map 교차 검증 진입 조건:
+if not implements_md:
+    # IMPLEMENTS.md 파일 자체가 없음 → skip (이슈 없음)
+    integration_map_errors = 0
+    integration_map_warnings = 0
+elif not implements_md.has_section("Module Integration Map"):
+    # 섹션 자체가 없음 → skip (schema_validator가 별도 검증)
+    integration_map_errors = 0
+    integration_map_warnings = 0
+elif implements_md["Module Integration Map"].strip() == "None":
+    # 명시적 None → skip
+    integration_map_errors = 0
+    integration_map_warnings = 0
+else:
+    # 실제 entry가 있음 → 교차 검증 실행
+    # BOUNDARY_INVALID, EXPORT_NOT_FOUND → integration_map_errors
+    # SIGNATURE_MISMATCH → integration_map_warnings
+    run_cross_validation()
+```
+
+**Entry 파싱:**
+```
+# Entry header 패턴 (schema-rules.yaml 참조)
+entry_header_pattern = ^###\s+`([^`]+)`\s*→\s*(.+/CLAUDE\.md)$
+
+For each entry in Module Integration Map:
+  relative_path = capture_group_1    # e.g., ../auth
+  claude_md_ref = capture_group_2    # e.g., auth/CLAUDE.md
+```
+
+**boundary_valid** (severity: error):
+```
+resolved_path = resolve(directory, relative_path)
+target_claude_md = resolved_path + "/CLAUDE.md"
+
+if not exists(target_claude_md):
+  BOUNDARY_INVALID: `{relative_path}` → 유효한 모듈이 아님 (CLAUDE.md 없음)
+  # boundary_valid 실패 시 해당 entry의 export_exists, signature_match는 skip
+```
+
+**export_exists** (severity: error):
+```
+target_exports = parse Exports section from target_claude_md
+
+# Exports Used 항목 파싱 (schema-rules.yaml 참조)
+exports_used_pattern = ^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$
+
+For each export_signature in entry.exports_used:
+  # export_name 추출: 시그니처에서 첫 번째 식별자(이름)를 추출
+  # - 함수: `validateToken(token: string): Claims` → "validateToken"
+  # - 타입/클래스: `Claims { userId: string }` → "Claims"
+  # - 상수: `MAX_RETRY_COUNT: number` → "MAX_RETRY_COUNT"
+  # 규칙: 시그니처의 첫 번째 단어 (괄호/공백/콜론/{  이전까지)
+  export_name = regex_match(r"^([A-Za-z_][A-Za-z0-9_]*)", export_signature).group(1)
+  if export_name not found in target_exports:
+    EXPORT_NOT_FOUND: `{export_name}` 이 대상 CLAUDE.md Exports에 없음
+```
+
+**signature_match** (severity: warning):
+```
+For each export_signature in entry.exports_used:
+  target_signature = find matching export in target_exports by name
+  if target_signature exists AND export_signature != target_signature:
+    SIGNATURE_MISMATCH:
+      - 스냅샷: `{export_signature}`
+      - 대상: `{target_signature}`
+```
+
 ### 3. 결과 저장
 
 결과를 `.claude/tmp/{session-id}-drift-{target}.md` 형태로 저장합니다.
@@ -188,6 +268,7 @@ For each documented_dependency:
 - Exports: {n2}개
 - Dependencies: {n3}개
 - Behavior: {n4}개
+- Module Integration Map: {n5}개
 
 ## 상세
 
@@ -221,6 +302,19 @@ For each documented_dependency:
 
 #### MISMATCH (동작 불일치)
 - "빈 입력 시 빈 배열 반환": 실제로는 null 반환
+
+### Module Integration Map 교차 검증
+
+#### BOUNDARY_INVALID (error)
+- `../removed-module` → removed-module/CLAUDE.md: 유효한 모듈이 아님 (CLAUDE.md 없음)
+
+#### EXPORT_NOT_FOUND (error)
+- `../auth` → auth/CLAUDE.md: `refreshToken` 이 대상 CLAUDE.md Exports에 없음
+
+#### SIGNATURE_MISMATCH (warning)
+- `../auth` → auth/CLAUDE.md: `validateToken`
+  - 스냅샷: `validateToken(token: string): Claims`
+  - 대상: `validateToken(token: string, options?: Options): Promise<Claims>`
 ```
 
 ### 4. 결과 반환
@@ -233,26 +327,33 @@ status: approve | error
 result_file: .claude/tmp/{session-id}-drift-{target}.md
 directory: {directory}
 issues_count: {N}
+integration_map_errors: {E}
+integration_map_warnings: {W}
 ---end-drift-validator-result---
 ```
 
 - `status`: 검증 완료 여부 (에러 없이 완료되면 approve)
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
-- `issues_count`: 총 drift 이슈 수
+- `issues_count`: 총 drift 이슈 수 (Structure + Exports + Dependencies + Behavior)
+- `integration_map_errors`: Module Integration Map 교차 검증 error 수 (BOUNDARY_INVALID, EXPORT_NOT_FOUND). IMPLEMENTS.md 없거나 "None"이면 0
+- `integration_map_warnings`: Module Integration Map 교차 검증 warning 수 (SIGNATURE_MISMATCH). IMPLEMENTS.md 없거나 "None"이면 0
 
 ## Drift 유형 정리
 
-| 섹션 | Drift 유형 | 설명 |
-|------|-----------|------|
-| Structure | UNCOVERED | 디렉토리 내 파일이 Structure에 없음 |
-| Structure | ORPHAN | Structure의 파일이 실제로 없음 |
-| Exports | STALE | 문서의 export가 코드에 없음 |
-| Exports | MISSING | 코드의 export가 문서에 없음 |
-| Exports | MISMATCH | 시그니처가 다름 |
-| Dependencies | STALE | 문서의 의존성이 실제로 없음 |
-| Dependencies | ORPHAN | 코드의 의존성이 문서에 없음 |
-| Behavior | MISMATCH | 문서화된 시나리오와 실제 동작 불일치 |
+| 섹션 | Drift 유형 | Severity | 설명 |
+|------|-----------|----------|------|
+| Structure | UNCOVERED | error | 디렉토리 내 파일이 Structure에 없음 |
+| Structure | ORPHAN | error | Structure의 파일이 실제로 없음 |
+| Exports | STALE | error | 문서의 export가 코드에 없음 |
+| Exports | MISSING | error | 코드의 export가 문서에 없음 |
+| Exports | MISMATCH | warning | 시그니처가 다름 |
+| Dependencies | STALE | error | 문서의 의존성이 실제로 없음 |
+| Dependencies | ORPHAN | error | 코드의 의존성이 문서에 없음 |
+| Behavior | MISMATCH | warning | 문서화된 시나리오와 실제 동작 불일치 |
+| Integration Map | BOUNDARY_INVALID | error | 상대 경로가 유효한 모듈을 가리키지 않음 |
+| Integration Map | EXPORT_NOT_FOUND | error | 참조한 Export가 대상 CLAUDE.md에 없음 |
+| Integration Map | SIGNATURE_MISMATCH | warning | 스냅샷 시그니처와 대상 시그니처 불일치 |
 
 ## 주의사항
 

@@ -8,6 +8,7 @@
 
 use crate::claude_md_parser::{ClaudeMdParser, DependenciesSpec};
 use crate::code_analyzer::CodeAnalyzer;
+use crate::implements_md_parser::ImplementsMdParser;
 use crate::symbol_index::SymbolIndexBuilder;
 use crate::tree_parser::TreeParser;
 use serde::{Deserialize, Serialize};
@@ -105,6 +106,7 @@ pub struct Summary {
 pub struct DependencyGraphBuilder {
     tree_parser: TreeParser,
     claude_md_parser: ClaudeMdParser,
+    implements_md_parser: ImplementsMdParser,
     code_analyzer: CodeAnalyzer,
 }
 
@@ -114,6 +116,7 @@ impl DependencyGraphBuilder {
         Self {
             tree_parser: TreeParser::new(),
             claude_md_parser: ClaudeMdParser::new(),
+            implements_md_parser: ImplementsMdParser::new(),
             code_analyzer: CodeAnalyzer::new(),
         }
     }
@@ -203,6 +206,29 @@ impl DependencyGraphBuilder {
         let mut edges = Vec::new();
         let mut violations = Vec::new();
 
+        // 3a. Collect IMPLEMENTS.md integration map data per module
+        let mut integration_maps: HashMap<String, Vec<crate::implements_md_parser::IntegrationMapEntry>> =
+            HashMap::new();
+
+        for node in &nodes {
+            let dir_path = if node.path == "." {
+                root.clone()
+            } else {
+                root.join(&node.path)
+            };
+
+            let implements_md_path = dir_path.join("IMPLEMENTS.md");
+            if implements_md_path.exists() {
+                if let Ok(impl_spec) = self.implements_md_parser.parse(&implements_md_path) {
+                    if !impl_spec.module_integration_map.is_empty() {
+                        integration_maps
+                            .insert(node.path.clone(), impl_spec.module_integration_map);
+                    }
+                }
+            }
+        }
+
+        // 3b. Build edges from code analysis and enrich with IMPLEMENTS.md data
         for node in &nodes {
             let dir_path = if node.path == "." {
                 root.clone()
@@ -214,8 +240,13 @@ impl DependencyGraphBuilder {
             if let Ok(analysis) = self.code_analyzer.analyze_directory(&dir_path, None) {
                 // Process internal dependencies
                 for internal_dep in &analysis.dependencies.internal {
-                    let (target_path, edge, violation) =
+                    let (target_path, mut edge, violation) =
                         self.process_internal_dependency(&node.path, internal_dep, &module_exports);
+
+                    // Enrich imported_symbols from IMPLEMENTS.md integration map
+                    if let Some(map_entries) = integration_maps.get(&node.path) {
+                        self.enrich_edge_from_integration_map(&mut edge, map_entries);
+                    }
 
                     edges.push(edge);
                     if let Some(v) = violation {
@@ -237,6 +268,58 @@ impl DependencyGraphBuilder {
                         imported_symbols: Vec::new(),
                         valid: true, // External deps are always valid
                     });
+                }
+            }
+
+            // 3c. Also create edges from IMPLEMENTS.md entries not found by code analysis
+            if let Some(map_entries) = integration_maps.get(&node.path) {
+                for entry in map_entries {
+                    let target_path =
+                        self.normalize_import_path(&node.path, &entry.relative_path);
+
+                    // Check if edge already exists (created by code analysis above)
+                    let edge_exists = edges
+                        .iter()
+                        .any(|e| e.from == node.path && e.to == target_path);
+
+                    if !edge_exists {
+                        let imported_symbols: Vec<String> = entry
+                            .exports_used
+                            .iter()
+                            .map(|e| e.signature.clone())
+                            .collect();
+
+                        let target_has_exports = module_exports
+                            .get(&target_path)
+                            .map(|e| !e.is_empty())
+                            .unwrap_or(false);
+
+                        // Report unresolved integration targets as violations
+                        if !module_exports.contains_key(&target_path) {
+                            violations.push(Violation {
+                                from: node.path.clone(),
+                                to: target_path.clone(),
+                                violation_type: "unresolved_integration_target".to_string(),
+                                reason: format!(
+                                    "Integration map entry '{}' points to '{}' which is not a known module",
+                                    entry.relative_path, target_path
+                                ),
+                                suggestion: "Verify the relative path and ensure the target module exists with a CLAUDE.md".to_string(),
+                            });
+                        }
+
+                        edges.push(DependencyEdge {
+                            from: node.path.clone(),
+                            to: target_path.clone(),
+                            edge_type: "internal".to_string(),
+                            imported_symbols,
+                            valid: target_has_exports,
+                        });
+
+                        if !module_exports.contains_key(&target_path) {
+                            module_exports.insert(target_path, Vec::new());
+                        }
+                    }
                 }
             }
         }
@@ -373,6 +456,31 @@ impl DependencyGraphBuilder {
         };
 
         (target_path, edge, violation)
+    }
+
+    /// Enrich a dependency edge's imported_symbols using IMPLEMENTS.md integration map data.
+    ///
+    /// If the edge target matches an integration map entry (by normalized path),
+    /// the export signatures from the map are added to the edge's imported_symbols.
+    fn enrich_edge_from_integration_map(
+        &self,
+        edge: &mut DependencyEdge,
+        map_entries: &[crate::implements_md_parser::IntegrationMapEntry],
+    ) {
+        for entry in map_entries {
+            let normalized_target =
+                self.normalize_import_path(&edge.from, &entry.relative_path);
+
+            if normalized_target == edge.to {
+                // Add all export signatures as imported symbols
+                for export in &entry.exports_used {
+                    if !edge.imported_symbols.contains(&export.signature) {
+                        edge.imported_symbols.push(export.signature.clone());
+                    }
+                }
+                break;
+            }
+        }
     }
 
     /// Normalize an import path relative to the importing module.
@@ -713,5 +821,370 @@ Utility context.
         assert!(summary.is_some());
         // The default test project might not have Dependencies, so just check it doesn't panic
         assert!(deps.internal.is_empty() || !deps.internal.is_empty());
+    }
+
+    // ============== IMPLEMENTS.md Integration Map Tests ==============
+
+    /// Helper: create a project with IMPLEMENTS.md containing a Module Integration Map.
+    fn create_project_with_integration_map() -> TempDir {
+        let temp = TempDir::new().unwrap();
+
+        // Create src/auth with CLAUDE.md + IMPLEMENTS.md + code that imports ../config
+        let auth_dir = temp.path().join("src").join("auth");
+        fs::create_dir_all(&auth_dir).unwrap();
+
+        let claude_md = auth_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# auth
+
+## Purpose
+Authentication module.
+
+## Summary
+인증 모듈.
+
+## Exports
+
+### Functions
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Test authentication context."#
+        )
+        .unwrap();
+
+        // IMPLEMENTS.md with Module Integration Map referencing ../config
+        let implements_md = auth_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# auth — Implementation Specification
+
+## Module Integration Map
+
+### `../config` → config/CLAUDE.md
+
+#### Exports Used
+- `loadConfig(): AppConfig` — 설정 로드
+
+#### Integration Context
+인증 시 config에서 secret key를 가져옴"#
+        )
+        .unwrap();
+
+        let token_ts = auth_dir.join("token.ts");
+        let mut f = File::create(&token_ts).unwrap();
+        writeln!(
+            f,
+            r#"
+import {{ loadConfig }} from '../config';
+
+export async function validateToken(token: string): Promise<Claims> {{
+    const config = loadConfig();
+    return {{ sub: 'user' }};
+}}
+"#
+        )
+        .unwrap();
+
+        // Create src/config with CLAUDE.md
+        let config_dir = temp.path().join("src").join("config");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        let claude_md_config = config_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md_config).unwrap();
+        writeln!(
+            f,
+            r#"# config
+
+## Purpose
+Configuration module.
+
+## Summary
+설정 관리 모듈.
+
+## Exports
+
+### Functions
+- `loadConfig(): AppConfig`
+
+## Behavior
+- load → AppConfig
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Config context."#
+        )
+        .unwrap();
+
+        let config_ts = config_dir.join("index.ts");
+        let mut f = File::create(&config_ts).unwrap();
+        writeln!(
+            f,
+            r#"
+export function loadConfig(): AppConfig {{
+    return {{ secret: 'xxx' }};
+}}
+"#
+        )
+        .unwrap();
+
+        temp
+    }
+
+    #[test]
+    fn test_enrich_edge_from_integration_map() {
+        let temp = create_project_with_integration_map();
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Find the edge from src/auth → src/config
+        let auth_to_config = result
+            .edges
+            .iter()
+            .find(|e| e.from.contains("auth") && e.to.contains("config") && e.edge_type == "internal");
+
+        assert!(
+            auth_to_config.is_some(),
+            "Expected an edge from auth to config, got edges: {:?}",
+            result.edges
+        );
+
+        let edge = auth_to_config.unwrap();
+        // The integration map should have enriched the edge with the export signature
+        assert!(
+            edge.imported_symbols
+                .iter()
+                .any(|s| s.contains("loadConfig")),
+            "Expected imported_symbols to contain 'loadConfig', got: {:?}",
+            edge.imported_symbols
+        );
+    }
+
+    #[test]
+    fn test_implements_md_only_edges() {
+        let temp = TempDir::new().unwrap();
+
+        // src/api with CLAUDE.md + IMPLEMENTS.md referencing ../utils, but NO code import
+        let api_dir = temp.path().join("src").join("api");
+        fs::create_dir_all(&api_dir).unwrap();
+
+        let claude_md = api_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# api
+
+## Purpose
+API module.
+
+## Summary
+API 모듈.
+
+## Exports
+None
+
+## Behavior
+None
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+API context."#
+        )
+        .unwrap();
+
+        // IMPLEMENTS.md referencing ../utils (not imported in code)
+        let implements_md = api_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# api — Implementation Specification
+
+## Module Integration Map
+
+### `../utils` → utils/CLAUDE.md
+
+#### Exports Used
+- `formatError(err: Error): string` — 에러 포맷
+
+#### Integration Context
+API에서 에러 응답 포맷팅에 사용"#
+        )
+        .unwrap();
+
+        // Source file with NO import of utils
+        let handler_ts = api_dir.join("handler.ts");
+        let mut f = File::create(&handler_ts).unwrap();
+        writeln!(f, "export function handle() {{ return 'ok'; }}").unwrap();
+
+        // src/utils with CLAUDE.md
+        let utils_dir = temp.path().join("src").join("utils");
+        fs::create_dir_all(&utils_dir).unwrap();
+
+        let claude_md_utils = utils_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md_utils).unwrap();
+        writeln!(
+            f,
+            r#"# utils
+
+## Purpose
+Utility module.
+
+## Summary
+유틸리티 모듈.
+
+## Exports
+
+### Functions
+- `formatError(err: Error): string`
+
+## Behavior
+- error → formatted string
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+Utility context."#
+        )
+        .unwrap();
+
+        let utils_ts = utils_dir.join("index.ts");
+        File::create(&utils_ts).unwrap();
+
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Should have an edge from src/api → src/utils created solely from IMPLEMENTS.md
+        let api_to_utils = result
+            .edges
+            .iter()
+            .find(|e| e.from.contains("api") && e.to.contains("utils"));
+
+        assert!(
+            api_to_utils.is_some(),
+            "Expected an IMPLEMENTS.md-only edge from api to utils, got edges: {:?}",
+            result.edges
+        );
+
+        let edge = api_to_utils.unwrap();
+        assert!(
+            edge.imported_symbols
+                .iter()
+                .any(|s| s.contains("formatError")),
+            "Expected imported_symbols to contain 'formatError', got: {:?}",
+            edge.imported_symbols
+        );
+    }
+
+    #[test]
+    fn test_unresolved_integration_target_violation() {
+        let temp = TempDir::new().unwrap();
+
+        // src/api with IMPLEMENTS.md referencing ../nonexistent
+        let api_dir = temp.path().join("src").join("api");
+        fs::create_dir_all(&api_dir).unwrap();
+
+        let claude_md = api_dir.join("CLAUDE.md");
+        let mut f = File::create(&claude_md).unwrap();
+        writeln!(
+            f,
+            r#"# api
+
+## Purpose
+API module.
+
+## Summary
+API 모듈.
+
+## Exports
+None
+
+## Behavior
+None
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+API context."#
+        )
+        .unwrap();
+
+        let implements_md = api_dir.join("IMPLEMENTS.md");
+        let mut f = File::create(&implements_md).unwrap();
+        writeln!(
+            f,
+            r#"# api — Implementation Specification
+
+## Module Integration Map
+
+### `../nonexistent` → nonexistent/CLAUDE.md
+
+#### Exports Used
+- `missingFunc(): void` — 존재하지 않는 함수
+
+#### Integration Context
+존재하지 않는 모듈 참조"#
+        )
+        .unwrap();
+
+        let handler_ts = api_dir.join("handler.ts");
+        let mut f = File::create(&handler_ts).unwrap();
+        writeln!(f, "export function handle() {{ return 'ok'; }}").unwrap();
+
+        let builder = DependencyGraphBuilder::new();
+        let result = builder.build(temp.path()).unwrap();
+
+        // Should have an unresolved_integration_target violation
+        let violation = result
+            .violations
+            .iter()
+            .find(|v| v.violation_type == "unresolved_integration_target");
+
+        assert!(
+            violation.is_some(),
+            "Expected an 'unresolved_integration_target' violation, got violations: {:?}",
+            result.violations
+        );
+
+        let v = violation.unwrap();
+        assert!(
+            v.from.contains("api"),
+            "Expected violation from 'api', got: {}",
+            v.from
+        );
+        assert!(
+            v.reason.contains("nonexistent"),
+            "Expected reason to mention 'nonexistent', got: {}",
+            v.reason
+        );
     }
 }

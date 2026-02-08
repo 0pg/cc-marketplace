@@ -82,6 +82,8 @@ struct SchemaRules {
     version: String,
     sections: HashMap<String, SectionDef>,
     #[serde(default)]
+    implements_sections: HashMap<String, SectionDef>,
+    #[serde(default)]
     schema_version: Option<SchemaVersionDef>,
     #[serde(default)]
     cross_reference: Option<CrossReferenceDef>,
@@ -128,6 +130,23 @@ fn main() {
 
     allow_none_sections.sort();
 
+    // Extract IMPLEMENTS.md required sections
+    let mut impl_required_sections: Vec<&str> = rules
+        .implements_sections
+        .values()
+        .filter(|s| s.required && s.condition == "always")
+        .map(|s| s.name.as_str())
+        .collect();
+    impl_required_sections.sort();
+
+    let mut impl_allow_none_sections: Vec<&str> = rules
+        .implements_sections
+        .values()
+        .filter(|s| s.allow_none)
+        .map(|s| s.name.as_str())
+        .collect();
+    impl_allow_none_sections.sort();
+
     // Extract schema version info
     let schema_ver = rules.schema_version.unwrap_or_default();
     let schema_version_current = schema_ver.current;
@@ -170,6 +189,16 @@ fn main() {
     code.push_str(&format!(
         "/// Sections that allow \"None\" as valid content\npub const ALLOW_NONE_SECTIONS: &[&str] = &{:?};\n\n",
         allow_none_sections
+    ));
+
+    code.push_str(&format!(
+        "/// Required sections in IMPLEMENTS.md (must always be present)\npub const IMPLEMENTS_REQUIRED_SECTIONS: &[&str] = &{:?};\n\n",
+        impl_required_sections
+    ));
+
+    code.push_str(&format!(
+        "/// IMPLEMENTS.md sections that allow \"None\" as valid content\npub const IMPLEMENTS_ALLOW_NONE_SECTIONS: &[&str] = &{:?};\n\n",
+        impl_allow_none_sections
     ));
 
     code.push_str(&format!(

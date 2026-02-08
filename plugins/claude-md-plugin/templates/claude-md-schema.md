@@ -150,12 +150,13 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 프로젝트 root CLAUDE.md에 명시된 코딩 컨벤션을 참조하세요.
 
 ### 6. Dependencies (조건부)
-외부 의존성이 있는 경우 명시합니다.
+외부/내부 의존성이 있는 경우 명시합니다.
+내부 의존성의 **Export 레벨 상세**는 IMPLEMENTS.md `Module Integration Map`에 기술합니다.
 
 ```markdown
 ## Dependencies
 - external: jsonwebtoken@9.0.0
-- internal: ../utils/crypto
+- internal: ../utils/crypto (상세 → IMPLEMENTS.md Module Integration Map)
 ```
 
 ### 7. Behavior (필수)
@@ -458,6 +459,8 @@ claude-md-core migrate --root .
 ## 관련 문서
 
 - **IMPLEMENTS.md**: HOW(구현 명세)를 정의하는 쌍 문서
+  - **Module Integration Map**: 내부 의존성의 Export 시그니처 레벨 통합 명세
+  - CLAUDE.md Dependencies의 internal 항목 상세는 Module Integration Map에서 관리
 - 템플릿: `templates/implements-md-schema.md`
 
 ### 불변식

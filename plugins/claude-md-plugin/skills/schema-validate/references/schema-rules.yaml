@@ -112,6 +112,118 @@ sections:
     allow_none: false
     description: "지켜야 할 규칙이나 제약사항"
 
+# ─────────────────────────────────────────────────────────
+# IMPLEMENTS.md Schema Rules
+# ─────────────────────────────────────────────────────────
+
+implements_sections:
+  architecture_decisions:
+    name: "Architecture Decisions"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "아키텍처 설계 결정과 근거"
+
+  module_integration_map:
+    name: "Module Integration Map"
+    required: false
+    condition: "has_internal_deps"
+    allow_none: true
+    description: "내부 모듈 의존성의 Export 레벨 통합 명세"
+    entry_schema:
+      header:
+        pattern: "^###\\s+`[^`]+`\\s*→\\s*.+/CLAUDE\\.md$"
+        description: "### `{relative_path}` → {module_name}/CLAUDE.md"
+        captures:
+          - name: "relative_path"
+            group: 1
+            description: "현재 모듈 기준 상대 경로"
+          - name: "claude_md_ref"
+            group: 2
+            description: "대상 CLAUDE.md 식별자"
+      required_subsections:
+        exports_used:
+          header: "#### Exports Used"
+          required: true
+          item_pattern: "^[-*]\\s+`([^`]+)`(?:\\s*—\\s*(.+))?$"
+          item_captures:
+            - name: "signature"
+              group: 1
+              description: "Export 시그니처 (CLAUDE.md Exports 형식 준수)"
+            - name: "role_description"
+              group: 2
+              description: "역할 설명 (선택)"
+          min_items: 1
+          signature_validation: "same_as_exports"
+        integration_context:
+          header: "#### Integration Context"
+          required: true
+          allow_empty: false
+          description: "사용 목적과 통합 방식 (1-3문장)"
+    cross_validation:
+      - rule: "export_exists"
+        description: "참조한 Export가 대상 CLAUDE.md Exports에 존재하는지 검증"
+        severity: "error"
+      - rule: "signature_match"
+        description: "스냅샷 시그니처와 대상 CLAUDE.md 시그니처 일치 검증"
+        severity: "warning"
+      - rule: "boundary_valid"
+        description: "상대 경로가 유효한 모듈을 가리키는지 검증"
+        severity: "error"
+
+  external_dependencies:
+    name: "External Dependencies"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "외부 패키지 의존성과 선택 근거"
+
+  implementation_approach:
+    name: "Implementation Approach"
+    required: true
+    condition: "always"
+    allow_none: false
+    description: "구현 방향과 전략"
+
+  technology_choices:
+    name: "Technology Choices"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "기술 선택과 근거"
+
+  algorithm:
+    name: "Algorithm"
+    required: false
+    condition: "has_complex_logic"
+    description: "복잡하거나 비직관적인 구현 로직"
+
+  key_constants:
+    name: "Key Constants"
+    required: false
+    condition: "has_domain_constants"
+    description: "도메인 의미 있는 상수"
+
+  error_handling:
+    name: "Error Handling"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "에러 처리 전략"
+
+  state_management:
+    name: "State Management"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "상태 관리 방식"
+
+  implementation_guide:
+    name: "Implementation Guide"
+    required: false
+    condition: "has_additional_notes"
+    description: "compile 시 발견된 추가 참고 정보"
+
 reference_rules:
   forbidden_patterns:
     - pattern: "\\.\\./"

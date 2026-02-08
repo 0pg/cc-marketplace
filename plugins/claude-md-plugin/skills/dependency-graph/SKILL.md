@@ -168,7 +168,7 @@ graph = read_json(".claude/dependency-graph.json")
 ### 출력 활용 예시
 
 ```markdown
-## Dependency Direction (in IMPLEMENTS.md)
+## Module Integration Map (in IMPLEMENTS.md)
 
 ### 분석 결과
 - 의존성 그래프: `.claude/dependency-graph.json` 참조
@@ -176,10 +176,21 @@ graph = read_json(".claude/dependency-graph.json")
 - 유효 의존성: 8개
 - 경계 침범: 0개
 
-### 권장 의존성
-신규 모듈 `payment`가 사용할 인터페이스:
-- `../config/CLAUDE.md#PAYMENT_API_KEY` (Exports 참조)
-- `../order/CLAUDE.md#Order` (타입 참조)
+### `../config` → config/CLAUDE.md
+
+#### Exports Used
+- `PAYMENT_API_KEY: string` — 결제 API 키
+
+#### Integration Context
+결제 요청 시 인증에 사용.
+
+### `../order` → order/CLAUDE.md
+
+#### Exports Used
+- `Order { id: string, items: OrderItem[], total: number }` — 주문 정보 타입
+
+#### Integration Context
+결제 처리 시 주문 금액 검증에 사용.
 ```
 
 ## 오류 처리

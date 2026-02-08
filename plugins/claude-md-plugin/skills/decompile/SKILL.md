@@ -31,7 +31,7 @@ Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT) + IMPLEME
 | 출력 | 역할 | 내용 |
 |------|------|------|
 | CLAUDE.md | WHAT (스펙) | Purpose, Exports, Behavior, Contract, Protocol, Domain Context |
-| IMPLEMENTS.md Planning | HOW 계획 | Dependencies Direction, Implementation Approach, Technology Choices |
+| IMPLEMENTS.md Planning | HOW 계획 | Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices |
 | IMPLEMENTS.md Implementation | HOW 상세 | Algorithm, Key Constants, Error Handling, State Management, Implementation Guide |
 
 ## Incremental Mode (기본값: true)

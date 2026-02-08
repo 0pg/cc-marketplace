@@ -31,7 +31,8 @@ allowed-tools: [Read, Glob, Write, Task, Skill, AskUserQuestion]
     │
     └─→ IMPLEMENTS.md [Planning Section] 업데이트 (HOW 계획)
         - Architecture Decisions (모듈 배치, 인터페이스 설계, 의존성 방향)
-        - Dependencies Direction
+        - Module Integration Map (내부 의존성 Export 레벨 스냅샷)
+        - External Dependencies
         - Implementation Approach
         - Technology Choices
 ```
@@ -64,6 +65,7 @@ User: /spec "요구사항"
 │   ├── Skill("dependency-graph") → 의존성    │
 │   ├── 관련 모듈 CLAUDE.md Exports 파악      │
 │   ├── 모듈 배치 결정 (신규 vs 확장)         │
+│   ├── Module Integration Map 데이터 수집    │
 │   ├── 인터페이스 설계 가이드라인            │
 │   └── 경계 명확성 검증 (Exports 참조)       │
 │                                             │
@@ -125,13 +127,14 @@ Task(
 4. **아키텍처 설계 분석**
    - tree-parse, dependency-graph로 기존 코드베이스 분석
    - 모듈 배치 결정 (신규 생성 vs 기존 확장)
+   - **Module Integration Map 데이터 수집** (의존 모듈 Exports 시그니처 스냅샷)
    - 인터페이스 설계 가이드라인 생성
    - 경계 명확성 검증 (Exports 참조)
 5. 대상 경로 결정 (아키텍처 분석 결과 활용)
 6. 기존 CLAUDE.md 존재시 smart merge
 7. **리뷰-피드백 사이클 (최대 3회)**
    - 템플릿 기반 CLAUDE.md 생성
-   - IMPLEMENTS.md Planning Section 생성
+   - IMPLEMENTS.md Planning Section 생성 (Module Integration Map 포함)
    - **spec-reviewer Agent로 자동 리뷰**
    - approve → 다음 단계 / feedback → 피드백 반영 후 재생성
 8. 스키마 검증 (1회)
@@ -159,20 +162,20 @@ Task(
 
 구현 계획 요약:
   - Architecture Decisions: 모듈 배치, 인터페이스 설계, 의존성 방향
-  - Dependencies: {dependency_count}개
+  - Module Integration Map: {integration_map_count}개 모듈 통합
+  - External Dependencies: {external_dep_count}개
   - Implementation Approach: {approach_summary}
   - Technology Choices: {choice_count}개
 
 리뷰 결과:
   - 반복 횟수: {review_iterations}회
-  - 최종 점수: {final_review_score}
   - 상태: {review_status} (approve|warning)
 
 검증 결과: 스키마 검증 통과
 
 다음 단계:
   - /compile로 코드 구현 가능 (IMPLEMENTS.md Implementation Section도 업데이트됨)
-  - /validate로 문서-코드 일치 검증 가능
+  - /validate로 문서-코드 일치 검증 가능 (Module Integration Map 교차 검증 포함)
 ```
 
 ### 리뷰-피드백 사이클
@@ -191,17 +194,17 @@ spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 **Approve 기준:**
 
-| 조건 | 임계값 |
-|------|--------|
-| 총점 | >= 80 |
+| Gate | 조건 |
+|------|------|
 | REQ-COVERAGE | 100% |
 | SCHEMA-VALID | passed |
 | TASK-COMPLETION | >= 80% |
+| INTEGRATION-MAP-VALID | passed 또는 skipped |
 
 **반복 종료 조건:**
-- approve 판정
+- 모든 gate 통과 (approve)
 - 최대 반복 횟수(3회) 도달
-- 개선 진전 없음 (이전 점수 대비 5점 미만 상승)
+- 이전과 동일한 feedback 재등장 (no_progress)
 
 ## 오류 처리
 

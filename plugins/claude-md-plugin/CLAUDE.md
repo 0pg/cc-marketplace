@@ -117,7 +117,9 @@ auth/
 │
 └── IMPLEMENTS.md   ← HOW (구현 명세)
     ├── [Planning Section] - /spec이 업데이트
-    │   ├── Dependencies Direction
+    │   ├── Architecture Decisions
+    │   ├── Module Integration Map
+    │   ├── External Dependencies
     │   ├── Implementation Approach
     │   └── Technology Choices
     │
@@ -332,6 +334,7 @@ User: /validate
 | `symbol_index.rs` | 크로스 모듈 심볼 인덱싱 (v2) | `symbol-index` |
 | `tree_utils.rs` | TreeParser/Auditor 공통 디렉토리 스캐너 | - |
 | `diagram_generator.rs` | Mermaid 다이어그램 생성 (v2) | `generate-diagram --type usecase\|state\|component` |
+| `implements_md_parser.rs` | IMPLEMENTS.md 파싱 | `parse-implements-md` |
 | `migrator.rs` | v1→v2 자동 마이그레이션 (v2) | `migrate` |
 
 ## 불변식

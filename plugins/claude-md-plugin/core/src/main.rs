@@ -6,6 +6,7 @@ mod tree_parser;
 mod boundary_resolver;
 mod schema_validator;
 mod claude_md_parser;
+mod implements_md_parser;
 mod code_analyzer;
 mod dependency_graph;
 mod auditor;
@@ -18,6 +19,7 @@ use tree_parser::TreeParser;
 use boundary_resolver::BoundaryResolver;
 use schema_validator::SchemaValidator;
 use claude_md_parser::ClaudeMdParser;
+use implements_md_parser::ImplementsMdParser;
 use dependency_graph::DependencyGraphBuilder;
 use auditor::Auditor;
 use symbol_index::SymbolIndexBuilder;
@@ -91,6 +93,17 @@ enum Commands {
     /// Parse CLAUDE.md into structured JSON spec
     ParseClaudeMd {
         /// CLAUDE.md file to parse
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Parse IMPLEMENTS.md into structured JSON spec
+    ParseImplementsMd {
+        /// IMPLEMENTS.md file to parse
         #[arg(short, long)]
         file: PathBuf,
 
@@ -210,7 +223,14 @@ fn main() {
         }
         Commands::ValidateSchema { file, output, with_index, index_file } => {
             let validator = SchemaValidator::new();
-            if let Some(path) = index_file {
+            let is_implements = file.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.eq_ignore_ascii_case("IMPLEMENTS.md"))
+                .unwrap_or(false);
+            if is_implements {
+                let validation_result = validator.validate_implements(file);
+                output_result(&validation_result, output.as_ref(), "validate-schema")
+            } else if let Some(path) = index_file {
                 let json_str = std::fs::read_to_string(path)
                     .map_err(|e| format!("Failed to read index file: {}", e));
                 let index = json_str.and_then(|s| {
@@ -240,6 +260,13 @@ fn main() {
             let parser = ClaudeMdParser::new();
             match parser.parse(file) {
                 Ok(spec) => output_result(&spec, output.as_ref(), "parse-claude-md"),
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
+            }
+        }
+        Commands::ParseImplementsMd { file, output } => {
+            let parser = ImplementsMdParser::new();
+            match parser.parse(file) {
+                Ok(spec) => output_result(&spec, output.as_ref(), "parse-implements-md"),
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
@@ -345,6 +372,7 @@ fn main() {
             Commands::ResolveBoundary { .. } => "resolve-boundary",
             Commands::ValidateSchema { .. } => "validate-schema",
             Commands::ParseClaudeMd { .. } => "parse-claude-md",
+            Commands::ParseImplementsMd { .. } => "parse-implements-md",
             Commands::DependencyGraph { .. } => "dependency-graph",
             Commands::Audit { .. } => "audit",
             Commands::SymbolIndex { .. } => "symbol-index",
