@@ -126,10 +126,10 @@ Feature: Cross-Reference Validation
     And cross-reference summary should show 0 unresolved skill references
 
   Scenario: Unresolved Skill reference to missing skill
-    Given an agent file "spec-agent.md":
+    Given an agent file "impl-agent.md":
       """
       ---
-      name: spec-agent
+      name: impl-agent
       description: Generate spec
       tools: [Skill]
       ---

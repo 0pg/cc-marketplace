@@ -1,20 +1,20 @@
 ---
-name: spec
+name: impl
 version: 1.0.0
-aliases: [define, requirements, spec-out]
+aliases: [define, requirements, impl-out]
 trigger:
-  - /spec
+  - /impl
   - 요구사항 정의
   - write specification
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
-  "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
+  "create CLAUDE.md from requirements", "define behavior before coding", or uses "/impl".
   Analyzes natural language requirements and generates CLAUDE.md without implementing code.
   Follows ATDD principle: specification first, then code generation via /compile.
 allowed-tools: [Read, Glob, Write, Task, AskUserQuestion]
 ---
 
-# Spec Skill
+# Impl Skill
 
 ## 목적
 
@@ -24,7 +24,7 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion]
 ## 듀얼 문서 시스템
 
 ```
-/spec "요구사항"
+/impl "요구사항"
     │
     ├─→ CLAUDE.md 생성/업데이트 (WHAT)
     │   - Purpose, Domain Context, Exports, Behavior, Contract, Protocol
@@ -40,13 +40,13 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion]
 ## 아키텍처
 
 ```
-User: /spec "요구사항"
+User: /impl "요구사항"
         │
         ▼
 ┌─────────────────────────────────────────────┐
 │ spec SKILL (Entry Point)                    │
 │                                             │
-│ Task(spec-agent) → 요구사항 분석 및         │
+│ Task(impl-agent) → 요구사항 분석 및         │
 │                    CLAUDE.md + IMPLEMENTS.md│
 │                    작성 + 자동 리뷰         │
 └─────────────────────────────────────────────┘
@@ -54,7 +54,7 @@ User: /spec "요구사항"
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ spec-agent AGENT                            │
+│ impl-agent AGENT                            │
 │                                             │
 │ Phase 1. 요구사항 분석                      │
 │ Phase 2. 모호한 부분 AskUserQuestion        │
@@ -79,7 +79,7 @@ User: /spec "요구사항"
 │ │ Phase 5.5. IMPLEMENTS.md Planning       │ │
 │ │     │                                   │ │
 │ │     ▼                                   │ │
-│ │ Phase 5.7. Task(spec-reviewer) 자동리뷰 │ │
+│ │ Phase 5.7. Task(impl-reviewer) 자동리뷰 │ │
 │ │     │                                   │ │
 │ │     ▼                                   │ │
 │ │ Phase 5.8. 판정                         │ │
@@ -102,12 +102,12 @@ User: /spec "요구사항"
 - Feature 목록
 - 기능 요청
 
-### 2. CLAUDE.md + IMPLEMENTS.md 생성 (spec-agent)
+### 2. CLAUDE.md + IMPLEMENTS.md 생성 (impl-agent)
 
 ```python
-# spec-agent Agent 호출
+# impl-agent Agent 호출
 Task(
-    subagent_type="claude-md-plugin:spec-agent",
+    subagent_type="claude-md-plugin:impl-agent",
     prompt=f"""
 사용자 요구사항:
 {user_requirement}
@@ -120,7 +120,7 @@ Task(
 )
 ```
 
-**spec-agent 워크플로우:**
+**impl-agent 워크플로우:**
 1. 요구사항에서 Purpose, Exports, Behaviors, Contracts 추출
 2. 모호한 부분은 AskUserQuestion으로 명확화
 3. **Task 정의** - 요구사항을 구체적 Task로 분해 (상태 파일에 저장)
@@ -135,7 +135,7 @@ Task(
 7. **리뷰-피드백 사이클 (최대 3회)**
    - 템플릿 기반 CLAUDE.md 생성
    - IMPLEMENTS.md Planning Section 생성 (Module Integration Map 포함)
-   - **spec-reviewer Agent로 자동 리뷰**
+   - **impl-reviewer Agent로 자동 리뷰**
    - approve → 다음 단계 / feedback → 피드백 반영 후 재생성
 8. 스키마 검증 (1회)
 9. 최종 저장
@@ -143,7 +143,7 @@ Task(
 ### 3. 최종 결과 보고
 
 ```
-=== /spec 완료 ===
+=== /impl 완료 ===
 
 생성/업데이트된 파일:
   ✓ {target_path}/CLAUDE.md (WHAT - 스펙)
@@ -180,7 +180,7 @@ Task(
 
 ### 리뷰-피드백 사이클
 
-spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
+impl-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 **검증 항목:**
 
@@ -210,7 +210,7 @@ spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 | 상황 | 대응 |
 |------|------|
-| 요구사항 불명확 | spec-agent가 AskUserQuestion으로 명확화 |
+| 요구사항 불명확 | impl-agent가 AskUserQuestion으로 명확화 |
 | 대상 경로 모호 | 후보 목록 제시 후 선택 요청 |
 | 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
 | 기존 IMPLEMENTS.md와 충돌 | Planning Section만 업데이트 (Implementation Section 유지) |
@@ -218,7 +218,7 @@ spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 ## /decompile과의 차이점
 
-| 측면 | /decompile | /spec |
+| 측면 | /decompile | /impl |
 |------|------------|-------|
 | 입력 | 기존 소스 코드 | 사용자 요구사항 |
 | 방향 | Code → CLAUDE.md | Requirements → CLAUDE.md |
@@ -229,9 +229,9 @@ spec-reviewer Agent가 생성된 문서를 자동으로 검증합니다.
 
 ```
 전통적 개발:        요구사항 → 코드 → (문서)
-ATDD with /spec:    요구사항 → CLAUDE.md → /compile → 코드
+ATDD with /impl:    요구사항 → CLAUDE.md → /compile → 코드
                               ↑
                           Source of Truth
 ```
 
-`/spec`은 ATDD의 "Acceptance Criteria 먼저" 원칙을 CLAUDE.md 기반으로 구현합니다.
+`/impl`은 ATDD의 "Acceptance Criteria 먼저" 원칙을 CLAUDE.md 기반으로 구현합니다.

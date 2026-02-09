@@ -23,8 +23,8 @@
 | boundary-resolve | `{session-id}-boundary-{target}.json` |
 | code-analyze | `{session-id}-analysis-{target}.json` |
 | schema-validate | `{session-id}-validation-{target}.json` |
-| spec-agent (state) | `{session-id}-spec-state-{target}.json` |
-| spec-reviewer | `{session-id}-review-{target}.json` |
+| impl-agent (state) | `{session-id}-impl-state-{target}.json` |
+| impl-reviewer | `{session-id}-review-{target}.json` |
 | code-reviewer | `{session-id}-convention-review-{target}.json` |
 
 ## `{target}` 변환 예시

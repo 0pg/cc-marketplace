@@ -18,7 +18,7 @@ allowed-tools: [Bash, Read, Write, Glob, Grep, Task, Skill, AskUserQuestion]
 Smoke Test Report
 =================
 
-Phase 1: /spec  .............. PASS
+Phase 1: /impl  .............. PASS
 Phase 2: /compile ............ PASS
 Phase 3: /decompile .......... PASS
 Phase 4: /validate ........... PASS
@@ -62,12 +62,12 @@ Write({smoke_dir}/src/calculator.ts):
   }
 ```
 
-### Phase 1: /spec 검증
+### Phase 1: /impl 검증
 
-spec-agent를 호출하여 CLAUDE.md + IMPLEMENTS.md를 생성합니다.
+impl-agent를 호출하여 CLAUDE.md + IMPLEMENTS.md를 생성합니다.
 
 ```
-Task(spec-agent, prompt="""
+Task(impl-agent, prompt="""
 사용자 요구사항:
 src/calculator.ts의 add, subtract 함수에 대한 CLAUDE.md를 생성해주세요.
 두 함수는 숫자 두 개를 받아 각각 덧셈, 뺄셈 결과를 반환합니다.
@@ -181,7 +181,7 @@ Bash: rm -rf {smoke_dir}
 Smoke Test Report
 =================
 
-Phase 1: /spec  .............. {PASS|FAIL}
+Phase 1: /impl  .............. {PASS|FAIL}
   - CLAUDE.md 생성: {PASS|FAIL}
   - IMPLEMENTS.md 생성: {PASS|FAIL}
   - Schema 검증: {PASS|FAIL}
@@ -205,7 +205,7 @@ Result: {N}/4 PASS
 **실패 시:** 해당 항목 아래에 에러 메시지를 포함합니다.
 
 ```
-Phase 1: /spec  .............. FAIL
+Phase 1: /impl  .............. FAIL
   - CLAUDE.md 생성: PASS
   - IMPLEMENTS.md 생성: FAIL
     Error: IMPLEMENTS.md file not found at {smoke_dir}/src/IMPLEMENTS.md
@@ -223,7 +223,7 @@ Phase 1: /spec  .............. FAIL
 
 ## 관련 컴포넌트
 
-- `agents/spec-agent.md`: Phase 1 - CLAUDE.md + IMPLEMENTS.md 생성
+- `agents/impl-agent.md`: Phase 1 - CLAUDE.md + IMPLEMENTS.md 생성
 - `agents/compiler.md`: Phase 2 - 소스 코드 + 테스트 생성
 - `agents/decompiler.md`: Phase 3 - CLAUDE.md + IMPLEMENTS.md 재추출
 - `agents/drift-validator.md`: Phase 4 - 코드-문서 일치 검증

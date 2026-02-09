@@ -20,7 +20,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 ┌─────────────────────────────────────────────────────────────┐
 │ IMPLEMENTS.md 섹션 구조                                     │
 ├─────────────────────────────────────────────────────────────┤
-│ [Planning Section] ← /spec 이 업데이트                      │
+│ [Planning Section] ← /impl 이 업데이트                      │
 │ - Architecture Decisions (아키텍처 설계 결정)               │
 │ - Module Integration Map (내부 의존성 Export 레벨 명세)     │
 │ - External Dependencies (외부 의존성)                       │
@@ -40,11 +40,11 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 | 섹션 | 명령어 | 필수 | "None" 허용 | 설명 |
 |------|--------|------|-------------|------|
-| Architecture Decisions | /spec | ✓ | ✓ | 아키텍처 설계 결정과 근거 |
-| Module Integration Map | /spec | 조건부 | ✓ | 내부 모듈 의존성의 Export 레벨 통합 명세 |
-| External Dependencies | /spec | ✓ | ✓ | 외부 패키지 의존성 |
-| Implementation Approach | /spec | ✓ | ✗ | 구현 방향과 전략 |
-| Technology Choices | /spec | ✓ | ✓ | 기술 선택과 근거 |
+| Architecture Decisions | /impl | ✓ | ✓ | 아키텍처 설계 결정과 근거 |
+| Module Integration Map | /impl | 조건부 | ✓ | 내부 모듈 의존성의 Export 레벨 통합 명세 |
+| External Dependencies | /impl | ✓ | ✓ | 외부 패키지 의존성 |
+| Implementation Approach | /impl | ✓ | ✗ | 구현 방향과 전략 |
+| Technology Choices | /impl | ✓ | ✓ | 기술 선택과 근거 |
 | Algorithm | /compile | ✗ | - | 복잡하거나 비직관적인 로직만 |
 | Key Constants | /compile | ✗ | - | 도메인 의미가 있는 상수만 |
 | Error Handling | /compile | ✓ | ✓ | 에러 처리 전략 |
@@ -55,7 +55,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 ## Planning Section (필수)
 
-> `/spec`이 업데이트하는 섹션. 코드 구현 전 계획 단계에서 결정되는 사항.
+> `/impl`이 업데이트하는 섹션. 코드 구현 전 계획 단계에서 결정되는 사항.
 
 ### 1. Architecture Decisions (필수, "None" 허용)
 
@@ -203,7 +203,7 @@ None
 |------|------|----------|
 | Export 존재 | 참조한 Export가 대상 CLAUDE.md Exports에 존재 | /validate |
 | 시그니처 일치 | 스냅샷 시그니처와 대상 CLAUDE.md 시그니처가 동일 | /validate |
-| 경계 준수 | 상대 경로가 유효한 모듈을 가리킴 | /spec (dependency-graph) |
+| 경계 준수 | 상대 경로가 유효한 모듈을 가리킴 | /impl (dependency-graph) |
 
 ### 3. External Dependencies (필수, "None" 허용)
 
@@ -392,7 +392,7 @@ Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하�
 <!-- 소스코드에서 읽을 수 없는 "왜?"와 "어떤 맥락?"을 기술 -->
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<!-- PLANNING SECTION - /spec 이 업데이트                     -->
+<!-- PLANNING SECTION - /impl 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
 
 ## Architecture Decisions
@@ -515,7 +515,7 @@ integration_context:
 
 ### 업데이트 책임
 ```
-/spec → Planning Section (Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices)
+/impl → Planning Section (Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices)
 /compile → Implementation Section (Algorithm, Key Constants, Error Handling, State Management, Implementation Guide)
 /decompile → 전체 섹션
 ```
@@ -529,7 +529,7 @@ integration_context:
 <!-- 소스코드에서 읽을 수 없는 "왜?"와 "어떤 맥락?"을 기술 -->
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<!-- PLANNING SECTION - /spec 이 업데이트                     -->
+<!-- PLANNING SECTION - /impl 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
 
 ## Architecture Decisions

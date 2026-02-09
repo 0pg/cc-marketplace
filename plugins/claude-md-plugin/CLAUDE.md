@@ -116,7 +116,7 @@ auth/
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
 └── IMPLEMENTS.md   ← HOW (구현 명세)
-    ├── [Planning Section] - /spec이 업데이트
+    ├── [Planning Section] - /impl이 업데이트
     │   ├── Architecture Decisions
     │   ├── Module Integration Map
     │   ├── External Dependencies
@@ -135,7 +135,7 @@ auth/
 
 | 명령어 | CLAUDE.md | IMPLEMENTS.md |
 |--------|-----------|---------------|
-| `/spec` | 생성/업데이트 | Planning Section 업데이트 |
+| `/impl` | 생성/업데이트 | Planning Section 업데이트 |
 | `/compile` | 읽기 전용 | Implementation Section 업데이트 |
 | `/decompile` | 생성 (전체) | 생성 (전체 - Planning + Implementation) |
 
@@ -158,23 +158,23 @@ v2는 CLAUDE.md를 **machine-readable, cross-referenceable** 스펙 시스템으
 
 ## Architecture
 
-### /spec (요구사항 → CLAUDE.md + IMPLEMENTS.md)
+### /impl (요구사항 → CLAUDE.md + IMPLEMENTS.md)
 
 ```
-User: /spec "요구사항"
+User: /impl "요구사항"
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ spec SKILL (Entry Point)                    │
+│ impl SKILL (Entry Point)                    │
 │                                             │
-│ Task(spec-agent) → 요구사항 분석 및         │
+│ Task(impl-agent) → 요구사항 분석 및         │
 │                    CLAUDE.md + IMPLEMENTS.md│
 │                    작성 + 자동 리뷰         │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ spec-agent AGENT                            │
+│ impl-agent AGENT                            │
 │                                             │
 │ 1. 요구사항 분석                            │
 │ 2. AskUserQuestion → 모호한 부분 명확화     │
@@ -184,7 +184,7 @@ User: /spec "요구사항"
 │ ┌─────────────────────────────────────────┐ │
 │ │     ITERATION CYCLE (최대 3회)          │ │
 │ │ 6. CLAUDE.md + IMPLEMENTS.md 생성       │ │
-│ │ 7. Task(spec-reviewer) → 자동 리뷰      │ │
+│ │ 7. Task(impl-reviewer) → 자동 리뷰      │ │
 │ │ 8. approve → 다음 / feedback → 6으로   │ │
 │ └─────────────────────────────────────────┘ │
 │ 9. CLI: validate-schema → 검증 (1회)         │
@@ -289,8 +289,8 @@ User: /validate
 
 | Agent | 역할 |
 |-------|------|
-| `spec-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
-| `spec-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 (승인 조건: `score >= 80`, `req_coverage == 100%`, `schema_valid == passed`, `task_completion >= 80%`) |
+| `impl-agent` | 요구사항 분석 및 CLAUDE.md 생성 (자동 리뷰 사이클 포함) |
+| `impl-reviewer` | CLAUDE.md/IMPLEMENTS.md 요구사항 충족 검증 (승인 조건: `score >= 80`, `req_coverage == 100%`, `schema_valid == passed`, `task_completion >= 80%`) |
 | `decompiler` | 단일 디렉토리 CLAUDE.md + IMPLEMENTS.md 추출 |
 | `recursive-decompiler` | 재귀적 디렉토리 탐색 + incremental 판단 + decompiler 오케스트레이션 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD, phase 지원: red/green-refactor/full) |
@@ -303,7 +303,7 @@ User: /validate
 
 | Skill | 타입 | 역할 |
 |-------|------|------|
-| `/spec` | Entry Point | 요구사항 → CLAUDE.md |
+| `/impl` | Entry Point | 요구사항 → CLAUDE.md |
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
@@ -351,7 +351,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 ### INV-4: Section 업데이트 책임
 ```
-/spec → CLAUDE.md + IMPLEMENTS.md.PlanningSection
+/impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 ```
@@ -427,8 +427,8 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 | boundary-resolve | `{session-id}-boundary-{target}.json` |
 | code-analyze | `{session-id}-analysis-{target}.json` |
 | schema-validate | `{session-id}-validation-{target}.json` |
-| spec-agent (state) | `{session-id}-spec-state-{target}.json` |
-| spec-reviewer | `{session-id}-review-{target}.json` |
+| impl-agent (state) | `{session-id}-impl-state-{target}.json` |
+| impl-reviewer | `{session-id}-review-{target}.json` |
 | code-reviewer | `{session-id}-convention-review-{target}.json` |
 
 **예시:** (session-id: a1b2c3d4)
@@ -443,7 +443,7 @@ Agent/Skill 간 결과 전달 시 임시 파일을 사용합니다.
 ├── a1b2c3d4-boundary-src-auth.json
 ├── a1b2c3d4-analysis-src-auth.json
 ├── a1b2c3d4-audit-result.json
-├── a1b2c3d4-spec-state-src-auth.json
+├── a1b2c3d4-impl-state-src-auth.json
 ├── a1b2c3d4-review-src-auth.json
 └── a1b2c3d4-convention-review-src-auth.json
 ```

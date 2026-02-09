@@ -28,9 +28,9 @@ result_file: .claude/tmp/{session-id}-compile-{target}.json
 ```
 - 추가 필드: `phase`, `generated_files`, `skipped_files`, `tests_passed`, `tests_failed`, `implements_md_updated`
 
-### spec-reviewer
+### impl-reviewer
 ```
----spec-reviewer-result---
+---impl-reviewer-result---
 status: approve | feedback
 score: {0-100}
 result_file: .claude/tmp/{session-id}-review-{target}.json

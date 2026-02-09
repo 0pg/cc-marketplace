@@ -1,5 +1,5 @@
 ---
-name: spec-agent
+name: impl-agent
 description: |
   Use this agent when analyzing user requirements and generating CLAUDE.md + IMPLEMENTS.md specifications.
   Combines requirement clarification and dual document generation in a single workflow with automatic review-feedback iteration.
@@ -28,7 +28,7 @@ description: |
   6. IMPLEMENTS.md Planning Section generated (HOW)
   7. Review iteration 1/3 - all gates passed, status: approve
 
-  ---spec-agent-result---
+  ---impl-agent-result---
   status: approve
   claude_md_file: src/auth/CLAUDE.md
   implements_md_file: src/auth/IMPLEMENTS.md
@@ -40,7 +40,7 @@ description: |
   external_dependencies_count: 0
   review_iterations: 1
   review_status: approve
-  ---end-spec-agent-result---
+  ---end-impl-agent-result---
   </assistant_response>
   <commentary>
   Called by spec skill to create CLAUDE.md + IMPLEMENTS.md from requirements.
@@ -73,7 +73,7 @@ description: |
   6. IMPLEMENTS.md Planning Section updated (HOW)
   7. Review iteration 1/3 - all gates passed, status: approve
 
-  ---spec-agent-result---
+  ---impl-agent-result---
   status: approve
   claude_md_file: src/auth/CLAUDE.md
   implements_md_file: src/auth/IMPLEMENTS.md
@@ -85,7 +85,7 @@ description: |
   external_dependencies_count: 0
   review_iterations: 1
   review_status: approve
-  ---end-spec-agent-result---
+  ---end-impl-agent-result---
   </assistant_response>
   </example>
 
@@ -118,7 +118,7 @@ description: |
   9. IMPLEMENTS.md Planning Section generated (HOW) with Module Integration Map
   10. Review iteration 1/3 - all gates passed, status: approve
 
-  ---spec-agent-result---
+  ---impl-agent-result---
   status: approve
   claude_md_file: src/cache/CLAUDE.md
   implements_md_file: src/cache/IMPLEMENTS.md
@@ -130,11 +130,11 @@ description: |
   external_dependencies_count: 1
   review_iterations: 1
   review_status: approve
-  ---end-spec-agent-result---
+  ---end-impl-agent-result---
   </assistant_response>
   <commentary>
   Module Integration Map is generated when internal dependencies exist.
-  Pre-validation loop ensures map correctness before spec-reviewer invocation.
+  Pre-validation loop ensures map correctness before impl-reviewer invocation.
   </commentary>
   </example>
 model: inherit
@@ -233,7 +233,7 @@ Extract the following from requirements:
 
 반복 사이클 중 context compaction으로 인한 상태 손실을 방지하기 위해 상태 파일을 사용합니다.
 
-**파일 경로:** `.claude/tmp/{session-id}-spec-state-{target}.json`
+**파일 경로:** `.claude/tmp/{session-id}-impl-state-{target}.json`
 
 ```json
 {
@@ -329,7 +329,7 @@ for dep in internal_dependencies:
 
 ##### 2.5.4.1 Integration Map Pre-validation (자체 검증)
 
-spec-reviewer 호출 전에 Integration Map의 정합성을 자체 검증합니다.
+impl-reviewer 호출 전에 Integration Map의 정합성을 자체 검증합니다.
 
 ```python
 MAX_PREVALIDATION_ATTEMPTS = 2
@@ -367,8 +367,8 @@ for attempt in range(MAX_PREVALIDATION_ATTEMPTS):
 2. **Prefix 일치**: 이름이 대상 export의 prefix인 경우 (e.g., `validate` → `validateToken`)
 3. **단일 후보만 반환**: 여러 후보가 있으면 가장 짧은 이름 우선 (가장 정확한 매칭)
 
-- **비용**: 0 iteration (spec-reviewer 호출 전 자체 수정)
-- **실패 시**: 2회 시도 후에도 exports_used가 비어있는 entry가 있으면 해당 entry 제거 + 경고 로그 후 진행 (spec-reviewer에서 최종 검증)
+- **비용**: 0 iteration (impl-reviewer 호출 전 자체 수정)
+- **실패 시**: 2회 시도 후에도 exports_used가 비어있는 entry가 있으면 해당 entry 제거 + 경고 로그 후 진행 (impl-reviewer에서 최종 검증)
 
 #### 2.5.5 External Dependencies 수집
 
@@ -470,7 +470,7 @@ Implementation Section은 placeholder로 남깁니다 (`/compile` 시 자동 생
 │  Step 1: 문서 생성/업데이트          │
 │      │                              │
 │      ▼                              │
-│  Step 2: spec-reviewer 자동 리뷰    │
+│  Step 2: impl-reviewer 자동 리뷰    │
 │      │                              │
 │      ▼                              │
 │  Step 3: 판정                       │
@@ -479,11 +479,11 @@ Implementation Section은 placeholder로 남깁니다 (`/compile` 시 자동 생
 └─────────────────────────────────────┘
 ```
 
-#### spec-reviewer 호출
+#### impl-reviewer 호출
 
 ```python
 Task(
-    subagent_type="claude-md-plugin:spec-reviewer",
+    subagent_type="claude-md-plugin:impl-reviewer",
     prompt=f"""
 원본 요구사항:
 {original_requirement}
@@ -545,7 +545,7 @@ claude-md-core validate-schema \
 ##### 출력 형식
 
 ```
----spec-agent-result---
+---impl-agent-result---
 status: approve
 claude_md_file: {target_path}/CLAUDE.md
 implements_md_file: {target_path}/IMPLEMENTS.md
@@ -558,7 +558,7 @@ integration_map_entries: {len(integration_entries)}
 external_dependencies_count: {len(external_dependencies)}
 review_iterations: {iteration_count}
 review_status: {approve|warning}
----end-spec-agent-result---
+---end-impl-agent-result---
 ```
 
 ## 오류 처리

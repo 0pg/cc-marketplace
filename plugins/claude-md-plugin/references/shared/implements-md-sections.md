@@ -2,7 +2,7 @@
 
 > SSOT: `templates/implements-md-schema.md`
 
-## Planning Section (`/spec`이 업데이트)
+## Planning Section (`/impl`이 업데이트)
 
 | 섹션 | 필수 | "None" 허용 | 설명 |
 |------|------|-------------|------|
@@ -24,7 +24,7 @@
 ## 명령어별 업데이트 책임
 
 ```
-/spec      → CLAUDE.md + IMPLEMENTS.md Planning Section
+/impl      → CLAUDE.md + IMPLEMENTS.md Planning Section
 /compile   → IMPLEMENTS.md Implementation Section
 /decompile → CLAUDE.md + IMPLEMENTS.md 전체
 ```

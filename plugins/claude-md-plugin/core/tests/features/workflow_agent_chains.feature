@@ -2,11 +2,11 @@ Feature: Cross-Agent Workflow Chain Regression
   Ensures the delegation chains across skills and agents are intact,
   verifying that each layer properly references the next in the workflow.
 
-  Scenario: spec chain - skill delegates to agent delegates to reviewer
-    Given the content of skill "spec" is loaded
-    Then the content should mention "spec-agent"
-    Given the content of agent "spec-agent" is loaded
-    Then the content should mention "spec-reviewer"
+  Scenario: impl chain - skill delegates to agent delegates to reviewer
+    Given the content of skill "impl" is loaded
+    Then the content should mention "impl-agent"
+    Given the content of agent "impl-agent" is loaded
+    Then the content should mention "impl-reviewer"
 
   Scenario: compile chain - skill orchestrates compiler and test-reviewer
     Given the content of skill "compile" is loaded
@@ -30,9 +30,9 @@ Feature: Cross-Agent Workflow Chain Regression
       | export-validator |
       | code-reviewer    |
 
-  Scenario: spec-agent pre-validation before reviewer
-    Given the content of agent "spec-agent" is loaded
+  Scenario: impl-agent pre-validation before reviewer
+    Given the content of agent "impl-agent" is loaded
     Then the content should describe workflow chain:
       | step            | pattern          |
       | pre-validation  | Pre-validation   |
-      | spec-reviewer   | spec-reviewer    |
+      | impl-reviewer   | impl-reviewer    |

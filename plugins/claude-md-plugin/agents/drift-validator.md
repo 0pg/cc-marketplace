@@ -182,7 +182,7 @@ For each documented_dependency:
 #### Module Integration Map 교차 검증
 
 **Scope**: drift-validator는 맵에 있는 entry만 검증합니다 (존재하는 것의 정확성).
-완전성 검증(모든 dep가 맵에 있는지)은 spec-reviewer의 책임입니다.
+완전성 검증(모든 dep가 맵에 있는지)은 impl-reviewer의 책임입니다.
 
 **진입 조건:**
 ```python

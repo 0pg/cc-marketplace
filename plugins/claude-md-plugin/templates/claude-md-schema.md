@@ -473,7 +473,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 **INV-4: Section 업데이트 책임**
 ```
-/spec → CLAUDE.md + IMPLEMENTS.md.PlanningSection
+/impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 ```

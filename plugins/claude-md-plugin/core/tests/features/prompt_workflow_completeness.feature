@@ -80,24 +80,24 @@ Feature: Workflow Completeness Validation
 
   # === Workflow Reference Chains ===
 
-  Scenario: spec skill references spec-agent
-    Given an agent file "spec-agent.md":
+  Scenario: impl skill references impl-agent
+    Given an agent file "impl-agent.md":
       """
       ---
-      name: spec-agent
+      name: impl-agent
       description: Generate spec from requirements
       tools: [Read, Write, Task, Skill]
       ---
       Body
       """
-    And a skill directory "spec" with SKILL.md:
+    And a skill directory "impl" with SKILL.md:
       """
       ---
-      name: spec
+      name: impl
       description: Generate CLAUDE.md from requirements
       allowed-tools: [Task]
       ---
-      Task(spec-agent) invocation
+      Task(impl-agent) invocation
       CLI: validate-schema for final check
       """
     When I validate prompts
@@ -107,24 +107,24 @@ Feature: Workflow Completeness Validation
     And cross-reference summary should show 0 skill references
     And cross-reference summary should show 0 unresolved skill references
 
-  Scenario: spec-agent references spec-reviewer with CLI tools
-    Given an agent file "spec-reviewer.md":
+  Scenario: impl-agent references impl-reviewer with CLI tools
+    Given an agent file "impl-reviewer.md":
       """
       ---
-      name: spec-reviewer
+      name: impl-reviewer
       description: Review spec documents
       tools: [Read]
       ---
       Body
       """
-    And an agent file "spec-agent.md":
+    And an agent file "impl-agent.md":
       """
       ---
-      name: spec-agent
+      name: impl-agent
       description: Generate spec from requirements
       tools: [Read, Write, Task, Bash]
       ---
-      Task(spec-reviewer) for review
+      Task(impl-reviewer) for review
       CLI: parse-tree for structure
       CLI: dependency-graph for deps
       CLI: validate-schema for validation

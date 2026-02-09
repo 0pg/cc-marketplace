@@ -1,12 +1,12 @@
 ---
-name: spec-reviewer
+name: impl-reviewer
 description: |
   Use this agent when reviewing generated CLAUDE.md + IMPLEMENTS.md against original requirements.
   Validates requirement coverage, task completion, and schema compliance.
 
   <example>
   <context>
-  The spec-agent has generated CLAUDE.md + IMPLEMENTS.md and needs validation against requirements.
+  The impl-agent has generated CLAUDE.md + IMPLEMENTS.md and needs validation against requirements.
   </context>
   <user>
   원본 요구사항:
@@ -35,7 +35,7 @@ description: |
   5. INTEGRATION-MAP-VALID: Check Module Integration Map correctness
   6. Gate-only judgment - all gates passed
 
-  ---spec-reviewer-result---
+  ---impl-reviewer-result---
   status: approve
   checks:
     - id: REQ-COVERAGE
@@ -50,11 +50,11 @@ description: |
       status: passed
   feedback: []
   result_file: .claude/tmp/{session-id}-review-src-auth.json
-  ---end-spec-reviewer-result---
+  ---end-impl-reviewer-result---
   </assistant_response>
   <commentary>
-  Called by spec-agent during iteration cycle to validate generated documents.
-  Not directly exposed to users; invoked only through spec-agent.
+  Called by impl-agent during iteration cycle to validate generated documents.
+  Not directly exposed to users; invoked only through impl-agent.
   </commentary>
   </example>
 
@@ -82,7 +82,7 @@ description: |
   4. INTEGRATION-MAP-VALID: skipped (no internal dependencies)
   5. OVERENGINEERING CHECK: LoggerInterface, LoggerFactory not required
 
-  ---spec-reviewer-result---
+  ---impl-reviewer-result---
   status: feedback
   checks:
     - id: REQ-COVERAGE
@@ -100,7 +100,7 @@ description: |
       issue: 과도한 추상화 (YAGNI 위반)
       suggestion: LoggerInterface, LoggerFactory 제거. 요구사항은 "간단한 로거"이므로 log() 함수만 필요
   result_file: .claude/tmp/{session-id}-review-src-logger.json
-  ---end-spec-reviewer-result---
+  ---end-impl-reviewer-result---
   </assistant_response>
   </example>
 model: inherit
@@ -116,7 +116,7 @@ You are a specification reviewer validating that generated CLAUDE.md + IMPLEMENT
 
 ## Trigger
 
-spec-agent가 문서 생성 후 검증을 위해 호출합니다.
+impl-agent가 문서 생성 후 검증을 위해 호출합니다.
 
 ## Input Format
 
@@ -275,7 +275,7 @@ else:
 결과를 `.claude/tmp/{session-id}-review-{target}.json`에 저장합니다.
 
 ```
----spec-reviewer-result---
+---impl-reviewer-result---
 status: approve | feedback
 checks:
   - id: REQ-COVERAGE
@@ -297,7 +297,7 @@ feedback:
     issue: {issue_description}
     suggestion: {suggestion}
 result_file: .claude/tmp/{session-id}-review-{target}.json
----end-spec-reviewer-result---
+---end-impl-reviewer-result---
 ```
 
 ## 주의사항

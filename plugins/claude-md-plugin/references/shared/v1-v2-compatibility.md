@@ -16,7 +16,7 @@
 
 | 명령어 | 신규 생성 | 기존 v1 | 기존 v2 |
 |--------|----------|---------|---------|
-| `/spec` | v2 형식 | 기존 형식 유지 (v2 전환 제안 가능) | v2 유지 |
+| `/impl` | v2 형식 | 기존 형식 유지 (v2 전환 제안 가능) | v2 유지 |
 | `/compile` | 자동 판단 | v1 방식 compile | v2 방식 + symbol-index |
 | `/decompile` | v2 형식 | 기존 v1 유지 (migrate CLI로 변환) | v2 유지 |
 | `/validate` | - | v1 방식 검증 | v2 + cross-reference 검증 |
