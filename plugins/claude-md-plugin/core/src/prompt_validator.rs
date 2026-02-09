@@ -13,6 +13,34 @@ const VALID_TOOLS: &[&str] = &[
 
 const VALID_STATUSES: &[&str] = &["approve", "feedback", "warning", "error"];
 
+const VALID_CLI_COMMANDS: &[&str] = &[
+    "parse-tree",
+    "resolve-boundary",
+    "validate-schema",
+    "parse-claude-md",
+    "parse-implements-md",
+    "dependency-graph",
+    "audit",
+    "symbol-index",
+    "generate-diagram",
+    "migrate",
+    "validate-prompts",
+];
+
+/// Patterns to detect tool usage in prompt body text.
+/// Each entry: (tool_name, regex_pattern).
+const TOOL_USAGE_PATTERNS: &[(&str, &str)] = &[
+    ("Bash", r"(?:Bash|```bash|claude-md-core|git\s)"),
+    ("Read", r"\bRead\b"),
+    ("Write", r"\bWrite\b"),
+    ("Glob", r"\bGlob\b"),
+    ("Grep", r"\bGrep\b"),
+    ("Task", r"Task\("),
+    ("Skill", r#"Skill\("#),
+    ("AskUserQuestion", r"AskUserQuestion"),
+    ("Edit", r"\bEdit\b"),
+];
+
 // === Data Models ===
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -64,6 +92,20 @@ pub struct CrossReferenceSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ToolConsistencyIssue {
+    pub file: String,
+    pub declared_not_used: Vec<String>,
+    pub used_not_declared: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct CliReferenceSummary {
+    pub cli_references: usize,
+    pub valid_cli_refs: usize,
+    pub invalid_cli_refs: Vec<(String, String)>, // (command, file)
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PromptValidationResult {
     pub root: String,
     pub skills_count: usize,
@@ -71,7 +113,22 @@ pub struct PromptValidationResult {
     pub valid: bool,
     pub issues: Vec<PromptValidationIssue>,
     pub cross_reference_summary: CrossReferenceSummary,
+    pub tool_consistency_issues: Vec<ToolConsistencyIssue>,
+    pub cli_reference_summary: CliReferenceSummary,
 }
+
+// Internal struct for tracking parsed prompt info across phases
+struct ParsedPrompt {
+    file: String,
+    kind: PromptKind,
+    declared_tools: Vec<String>,
+    body: String,
+}
+
+/// Tools with explicit call patterns that can be reliably detected in prompt text.
+/// Other tools (Read, Write, Glob, Grep, Edit) are commonly used implicitly by agents
+/// without being explicitly mentioned, so we only check these for declared-but-not-used.
+const STRICT_CHECK_TOOLS: &[&str] = &["Skill", "Task"];
 
 // === Validator ===
 
@@ -80,6 +137,7 @@ pub struct PromptValidator {
     skill_ref_re: Regex,
     result_start_re: Regex,
     result_end_re: Regex,
+    cli_command_re: Regex,
 }
 
 impl PromptValidator {
@@ -89,6 +147,7 @@ impl PromptValidator {
             skill_ref_re: Regex::new(r#"Skill\("(?:claude-md-plugin:)?([a-z][-a-z0-9]*)"\)"#).unwrap(),
             result_start_re: Regex::new(r"---([a-z][-a-z0-9]*)-result---").unwrap(),
             result_end_re: Regex::new(r"---end-([a-z][-a-z0-9]*)-result---").unwrap(),
+            cli_command_re: Regex::new(r"claude-md-core\s+([\w-]+)").unwrap(),
         }
     }
 
@@ -97,18 +156,19 @@ impl PromptValidator {
         let mut skill_names = HashSet::new();
         let mut agent_names = HashSet::new();
         let mut all_contents: Vec<(String, String)> = Vec::new(); // (file_path, content)
+        let mut parsed_prompts: Vec<ParsedPrompt> = Vec::new(); // for Phase 5-6
 
         let skills_dir = root.join("skills");
         let agents_dir = root.join("agents");
 
         // Phase 1: Scan skills
         if skills_dir.is_dir() {
-            self.scan_skills(&skills_dir, &mut issues, &mut skill_names, &mut all_contents);
+            self.scan_skills(&skills_dir, &mut issues, &mut skill_names, &mut all_contents, &mut parsed_prompts);
         }
 
         // Phase 2: Scan agents
         if agents_dir.is_dir() {
-            self.scan_agents(&agents_dir, &mut issues, &mut agent_names, &mut all_contents);
+            self.scan_agents(&agents_dir, &mut issues, &mut agent_names, &mut all_contents, &mut parsed_prompts);
         }
 
         // Phase 3: Cross-reference validation
@@ -116,6 +176,12 @@ impl PromptValidator {
 
         // Phase 4: Result block validation
         self.validate_result_blocks(&all_contents, &mut issues);
+
+        // Phase 5: Tool consistency validation
+        let tool_consistency_issues = self.validate_tool_consistency(&parsed_prompts, &mut issues);
+
+        // Phase 6: CLI reference validation
+        let cli_reference_summary = self.validate_cli_references(&parsed_prompts, &mut issues);
 
         let valid = !issues.iter().any(|i| i.severity == Severity::Error);
 
@@ -126,6 +192,8 @@ impl PromptValidator {
             valid,
             issues,
             cross_reference_summary: cross_ref,
+            tool_consistency_issues,
+            cli_reference_summary,
         }
     }
 
@@ -135,6 +203,7 @@ impl PromptValidator {
         issues: &mut Vec<PromptValidationIssue>,
         skill_names: &mut HashSet<String>,
         all_contents: &mut Vec<(String, String)>,
+        parsed_prompts: &mut Vec<ParsedPrompt>,
     ) {
         let entries = match std::fs::read_dir(skills_dir) {
             Ok(e) => e,
@@ -170,7 +239,7 @@ impl PromptValidator {
 
             all_contents.push((file_str.clone(), content.clone()));
 
-            let (frontmatter_str, _body) = match Self::split_frontmatter(&content) {
+            let (frontmatter_str, body) = match Self::split_frontmatter(&content) {
                 Some(parts) => parts,
                 None => {
                     issues.push(PromptValidationIssue {
@@ -223,6 +292,14 @@ impl PromptValidator {
                     });
                 }
             }
+
+            // Track for Phase 5-6
+            parsed_prompts.push(ParsedPrompt {
+                file: file_str,
+                kind: PromptKind::Skill,
+                declared_tools: fm.allowed_tools,
+                body,
+            });
         }
     }
 
@@ -232,6 +309,7 @@ impl PromptValidator {
         issues: &mut Vec<PromptValidationIssue>,
         agent_names: &mut HashSet<String>,
         all_contents: &mut Vec<(String, String)>,
+        parsed_prompts: &mut Vec<ParsedPrompt>,
     ) {
         let entries = match std::fs::read_dir(agents_dir) {
             Ok(e) => e,
@@ -267,7 +345,7 @@ impl PromptValidator {
 
             all_contents.push((file_str.clone(), content.clone()));
 
-            let (frontmatter_str, _body) = match Self::split_frontmatter(&content) {
+            let (frontmatter_str, body) = match Self::split_frontmatter(&content) {
                 Some(parts) => parts,
                 None => {
                     issues.push(PromptValidationIssue {
@@ -332,6 +410,14 @@ impl PromptValidator {
                     }
                 }
             }
+
+            // Track for Phase 5-6
+            parsed_prompts.push(ParsedPrompt {
+                file: file_str,
+                kind: PromptKind::Agent,
+                declared_tools: fm.tools.unwrap_or_default(),
+                body,
+            });
         }
     }
 
@@ -532,6 +618,104 @@ impl PromptValidator {
                 }
             }
         }
+    }
+
+    fn validate_tool_consistency(
+        &self,
+        parsed_prompts: &[ParsedPrompt],
+        issues: &mut Vec<PromptValidationIssue>,
+    ) -> Vec<ToolConsistencyIssue> {
+        let mut consistency_issues = Vec::new();
+        let strict_tools: HashSet<&str> = STRICT_CHECK_TOOLS.iter().copied().collect();
+
+        for prompt in parsed_prompts {
+            // Skills define allowed-tools as a permission set for spawned agents,
+            // so we skip declared_not_used checks for skills entirely.
+            if prompt.kind == PromptKind::Skill {
+                continue;
+            }
+
+            let declared: HashSet<&str> = prompt.declared_tools.iter().map(|s| s.as_str()).collect();
+            let mut used: HashSet<&str> = HashSet::new();
+
+            for &(tool_name, pattern) in TOOL_USAGE_PATTERNS {
+                if let Ok(re) = Regex::new(pattern) {
+                    if re.is_match(&prompt.body) {
+                        used.insert(tool_name);
+                    }
+                }
+            }
+
+            // Only flag tools with explicit call patterns (Skill, Task) for declared-but-not-used.
+            // Other tools (Read, Write, Glob, etc.) are commonly used implicitly by agents.
+            let declared_not_used: Vec<String> = declared
+                .iter()
+                .filter(|t| strict_tools.contains(**t) && !used.contains(**t))
+                .map(|t| t.to_string())
+                .collect();
+
+            let used_not_declared: Vec<String> = used
+                .iter()
+                .filter(|t| !declared.contains(**t))
+                .map(|t| t.to_string())
+                .collect();
+
+            if !declared_not_used.is_empty() || !used_not_declared.is_empty() {
+                for tool in &declared_not_used {
+                    issues.push(PromptValidationIssue {
+                        severity: Severity::Warning,
+                        kind: prompt.kind.clone(),
+                        file: prompt.file.clone(),
+                        message: format!("Tool '{}' declared but not used in body", tool),
+                    });
+                }
+                for tool in &used_not_declared {
+                    issues.push(PromptValidationIssue {
+                        severity: Severity::Warning,
+                        kind: prompt.kind.clone(),
+                        file: prompt.file.clone(),
+                        message: format!("Tool '{}' used in body but not declared", tool),
+                    });
+                }
+                consistency_issues.push(ToolConsistencyIssue {
+                    file: prompt.file.clone(),
+                    declared_not_used,
+                    used_not_declared,
+                });
+            }
+        }
+
+        consistency_issues
+    }
+
+    fn validate_cli_references(
+        &self,
+        parsed_prompts: &[ParsedPrompt],
+        issues: &mut Vec<PromptValidationIssue>,
+    ) -> CliReferenceSummary {
+        let mut summary = CliReferenceSummary::default();
+        let valid_commands: HashSet<&str> = VALID_CLI_COMMANDS.iter().copied().collect();
+
+        for prompt in parsed_prompts {
+            for cap in self.cli_command_re.captures_iter(&prompt.body) {
+                let command = cap[1].to_string();
+                summary.cli_references += 1;
+
+                if valid_commands.contains(command.as_str()) {
+                    summary.valid_cli_refs += 1;
+                } else {
+                    summary.invalid_cli_refs.push((command.clone(), prompt.file.clone()));
+                    issues.push(PromptValidationIssue {
+                        severity: Severity::Error,
+                        kind: PromptKind::Agent,
+                        file: prompt.file.clone(),
+                        message: format!("Invalid CLI command 'claude-md-core {}'", command),
+                    });
+                }
+            }
+        }
+
+        summary
     }
 
     fn split_frontmatter(content: &str) -> Option<(String, String)> {

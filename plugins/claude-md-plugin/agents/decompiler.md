@@ -70,7 +70,6 @@ tools:
   - Grep
   - Write
   - Skill
-  - Task
   - AskUserQuestion
 ---
 

@@ -123,7 +123,6 @@ tools:
   - Grep
   - Write
   - Task
-  - Skill
 ---
 
 You are a recursive orchestrator for the decompile workflow with incremental support.

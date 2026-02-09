@@ -149,9 +149,9 @@ visited_paths: []
 |----------|------|------|----------|
 | `recursive-decompiler` | Agent | 재귀 탐색, incremental 판단, 오케스트레이션 | decompile Skill |
 | `decompiler` | Agent | 단일 모듈 CLAUDE.md + IMPLEMENTS.md 생성 | recursive-decompiler Agent |
-| `boundary-resolve` | Skill | 바운더리 분석 | recursive-decompiler, decompiler |
+| `resolve-boundary` | CLI | 바운더리 분석 | recursive-decompiler, decompiler |
 | `code-analyze` | Skill | 코드 분석 | decompiler Agent |
-| `schema-validate` | Skill | 스키마 검증 | decompiler Agent |
+| `validate-schema` | CLI | 스키마 검증 | decompiler Agent |
 
 **tree-parse는 더 이상 사용되지 않습니다.** 재귀적 구조로 대체되었습니다.
 

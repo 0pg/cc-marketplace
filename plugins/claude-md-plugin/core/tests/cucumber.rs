@@ -1242,6 +1242,45 @@ fn load_project_agents(world: &mut TestWorld) {
     }
 }
 
+// ============== Prompt Tool Consistency Steps ==============
+
+#[then(expr = "tool consistency should warn {string} has unused tool {string}")]
+fn tool_unused_warning(world: &mut TestWorld, component: String, tool: String) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    let found = result.tool_consistency_issues.iter().any(|issue| {
+        issue.file.contains(&component) && issue.declared_not_used.contains(&tool)
+    });
+    assert!(found, "Expected tool consistency warning for '{}' having unused tool '{}', got issues: {:?}",
+            component, tool, result.tool_consistency_issues);
+}
+
+#[then(expr = "tool consistency should warn {string} has undeclared tool {string}")]
+fn tool_undeclared_warning(world: &mut TestWorld, component: String, tool: String) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    let found = result.tool_consistency_issues.iter().any(|issue| {
+        issue.file.contains(&component) && issue.used_not_declared.contains(&tool)
+    });
+    assert!(found, "Expected tool consistency warning for '{}' having undeclared tool '{}', got issues: {:?}",
+            component, tool, result.tool_consistency_issues);
+}
+
+#[then(expr = "tool consistency issues count should be {int}")]
+fn tool_consistency_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.tool_consistency_issues.len(), count,
+               "Expected {} tool consistency issues, got {} ({:?})",
+               count, result.tool_consistency_issues.len(), result.tool_consistency_issues);
+}
+
+#[then(expr = "invalid CLI references count should be {int}")]
+fn invalid_cli_refs_count(world: &mut TestWorld, count: usize) {
+    let result = world.prompt_validation_result.as_ref().expect("No prompt validation result");
+    assert_eq!(result.cli_reference_summary.invalid_cli_refs.len(), count,
+               "Expected {} invalid CLI refs, got {} ({:?})",
+               count, result.cli_reference_summary.invalid_cli_refs.len(),
+               result.cli_reference_summary.invalid_cli_refs);
+}
+
 // ============== Validate Index File Steps ==============
 
 #[given("a pre-built symbol index file with symbols:")]

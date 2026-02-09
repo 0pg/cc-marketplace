@@ -145,7 +145,6 @@ tools:
   - Glob
   - Grep
   - Write
-  - Skill
   - Task
   - AskUserQuestion
 ---
