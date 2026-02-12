@@ -3,13 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
+pub use crate::bracket_utils::split_respecting_brackets;
+use crate::bracket_utils::{find_matching_bracket, extract_parenthesized};
+
 // Include generated constants from schema-rules.yaml (SSOT)
-// Not all constants are used in every module that includes them
-#[allow(dead_code)]
-mod schema_rules {
-    include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
-}
-use schema_rules::*;
+include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
 
 /// Error types for CLAUDE.md parsing
 #[derive(Debug, Error)]
@@ -33,32 +31,23 @@ pub struct ClaudeMdSpec {
     pub name: String,
     /// Purpose description
     pub purpose: String,
-    /// Summary - brief 1-2 sentence overview of role/responsibility/features
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
     /// Exported symbols
     pub exports: ExportsSpec,
     /// Dependencies
     pub dependencies: DependenciesSpec,
     /// Behavioral scenarios
     pub behaviors: Vec<BehaviorSpec>,
-    /// Actors for UseCase diagrams (v2)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub actors: Vec<ActorSpec>,
-    /// Use cases (v2)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub use_cases: Vec<UseCaseSpec>,
     /// Function contracts
     pub contracts: Vec<ContractSpec>,
     /// Protocol (state machine, lifecycle)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<ProtocolSpec>,
+    /// Domain Context (decision rationale, constraints, compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain_context: Option<DomainContextSpec>,
     /// Directory structure
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structure: Option<StructureSpec>,
-    /// Schema version (v2: "2.0", v1: None)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema_version: Option<String>,
     /// Validation warnings (non-fatal issues found during parsing)
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -81,10 +70,6 @@ pub struct FunctionExport {
     pub signature: String,
     #[serde(default)]
     pub is_async: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<String>,
 }
 
 /// Type export
@@ -94,10 +79,6 @@ pub struct TypeExport {
     pub definition: String,
     #[serde(default)]
     pub kind: TypeKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -116,10 +97,6 @@ pub enum TypeKind {
 pub struct ClassExport {
     pub name: String,
     pub constructor_signature: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<String>,
 }
 
 /// Enum export
@@ -127,10 +104,6 @@ pub struct ClassExport {
 pub struct EnumExport {
     pub name: String,
     pub variants: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<String>,
 }
 
 /// Variable export
@@ -139,17 +112,25 @@ pub struct VariableExport {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<String>,
+}
+
+/// A parsed internal dependency from CLAUDE.md
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternalDepSpec {
+    /// CLAUDE.md path or raw import path
+    pub path: String,
+    /// Imported symbols (if specified after colon)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<String>,
+    /// Whether the path points to a CLAUDE.md file (new format)
+    pub is_claude_md_ref: bool,
 }
 
 /// Dependencies specification
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DependenciesSpec {
     pub external: Vec<String>,
-    pub internal: Vec<String>,
+    pub internal: Vec<InternalDepSpec>,
 }
 
 /// Behavioral scenario
@@ -168,34 +149,6 @@ pub enum BehaviorCategory {
     Error,
 }
 
-/// Actor in a UseCase diagram (v2)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActorSpec {
-    pub name: String,
-    pub description: String,
-}
-
-/// UseCase specification (v2)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UseCaseSpec {
-    /// UseCase ID (e.g. "UC-1")
-    pub id: String,
-    /// UseCase name (e.g. "Token Validation")
-    pub name: String,
-    /// Associated actor name
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actor: Option<String>,
-    /// Behavioral scenarios within this use case
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub behaviors: Vec<BehaviorSpec>,
-    /// Included use case IDs (e.g. ["UC-3"])
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub includes: Vec<String>,
-    /// Extended use case IDs (e.g. ["UC-1"])
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub extends: Vec<String>,
-}
-
 /// Contract specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractSpec {
@@ -204,6 +157,14 @@ pub struct ContractSpec {
     pub postconditions: Vec<String>,
     pub throws: Vec<String>,
     pub invariants: Vec<String>,
+}
+
+/// Domain Context specification
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DomainContextSpec {
+    pub decision_rationale: Vec<String>,
+    pub constraints: Vec<String>,
+    pub compatibility: Vec<String>,
 }
 
 /// Protocol specification
@@ -244,6 +205,15 @@ pub struct StructureEntry {
     pub description: String,
 }
 
+/// Deduplicate items by name, keeping the first occurrence.
+fn dedup_by_name<T, F>(items: &mut Vec<T>, name_fn: F)
+where
+    F: Fn(&T) -> &String,
+{
+    let mut seen = std::collections::HashSet::new();
+    items.retain(|item| seen.insert(name_fn(item).clone()));
+}
+
 /// CLAUDE.md Parser
 pub struct ClaudeMdParser {
     section_pattern: Regex,
@@ -255,15 +225,7 @@ pub struct ClaudeMdParser {
     transition_pattern: Regex,
     lifecycle_pattern: Regex,
     structure_pattern: Regex,
-    // v2 patterns
-    schema_version_pattern: Regex,
-    actor_pattern: Regex,
-    usecase_id_pattern: Regex,
-    include_pattern: Regex,
-    extend_pattern: Regex,
-    actor_ref_pattern: Regex,
-    /// v2 export heading pattern (#### symbolName)
-    export_heading_pattern: Regex,
+    data_class_pattern: Regex,
 }
 
 impl ClaudeMdParser {
@@ -272,35 +234,22 @@ impl ClaudeMdParser {
             // Match markdown headers: ## Purpose, ### Functions
             section_pattern: Regex::new(r"^(#{1,4})\s+(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match behavior: input → output or input -> output
-            behavior_pattern: Regex::new(r"^[-*]?\s*(.+?)\s*[→\->]+\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            behavior_pattern: Regex::new(r"^[-*]?\s*(.+?)\s*(?:→|->)+\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match function signature: `funcName(params): ReturnType` or Name(params): Type
             function_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*[:\s]*(.+?)`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // Match type definition: `TypeName { fields }` or TypeName<T> { fields }
-            type_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*(?:<[^>]+>)?)\s*\{([^}]*)\}`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // Match type definition: `TypeName { fields }` or TypeName { fields }
+            type_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\{([^}]*)\}`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match class: `ClassName(params)` or ClassName(params)
             class_pattern: Regex::new(r"^[-*]?\s*`?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // Match dependency: external: pkg or internal: path
-            dependency_pattern: Regex::new(r"^[-*]?\s*(external|internal):\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            // Match dependency: external: pkg or internal: path (value is optional for list-style)
+            dependency_pattern: Regex::new(r"^[-*]?\s*(external|internal):\s*(.*)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match transition: `State` + `trigger` → `NewState`
             transition_pattern: Regex::new(r"^[-*]?\s*`?([^`]+)`?\s*\+\s*`?([^`]+)`?\s*[→\->]+\s*`?([^`]+)`?\s*$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match lifecycle: N. `method` - description
             lifecycle_pattern: Regex::new(r"^(\d+)\.\s*`?([A-Za-z_][A-Za-z0-9_]*(?:\(\))?)`?\s*[-–]\s*(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
             // Match structure: name/: description or name.ext: description
             structure_pattern: Regex::new(r"^[-*]?\s*([A-Za-z0-9_.-]+/?)\s*[:\s]+(.+)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Schema version marker: <!-- schema: 2.0 -->
-            schema_version_pattern: Regex::new(SCHEMA_VERSION_MARKER_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Actor pattern: - ActorName: description
-            actor_pattern: Regex::new(ACTOR_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: UseCase ID pattern: ### UC-1: Name
-            usecase_id_pattern: Regex::new(USECASE_ID_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Include pattern: - Includes: UC-3
-            include_pattern: Regex::new(INCLUDE_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Extend pattern: - Extends: UC-1
-            extend_pattern: Regex::new(EXTEND_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Actor reference: - Actor: User
-            actor_ref_pattern: Regex::new(ACTOR_REF_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
-            // v2: Export heading: #### symbolName
-            export_heading_pattern: Regex::new(EXPORT_HEADING_PATTERN).unwrap_or_else(|_| Regex::new(r".^").unwrap()),
+            data_class_pattern: Regex::new(r"^data\s+class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)$").unwrap_or_else(|_| Regex::new(r".^").unwrap()),
         }
     }
 
@@ -319,10 +268,6 @@ impl ClaudeMdParser {
     /// Required sections are defined in schema-rules.yaml (SSOT).
     pub fn parse_content(&self, content: &str) -> Result<ClaudeMdSpec, ParseError> {
         let mut spec = ClaudeMdSpec::default();
-
-        // Detect schema version from marker comment
-        spec.schema_version = self.detect_schema_version(content);
-
         let sections = self.extract_sections(content);
 
         // Extract module name from first H1 header
@@ -366,14 +311,6 @@ impl ClaudeMdParser {
             spec.purpose = purpose_section.content.join("\n").trim().to_string();
         }
 
-        // Parse Summary section
-        if let Some(summary_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Summary")) {
-            let summary_text = summary_section.content.join(" ").trim().to_string();
-            if !summary_text.is_empty() && !self.is_none_marker(summary_section) {
-                spec.summary = Some(summary_text);
-            }
-        }
-
         // Parse Exports section
         self.parse_exports(&sections, &mut spec);
 
@@ -385,15 +322,14 @@ impl ClaudeMdParser {
         // Parse Behavior section
         self.parse_behaviors(&sections, &mut spec);
 
-        // Parse v2 UseCase elements (Actors + Use Cases) from Behavior subsections
-        self.parse_actors(&sections, &mut spec);
-        self.parse_use_cases(&sections, &mut spec);
-
         // Parse Contract section
         self.parse_contracts(&sections, &mut spec);
 
         // Parse Protocol section
         self.parse_protocol(&sections, &mut spec);
+
+        // Parse Domain Context section
+        self.parse_domain_context(&sections, &mut spec);
 
         // Parse Structure section (optional - not in REQUIRED_SECTIONS)
         if let Some(structure_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Structure")) {
@@ -404,26 +340,14 @@ impl ClaudeMdParser {
     }
 
     /// Check if a section contains only a "None" marker (None, N/A, etc.)
-    fn is_none_marker(&self, section: &Section) -> bool {
-        let non_empty_lines: Vec<&str> = section
-            .content
-            .iter()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .collect();
-
-        // If section has only one non-empty line and it's a none marker
-        if non_empty_lines.len() == 1 {
-            let line = non_empty_lines[0].to_lowercase();
-            return line == "none" || line == "n/a";
-        }
-
-        false
+    fn is_none_marker(&self, section: &ParserSection) -> bool {
+        let lines: Vec<&str> = section.content.iter().map(|s| s.as_str()).collect();
+        crate::is_none_marker_content(&lines)
     }
 
-    fn extract_sections(&self, content: &str) -> Vec<Section> {
+    fn extract_sections(&self, content: &str) -> Vec<ParserSection> {
         let mut sections = Vec::new();
-        let mut current_section: Option<Section> = None;
+        let mut current_section: Option<ParserSection> = None;
 
         for line in content.lines() {
             if let Some(caps) = self.section_pattern.captures(line) {
@@ -435,7 +359,7 @@ impl ClaudeMdParser {
                 let level = caps.get(1).map(|m| m.as_str().len()).unwrap_or(1);
                 let name = caps.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
 
-                current_section = Some(Section {
+                current_section = Some(ParserSection {
                     name,
                     level,
                     content: Vec::new(),
@@ -452,7 +376,7 @@ impl ClaudeMdParser {
         sections
     }
 
-    fn parse_exports(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
+    fn parse_exports(&self, sections: &[ParserSection], spec: &mut ClaudeMdSpec) {
         // Note: existence of Exports section is checked in parse_content (fail-fast)
         let exports_section = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports"));
 
@@ -460,24 +384,60 @@ impl ClaudeMdParser {
             return;
         }
 
-        // v2: Use #### heading format for exports
-        if spec.schema_version.as_deref() == Some("2.0") {
-            self.parse_v2_exports(sections, spec);
-            return;
-        }
-
-        // v1: Original subsection-based parsing
         // Find subsections under Exports
+        // Track whether we're inside the Exports H2 section to avoid matching
+        // same-named H3 sections under other H2 sections (e.g. ### Functions under ## Behavior)
+        let mut in_exports_scope = false;
         let mut in_functions = false;
         let mut in_types = false;
         let mut in_classes = false;
         let mut in_methods = false;
         let mut in_structs = false;
         let mut in_data_classes = false;
+        let mut in_enums = false;
         let mut in_variables = false;
 
         for section in sections {
             let name_lower = section.name.to_lowercase();
+
+            // Track H2 section scope
+            if section.level <= 2 {
+                in_exports_scope = name_lower == "exports";
+                in_functions = false;
+                in_types = false;
+                in_classes = false;
+                in_methods = false;
+                in_structs = false;
+                in_data_classes = false;
+                in_enums = false;
+                in_variables = false;
+                // Parse direct content of ## Exports (flat exports before any subsection)
+                if in_exports_scope {
+                    for line in &section.content {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+                            continue;
+                        }
+                        if let Some(func) = self.parse_function_line(trimmed) {
+                            spec.exports.functions.push(func);
+                        } else if let Some(type_export) = self.parse_type_line(trimmed, false, false) {
+                            spec.exports.types.push(type_export);
+                        } else if let Some(class) = self.parse_class_line(trimmed) {
+                            spec.exports.classes.push(class);
+                        } else if let Some(enum_export) = self.parse_enum_line(trimmed) {
+                            spec.exports.enums.push(enum_export);
+                        } else if let Some(var) = self.parse_variable_line(trimmed) {
+                            spec.exports.variables.push(var);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Only process subsections within Exports scope
+            if !in_exports_scope {
+                continue;
+            }
 
             // Track subsection context
             if name_lower == "functions" || name_lower == "methods" {
@@ -487,6 +447,7 @@ impl ClaudeMdParser {
                 in_methods = name_lower == "methods";
                 in_structs = false;
                 in_data_classes = false;
+                in_enums = false;
                 in_variables = false;
             } else if name_lower == "types" || name_lower == "structs" {
                 in_functions = false;
@@ -494,6 +455,7 @@ impl ClaudeMdParser {
                 in_classes = false;
                 in_structs = name_lower == "structs";
                 in_data_classes = false;
+                in_enums = false;
                 in_variables = false;
             } else if name_lower == "classes" {
                 in_functions = false;
@@ -501,6 +463,7 @@ impl ClaudeMdParser {
                 in_classes = true;
                 in_structs = false;
                 in_data_classes = false;
+                in_enums = false;
                 in_variables = false;
             } else if name_lower == "data classes" {
                 in_functions = false;
@@ -508,6 +471,15 @@ impl ClaudeMdParser {
                 in_classes = false;
                 in_structs = false;
                 in_data_classes = true;
+                in_enums = false;
+                in_variables = false;
+            } else if name_lower == "enums" {
+                in_functions = false;
+                in_types = false;
+                in_classes = false;
+                in_structs = false;
+                in_data_classes = false;
+                in_enums = true;
                 in_variables = false;
             } else if name_lower == "variables" || name_lower == "constants" {
                 in_functions = false;
@@ -515,16 +487,8 @@ impl ClaudeMdParser {
                 in_classes = false;
                 in_structs = false;
                 in_data_classes = false;
+                in_enums = false;
                 in_variables = true;
-            } else if section.level <= 2 {
-                // Reset context on new major section
-                in_functions = false;
-                in_types = false;
-                in_classes = false;
-                in_structs = false;
-                in_data_classes = false;
-                in_variables = false;
-                continue;
             }
 
             // Parse content based on context
@@ -546,18 +510,31 @@ impl ClaudeMdParser {
                     if let Some(class) = self.parse_class_line(trimmed) {
                         spec.exports.classes.push(class);
                     }
+                } else if in_enums {
+                    if let Some(enum_export) = self.parse_enum_line(trimmed) {
+                        spec.exports.enums.push(enum_export);
+                    }
                 } else if in_variables {
-                    if let Some(var) = Self::parse_variable_line(trimmed) {
+                    if let Some(var) = self.parse_variable_line(trimmed) {
                         spec.exports.variables.push(var);
                     }
                 }
             }
         }
 
+        // Deduplicate exports (mixed flat + subsection format may produce duplicates)
+        dedup_by_name(&mut spec.exports.functions, |f| &f.name);
+        dedup_by_name(&mut spec.exports.types, |t| &t.name);
+        dedup_by_name(&mut spec.exports.classes, |c| &c.name);
+        dedup_by_name(&mut spec.exports.enums, |e| &e.name);
+        dedup_by_name(&mut spec.exports.variables, |v| &v.name);
+
         // If no subsections found, try parsing Exports content directly
         if spec.exports.functions.is_empty()
             && spec.exports.types.is_empty()
             && spec.exports.classes.is_empty()
+            && spec.exports.enums.is_empty()
+            && spec.exports.variables.is_empty()
         {
             if let Some(exports) = exports_section {
                 for line in &exports.content {
@@ -573,6 +550,10 @@ impl ClaudeMdParser {
                         spec.exports.types.push(type_export);
                     } else if let Some(class) = self.parse_class_line(trimmed) {
                         spec.exports.classes.push(class);
+                    } else if let Some(enum_export) = self.parse_enum_line(trimmed) {
+                        spec.exports.enums.push(enum_export);
+                    } else if let Some(var) = self.parse_variable_line(trimmed) {
+                        spec.exports.variables.push(var);
                     }
                 }
             }
@@ -590,169 +571,9 @@ impl ClaudeMdParser {
         if spec.exports.functions.is_empty()
             && spec.exports.types.is_empty()
             && spec.exports.classes.is_empty()
-        {
-            spec.warnings.push("Exports section contains no valid exports".to_string());
-        }
-    }
-
-    /// Parse v2 exports using `#### symbolName` heading format.
-    /// Each symbol has metadata lines: Type, Signature, Description, Variants, Value.
-    fn parse_v2_exports(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
-        // Find all level-4 sections under Exports
-        let mut in_exports = false;
-
-        for section in sections {
-            if section.name.eq_ignore_ascii_case("Exports") {
-                in_exports = true;
-                continue;
-            }
-
-            // Stop when we hit a non-subsection (level <= 2 is a new major section)
-            if section.level <= 2 && in_exports {
-                break;
-            }
-
-            if !in_exports {
-                continue;
-            }
-
-            // Only process level 4 headings (#### symbolName)
-            if section.level != 4 {
-                continue;
-            }
-
-            // Extract symbol name from the heading via regex
-            let symbol_name = if let Some(caps) = self.export_heading_pattern.captures(&section.name) {
-                caps.get(1).map(|m| m.as_str().to_string())
-            } else {
-                // Fallback: use section name directly
-                Some(section.name.clone())
-            };
-
-            let symbol_name = match symbol_name {
-                Some(name) => name,
-                None => continue,
-            };
-
-            // Parse metadata from content lines
-            let mut type_kind: Option<String> = None;
-            let mut signature: Option<String> = None;
-            let mut description: Option<String> = None;
-            let mut variants: Option<Vec<String>> = None;
-            let mut value: Option<String> = None;
-
-            for line in &section.content {
-                let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                if let Some(rest) = trimmed.strip_prefix("- **Type**:") {
-                    type_kind = Some(rest.trim().to_lowercase());
-                } else if let Some(rest) = trimmed.strip_prefix("- **Signature**:") {
-                    // Strip backticks from signature
-                    let sig = rest.trim().trim_matches('`').to_string();
-                    signature = Some(sig);
-                } else if let Some(rest) = trimmed.strip_prefix("- **Description**:") {
-                    description = Some(rest.trim().to_string());
-                } else if let Some(rest) = trimmed.strip_prefix("- **Variants**:") {
-                    let v: Vec<String> = rest.split(',').map(|s| s.trim().to_string()).collect();
-                    variants = Some(v);
-                } else if let Some(rest) = trimmed.strip_prefix("- **Value**:") {
-                    value = Some(rest.trim().to_string());
-                }
-            }
-
-            let anchor = Some(symbol_name.clone());
-
-            match type_kind.as_deref() {
-                Some("function") => {
-                    let sig = signature.unwrap_or_else(|| format!("{}()", symbol_name));
-                    spec.exports.functions.push(FunctionExport {
-                        name: symbol_name,
-                        signature: sig,
-                        is_async: false,
-                        description,
-                        anchor,
-                    });
-                }
-                Some("class") => {
-                    let sig = signature.unwrap_or_else(|| format!("{}()", symbol_name));
-                    spec.exports.classes.push(ClassExport {
-                        name: symbol_name,
-                        constructor_signature: sig,
-                        description,
-                        anchor,
-                    });
-                }
-                Some("type") => {
-                    let def = signature.unwrap_or_else(|| symbol_name.clone());
-                    spec.exports.types.push(TypeExport {
-                        name: symbol_name,
-                        definition: def,
-                        kind: TypeKind::TypeAlias,
-                        description,
-                        anchor,
-                    });
-                }
-                Some("enum") => {
-                    spec.exports.enums.push(EnumExport {
-                        name: symbol_name,
-                        variants: variants.unwrap_or_default(),
-                        description,
-                        anchor,
-                    });
-                }
-                Some("variable") => {
-                    spec.exports.variables.push(VariableExport {
-                        name: symbol_name,
-                        value,
-                        description,
-                        anchor,
-                    });
-                }
-                _ => {
-                    // Unknown type: try to infer from signature
-                    if let Some(sig) = signature {
-                        if sig.contains('(') && sig.contains(')') {
-                            if sig.contains('{') {
-                                spec.exports.types.push(TypeExport {
-                                    name: symbol_name,
-                                    definition: sig,
-                                    kind: TypeKind::TypeAlias,
-                                    description,
-                                    anchor,
-                                });
-                            } else {
-                                spec.exports.functions.push(FunctionExport {
-                                    name: symbol_name,
-                                    signature: sig,
-                                    is_async: false,
-                                    description,
-                                    anchor,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check if we found anything
-        if spec.exports.functions.is_empty()
-            && spec.exports.types.is_empty()
-            && spec.exports.classes.is_empty()
             && spec.exports.enums.is_empty()
             && spec.exports.variables.is_empty()
         {
-            // Check for "None" marker
-            let exports_section = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports"));
-            if let Some(exports) = exports_section {
-                let content_lower = exports.content.join("\n").to_lowercase();
-                if content_lower.contains("none") {
-                    return;
-                }
-            }
             spec.warnings.push("Exports section contains no valid exports".to_string());
         }
     }
@@ -786,8 +607,6 @@ impl ClaudeMdParser {
                 name,
                 signature,
                 is_async,
-                description: None,
-                anchor: None,
             });
         }
 
@@ -833,7 +652,7 @@ impl ClaudeMdParser {
 
         // Handle generic function names like transform<T, U>
         let (name, generic_params) = if let Some(generic_start) = name_part.find('<') {
-            let generic_end = bracket_utils::find_matching_bracket(name_part, generic_start, '<', '>')?;
+            let generic_end = find_matching_bracket(name_part, generic_start, '<', '>')?;
             (
                 name_part[..generic_start].to_string(),
                 Some(name_part[generic_start..=generic_end].to_string()),
@@ -842,12 +661,12 @@ impl ClaudeMdParser {
             (name_part.to_string(), None)
         };
 
-        if name.is_empty() || !name.chars().next()?.is_alphabetic() || name.contains(' ') {
+        if name.is_empty() || !name.chars().next()?.is_alphabetic() {
             return None;
         }
 
         // Extract params using balanced bracket matching
-        let (params, rest) = bracket_utils::extract_parenthesized(cleaned)?;
+        let (params, rest) = extract_parenthesized(cleaned)?;
 
         // Parse return type
         let return_type = rest
@@ -871,8 +690,6 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async,
-            description: None,
-            anchor: None,
         })
     }
 
@@ -904,15 +721,13 @@ impl ClaudeMdParser {
         }
 
         // Extract params using balanced brackets
-        let (params, rest) = bracket_utils::extract_parenthesized(cleaned)?;
+        let (params, rest) = extract_parenthesized(cleaned)?;
 
         let signature = format!("{} {}({}){}", return_type, name, params, rest);
         Some(FunctionExport {
             name,
             signature,
             is_async: return_type.contains("CompletableFuture"),
-            description: None,
-            anchor: None,
         })
     }
 
@@ -932,7 +747,7 @@ impl ClaudeMdParser {
         let name = rest[..paren_idx].trim().to_string();
 
         // Extract params using balanced brackets
-        let (params, return_part) = bracket_utils::extract_parenthesized(rest)?;
+        let (params, return_part) = extract_parenthesized(rest)?;
 
         let return_type = return_part.trim_start_matches(':').trim();
         if return_type.is_empty() {
@@ -946,8 +761,6 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async: is_suspend,
-            description: None,
-            anchor: None,
         })
     }
 
@@ -961,10 +774,20 @@ impl ClaudeMdParser {
             return None;
         }
 
-        let (params, rest) = bracket_utils::extract_parenthesized(cleaned)?;
+        let (params, rest) = extract_parenthesized(cleaned)?;
 
-        // Return type in Go can be simple or tuple
+        // Reject if params contain ":" (TypeScript/JS typed params like `props: Props`)
+        // Go params use space-separated types (e.g., `id string`) not colons
+        if params.contains(':') {
+            return None;
+        }
+
+        // Reject if return part starts with ":" or "=>" (TS/JS return type syntax)
         let return_type = rest.trim();
+        if return_type.starts_with(':') || return_type.starts_with("=>") {
+            return None;
+        }
+
         if return_type.is_empty() {
             // void function
             let signature = format!("{}({})", name, params);
@@ -972,8 +795,6 @@ impl ClaudeMdParser {
                 name,
                 signature,
                 is_async: false,
-                description: None,
-                anchor: None,
             });
         }
 
@@ -982,8 +803,6 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async: false,
-            description: None,
-            anchor: None,
         })
     }
 
@@ -996,12 +815,13 @@ impl ClaudeMdParser {
         let paren_idx = cleaned.find('(')?;
         let name = cleaned[..paren_idx].trim().to_string();
 
-        // Python names are snake_case
-        if name.chars().any(|c| c.is_uppercase()) && !name.contains('_') {
+        // Python names: allow snake_case, SCREAMING_SNAKE, PascalCase with ->
+        // Only reject single all-uppercase words (likely type names, not functions)
+        if name.chars().all(|c| c.is_uppercase()) && !name.contains('_') && name.len() > 1 {
             return None;
         }
 
-        let (params, rest) = bracket_utils::extract_parenthesized(cleaned)?;
+        let (params, rest) = extract_parenthesized(cleaned)?;
 
         let return_type = rest.trim_start_matches("->").trim();
         if return_type.is_empty() {
@@ -1013,8 +833,6 @@ impl ClaudeMdParser {
             name,
             signature,
             is_async,
-            description: None,
-            anchor: None,
         })
     }
 
@@ -1023,17 +841,10 @@ impl ClaudeMdParser {
         let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
 
         if let Some(caps) = self.type_pattern.captures(cleaned) {
-            let full_name = caps.get(1)?.as_str().to_string();
+            let name = caps.get(1)?.as_str().to_string();
             let fields = caps.get(2)?.as_str();
 
-            // Strip generic params from name for lookup (e.g. "PagedResult<T>" -> "PagedResult")
-            let name = if let Some(idx) = full_name.find('<') {
-                full_name[..idx].to_string()
-            } else {
-                full_name.clone()
-            };
-
-            let definition = format!("{} {{ {} }}", full_name, fields);
+            let definition = format!("{} {{ {} }}", name, fields);
             let kind = if is_struct {
                 TypeKind::Struct
             } else if is_data_class {
@@ -1046,14 +857,11 @@ impl ClaudeMdParser {
                 name,
                 definition,
                 kind,
-                description: None,
-                anchor: None,
             });
         }
 
         // Handle Kotlin data class pattern
-        let data_class_pattern = Regex::new(r"^data\s+class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)$").ok()?;
-        if let Some(caps) = data_class_pattern.captures(cleaned) {
+        if let Some(caps) = self.data_class_pattern.captures(cleaned) {
             let name = caps.get(1)?.as_str().to_string();
             let fields = caps.get(2)?.as_str();
 
@@ -1061,8 +869,6 @@ impl ClaudeMdParser {
                 name: name.clone(),
                 definition: format!("data class {}({})", name, fields),
                 kind: TypeKind::DataClass,
-                description: None,
-                anchor: None,
             });
         }
 
@@ -1081,70 +887,165 @@ impl ClaudeMdParser {
             return Some(ClassExport {
                 name,
                 constructor_signature,
-                description: None,
-                anchor: None,
             });
         }
 
         None
     }
 
-    /// Parse a variable line like `JWT_SECRET: number = 42` or `MAX_RETRIES = 3`
-    fn parse_variable_line(line: &str) -> Option<VariableExport> {
+    fn parse_enum_line(&self, line: &str) -> Option<EnumExport> {
         let cleaned = line.trim_start_matches('-').trim_start_matches('*').trim();
         let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
-        if cleaned.is_empty() {
+
+        // Pattern: EnumName: Variant1 | Variant2 | ...
+        // or: EnumName = Variant1 | Variant2
+        let sep_pos = cleaned.find(':').or_else(|| cleaned.find('='))?;
+        let name = cleaned[..sep_pos].trim().to_string();
+        let variants_str = cleaned[sep_pos + 1..].trim();
+
+        // Must have pipe-separated variants
+        if !variants_str.contains('|') {
             return None;
         }
-        // Pattern: NAME: type = value  OR  NAME = value  OR  NAME: type
-        if let Some(eq_pos) = cleaned.find('=') {
-            let before_eq = cleaned[..eq_pos].trim();
-            let after_eq = cleaned[eq_pos + 1..].trim();
-            let name = if let Some(colon_pos) = before_eq.find(':') {
-                before_eq[..colon_pos].trim().to_string()
-            } else {
-                before_eq.to_string()
-            };
-            if name.is_empty() { return None; }
-            Some(VariableExport {
-                name,
-                value: if after_eq.is_empty() { None } else { Some(after_eq.to_string()) },
-                description: None,
-                anchor: None,
-            })
-        } else if let Some(colon_pos) = cleaned.find(':') {
-            let name = cleaned[..colon_pos].trim().to_string();
-            if name.is_empty() { return None; }
-            Some(VariableExport {
-                name,
-                value: None,
-                description: None,
-                anchor: None,
-            })
-        } else {
-            // Just a name with no type or value
-            Some(VariableExport {
-                name: cleaned.to_string(),
-                value: None,
-                description: None,
-                anchor: None,
-            })
+
+        let variants: Vec<String> = variants_str
+            .split('|')
+            .map(|v| v.trim().trim_matches('`').trim().to_string())
+            .filter(|v| !v.is_empty())
+            .collect();
+
+        if name.is_empty() || variants.is_empty() {
+            return None;
         }
+
+        Some(EnumExport { name, variants })
+    }
+
+    fn parse_variable_line(&self, line: &str) -> Option<VariableExport> {
+        let cleaned = line.trim_start_matches('-').trim_start_matches('*').trim();
+        let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
+
+        // Pattern: CONST_NAME = value or CONST_NAME: Type
+        // Must start with uppercase or contain underscore (constant-like)
+        let first_char = cleaned.chars().next()?;
+        if !first_char.is_uppercase() {
+            return None;
+        }
+
+        if let Some(eq_pos) = cleaned.find('=') {
+            let name = cleaned[..eq_pos].trim().to_string();
+            let value = cleaned[eq_pos + 1..].trim().to_string();
+            return Some(VariableExport {
+                name,
+                value: if value.is_empty() { None } else { Some(value) },
+            });
+        }
+
+        if let Some(colon_pos) = cleaned.find(':') {
+            let name = cleaned[..colon_pos].trim().to_string();
+            let type_str = cleaned[colon_pos + 1..].trim().to_string();
+            // Don't confuse with function signatures containing parentheses
+            if cleaned.contains('(') {
+                return None;
+            }
+            return Some(VariableExport {
+                name,
+                value: if type_str.is_empty() { None } else { Some(type_str) },
+            });
+        }
+
+        None
     }
 
     fn parse_dependencies(&self, content: &[String]) -> DependenciesSpec {
         let mut deps = DependenciesSpec::default();
+        let mut current_dep_type: Option<String> = None;
 
         for line in content {
             let trimmed = line.trim();
+
+            // Check for top-level dep type markers: "- external:" or "- internal:"
             if let Some(caps) = self.dependency_pattern.captures(trimmed) {
                 let dep_type = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                 let dep_value = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
 
-                match dep_type {
-                    "external" => deps.external.push(dep_value),
-                    "internal" => deps.internal.push(dep_value),
-                    _ => {}
+                if dep_value.is_empty() {
+                    // List-style: "- internal:" followed by sub-items
+                    current_dep_type = Some(dep_type.to_string());
+                } else {
+                    // Inline-style: "- internal: ./types"
+                    match dep_type {
+                        "external" => deps.external.push(dep_value),
+                        "internal" => {
+                            deps.internal.push(InternalDepSpec {
+                                path: dep_value,
+                                symbols: Vec::new(),
+                                is_claude_md_ref: false,
+                            });
+                        }
+                        _ => {}
+                    }
+                    current_dep_type = None;
+                }
+                continue;
+            }
+
+            // Check for sub-items under current dep type: "  - `path`: symbols"
+            if let Some(ref dep_type) = current_dep_type {
+                let sub_trimmed = trimmed.trim_start_matches('-').trim_start_matches('*').trim();
+                if sub_trimmed.is_empty() {
+                    continue;
+                }
+
+                // Parse: `path`: symbols  or  `path`
+                if sub_trimmed.starts_with('`') {
+                    if let Some(backtick_end) = sub_trimmed[1..].find('`') {
+                        let path = sub_trimmed[1..=backtick_end].to_string();
+                        let rest = sub_trimmed[backtick_end + 2..].trim();
+
+                        // Extract symbols after colon
+                        let symbols = if rest.starts_with(':') {
+                            rest[1..]
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
+
+                        match dep_type.as_str() {
+                            "external" => deps.external.push(
+                                if symbols.is_empty() {
+                                    path
+                                } else {
+                                    format!("{}: {}", path, symbols.join(", "))
+                                }
+                            ),
+                            "internal" => {
+                                let is_claude_md = path.ends_with("/CLAUDE.md");
+                                deps.internal.push(InternalDepSpec {
+                                    path,
+                                    symbols,
+                                    is_claude_md_ref: is_claude_md,
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                } else {
+                    // Plain text sub-item (legacy format or simple text)
+                    match dep_type.as_str() {
+                        "external" => deps.external.push(sub_trimmed.to_string()),
+                        "internal" => {
+                            deps.internal.push(InternalDepSpec {
+                                path: sub_trimmed.to_string(),
+                                symbols: Vec::new(),
+                                is_claude_md_ref: false,
+                            });
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -1152,7 +1053,7 @@ impl ClaudeMdParser {
         deps
     }
 
-    fn parse_behaviors(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
+    fn parse_behaviors(&self, sections: &[ParserSection], spec: &mut ClaudeMdSpec) {
         // Note: existence of Behavior section is checked in parse_content (fail-fast)
         // Find the index of the Behavior section
         let behavior_idx = match sections.iter().position(|s| s.name.eq_ignore_ascii_case("Behavior")) {
@@ -1190,8 +1091,8 @@ impl ClaudeMdParser {
 
         // Then parse subsections (level 3+) that come after Behavior
         for section in sections.iter().skip(behavior_idx + 1) {
-            // Stop if we hit another level 2 section (different major section)
-            if section.level <= 2 && !section.name.eq_ignore_ascii_case("Behavior") {
+            // Stop if we hit another H2 section (any H2 means Behavior scope ended)
+            if section.level <= 2 {
                 break;
             }
 
@@ -1242,11 +1143,22 @@ impl ClaudeMdParser {
         }
     }
 
-    fn parse_contracts(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
-        let contract_section = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Contract"));
-        if contract_section.is_none() {
+    fn parse_contracts(&self, sections: &[ParserSection], spec: &mut ClaudeMdSpec) {
+        let contract_idx = sections.iter().position(|s| s.name.eq_ignore_ascii_case("Contract"));
+        if contract_idx.is_none() {
             return;
         }
+        let contract_start = contract_idx.unwrap();
+        let contract_level = sections[contract_start].level;
+
+        // Collect Contract section and its subsections (until next same-or-higher level section)
+        let contract_sections: Vec<&ParserSection> = std::iter::once(&sections[contract_start])
+            .chain(
+                sections[contract_start + 1..]
+                    .iter()
+                    .take_while(|s| s.level > contract_level)
+            )
+            .collect();
 
         let mut current_function = String::new();
         let mut current_contract = ContractSpec {
@@ -1257,7 +1169,7 @@ impl ClaudeMdParser {
             invariants: Vec::new(),
         };
 
-        for section in sections {
+        for section in &contract_sections {
             // Check if this is a function-specific contract section
             if section.level == 3 {
                 // Save previous contract
@@ -1318,17 +1230,28 @@ impl ClaudeMdParser {
         }
     }
 
-    fn parse_protocol(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
-        let protocol_section = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Protocol"));
-        if protocol_section.is_none() {
+    fn parse_protocol(&self, sections: &[ParserSection], spec: &mut ClaudeMdSpec) {
+        let protocol_idx = sections.iter().position(|s| s.name.eq_ignore_ascii_case("Protocol"));
+        if protocol_idx.is_none() {
             return;
         }
+        let protocol_start = protocol_idx.unwrap();
+        let protocol_level = sections[protocol_start].level;
+
+        // Collect Protocol section and its subsections (until next same-or-higher level section)
+        let protocol_sections: Vec<&ParserSection> = std::iter::once(&sections[protocol_start])
+            .chain(
+                sections[protocol_start + 1..]
+                    .iter()
+                    .take_while(|s| s.level > protocol_level)
+            )
+            .collect();
 
         let mut protocol = ProtocolSpec::default();
         let mut in_state_machine = false;
         let mut in_lifecycle = false;
 
-        for section in sections {
+        for section in &protocol_sections {
             let name_lower = section.name.to_lowercase();
 
             if name_lower.contains("state") && name_lower.contains("machine") {
@@ -1387,6 +1310,78 @@ impl ClaudeMdParser {
         }
     }
 
+    fn parse_domain_context(&self, sections: &[ParserSection], spec: &mut ClaudeMdSpec) {
+        let dc_idx = sections.iter().position(|s| s.name.eq_ignore_ascii_case("Domain Context"));
+        if dc_idx.is_none() {
+            return;
+        }
+        let dc_start = dc_idx.unwrap();
+        let dc_section = &sections[dc_start];
+
+        // Check for None marker
+        if self.is_none_marker(dc_section) {
+            return;
+        }
+
+        let dc_level = dc_section.level;
+
+        // Collect Domain Context section and its subsections
+        let dc_sections: Vec<&ParserSection> = std::iter::once(&sections[dc_start])
+            .chain(
+                sections[dc_start + 1..]
+                    .iter()
+                    .take_while(|s| s.level > dc_level)
+            )
+            .collect();
+
+        let mut domain_context = DomainContextSpec::default();
+        let mut current_sub = "";
+
+        for section in &dc_sections {
+            let name_lower = section.name.to_lowercase();
+
+            if name_lower.contains("decision") || name_lower.contains("rationale") {
+                current_sub = "decision_rationale";
+            } else if name_lower.contains("constraint") {
+                current_sub = "constraints";
+            } else if name_lower.contains("compatibility") || name_lower.contains("호환") {
+                current_sub = "compatibility";
+            }
+
+            for line in &section.content {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                // Parse bullet-point lines
+                let is_bullet = trimmed.starts_with('-') || trimmed.starts_with('*');
+                if is_bullet {
+                    let value = trimmed.trim_start_matches('-').trim_start_matches('*').trim().to_string();
+                    if value.is_empty() || value.eq_ignore_ascii_case("none") {
+                        continue;
+                    }
+                    match current_sub {
+                        "decision_rationale" => domain_context.decision_rationale.push(value),
+                        "constraints" => domain_context.constraints.push(value),
+                        "compatibility" => domain_context.compatibility.push(value),
+                        _ => {
+                            // If no subsection identified, treat as decision_rationale
+                            domain_context.decision_rationale.push(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        if !domain_context.decision_rationale.is_empty()
+            || !domain_context.constraints.is_empty()
+            || !domain_context.compatibility.is_empty()
+        {
+            spec.domain_context = Some(domain_context);
+        }
+    }
+
     fn parse_structure(&self, content: &[String]) -> StructureSpec {
         let mut structure = StructureSpec::default();
 
@@ -1415,137 +1410,6 @@ impl ClaudeMdParser {
 
         structure
     }
-
-    // ==================== v2 Methods ====================
-
-    /// Detect schema version from `<!-- schema: X.Y -->` marker
-    fn detect_schema_version(&self, content: &str) -> Option<String> {
-        for line in content.lines().take(5) {
-            if let Some(caps) = self.schema_version_pattern.captures(line.trim()) {
-                if let Some(version) = caps.get(1) {
-                    return Some(version.as_str().to_string());
-                }
-            }
-        }
-        None
-    }
-
-    /// Parse Actors subsection under Behavior (v2)
-    fn parse_actors(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
-        // Find the "Actors" subsection under Behavior
-        let behavior_idx = match sections.iter().position(|s| s.name.eq_ignore_ascii_case("Behavior")) {
-            Some(idx) => idx,
-            None => return,
-        };
-
-        // Look for ### Actors subsection after Behavior
-        for section in sections.iter().skip(behavior_idx + 1) {
-            if section.level <= 2 && !section.name.eq_ignore_ascii_case("Behavior") {
-                break;
-            }
-
-            if section.name.eq_ignore_ascii_case("Actors") {
-                for line in &section.content {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-                    if let Some(caps) = self.actor_pattern.captures(trimmed) {
-                        let name = caps.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-                        let description = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-                        if !name.is_empty() {
-                            spec.actors.push(ActorSpec { name, description });
-                        }
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    /// Parse UseCase subsections under Behavior (v2)
-    fn parse_use_cases(&self, sections: &[Section], spec: &mut ClaudeMdSpec) {
-        let behavior_idx = match sections.iter().position(|s| s.name.eq_ignore_ascii_case("Behavior")) {
-            Some(idx) => idx,
-            None => return,
-        };
-
-        // Look for ### UC-N: Name subsections after Behavior
-        for section in sections.iter().skip(behavior_idx + 1) {
-            if section.level <= 2 && !section.name.eq_ignore_ascii_case("Behavior") {
-                break;
-            }
-
-            // Skip the Actors subsection
-            if section.name.eq_ignore_ascii_case("Actors") {
-                continue;
-            }
-
-            // Match UC-N: Name pattern in section name
-            if let Some(caps) = self.usecase_id_pattern.captures(&format!("### {}", section.name)) {
-                let id_num = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-                let uc_id = format!("UC-{}", id_num);
-                let uc_name = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-
-                let mut use_case = UseCaseSpec {
-                    id: uc_id,
-                    name: uc_name,
-                    actor: None,
-                    behaviors: Vec::new(),
-                    includes: Vec::new(),
-                    extends: Vec::new(),
-                };
-
-                // Parse content lines for Actor, behaviors, Includes, Extends
-                for line in &section.content {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-
-                    // Check for Actor reference
-                    if let Some(caps) = self.actor_ref_pattern.captures(trimmed) {
-                        use_case.actor = caps.get(1).map(|m| m.as_str().trim().to_string());
-                    }
-                    // Check for Includes
-                    else if let Some(caps) = self.include_pattern.captures(trimmed) {
-                        if let Some(refs) = caps.get(1) {
-                            for r in refs.as_str().split(',') {
-                                let r = r.trim();
-                                if !r.is_empty() {
-                                    use_case.includes.push(r.to_string());
-                                }
-                            }
-                        }
-                    }
-                    // Check for Extends
-                    else if let Some(caps) = self.extend_pattern.captures(trimmed) {
-                        if let Some(refs) = caps.get(1) {
-                            for r in refs.as_str().split(',') {
-                                let r = r.trim();
-                                if !r.is_empty() {
-                                    use_case.extends.push(r.to_string());
-                                }
-                            }
-                        }
-                    }
-                    // Check for behavior pattern (input → output)
-                    else if let Some(caps) = self.behavior_pattern.captures(trimmed) {
-                        let input = caps.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-                        let output = caps.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-                        let category = if output.contains("Error") || output.contains("Exception") || output.contains("Err") {
-                            BehaviorCategory::Error
-                        } else {
-                            BehaviorCategory::Success
-                        };
-                        use_case.behaviors.push(BehaviorSpec { input, output, category });
-                    }
-                }
-
-                spec.use_cases.push(use_case);
-            }
-        }
-    }
 }
 
 impl Default for ClaudeMdParser {
@@ -1554,75 +1418,29 @@ impl Default for ClaudeMdParser {
     }
 }
 
-/// Internal section representation
-struct Section {
+/// Section representation for CLAUDE.md parsing, storing heading level and raw content lines.
+struct ParserSection {
     name: String,
     level: usize,
     content: Vec<String>,
 }
 
-/// Utility functions for parsing complex types with balanced brackets
-mod bracket_utils {
-    /// Find the index of a closing bracket that matches the opening bracket at start_idx.
-    /// Handles nested brackets of the same type.
-    /// Returns None if no matching bracket is found.
-    pub fn find_matching_bracket(s: &str, start_idx: usize, open: char, close: char) -> Option<usize> {
-        let chars: Vec<char> = s.chars().collect();
-        if start_idx >= chars.len() || chars[start_idx] != open {
-            return None;
-        }
-
-        let mut depth = 0;
-        for (i, c) in chars.iter().enumerate().skip(start_idx) {
-            if *c == open {
-                depth += 1;
-            } else if *c == close {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-        }
-        None
-    }
-
-    /// Extract content between parentheses, respecting nested brackets.
-    /// Returns (params_content, rest_of_string) or None if malformed.
-    pub fn extract_parenthesized(s: &str) -> Option<(String, String)> {
-        let paren_start = s.find('(')?;
-        let paren_end = find_matching_bracket(s, paren_start, '(', ')')?;
-
-        let params = s[paren_start + 1..paren_end].to_string();
-        let rest = s[paren_end + 1..].trim().to_string();
-
-        Some((params, rest))
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Helper: Returns minimal required sections with Contract/Protocol/Domain Context as None
+    /// Helper: Returns minimal required sections with Contract/Protocol as None
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
-        // Add Summary right after Purpose if not present
-        if !content.contains("## Summary") {
-            // Insert Summary after Purpose section
-            if let Some(pos) = content.find("## Exports") {
-                content.insert_str(pos, "## Summary\nTest module summary.\n\n");
-            } else {
-                content.push_str("\n## Summary\nTest module summary.\n");
-            }
+        if !content.contains("## Domain Context") {
+            content.push_str("\n## Domain Context\nNone\n");
         }
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
         if !content.contains("## Protocol") {
             content.push_str("\n## Protocol\nNone\n");
-        }
-        if !content.contains("## Domain Context") {
-            content.push_str("\n## Domain Context\nNone\n");
         }
         content
     }
@@ -1695,6 +1513,55 @@ Test module.
         assert_eq!(spec.dependencies.external.len(), 1);
         assert_eq!(spec.dependencies.internal.len(), 1);
         assert_eq!(spec.dependencies.external[0], "jsonwebtoken@9.0.0");
+        assert_eq!(spec.dependencies.internal[0].path, "./types");
+        assert!(!spec.dependencies.internal[0].is_claude_md_ref);
+    }
+
+    #[test]
+    fn test_parse_dependencies_list_style_with_claude_md_paths() {
+        let parser = ClaudeMdParser::new();
+        let content = r#"# test
+
+## Purpose
+Test module.
+
+## Dependencies
+
+- external:
+  - `jsonwebtoken@9.0.0`: sign, verify
+
+- internal:
+  - `core/domain/transaction/CLAUDE.md`: WithdrawalResultSynchronizer, TransferResultContext
+  - `core/support/utils/CLAUDE.md`: RateLimitExecutor
+
+## Exports
+- `validate(): void`
+
+## Behavior
+- input → output
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+None
+"#;
+        let spec = parser.parse_content(content).unwrap();
+        assert_eq!(spec.dependencies.external.len(), 1);
+        assert_eq!(spec.dependencies.internal.len(), 2);
+
+        // Check first internal dep
+        assert_eq!(spec.dependencies.internal[0].path, "core/domain/transaction/CLAUDE.md");
+        assert!(spec.dependencies.internal[0].is_claude_md_ref);
+        assert_eq!(spec.dependencies.internal[0].symbols.len(), 2);
+        assert_eq!(spec.dependencies.internal[0].symbols[0], "WithdrawalResultSynchronizer");
+
+        // Check second internal dep
+        assert_eq!(spec.dependencies.internal[1].path, "core/support/utils/CLAUDE.md");
+        assert!(spec.dependencies.internal[1].is_claude_md_ref);
     }
 
     #[test]
@@ -1785,14 +1652,11 @@ Test module.
     #[test]
     fn test_fail_fast_missing_contract() {
         let parser = ClaudeMdParser::new();
-        // Missing Contract section (has Summary, Protocol, Domain Context)
+        // Missing Contract section (only Protocol)
         let content = r#"# test
 
 ## Purpose
 Test module.
-
-## Summary
-Test module summary.
 
 ## Exports
 - `validate(): void`
@@ -1801,9 +1665,6 @@ Test module summary.
 - input → output
 
 ## Protocol
-None
-
-## Domain Context
 None
 "#;
         let result = parser.parse_content(content);
@@ -1815,14 +1676,11 @@ None
     #[test]
     fn test_fail_fast_missing_protocol() {
         let parser = ClaudeMdParser::new();
-        // Missing Protocol section (has Summary, Contract, Domain Context)
+        // Missing Protocol section (only Contract + Domain Context)
         let content = r#"# test
 
 ## Purpose
 Test module.
-
-## Summary
-Test module summary.
 
 ## Exports
 - `validate(): void`
@@ -1830,10 +1688,10 @@ Test module summary.
 ## Behavior
 - input → output
 
-## Contract
+## Domain Context
 None
 
-## Domain Context
+## Contract
 None
 "#;
         let result = parser.parse_content(content);
@@ -1891,170 +1749,205 @@ Test module.
             .contains("Map<string, List<CacheEntry>>"));
     }
 
-    // ============== v2 Exports Parsing Tests ==============
-
     #[test]
-    fn test_parse_v2_exports_function() {
+    fn test_parse_domain_context_full() {
         let parser = ClaudeMdParser::new();
-        let content = with_required_sections(
-            r#"<!-- schema: 2.0 -->
-# test-module
+        let content = r#"# test
 
 ## Purpose
 Test module.
 
 ## Exports
-
-#### validateToken
-
-- **Type**: function
-- **Signature**: `validateToken(token: string): Promise<Claims>`
-- **Description**: Validates a JWT token
+- `validate(): void`
 
 ## Behavior
-- valid token → Claims
-"#,
-        );
-        let spec = parser.parse_content(&content).unwrap();
-        assert_eq!(spec.schema_version, Some("2.0".to_string()));
-        assert_eq!(spec.exports.functions.len(), 1);
-        assert_eq!(spec.exports.functions[0].name, "validateToken");
-        assert_eq!(
-            spec.exports.functions[0].signature,
-            "validateToken(token: string): Promise<Claims>"
-        );
-        assert_eq!(
-            spec.exports.functions[0].description,
-            Some("Validates a JWT token".to_string())
-        );
-        assert_eq!(
-            spec.exports.functions[0].anchor,
-            Some("validateToken".to_string())
-        );
+- input → output
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+
+### Decision Rationale
+- TOKEN_EXPIRY: 7일 (PCI-DSS compliance)
+- MAX_RETRY: 3 (외부 API SLA 기반)
+
+### Constraints
+- 비밀번호 재설정 90일 제한
+- 동시 세션 최대 5개
+
+### Compatibility
+- UUID v1 형식 지원 필요
+"#;
+        let spec = parser.parse_content(content).unwrap();
+        let dc = spec.domain_context.expect("domain_context should be Some");
+        assert_eq!(dc.decision_rationale.len(), 2);
+        assert!(dc.decision_rationale[0].contains("TOKEN_EXPIRY"));
+        assert_eq!(dc.constraints.len(), 2);
+        assert!(dc.constraints[0].contains("90일"));
+        assert_eq!(dc.compatibility.len(), 1);
+        assert!(dc.compatibility[0].contains("UUID v1"));
     }
 
     #[test]
-    fn test_parse_v2_exports_mixed_types() {
+    fn test_parse_domain_context_none() {
         let parser = ClaudeMdParser::new();
         let content = with_required_sections(
-            r#"<!-- schema: 2.0 -->
-# test-module
+            r#"# test
 
 ## Purpose
 Test module.
 
 ## Exports
-
-#### processData
-
-- **Type**: function
-- **Signature**: `processData(input: Data): Result`
-
-#### DataProcessor
-
-- **Type**: class
-- **Signature**: `DataProcessor(config: Config)`
-- **Description**: Main processor class
-
-#### Status
-
-- **Type**: enum
-- **Variants**: Active, Inactive, Pending
-
-#### MAX_RETRIES
-
-- **Type**: variable
-- **Value**: 3
-
-#### DataConfig
-
-- **Type**: type
-- **Signature**: `DataConfig { timeout: number, retries: number }`
+- `validate(): void`
 
 ## Behavior
 - input → output
 "#,
         );
         let spec = parser.parse_content(&content).unwrap();
-        assert_eq!(spec.schema_version, Some("2.0".to_string()));
-        assert_eq!(spec.exports.functions.len(), 1);
-        assert_eq!(spec.exports.functions[0].name, "processData");
-        assert_eq!(spec.exports.classes.len(), 1);
-        assert_eq!(spec.exports.classes[0].name, "DataProcessor");
-        assert_eq!(spec.exports.enums.len(), 1);
-        assert_eq!(spec.exports.enums[0].name, "Status");
-        assert_eq!(
-            spec.exports.enums[0].variants,
-            vec!["Active", "Inactive", "Pending"]
-        );
-        assert_eq!(spec.exports.variables.len(), 1);
-        assert_eq!(spec.exports.variables[0].name, "MAX_RETRIES");
-        assert_eq!(
-            spec.exports.variables[0].value,
-            Some("3".to_string())
-        );
-        assert_eq!(spec.exports.types.len(), 1);
-        assert_eq!(spec.exports.types[0].name, "DataConfig");
+        assert!(spec.domain_context.is_none());
     }
 
     #[test]
-    fn test_parse_v2_exports_with_anchors() {
+    fn test_parse_domain_context_partial() {
         let parser = ClaudeMdParser::new();
-        let content = with_required_sections(
-            r#"<!-- schema: 2.0 -->
-# test-module
+        let content = r#"# test
 
 ## Purpose
 Test module.
 
 ## Exports
-
-#### formatError
-
-- **Type**: function
-- **Signature**: `formatError(err: Error): string`
-
-#### ErrorCode
-
-- **Type**: enum
-- **Variants**: NotFound, Unauthorized
+- `validate(): void`
 
 ## Behavior
-- error → formatted string
-"#,
-        );
-        let spec = parser.parse_content(&content).unwrap();
-        assert_eq!(spec.exports.functions[0].anchor, Some("formatError".to_string()));
-        assert_eq!(spec.exports.enums[0].anchor, Some("ErrorCode".to_string()));
+- input → output
+
+## Contract
+None
+
+## Protocol
+None
+
+## Domain Context
+
+### Decision Rationale
+- TIMEOUT: 2000ms (IdP SLA × 4)
+"#;
+        let spec = parser.parse_content(content).unwrap();
+        let dc = spec.domain_context.expect("domain_context should be Some");
+        assert_eq!(dc.decision_rationale.len(), 1);
+        assert!(dc.constraints.is_empty());
+        assert!(dc.compatibility.is_empty());
+    }
+
+    // --- parse_enum_line tests ---
+
+    #[test]
+    fn test_parse_enum_line_colon_style() {
+        let parser = ClaudeMdParser::new();
+        let result = parser.parse_enum_line("- `Status: Active | Inactive | Pending`");
+        assert!(result.is_some());
+        let e = result.unwrap();
+        assert_eq!(e.name, "Status");
+        assert_eq!(e.variants, vec!["Active", "Inactive", "Pending"]);
     }
 
     #[test]
-    fn test_v1_exports_unchanged_with_v2_parser() {
-        // v1 format should still work - no regression
+    fn test_parse_enum_line_equals_style() {
         let parser = ClaudeMdParser::new();
+        let result = parser.parse_enum_line("- `Role = Admin | User | Guest`");
+        assert!(result.is_some());
+        let e = result.unwrap();
+        assert_eq!(e.name, "Role");
+        assert_eq!(e.variants, vec!["Admin", "User", "Guest"]);
+    }
+
+    #[test]
+    fn test_parse_enum_line_no_pipe_returns_none() {
+        let parser = ClaudeMdParser::new();
+        // No pipe-separated variants -> should return None
+        let result = parser.parse_enum_line("- `Status: Active`");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_enum_line_empty_name_returns_none() {
+        let parser = ClaudeMdParser::new();
+        // Empty name before colon -> should return None
+        let result = parser.parse_enum_line("- `: A | B`");
+        assert!(result.is_none());
+    }
+
+    // --- parse_variable_line tests ---
+
+    #[test]
+    fn test_parse_variable_line_value_assignment() {
+        let parser = ClaudeMdParser::new();
+        let result = parser.parse_variable_line("- `MAX_RETRIES = 3`");
+        assert!(result.is_some());
+        let v = result.unwrap();
+        assert_eq!(v.name, "MAX_RETRIES");
+        assert_eq!(v.value, Some("3".to_string()));
+    }
+
+    #[test]
+    fn test_parse_variable_line_type_specification() {
+        let parser = ClaudeMdParser::new();
+        let result = parser.parse_variable_line("- `DEFAULT_TIMEOUT: Duration`");
+        assert!(result.is_some());
+        let v = result.unwrap();
+        assert_eq!(v.name, "DEFAULT_TIMEOUT");
+        assert_eq!(v.value, Some("Duration".to_string()));
+    }
+
+    #[test]
+    fn test_parse_variable_line_lowercase_rejected() {
+        let parser = ClaudeMdParser::new();
+        // Lowercase first char -> should return None (not a constant)
+        let result = parser.parse_variable_line("- `maxRetries = 3`");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_variable_line_parenthesis_rejected() {
+        let parser = ClaudeMdParser::new();
+        // Contains parenthesis -> should return None (looks like function, not variable)
+        let result = parser.parse_variable_line("- `Config(value: string): void`");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_mixed_flat_and_subsection_exports_deduplicated() {
+        let parser = ClaudeMdParser::new();
+        // ## Exports has flat content AND ### Functions subsection with the same function
         let content = with_required_sections(
-            r#"# test-module
+            r#"# test
 
 ## Purpose
 Test module.
 
 ## Exports
+- `validateToken(token: string): Promise<Claims>`
 
 ### Functions
-- `validate(input: string): boolean`
-
-### Types
-- `Config { timeout: number }`
+- `validateToken(token: string): Promise<Claims>`
 
 ## Behavior
-- input → output
+- valid → Claims
 "#,
         );
         let spec = parser.parse_content(&content).unwrap();
-        assert!(spec.schema_version.is_none());
-        assert_eq!(spec.exports.functions.len(), 1);
-        assert_eq!(spec.exports.functions[0].name, "validate");
-        assert_eq!(spec.exports.types.len(), 1);
-        assert_eq!(spec.exports.types[0].name, "Config");
+        // Should be deduplicated: only 1 function, not 2
+        assert_eq!(
+            spec.exports.functions.len(),
+            1,
+            "Expected 1 function after dedup, got {}",
+            spec.exports.functions.len()
+        );
+        assert_eq!(spec.exports.functions[0].name, "validateToken");
     }
 }

@@ -290,25 +290,33 @@ impl LanguageAnalyzer for GoAnalyzer {
             });
         }
 
-        // Extract dependencies from imports
-        let import_section = content
-            .find("import")
-            .map(|start| {
-                let end = content[start..].find(')').map(|e| start + e + 1).unwrap_or(content.len());
-                &content[start..end]
-            })
-            .unwrap_or("");
+        // Extract dependencies from all import statements
+        // Handles: grouped `import ( ... )`, single `import "pkg"`, multiple blocks
+        let import_block_re = Regex::new(
+            r#"(?m)^import\s*\(([^)]*)\)|^import\s+"([^"]+)""#
+        ).unwrap();
 
-        for cap in self.import_re.captures_iter(import_section) {
-            let package = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-
-            // Skip standard library packages (simple heuristic)
-            if !package.contains('.') && !package.contains('/') {
-                continue;
-            }
-
-            if !analysis.external_deps.contains(&package.to_string()) {
-                analysis.external_deps.push(package.to_string());
+        for cap in import_block_re.captures_iter(content) {
+            if let Some(block) = cap.get(1) {
+                // Grouped import block: extract all quoted packages
+                for pkg_cap in self.import_re.captures_iter(block.as_str()) {
+                    let package = pkg_cap.get(1).map(|m| m.as_str()).unwrap_or("");
+                    if !package.contains('.') && !package.contains('/') {
+                        continue;
+                    }
+                    if !analysis.external_deps.contains(&package.to_string()) {
+                        analysis.external_deps.push(package.to_string());
+                    }
+                }
+            } else if let Some(pkg) = cap.get(2) {
+                // Single-line import: import "pkg"
+                let package = pkg.as_str();
+                if !package.contains('.') && !package.contains('/') {
+                    continue;
+                }
+                if !analysis.external_deps.contains(&package.to_string()) {
+                    analysis.external_deps.push(package.to_string());
+                }
             }
         }
 
@@ -356,179 +364,5 @@ impl LanguageAnalyzer for GoAnalyzer {
 impl Default for GoAnalyzer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::Path;
-    use crate::code_analyzer::{LanguageAnalyzer, BehaviorCategory};
-
-    fn analyze(content: &str) -> PartialAnalysis {
-        let analyzer = GoAnalyzer::new();
-        analyzer.analyze_file(Path::new("handler.go"), content).unwrap()
-    }
-
-    #[test]
-    fn test_exported_function() {
-        let result = analyze("func ValidateToken(token string) (*Claims, error) {}\n");
-
-        assert_eq!(result.functions.len(), 1);
-        assert_eq!(result.functions[0].name, "ValidateToken");
-        assert_eq!(result.functions[0].signature, "func ValidateToken(token string) *Claims, error");
-    }
-
-    #[test]
-    fn test_unexported_function_excluded() {
-        let content = "func ValidateToken(token string) error {}\nfunc helper() {}\n";
-        let result = analyze(content);
-
-        assert_eq!(result.functions.len(), 1);
-        assert_eq!(result.functions[0].name, "ValidateToken");
-    }
-
-    #[test]
-    fn test_function_no_return() {
-        let result = analyze("func Setup() {}\n");
-
-        assert_eq!(result.functions.len(), 1);
-        // The regex captures the `{}` block start, so signature includes trailing content
-        assert!(result.functions[0].signature.starts_with("func Setup()"));
-    }
-
-    #[test]
-    fn test_struct_extraction() {
-        let content = "type TokenService struct {\n}\ntype helper struct {\n}\n";
-        let result = analyze(content);
-
-        assert_eq!(result.types.len(), 1);
-        assert_eq!(result.types[0].name, "TokenService");
-        assert_eq!(result.types[0].kind, TypeKind::Struct);
-    }
-
-    #[test]
-    fn test_interface_extraction() {
-        let result = analyze("type Validator interface {\n    Validate(token string) error\n}\n");
-
-        assert_eq!(result.types.len(), 1);
-        assert_eq!(result.types[0].name, "Validator");
-        assert_eq!(result.types[0].kind, TypeKind::Interface);
-    }
-
-    #[test]
-    fn test_error_variable() {
-        let content = r#"
-var ErrInvalidToken = errors.New("invalid token")
-var ErrExpired = errors.New("token expired")
-var errInternal = errors.New("internal")
-"#;
-        let result = analyze(content);
-
-        assert_eq!(result.variables.len(), 2);
-        assert!(result.variables.iter().any(|v| v.name == "ErrInvalidToken"));
-        assert!(result.variables.iter().any(|v| v.name == "ErrExpired"));
-    }
-
-    #[test]
-    fn test_import_dependencies() {
-        let content = r#"
-import (
-    "fmt"
-    "net/http"
-    "github.com/golang-jwt/jwt/v5"
-    "go.uber.org/zap"
-)
-"#;
-        let result = analyze(content);
-
-        // Standard library imports (no dots/slashes) are skipped
-        assert!(result.external_deps.contains(&"github.com/golang-jwt/jwt/v5".to_string()));
-        assert!(result.external_deps.contains(&"go.uber.org/zap".to_string()));
-        assert!(!result.external_deps.contains(&"fmt".to_string()));
-    }
-
-    #[test]
-    fn test_contract_from_comments() {
-        let content = r#"
-// Precondition: token must be non-empty
-// Postcondition: returns valid claims
-// Errors: ErrInvalidToken, ErrExpired
-func ValidateToken(token string) (*Claims, error) {}
-"#;
-        let result = analyze(content);
-
-        assert_eq!(result.contracts.len(), 1);
-        let contract = &result.contracts[0];
-        assert_eq!(contract.function_name, "ValidateToken");
-        assert!(!contract.contract.preconditions.is_empty());
-        assert!(!contract.contract.postconditions.is_empty());
-        assert!(!contract.contract.throws.is_empty());
-    }
-
-    #[test]
-    fn test_unexported_function_contract_excluded() {
-        let content = r#"
-// Precondition: data must exist
-func internalHelper(data string) error {}
-"#;
-        let result = analyze(content);
-        assert!(result.contracts.is_empty());
-    }
-
-    #[test]
-    fn test_behavior_from_error_return() {
-        let content = r#"
-func ValidateToken(token string) (*Claims, error) {
-    if isExpired(token) {
-        return nil, ErrExpired
-    }
-    if !isValid(token) {
-        return nil, ErrInvalidToken
-    }
-    return claims, nil
-}
-"#;
-        let result = analyze(content);
-
-        // Should have success behavior (has "Validate" function)
-        let success = result.behaviors.iter().find(|b| b.category == BehaviorCategory::Success);
-        assert!(success.is_some());
-        assert_eq!(success.unwrap().input, "Valid JWT token");
-
-        let errors: Vec<_> = result.behaviors.iter()
-            .filter(|b| b.category == BehaviorCategory::Error)
-            .collect();
-        assert!(errors.iter().any(|b| b.output == "ErrExpired"));
-        assert!(errors.iter().any(|b| b.output == "ErrInvalidToken"));
-    }
-
-    #[test]
-    fn test_protocol_from_iota() {
-        let content = r#"
-const (
-    StateIdle State = iota
-    StateConnecting
-    StateConnected
-)
-"#;
-        let result = analyze(content);
-
-        let protocol = result.protocol.as_ref().expect("expected protocol");
-        assert!(protocol.states.contains(&"StateIdle".to_string()));
-        assert!(protocol.states.contains(&"StateConnecting".to_string()));
-        assert!(protocol.states.contains(&"StateConnected".to_string()));
-    }
-
-    #[test]
-    fn test_empty_file() {
-        let result = analyze("");
-
-        assert!(result.functions.is_empty());
-        assert!(result.types.is_empty());
-        assert!(result.variables.is_empty());
-        assert!(result.behaviors.is_empty());
-        assert!(result.contracts.is_empty());
-        assert!(result.protocol.is_none());
     }
 }

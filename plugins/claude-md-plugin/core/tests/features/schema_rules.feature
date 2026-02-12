@@ -9,11 +9,12 @@ Feature: Schema Rules SSOT
   Scenario: Required sections are defined from YAML SSOT
     When I check the required sections
     Then required sections should include:
-      | Purpose  |
-      | Exports  |
-      | Behavior |
-      | Contract |
-      | Protocol |
+      | Purpose        |
+      | Exports        |
+      | Behavior       |
+      | Domain Context |
+      | Contract       |
+      | Protocol       |
 
   Scenario: Valid CLAUDE.md with all required sections passes validation
     Given a CLAUDE.md file with content:
@@ -29,6 +30,9 @@ Feature: Schema Rules SSOT
       ## Behavior
       - valid token → true
       - invalid token → false
+
+      ## Domain Context
+      None
 
       ## Contract
       None
@@ -49,6 +53,9 @@ Feature: Schema Rules SSOT
 
       ## Behavior
       - valid token → true
+
+      ## Domain Context
+      None
 
       ## Contract
       None
@@ -74,6 +81,9 @@ Feature: Schema Rules SSOT
       ## Behavior
       - valid token → true
 
+      ## Domain Context
+      None
+
       ## Protocol
       None
       """
@@ -95,6 +105,9 @@ Feature: Schema Rules SSOT
       ## Behavior
       - valid token → true
 
+      ## Domain Context
+      None
+
       ## Contract
       None
       """
@@ -115,6 +128,9 @@ Feature: Schema Rules SSOT
 
       ## Behavior
       - valid token → true
+
+      ## Domain Context
+      None
 
       ## Contract
       None
@@ -139,6 +155,9 @@ Feature: Schema Rules SSOT
       ## Behavior
       - valid token → true
 
+      ## Domain Context
+      None
+
       ## Contract
       N/A
 
@@ -161,6 +180,9 @@ Feature: Schema Rules SSOT
 
       ## Behavior
       - valid token → true
+
+      ## Domain Context
+      None
 
       ## Contract
 
@@ -187,6 +209,9 @@ Feature: Schema Rules SSOT
 
       ## Behavior
       - valid token → true
+
+      ## Domain Context
+      None
 
       ## Contract
       None

@@ -21,9 +21,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 │ IMPLEMENTS.md 섹션 구조                                     │
 ├─────────────────────────────────────────────────────────────┤
 │ [Planning Section] ← /impl 이 업데이트                      │
-│ - Architecture Decisions (아키텍처 설계 결정)               │
-│ - Module Integration Map (내부 의존성 Export 레벨 명세)     │
-│ - External Dependencies (외부 의존성)                       │
+│ - Dependencies Direction (필요 의존성, 위치)                │
 │ - Implementation Approach (구현 방향)                       │
 │ - Technology Choices (기술 선택 근거)                       │
 ├─────────────────────────────────────────────────────────────┤
@@ -32,7 +30,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 │ - Key Constants (상수값과 근거)                             │
 │ - Error Handling (에러 처리 전략)                           │
 │ - State Management (상태 관리)                              │
-│ - Implementation Guide (다른 세션 참고용 정보)              │
+│ - Implementation Guide (다른 세션 참고용 정보)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,16 +38,14 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 | 섹션 | 명령어 | 필수 | "None" 허용 | 설명 |
 |------|--------|------|-------------|------|
-| Architecture Decisions | /impl | ✓ | ✓ | 아키텍처 설계 결정과 근거 |
-| Module Integration Map | /impl | 조건부 | ✓ | 내부 모듈 의존성의 Export 레벨 통합 명세 |
-| External Dependencies | /impl | ✓ | ✓ | 외부 패키지 의존성 |
+| Dependencies Direction | /impl | ✓ | ✗ | 필요 의존성과 위치 |
 | Implementation Approach | /impl | ✓ | ✗ | 구현 방향과 전략 |
 | Technology Choices | /impl | ✓ | ✓ | 기술 선택과 근거 |
 | Algorithm | /compile | ✗ | - | 복잡하거나 비직관적인 로직만 |
 | Key Constants | /compile | ✗ | - | 도메인 의미가 있는 상수만 |
 | Error Handling | /compile | ✓ | ✓ | 에러 처리 전략 |
 | State Management | /compile | ✓ | ✓ | 상태 관리 방식 |
-| Implementation Guide | /compile | ✗ | - | compile 시 발견된 추가 참고 정보 |
+| Implementation Guide | /compile | ✗ | - | 다른 세션 참고 정보 |
 
 ---
 
@@ -57,176 +53,25 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 
 > `/impl`이 업데이트하는 섹션. 코드 구현 전 계획 단계에서 결정되는 사항.
 
-### 1. Architecture Decisions (필수, "None" 허용)
+### 1. Dependencies Direction (필수)
 
-아키텍처 설계 결정과 그 근거를 기록합니다. 기존 코드베이스 분석 결과를 바탕으로 모듈 배치, 인터페이스 설계, 의존성 방향을 결정합니다.
-
-```markdown
-## Architecture Decisions
-
-### Module Placement
-- **Decision**: `src/payment/` 신규 디렉토리 생성
-- **Alternatives Considered**:
-  - `src/api/payment/`: API 레이어에 포함 → 비즈니스 로직 분리 원칙 위배
-  - `src/auth/payment/`: 인증과 결합 → SRP 위반
-- **Rationale**: 독립적 도메인으로 분리, 향후 마이크로서비스 전환 용이
-
-### Interface Guidelines
-- 새로 정의할 인터페이스:
-  - `processPayment(order: Order): Promise<PaymentResult>`
-  - `refundPayment(paymentId: string): Promise<RefundResult>`
-- 내부 모듈 통합: Module Integration Map 참조
-
-### Dependency Direction
-- 의존성 분석: `.claude/dependency-graph.json` 참조
-- 경계 명확성 준수: ✓
-```
-
-아키텍처 결정이 필요 없는 단순한 경우:
+의존성의 위치와 사용 목적을 명시합니다.
 
 ```markdown
-## Architecture Decisions
+## Dependencies Direction
 
-None
-```
-
-**작성 기준**:
-- 신규 모듈 생성 시: Module Placement 필수
-- 기존 모듈 확장 시: Interface Guidelines에 추가 인터페이스만 명시
-- 단순 기능 추가 시: "None" 허용
-
-### 2. Module Integration Map (조건부 필수 - 내부 의존성이 있는 경우)
-
-내부 모듈 의존성을 **Export 시그니처 레벨**로 정형화하여 명시합니다.
-Programmatic하게 의존성 그래프를 추출할 수 있도록 **엄격한 스키마**를 따릅니다.
-
-> **목적**:
-> - CLAUDE.md 간 의존 관계를 한 눈에 파악
-> - `/compile`이 의존 모듈 CLAUDE.md를 다시 읽지 않고 인터페이스 파악 가능
-> - dependency-graph에서 export 레벨 의존성 추출 가능
-
-#### 스키마 규칙
-
-| 요소 | 형식 | 필수 | 설명 |
-|------|------|------|------|
-| Entry Header | `### \`{path}\` → {name}/CLAUDE.md` | ✓ | 의존 모듈 식별자 |
-| Exports Used | `#### Exports Used` + 시그니처 목록 | ✓ | 사용할 Export 시그니처 |
-| Integration Context | `#### Integration Context` + 텍스트 | ✓ | 사용 목적/방식 설명 |
-
-#### Entry Header 형식
-
-```
-### `{relative_path}` → {module_name}/CLAUDE.md
-```
-
-- `{relative_path}`: 현재 모듈 기준 상대 경로 (e.g., `../auth`, `../utils/crypto`)
-- `{module_name}/CLAUDE.md`: 대상 모듈의 CLAUDE.md 식별자
-
-**파싱 패턴:**
-```regex
-^###\s+`([^`]+)`\s*→\s*(.+/CLAUDE\.md)$
-```
-
-- Capture Group 1: 상대 경로 (`../auth`)
-- Capture Group 2: CLAUDE.md 식별자 (`auth/CLAUDE.md`)
-
-#### Exports Used 형식
-
-```
-#### Exports Used
-- `{signature}` — {역할 설명}
-```
-
-- CLAUDE.md Exports 시그니처 형식 준수 (기존 스키마 동일)
-- Functions: `Name(params): ReturnType`
-- Types: `TypeName { field: Type, field2: Type }`
-- Classes: `ClassName(params)`
-- 각 항목 뒤 ` — {역할 설명}` 은 선택 사항
-
-**파싱 패턴:**
-```regex
-^[-*]\s+`([^`]+)`(?:\s*—\s*(.+))?$
-```
-
-- Capture Group 1: Export 시그니처 (`validateToken(token: string): Promise<Claims>`)
-- Capture Group 2: 역할 설명 (선택)
-
-#### Integration Context 형식
-
-```
-#### Integration Context
-{자유 형식 텍스트, 1-3문장}
-```
-
-사용 목적과 통합 방식을 서술합니다. 코드 탐색 없이 "왜 이 export가 필요한가"를 이해할 수 있도록 합니다.
-
-#### 예시
-
-```markdown
-## Module Integration Map
-
-### `../auth` → auth/CLAUDE.md
-
-#### Exports Used
-- `validateToken(token: string): Promise<Claims>` — API 요청 인증 게이트키퍼
-- `Claims { userId: string, exp: number, permissions: Permission[] }` — 인증 정보 타입
-
-#### Integration Context
-모든 보호된 API 엔드포인트에서 미들웨어로 호출.
-Claims.userId로 요청자 식별 후 권한 검증에 사용.
-
-### `../config` → config/CLAUDE.md
-
-#### Exports Used
-- `loadConfig(): Config` — 환경 설정 로드
-
-#### Integration Context
-초기화 시 1회 호출. Config.JWT_SECRET으로 토큰 서명.
-```
-
-내부 의존성이 없는 경우:
-
-```markdown
-## Module Integration Map
-
-None
-```
-
-**작성 기준**:
-- 내부 모듈 의존이 있으면 필수
-- Export 시그니처는 **대상 CLAUDE.md Exports 섹션에서 복사** (스냅샷)
-- `/validate` 실행 시 스냅샷과 실제 CLAUDE.md Exports 일치 여부 검증 가능
-
-#### 교차 검증 규칙
-
-| 검증 | 설명 | 검증 시점 |
-|------|------|----------|
-| Export 존재 | 참조한 Export가 대상 CLAUDE.md Exports에 존재 | /validate |
-| 시그니처 일치 | 스냅샷 시그니처와 대상 CLAUDE.md 시그니처가 동일 | /validate |
-| 경계 준수 | 상대 경로가 유효한 모듈을 가리킴 | /impl (dependency-graph) |
-
-### 3. External Dependencies (필수, "None" 허용)
-
-외부 패키지 의존성과 선택 근거를 명시합니다.
-
-```markdown
-## External Dependencies
-
-- `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 기존 프로젝트 호환, 성숙한 라이브러리)
+### External
+- `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 기존 프로젝트 호환)
 - `lodash@4.17.21`: 유틸리티 함수 (선택 이유: 번들 사이즈 vs 편의성)
+
+### Internal
+- `../utils/crypto`: 암호화 유틸리티 (경로, 사용할 함수)
+- `../config`: 환경 설정 (JWT_SECRET 로드)
 ```
 
-외부 의존성이 없는 경우:
+**목적**: 코드 탐색 없이 의존성 구조를 파악
 
-```markdown
-## External Dependencies
-
-None
-```
-
-**목적**: 외부 패키지의 버전과 선택 근거를 기록
-
-### 4. Implementation Approach (필수)
+### 2. Implementation Approach (필수)
 
 구현의 전략적 방향과 고려했으나 선택하지 않은 대안을 명시합니다.
 
@@ -246,7 +91,7 @@ None
 
 **목적**: "왜 이 방식인가?"에 대한 근거 제공
 
-### 5. Technology Choices (필수, "None" 허용)
+### 3. Technology Choices (필수, "None" 허용)
 
 기술 선택과 그 근거를 테이블 형태로 명시합니다.
 
@@ -274,7 +119,7 @@ None
 
 > `/compile`이 업데이트하는 섹션. 실제 구현 후 발견된 사항을 기록.
 
-### 6. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
+### 4. Algorithm (조건부 - 복잡하거나 비직관적인 경우만)
 
 소스코드를 보기 전에 알아야 할 구현 로직만 기술합니다.
 **단순한 구현은 기술하지 않습니다** (소스코드로 충분).
@@ -297,7 +142,7 @@ None
 - Yes → Algorithm 섹션에 기술
 - No → 생략 (코드로 충분)
 
-### 7. Key Constants (조건부 - 도메인 의미가 있는 값만)
+### 5. Key Constants (조건부 - 도메인 의미가 있는 값만)
 
 다른 세션이 알아야 할 상수만 기술합니다.
 코드에서 명확한 상수는 생략합니다.
@@ -316,7 +161,7 @@ None
 - Yes → Key Constants 섹션에 기술
 - No → 생략 (코드에서 명확)
 
-### 8. Error Handling (필수, "None" 허용)
+### 6. Error Handling (필수, "None" 허용)
 
 에러 유형별 처리 전략을 명시합니다.
 
@@ -339,7 +184,7 @@ None
 None
 ```
 
-### 9. State Management (필수, "None" 허용)
+### 7. State Management (필수, "None" 허용)
 
 내부 상태의 초기화, 저장, 복구 방식을 명시합니다.
 
@@ -367,21 +212,22 @@ None
 None
 ```
 
-### 10. Implementation Guide (선택)
+### 8. Implementation Guide (선택)
 
-`/compile` 과정에서 발견된 추가 참고 정보를 기록합니다.
-Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하지 않습니다**.
+다음 세션에서 소스코드 탐색 전 알면 효율적인 구현 가이드를 기록합니다.
+(도메인 맥락은 CLAUDE.md Domain Context에 기술)
 
 ```markdown
 ## Implementation Guide
 
-- 비동기 초기화 순서: config 로드 → DB 연결 → 캐시 워밍 (순서 변경 불가)
-- 테스트 시 JWT_SECRET mock 필수 (../config 모듈의 테스트 헬퍼 활용)
+- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
+- 암호화 유틸 → ../utils/crypto/CLAUDE.md#hashPassword
+- 에러 타입 → ../errors/CLAUDE.md#AuthError
 ```
 
-**작성 기준**: "Module Integration Map + CLAUDE.md만으로 알 수 없는 구현 시 주의사항이 있는가?"
-- 의존 모듈 Export 참조 → Module Integration Map에 기록 (중복 금지)
-- compile 과정에서 발견된 순서 제약, 테스트 팁, 성능 주의사항 등
+**작성 기준**: "소스코드 탐색 없이 구현 시작점을 알 수 있는가?"
+- 의존 모듈의 CLAUDE.md 경로 + Export 이름 (예: ../jwt/CLAUDE.md#validateToken)
+- 도메인 맥락(값의 근거 등)은 CLAUDE.md Domain Context에 기술
 
 ---
 
@@ -395,34 +241,13 @@ Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하�
 <!-- PLANNING SECTION - /impl 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
 
-## Architecture Decisions
+## Dependencies Direction
 
-### Module Placement
-- **Decision**: 배치 위치
-- **Alternatives Considered**: 고려한 대안들
-- **Rationale**: 선택 근거
-
-### Interface Guidelines
-- 새로 정의할 인터페이스 시그니처
-- 내부 모듈 통합: Module Integration Map 참조
-
-### Dependency Direction
-- 의존성 분석 결과
-- 경계 명확성 준수 여부
-
-## Module Integration Map
-
-### `{../relative_path}` → {module_name}/CLAUDE.md
-
-#### Exports Used
-- `{ExportSignature}` — {역할 설명}
-
-#### Integration Context
-{사용 목적과 통합 방식 1-3문장}
-
-## External Dependencies
-
+### External
 - `package@version`: 용도 (선택 이유)
+
+### Internal
+- `../path/to/module`: 용도 (사용할 인터페이스)
 
 ## Implementation Approach
 
@@ -472,7 +297,7 @@ Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하�
 
 ## Implementation Guide
 
-- compile 시 발견된 추가 참고 정보 (Module Integration Map과 중복 금지)
+- 기능 → 의존모듈/CLAUDE.md#ExportName
 ```
 
 ---
@@ -480,42 +305,20 @@ Module Integration Map에 이미 기록된 Export 참조 정보와 **중복하�
 ## 검증 규칙
 
 ### 필수 섹션 검증
-- Architecture Decisions: 반드시 존재, 결정 없으면 "None" 명시
-- Module Integration Map: 내부 의존성이 있으면 필수, 없으면 "None" 명시
-- External Dependencies: 반드시 존재, 외부 의존성 없으면 "None" 명시
+- Dependencies Direction: 반드시 존재
 - Implementation Approach: 반드시 존재
 - Technology Choices: 반드시 존재, 선택 없으면 "None" 명시
 - Error Handling: 반드시 존재, 처리 없으면 "None" 명시
 - State Management: 반드시 존재, 상태 없으면 "None" 명시
 
-### Module Integration Map 형식 검증
-```yaml
-entry_header:
-  pattern: "^###\\s+`[^`]+`\\s*→\\s*.+/CLAUDE\\.md$"
-  description: "### `{path}` → {name}/CLAUDE.md"
-  required: true
-
-exports_used:
-  header: "#### Exports Used"
-  item_pattern: "^[-*]\\s+`[^`]+`(?:\\s*—\\s*.+)?$"
-  description: "- `{signature}` — {description}"
-  min_items: 1
-  signature_validation: same_as_claude_md_exports
-
-integration_context:
-  header: "#### Integration Context"
-  required: true
-  allow_empty: false
-```
-
 ### 조건부 섹션
 - Algorithm: 복잡한 로직이 있을 때만 작성
 - Key Constants: 도메인 의미 있는 상수가 있을 때만 작성
-- Implementation Guide: compile 시 발견된 추가 참고 사항이 있을 때만 작성
+- Implementation Guide: 참고 사항이 있을 때만 작성
 
 ### 업데이트 책임
 ```
-/impl → Planning Section (Architecture Decisions, Module Integration Map, External Dependencies, Implementation Approach, Technology Choices)
+/impl → Planning Section (Dependencies Direction, Implementation Approach, Technology Choices)
 /compile → Implementation Section (Algorithm, Key Constants, Error Handling, State Management, Implementation Guide)
 /decompile → 전체 섹션
 ```
@@ -532,50 +335,14 @@ integration_context:
 <!-- PLANNING SECTION - /impl 이 업데이트                     -->
 <!-- ═══════════════════════════════════════════════════════ -->
 
-## Architecture Decisions
+## Dependencies Direction
 
-### Module Placement
-- **Decision**: `src/auth/` 독립 디렉토리
-- **Alternatives Considered**:
-  - `src/api/auth/`: API 레이어 통합 → 비즈니스 로직 분리 원칙 위배
-  - `src/services/auth/`: 서비스 레이어 → 도메인 경계 불명확
-- **Rationale**: 인증은 독립 도메인, 다른 모듈에서 참조만 받음
-
-### Interface Guidelines
-- 새로 정의할 인터페이스:
-  - `validateToken(token: string): Promise<Claims>`
-  - `issueToken(userId: string): Promise<string>`
-- 내부 모듈 통합: Module Integration Map 참조
-
-### Dependency Direction
-- 의존성 분석: `.claude/dependency-graph.json`
-- 경계 명확성 준수: ✓
-
-## Module Integration Map
-
-### `../utils/crypto` → utils/crypto/CLAUDE.md
-
-#### Exports Used
-- `hashPassword(password: string): Promise<string>` — 비밀번호 해시 생성
-- `verifyPassword(password: string, hash: string): Promise<boolean>` — 비밀번호 검증
-
-#### Integration Context
-사용자 인증 시 비밀번호 해시 비교에 사용.
-issueToken 전 verifyPassword로 자격 증명 확인.
-
-### `../config` → config/CLAUDE.md
-
-#### Exports Used
-- `JWT_SECRET: string` — 토큰 서명/검증 키
-- `TOKEN_EXPIRY: number` — 토큰 만료 시간 (초)
-
-#### Integration Context
-초기화 시 로드. JWT 서명과 만료 정책에 직접 사용.
-환경별로 값이 다르므로 하드코딩 금지.
-
-## External Dependencies
-
+### External
 - `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 기존 프로젝트 호환, 성숙한 라이브러리)
+
+### Internal
+- `../utils/crypto`: 해시 유틸리티 (hashPassword, verifyPassword)
+- `../config`: 환경 설정 (JWT_SECRET, TOKEN_EXPIRY)
 
 ## Implementation Approach
 
@@ -641,6 +408,7 @@ issueToken 전 verifyPassword로 자격 증명 확인.
 
 ## Implementation Guide
 
-- 비동기 초기화 순서: config 로드 → 캐시 초기화 (순서 변경 불가)
-- 테스트 시 JWT_SECRET mock 필수
+- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
+- 암호화 → ../utils/crypto/CLAUDE.md#hashPassword, #verifyPassword
+- 설정 로드 → ../config/CLAUDE.md#JWT_SECRET, #TOKEN_EXPIRY
 ```

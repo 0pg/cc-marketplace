@@ -1,12 +1,40 @@
 {
   "name": "claude-md-plugin",
-  "version": "2.12.0",
-  "description": "CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인. /impl으로 요구사항에서 CLAUDE.md 생성, /decompile로 소스코드에서 CLAUDE.md 추출, /compile로 코드 생성, /validate로 일치 검증, /convention으로 코드 컨벤션 관리",
+  "version": "0.26.0",
+  "description": "CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인. /impl으로 요구사항에서 CLAUDE.md 생성, /decompile로 소스코드에서 CLAUDE.md 추출, /compile로 코드 생성, /validate로 일치 검증",
   "author": {
     "name": "jhk"
   },
-  "repository": "https://github.com/jhk/claude-plugins",
-  "homepage": "https://github.com/jhk/claude-plugins/tree/main/plugins/claude-md-plugin",
+  "repository": "https://github.com/0pg/cc-marketplace",
+  "homepage": "https://github.com/0pg/cc-marketplace/tree/main/plugins/claude-md-plugin",
   "license": "MIT",
-  "keywords": ["claude-md", "documentation", "source-of-truth", "code-sync", "code-generation"]
+  "keywords": [
+    "claude-md",
+    "documentation",
+    "source-of-truth",
+    "code-sync",
+    "code-generation"
+  ],
+  "skills": [
+    "./skills/impl",
+    "./skills/compile",
+    "./skills/decompile",
+    "./skills/validate",
+    "./skills/tree-parse",
+    "./skills/boundary-resolve",
+    "./skills/code-analyze",
+    "./skills/claude-md-parse",
+    "./skills/schema-validate"
+  ],
+  "agents": [
+    "./agents/compiler.md",
+    "./agents/decompiler.md",
+    "./agents/dep-explorer.md",
+    "./agents/impl.md",
+    "./agents/validator.md"
+  ],
+  "commands": [
+    "./commands/project-setup.md",
+    "./commands/convention-update.md"
+  ]
 }

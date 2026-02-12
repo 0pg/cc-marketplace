@@ -2,9 +2,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::implements_md_parser::ImplementsMdParser;
-use crate::symbol_index::SymbolIndexResult;
-
 /// Result of schema validation
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ValidationResult {
@@ -31,34 +28,32 @@ pub struct ValidationError {
     /// Section where error was found
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
-    /// Suggested fix for the error
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggestion: Option<String>,
 }
 
 // Include generated constants from schema-rules.yaml (SSOT)
-// Not all constants are used in every module that includes them
-#[allow(dead_code)]
-mod schema_rules {
-    include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
-}
-use schema_rules::*;
+include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
+
+const GO_BUILTIN_TYPES: &[&str] = &[
+    "error", "bool", "string", "byte", "rune",
+    "int", "int8", "int16", "int32", "int64",
+    "uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+    "float32", "float64",
+    "complex64", "complex128",
+];
 
 pub struct SchemaValidator {
     /// Pattern to match section headers
     section_pattern: Regex,
     /// Pattern to match behavior scenarios
     behavior_pattern: Regex,
-    /// Pattern to detect schema version marker
-    schema_version_pattern: Regex,
-    /// Pattern to match use case IDs
-    usecase_id_pattern: Regex,
-    /// Pattern to match include references
-    include_pattern: Regex,
-    /// Pattern to match extend references
-    extend_pattern: Regex,
-    /// Pattern to match cross-references (CLAUDE.md#symbol)
-    cross_ref_pattern: Regex,
+    /// Pre-compiled: Java/Kotlin signature pattern
+    java_kotlin_sig_re: Regex,
+    /// Pre-compiled: incomplete signature pattern
+    incomplete_sig_re: Regex,
+    /// Pre-compiled: backtick-wrapped name pattern
+    backtick_name_re: Regex,
+    /// Pre-compiled forbidden reference patterns from schema-rules.yaml
+    forbidden_ref_patterns: Vec<(Regex, String)>,
 }
 
 impl SchemaValidator {
@@ -69,31 +64,27 @@ impl SchemaValidator {
         // Match behavior scenarios: input → output
         let behavior_pattern = Regex::new(r"→|->").unwrap();
 
-        // Schema version marker: <!-- schema: 2.0 -->
-        let schema_version_pattern = Regex::new(SCHEMA_VERSION_MARKER_PATTERN).unwrap();
+        // Pre-compiled hot path regexes
+        let java_kotlin_sig_re = Regex::new(r"^\s*[-*]?\s*`?[A-Za-z_<>\[\]]+\s+[A-Za-z_][A-Za-z0-9_]*\s*\(").unwrap();
+        let incomplete_sig_re = Regex::new(r"`?[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)`?$").unwrap();
+        let backtick_name_re = Regex::new(r"`[A-Za-z_][A-Za-z0-9_]*`").unwrap();
 
-        // v2 behavior patterns
-        let usecase_id_pattern = Regex::new(USECASE_ID_PATTERN).unwrap();
-        let include_pattern = Regex::new(INCLUDE_PATTERN).unwrap();
-        let extend_pattern = Regex::new(EXTEND_PATTERN).unwrap();
-
-        // Cross-reference pattern: path/CLAUDE.md#symbolName
-        let cross_ref_pattern = Regex::new(r"([A-Za-z0-9_./-]*CLAUDE\.md)#([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+        // Compile forbidden reference patterns from SSOT (schema-rules.yaml via build.rs)
+        let forbidden_ref_patterns = FORBIDDEN_REFERENCE_PATTERNS
+            .iter()
+            .filter_map(|(pattern, desc)| {
+                Regex::new(pattern).ok().map(|re| (re, desc.to_string()))
+            })
+            .collect();
 
         Self {
             section_pattern,
             behavior_pattern,
-            schema_version_pattern,
-            usecase_id_pattern,
-            include_pattern,
-            extend_pattern,
-            cross_ref_pattern,
+            java_kotlin_sig_re,
+            incomplete_sig_re,
+            backtick_name_re,
+            forbidden_ref_patterns,
         }
-    }
-
-    /// Returns the list of required sections for CLAUDE.md files.
-    pub fn required_sections() -> &'static [&'static str] {
-        &REQUIRED_SECTIONS
     }
 
     /// Validate a CLAUDE.md file
@@ -111,7 +102,6 @@ impl SchemaValidator {
                         message: format!("Cannot read file: {}", e),
                         line_number: None,
                         section: None,
-                        suggestion: None,
                     }],
                     warnings: vec![],
                 };
@@ -135,7 +125,6 @@ impl SchemaValidator {
                         message: format!("Missing required section: {}", required),
                         line_number: None,
                         section: Some(required.to_string()),
-                        suggestion: Some(format!("Add a '## {}' section to the CLAUDE.md file", required)),
                     });
                 }
                 Some(section) => {
@@ -149,15 +138,11 @@ impl SchemaValidator {
                             message: format!("Section '{}' does not allow 'None' as value", required),
                             line_number: Some(section.start_line),
                             section: Some(required.to_string()),
-                            suggestion: Some(format!("Add content to the '{}' section instead of 'None'", required)),
                         });
                     }
                 }
             }
         }
-
-        // Detect schema version
-        let schema_version = self.detect_schema_version(&content);
 
         // Validate Exports section format
         if let Some(exports) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports")) {
@@ -166,17 +151,23 @@ impl SchemaValidator {
 
         // Validate Behavior section format
         if let Some(behavior) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Behavior")) {
-            let is_v2 = schema_version.as_deref() == Some("2.0");
-            self.validate_behavior(behavior, &content, &sections, is_v2, &mut errors, &mut warnings);
-
-            // v2-specific: validate actors and use cases
-            if is_v2 {
-                self.validate_v2_behavior(&content, behavior, &sections, &mut errors, &mut warnings);
-            }
+            self.validate_behavior(behavior, &mut errors, &mut warnings);
         }
 
-        // Validate cross-references in all content
-        self.validate_cross_references(&content, &mut warnings);
+        // Validate Dependencies for forbidden references (INV-1: tree structure)
+        self.validate_dependencies(&content, &mut errors);
+
+        // INV-3: 1:1 mapping required. WARNING (not ERROR) because:
+        // - /impl creates CLAUDE.md first, then IMPLEMENTS.md (transient absence)
+        // - /compile auto-generates missing IMPLEMENTS.md before compilation
+        // Strict enforcement would break these valid intermediate states.
+        let implements_md_path = file.with_file_name("IMPLEMENTS.md");
+        if !implements_md_path.exists() {
+            warnings.push(format!(
+                "INV-3: IMPLEMENTS.md not found at '{}' (expected 1:1 mapping with CLAUDE.md)",
+                implements_md_path.display()
+            ));
+        }
 
         ValidationResult {
             file: file_str,
@@ -186,9 +177,9 @@ impl SchemaValidator {
         }
     }
 
-    fn parse_sections(&self, content: &str) -> Vec<Section> {
+    fn parse_sections(&self, content: &str) -> Vec<ValidatorSection> {
         let mut sections = Vec::new();
-        let mut current_section: Option<Section> = None;
+        let mut current_section: Option<ValidatorSection> = None;
 
         for (line_num, line) in content.lines().enumerate() {
             if let Some(caps) = self.section_pattern.captures(line) {
@@ -203,7 +194,7 @@ impl SchemaValidator {
                     .map(|m| m.as_str().to_string())
                     .unwrap_or_else(|| line.trim_start_matches('#').trim().to_string());
 
-                current_section = Some(Section {
+                current_section = Some(ValidatorSection {
                     name: section_name,
                     start_line: line_num + 1,
                     content: Vec::new(),
@@ -222,37 +213,41 @@ impl SchemaValidator {
     }
 
     /// Check if a section contains only a "None" marker (None, N/A, etc.)
-    fn is_none_marker(&self, section: &Section) -> bool {
-        let non_empty_lines: Vec<&str> = section
-            .content
-            .iter()
-            .map(|(_, line)| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .collect();
-
-        // If section has only one non-empty line and it's a none marker
-        if non_empty_lines.len() == 1 {
-            let line = non_empty_lines[0].to_lowercase();
-            return line == "none" || line == "n/a";
-        }
-
-        false
+    fn is_none_marker(&self, section: &ValidatorSection) -> bool {
+        let lines: Vec<&str> = section.content.iter().map(|(_, s)| s.as_str()).collect();
+        crate::is_none_marker_content(&lines)
     }
 
     fn validate_exports(
         &self,
-        section: &Section,
+        section: &ValidatorSection,
         errors: &mut Vec<ValidationError>,
         warnings: &mut Vec<String>,
     ) {
         let mut found_valid_export = false;
         let mut in_list = false;
+        let mut in_table = false;
 
         for (line_num, line) in &section.content {
             let trimmed = line.trim();
 
             // Skip empty lines and subsection headers
             if trimmed.is_empty() || trimmed.starts_with('#') {
+                in_table = false; // Reset table state at section boundaries
+                continue;
+            }
+
+            // Table format: detect separator row (|------|------|) to recognize
+            // that subsequent | rows are valid export data (not just headers).
+            // Detect table separator row (e.g. |------|------|)
+            if trimmed.starts_with('|') && trimmed.contains("---") {
+                in_table = true;
+                continue;
+            }
+
+            // Table data row (after separator)
+            if in_table && trimmed.starts_with('|') {
+                found_valid_export = true;
                 continue;
             }
 
@@ -279,6 +274,10 @@ impl SchemaValidator {
                             line_num
                         ));
                     }
+                } else if self.looks_like_enum_line(trimmed) {
+                    found_valid_export = true;
+                } else if self.looks_like_variable_line(trimmed) {
+                    found_valid_export = true;
                 } else if self.looks_like_incomplete_signature(trimmed) {
                     // No parentheses but looks like incomplete function definition
                     warnings.push(format!(
@@ -295,77 +294,42 @@ impl SchemaValidator {
                 message: "Exports section must contain valid function signatures or 'None'".to_string(),
                 line_number: Some(section.start_line),
                 section: Some("Exports".to_string()),
-                suggestion: Some("Use format: `functionName(param: Type): ReturnType` or 'None' if no exports".to_string()),
             });
         }
     }
 
-    /// Get the full content lines belonging to a ## section (including ### subsections).
-    /// Since parse_sections splits at every # heading, subsections are separate Section objects.
-    /// This method finds the range from the section start to the next ## section.
-    fn get_full_section_lines<'a>(&self, content: &'a str, section: &Section, all_sections: &[Section]) -> Vec<(usize, &'a str)> {
-        let start_line = section.start_line; // 1-based
-
-        // Find the next ## section (same or higher level)
-        let end_line = all_sections.iter()
-            .filter(|s| s.start_line > start_line)
-            .filter(|s| {
-                // Only stop at ## level (not ### which are subsections)
-                // Check the original content to determine heading level
-                let line_idx = s.start_line - 1;
-                content.lines().nth(line_idx)
-                    .map(|l| l.starts_with("## ") && !l.starts_with("### "))
-                    .unwrap_or(false)
-            })
-            .map(|s| s.start_line)
-            .next()
-            .unwrap_or(content.lines().count() + 1);
-
-        content.lines()
-            .enumerate()
-            .skip(start_line) // skip the ## heading itself (0-indexed skip = start_line since it's 1-based)
-            .take_while(|(i, _)| i + 1 < end_line)
-            .map(|(i, line)| (i + 1, line))
-            .collect()
-    }
-
     fn validate_behavior(
         &self,
-        section: &Section,
-        content: &str,
-        all_sections: &[Section],
-        is_v2: bool,
+        section: &ValidatorSection,
         errors: &mut Vec<ValidationError>,
         _warnings: &mut Vec<String>,
     ) {
         let mut found_valid_behavior = false;
+        let mut in_table = false;
 
-        // For v2 files, scan the full section range including ### subsections
-        let lines_to_check: Vec<(usize, String)> = if is_v2 {
-            self.get_full_section_lines(content, section, all_sections)
-                .into_iter()
-                .map(|(n, l)| (n, l.to_string()))
-                .collect()
-        } else {
-            section.content.clone()
-        };
-
-        for (_, line) in &lines_to_check {
+        for (_, line) in &section.content {
             let trimmed = line.trim();
 
             // Skip empty lines and headers
             if trimmed.is_empty() || trimmed.starts_with('#') {
+                in_table = false; // Reset table state at section boundaries
+                continue;
+            }
+
+            // Detect table separator row (e.g. |-------|--------|)
+            if trimmed.starts_with('|') && trimmed.contains("---") {
+                in_table = true;
+                continue;
+            }
+
+            // Table data row (after separator)
+            if in_table && trimmed.starts_with('|') {
+                found_valid_behavior = true;
                 continue;
             }
 
             // Skip if marked as "None"
             if trimmed.eq_ignore_ascii_case("none") || trimmed.eq_ignore_ascii_case("n/a") {
-                found_valid_behavior = true;
-                continue;
-            }
-
-            // v2 markers count as valid behavior
-            if trimmed.starts_with("- Actor:") || trimmed.starts_with("- Includes:") || trimmed.starts_with("- Extends:") {
                 found_valid_behavior = true;
                 continue;
             }
@@ -376,278 +340,91 @@ impl SchemaValidator {
             }
         }
 
-        if !found_valid_behavior && !lines_to_check.is_empty() {
+        if !found_valid_behavior && !section.content.is_empty() {
             errors.push(ValidationError {
                 error_type: "InvalidBehavior".to_string(),
                 message: "Behavior section must contain scenarios in 'input → output' format or 'None'".to_string(),
                 line_number: Some(section.start_line),
                 section: Some("Behavior".to_string()),
-                suggestion: Some("Use format: '- input → output' (e.g., '- valid token → Claims')".to_string()),
             });
         }
     }
 
-    /// Detect schema version from content (first 5 lines)
-    fn detect_schema_version(&self, content: &str) -> Option<String> {
-        for line in content.lines().take(5) {
-            if let Some(caps) = self.schema_version_pattern.captures(line) {
-                return caps.get(1).map(|m| m.as_str().to_string());
-            }
-        }
-        None
-    }
-
-    /// Validate v2-specific Behavior section (Actors, Use Cases)
-    /// Uses full content range to capture ### subsections
-    fn validate_v2_behavior(
+    /// Validate Dependencies section for forbidden reference patterns (e.g. parent `../` references).
+    /// Scans raw content between `## Dependencies` and the next `##` header to handle subsections.
+    fn validate_dependencies(
         &self,
         content: &str,
-        section: &Section,
-        all_sections: &[Section],
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<String>,
     ) {
-        let full_lines = self.get_full_section_lines(content, section, all_sections);
+        let mut in_dependencies = false;
 
-        let mut uc_ids: Vec<String> = Vec::new();
-        let mut include_targets: Vec<String> = Vec::new();
-        let mut extend_targets: Vec<String> = Vec::new();
-
-        for (line_num, line) in &full_lines {
+        for (idx, line) in content.lines().enumerate() {
             let trimmed = line.trim();
 
-            // Collect UC IDs from ### UC-N: Name headings
-            if let Some(caps) = self.usecase_id_pattern.captures(trimmed) {
-                let id = format!("UC-{}", caps.get(1).map(|m| m.as_str()).unwrap_or(""));
-                if uc_ids.contains(&id) {
+            // Detect ## Dependencies header (H2 only)
+            if trimmed.starts_with("## ")
+                && trimmed[3..].trim().eq_ignore_ascii_case("Dependencies")
+            {
+                in_dependencies = true;
+                continue;
+            }
+
+            // Exit when reaching next H2 header
+            if in_dependencies && trimmed.starts_with("## ") {
+                break;
+            }
+
+            // Skip empty lines and H3+ subsection headers within Dependencies
+            if !in_dependencies || trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+
+            // Check each line against forbidden patterns
+            for (pattern, description) in &self.forbidden_ref_patterns {
+                if pattern.is_match(trimmed) {
                     errors.push(ValidationError {
-                        error_type: "DuplicateUseCaseId".to_string(),
-                        message: format!("Duplicate use case ID: {}", id),
-                        line_number: Some(*line_num),
-                        section: Some("Behavior".to_string()),
-                        suggestion: Some(format!("Rename one of the duplicate '{}' use cases to a unique ID (e.g., UC-N with a different number)", id)),
+                        error_type: "ForbiddenReference".to_string(),
+                        message: format!("{}: {}", description, trimmed),
+                        line_number: Some(idx + 1),
+                        section: Some("Dependencies".to_string()),
                     });
                 }
-                uc_ids.push(id);
             }
-
-            // Collect include targets
-            if let Some(caps) = self.include_pattern.captures(trimmed) {
-                if let Some(targets) = caps.get(1) {
-                    for target in targets.as_str().split(',').map(|s| s.trim().to_string()) {
-                        include_targets.push(target);
-                    }
-                }
-            }
-
-            // Collect extend targets
-            if let Some(caps) = self.extend_pattern.captures(trimmed) {
-                if let Some(targets) = caps.get(1) {
-                    for target in targets.as_str().split(',').map(|s| s.trim().to_string()) {
-                        extend_targets.push(target);
-                    }
-                }
-            }
-        }
-
-        // Validate include/extend targets exist
-        for target in &include_targets {
-            if !uc_ids.contains(target) {
-                errors.push(ValidationError {
-                    error_type: "InvalidIncludeTarget".to_string(),
-                    message: format!("Include target '{}' does not match any defined use case", target),
-                    line_number: None,
-                    section: Some("Behavior".to_string()),
-                    suggestion: Some(format!("Add '### {}: <Name>' subsection to the Behavior section, or fix the Includes reference", target)),
-                });
-            }
-        }
-
-        for target in &extend_targets {
-            if !uc_ids.contains(target) {
-                errors.push(ValidationError {
-                    error_type: "InvalidExtendTarget".to_string(),
-                    message: format!("Extend target '{}' does not match any defined use case", target),
-                    line_number: None,
-                    section: Some("Behavior".to_string()),
-                    suggestion: Some(format!("Add '### {}: <Name>' subsection to the Behavior section, or fix the Extends reference", target)),
-                });
-            }
-        }
-    }
-
-    /// Validate cross-reference syntax in content
-    fn validate_cross_references(
-        &self,
-        content: &str,
-        warnings: &mut Vec<String>,
-    ) {
-        for (line_num, line) in content.lines().enumerate() {
-            for caps in self.cross_ref_pattern.captures_iter(line) {
-                let full_path = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                let symbol_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
-
-                // Warn if path looks malformed (double slashes, trailing slash before CLAUDE.md)
-                if full_path.contains("//") {
-                    warnings.push(format!(
-                        "Line {}: Cross-reference path '{}#{}' contains double slashes",
-                        line_num + 1, full_path, symbol_name
-                    ));
-                }
-
-                // Warn if symbol name starts with uppercase but looks like a path component
-                if symbol_name.contains('/') {
-                    warnings.push(format!(
-                        "Line {}: Cross-reference symbol '{}' should not contain path separators",
-                        line_num + 1, symbol_name
-                    ));
-                }
-            }
-        }
-    }
-
-    /// Validate a CLAUDE.md file with cross-reference resolution against a symbol index.
-    /// This extends the basic validate() with actual cross-reference verification.
-    pub fn validate_with_index(&self, file: &Path, index: &SymbolIndexResult) -> ValidationResult {
-        // First perform standard validation
-        let mut result = self.validate(file);
-
-        // Then verify cross-references against the symbol index
-        let content = match std::fs::read_to_string(file) {
-            Ok(c) => c,
-            Err(_) => return result,
-        };
-
-        let anchor_set: std::collections::HashSet<&str> = index.symbols.iter()
-            .map(|s| s.anchor.as_str())
-            .collect();
-
-        for (line_num, line) in content.lines().enumerate() {
-            for caps in self.cross_ref_pattern.captures_iter(line) {
-                let full_path = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                let symbol_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
-                let to_anchor = format!("{}#{}", full_path, symbol_name);
-
-                // Skip self-references
-                let file_str = file.to_string_lossy();
-                if file_str.ends_with("CLAUDE.md") && to_anchor.ends_with(&format!("CLAUDE.md#{}", symbol_name)) {
-                    // Check if it's truly a self-reference
-                    let self_path = file.parent()
-                        .and_then(|p| {
-                            if let Some(root) = index.root.strip_suffix('/') {
-                                p.to_string_lossy().strip_prefix(root).map(|s| s.trim_start_matches('/').to_string())
-                            } else {
-                                p.strip_prefix(&index.root).ok().map(|s| s.to_string_lossy().to_string())
-                            }
-                        })
-                        .unwrap_or_default();
-                    let self_anchor = if self_path.is_empty() {
-                        format!("CLAUDE.md#{}", symbol_name)
-                    } else {
-                        format!("{}/CLAUDE.md#{}", self_path, symbol_name)
-                    };
-                    if to_anchor == self_anchor {
-                        continue;
-                    }
-                }
-
-                if !anchor_set.contains(to_anchor.as_str()) {
-                    result.errors.push(ValidationError {
-                        error_type: "UnresolvedCrossReference".to_string(),
-                        message: format!(
-                            "Cross-reference '{}' does not resolve to any known symbol",
-                            to_anchor
-                        ),
-                        line_number: Some(line_num + 1),
-                        section: None,
-                        suggestion: Some(format!(
-                            "Check that '{}' exists in {} Exports section, or fix the reference",
-                            symbol_name, full_path
-                        )),
-                    });
-                    result.valid = false;
-                }
-            }
-        }
-
-        result
-    }
-
-    /// Validate an IMPLEMENTS.md file
-    pub fn validate_implements(&self, file: &Path) -> ValidationResult {
-        let file_str = file.to_string_lossy().to_string();
-
-        let content = match std::fs::read_to_string(file) {
-            Ok(c) => c,
-            Err(e) => {
-                return ValidationResult {
-                    file: file_str,
-                    valid: false,
-                    errors: vec![ValidationError {
-                        error_type: "FileError".to_string(),
-                        message: format!("Cannot read file: {}", e),
-                        line_number: None,
-                        section: None,
-                        suggestion: None,
-                    }],
-                    warnings: vec![],
-                };
-            }
-        };
-
-        let mut errors = Vec::new();
-        let mut warnings = Vec::new();
-
-        let sections = self.parse_sections(&content);
-
-        for required in IMPLEMENTS_REQUIRED_SECTIONS {
-            let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
-
-            match section_found {
-                None => {
-                    errors.push(ValidationError {
-                        error_type: "MissingSection".to_string(),
-                        message: format!("Missing required section: {}", required),
-                        line_number: None,
-                        section: Some(required.to_string()),
-                        suggestion: Some(format!("Add a '## {}' section to the IMPLEMENTS.md file", required)),
-                    });
-                }
-                Some(section) => {
-                    let allows_none = IMPLEMENTS_ALLOW_NONE_SECTIONS.iter().any(|s| s.eq_ignore_ascii_case(required));
-                    let is_none_marker = self.is_none_marker(section);
-
-                    if !allows_none && is_none_marker {
-                        errors.push(ValidationError {
-                            error_type: "InvalidSectionContent".to_string(),
-                            message: format!("Section '{}' does not allow 'None' as value", required),
-                            line_number: Some(section.start_line),
-                            section: Some(required.to_string()),
-                            suggestion: Some(format!("Add content to the '{}' section instead of 'None'", required)),
-                        });
-                    }
-                }
-            }
-        }
-
-        // Validate Module Integration Map format via parser
-        let parser = ImplementsMdParser::new();
-        let impl_spec = parser.parse_content(&content);
-        for parser_warning in &impl_spec.warnings {
-            warnings.push(format!("[Module Integration Map] {}", parser_warning));
-        }
-
-        ValidationResult {
-            file: file_str,
-            valid: errors.is_empty(),
-            errors,
-            warnings,
         }
     }
 
     fn looks_like_export_line(&self, line: &str) -> bool {
         // Has a function name pattern followed by parentheses
         line.contains('(') && line.contains(')')
+    }
+
+    /// Enum export: `Status: Active | Inactive | Pending` or `Status = A | B`
+    fn looks_like_enum_line(&self, line: &str) -> bool {
+        if !line.contains('|') {
+            return false;
+        }
+        let cleaned = line.trim_start_matches('-').trim_start_matches('*').trim();
+        let cleaned = cleaned.trim_start_matches('`');
+        (cleaned.contains(':') || cleaned.contains('='))
+            && cleaned.split('|').count() >= 2
+    }
+
+    /// Variable/constant export: `MAX_RETRIES = 3` or `TIMEOUT: number`
+    fn looks_like_variable_line(&self, line: &str) -> bool {
+        let cleaned = line.trim_start_matches('-').trim_start_matches('*').trim();
+        let cleaned = cleaned.trim_start_matches('`').trim_end_matches('`');
+        if cleaned.contains('(') || cleaned.contains('|') {
+            return false;
+        }
+        let first = match cleaned.chars().next() {
+            Some(c) => c,
+            None => return false,
+        };
+        if !first.is_uppercase() {
+            return false;
+        }
+        cleaned.contains('=') || cleaned.contains(':')
     }
 
     fn has_valid_signature(&self, line: &str) -> bool {
@@ -663,9 +440,28 @@ impl SchemaValidator {
             return true;
         }
 
-        // Go: Func(param type) (ReturnType, error)
-        if line.contains(") (") || (line.contains(')') && !line.trim().ends_with(')')) {
+        // Go: Func(param type) (ReturnType, error) — multi-return with tuple
+        if line.contains(") (") {
             return true;
+        }
+
+        // Go: Func(param type) ReturnType — single return (no parens around return)
+        // Match pattern: closing paren followed by space and a capitalized type or basic type
+        if let Some(after_paren) = line.split(')').last() {
+            let after = after_paren.trim().trim_end_matches('`');
+            if !after.is_empty()
+                && !after.starts_with('(')
+                && !after.starts_with(':')
+                && !after.starts_with('-')
+                && !after.starts_with('=')
+                && (after.starts_with(|c: char| c.is_ascii_uppercase())
+                    || GO_BUILTIN_TYPES.contains(&after)
+                    || after.starts_with('*')
+                    || after.starts_with("[]")
+                    || after.starts_with("map["))
+            {
+                return true;
+            }
         }
 
         // Rust: func(param: Type) -> Result<T, E>
@@ -674,8 +470,7 @@ impl SchemaValidator {
         }
 
         // Java/Kotlin: ReturnType funcName(ParamType param)
-        let re = Regex::new(r"^\s*[-*]?\s*`?[A-Za-z_<>\[\]]+\s+[A-Za-z_][A-Za-z0-9_]*\s*\(").unwrap();
-        if re.is_match(line) {
+        if self.java_kotlin_sig_re.is_match(line) {
             return true;
         }
 
@@ -684,8 +479,7 @@ impl SchemaValidator {
 
     fn looks_like_incomplete_signature(&self, line: &str) -> bool {
         // Just a name with empty parens: validateToken()
-        let incomplete_re = Regex::new(r"`?[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)`?$").unwrap();
-        if incomplete_re.is_match(line.trim()) {
+        if self.incomplete_sig_re.is_match(line.trim()) {
             return true;
         }
 
@@ -696,8 +490,7 @@ impl SchemaValidator {
         }
 
         // Backtick-wrapped function name without params: `validateToken` or `validate_token`
-        let backtick_name_re = Regex::new(r"`[A-Za-z_][A-Za-z0-9_]*`").unwrap();
-        if backtick_name_re.is_match(line) && !line.contains('(') {
+        if self.backtick_name_re.is_match(line) && !line.contains('(') {
             return true;
         }
 
@@ -711,7 +504,8 @@ impl Default for SchemaValidator {
     }
 }
 
-struct Section {
+/// Section representation for schema validation, tracking line numbers for error reporting.
+struct ValidatorSection {
     name: String,
     start_line: usize,
     content: Vec<(usize, String)>,
@@ -732,26 +526,17 @@ mod tests {
         (temp, file_path)
     }
 
-    /// Helper: Appends required sections with None if missing
+    /// Helper: Appends Contract and Protocol sections with None if missing
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
-        // Add Summary right after Purpose if not present
-        if !content.contains("## Summary") {
-            // Insert Summary after Purpose section
-            if let Some(pos) = content.find("## Exports") {
-                content.insert_str(pos, "## Summary\nTest module summary.\n\n");
-            } else {
-                content.push_str("\n## Summary\nTest module summary.\n");
-            }
+        if !content.contains("## Domain Context") {
+            content.push_str("\n## Domain Context\nNone\n");
         }
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
         if !content.contains("## Protocol") {
             content.push_str("\n## Protocol\nNone\n");
-        }
-        if !content.contains("## Domain Context") {
-            content.push_str("\n## Domain Context\nNone\n");
         }
         content
     }
@@ -910,389 +695,6 @@ None
             .any(|e| e.message.contains("Protocol")));
     }
 
-    // ============== IMPLEMENTS.md Validation Tests ==============
-
-    fn create_implements_test_file(content: &str) -> (TempDir, std::path::PathBuf) {
-        let temp = TempDir::new().unwrap();
-        let file_path = temp.path().join("IMPLEMENTS.md");
-        let mut file = File::create(&file_path).unwrap();
-        write!(file, "{}", content).unwrap();
-        (temp, file_path)
-    }
-
-    #[test]
-    fn test_implements_valid_full() {
-        let content = r#"# auth/IMPLEMENTS.md
-
-## Architecture Decisions
-None
-
-## Module Integration Map
-None
-
-## External Dependencies
-- jsonwebtoken@9.0.0: JWT verification
-
-## Implementation Approach
-### Strategy
-- HMAC-SHA256 based token verification
-
-## Technology Choices
-None
-
-## Error Handling
-None
-
-## State Management
-None
-"#;
-        let (_temp, path) = create_implements_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate_implements(&path);
-        assert!(result.valid, "Validation failed: {:?}", result.errors);
-    }
-
-    #[test]
-    fn test_implements_missing_required_section() {
-        let content = r#"# auth/IMPLEMENTS.md
-
-## Architecture Decisions
-None
-
-## Module Integration Map
-None
-
-## External Dependencies
-- jsonwebtoken@9.0.0: JWT
-
-## Implementation Approach
-### Strategy
-- HMAC-SHA256
-
-## Technology Choices
-None
-"#;
-        // Missing: Error Handling, State Management
-        let (_temp, path) = create_implements_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate_implements(&path);
-        assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.message.contains("Error Handling")));
-        assert!(result.errors.iter().any(|e| e.message.contains("State Management")));
-    }
-
-    #[test]
-    fn test_implements_none_not_allowed_for_impl_approach() {
-        let content = r#"# auth/IMPLEMENTS.md
-
-## Architecture Decisions
-None
-
-## Module Integration Map
-None
-
-## External Dependencies
-None
-
-## Implementation Approach
-None
-
-## Technology Choices
-None
-
-## Error Handling
-None
-
-## State Management
-None
-"#;
-        let (_temp, path) = create_implements_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate_implements(&path);
-        assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| {
-            e.error_type == "InvalidSectionContent" && e.section.as_deref() == Some("Implementation Approach")
-        }));
-    }
-
-    #[test]
-    fn test_v2_duplicate_usecase_id() {
-        let content = r#"<!-- schema: 2.0 -->
-# Test Module
-
-## Purpose
-Auth module.
-
-## Summary
-Test module summary.
-
-## Exports
-- `validateToken(token: string): Claims`
-
-## Behavior
-
-### Actors
-- User: End user
-
-### UC-1: Token Validation
-- Actor: User
-- valid token → Claims
-
-### UC-1: Duplicate Validation
-- Actor: User
-- expired token → Error
-
-## Contract
-None
-
-## Protocol
-None
-
-## Domain Context
-None
-"#;
-        let (_temp, path) = create_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.error_type == "DuplicateUseCaseId"));
-    }
-
-    #[test]
-    fn test_v2_invalid_include_target() {
-        let content = r#"<!-- schema: 2.0 -->
-# Test Module
-
-## Purpose
-Auth module.
-
-## Summary
-Test module summary.
-
-## Exports
-- `validateToken(token: string): Claims`
-
-## Behavior
-
-### UC-1: Token Validation
-- Actor: User
-- valid token → Claims
-- Includes: UC-99
-
-## Contract
-None
-
-## Protocol
-None
-
-## Domain Context
-None
-"#;
-        let (_temp, path) = create_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.error_type == "InvalidIncludeTarget"));
-    }
-
-    #[test]
-    fn test_v2_valid_include_target() {
-        let content = r#"<!-- schema: 2.0 -->
-# Test Module
-
-## Purpose
-Auth module.
-
-## Summary
-Test module summary.
-
-## Exports
-- `validateToken(token: string): Claims`
-
-## Behavior
-
-### UC-1: Token Validation
-- Actor: User
-- valid token → Claims
-- Includes: UC-2
-
-### UC-2: Token Parsing
-- Actor: System
-- JWT string → parsed token
-
-## Contract
-None
-
-## Protocol
-None
-
-## Domain Context
-None
-"#;
-        let (_temp, path) = create_test_file(content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        assert!(result.valid, "Validation failed: {:?}", result.errors);
-    }
-
-    #[test]
-    fn test_v1_file_skips_v2_validation() {
-        let content = with_required_sections(
-            r#"# Test Module
-
-## Purpose
-Auth module.
-
-## Exports
-- `validateToken(token: string): Claims`
-
-## Behavior
-- valid token → Claims
-"#,
-        );
-        let (_temp, path) = create_test_file(&content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        // v1 file should pass without v2-specific checks
-        assert!(result.valid, "Validation failed: {:?}", result.errors);
-    }
-
-    #[test]
-    fn test_cross_reference_double_slash_warning() {
-        let content = with_required_sections(
-            r#"# Test Module
-
-## Purpose
-Auth module. Uses src//auth/CLAUDE.md#validateToken.
-
-## Exports
-- `validateToken(token: string): Claims`
-
-## Behavior
-- valid token → Claims
-"#,
-        );
-        let (_temp, path) = create_test_file(&content);
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        assert!(result.warnings.iter().any(|w| w.contains("double slashes")));
-    }
-
-    #[test]
-    fn test_validate_with_index_valid_reference() {
-        use crate::symbol_index::{SymbolEntry, SymbolKind, SymbolIndexResult, SymbolIndexSummary};
-
-        let content = with_required_sections(
-            r#"# Test Module
-
-## Purpose
-API module. Uses auth/CLAUDE.md#validateToken for auth.
-
-## Exports
-- `handleRequest(req: Request): Response`
-
-## Behavior
-- request → response
-"#,
-        );
-        let (_temp, path) = create_test_file(&content);
-
-        let index = SymbolIndexResult {
-            root: _temp.path().to_string_lossy().to_string(),
-            indexed_at: String::new(),
-            symbols: vec![SymbolEntry {
-                name: "validateToken".to_string(),
-                kind: SymbolKind::Function,
-                module_path: "auth".to_string(),
-                signature: Some("validateToken(token: string): Claims".to_string()),
-                anchor: "auth/CLAUDE.md#validateToken".to_string(),
-            }],
-            references: vec![],
-            unresolved: vec![],
-            summary: SymbolIndexSummary {
-                total_modules: 1,
-                total_symbols: 1,
-                total_references: 0,
-                unresolved_count: 0,
-            },
-        };
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate_with_index(&path, &index);
-
-        assert!(result.valid, "Expected validation to pass, got: {:?}", result.errors);
-    }
-
-    #[test]
-    fn test_validate_with_index_unresolved_reference() {
-        use crate::symbol_index::{SymbolIndexResult, SymbolIndexSummary};
-
-        let content = with_required_sections(
-            r#"# Test Module
-
-## Purpose
-API module. Uses auth/CLAUDE.md#nonExistent for auth.
-
-## Exports
-- `handleRequest(req: Request): Response`
-
-## Behavior
-- request → response
-"#,
-        );
-        let (_temp, path) = create_test_file(&content);
-
-        let index = SymbolIndexResult {
-            root: _temp.path().to_string_lossy().to_string(),
-            indexed_at: String::new(),
-            symbols: vec![],
-            references: vec![],
-            unresolved: vec![],
-            summary: SymbolIndexSummary {
-                total_modules: 0,
-                total_symbols: 0,
-                total_references: 0,
-                unresolved_count: 0,
-            },
-        };
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate_with_index(&path, &index);
-
-        assert!(!result.valid, "Expected validation to fail");
-        assert!(result.errors.iter().any(|e| e.error_type == "UnresolvedCrossReference"));
-        assert!(result.errors.iter().any(|e| e.suggestion.as_deref().unwrap_or("").contains("auth/CLAUDE.md")));
-    }
-
-    #[test]
-    fn test_validate_without_index_passes_syntax_only() {
-        let content = with_required_sections(
-            r#"# Test Module
-
-## Purpose
-API module. Uses auth/CLAUDE.md#anything for auth.
-
-## Exports
-- `handleRequest(req: Request): Response`
-
-## Behavior
-- request → response
-"#,
-        );
-        let (_temp, path) = create_test_file(&content);
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        // Without index, only syntax check is performed, cross-references pass
-        assert!(result.valid, "Expected syntax-only validation to pass, got: {:?}", result.errors);
-    }
-
     #[test]
     fn test_contract_allows_none() {
         let content = with_required_sections(
@@ -1315,5 +717,220 @@ Validates tokens.
 
         // Contract with None should pass
         assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    // C-1: Forbidden reference tests
+    #[test]
+    fn test_parent_reference_fails() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+
+## Dependencies
+- **Internal**: `../utils/crypto`
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.error_type == "ForbiddenReference"));
+    }
+
+    #[test]
+    fn test_child_reference_passes() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+
+## Dependencies
+- **Internal**: `./jwt/decoder`
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_parent_reference_in_subsection_fails() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+
+## Dependencies
+
+### Internal
+- `../utils/crypto`
+
+### External
+- `jsonwebtoken@9.x`
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(!result.valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.error_type == "ForbiddenReference"));
+    }
+
+    // C-3: Table format tests
+    #[test]
+    fn test_exports_table_format_passes() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+
+| Name | Signature | Description |
+|------|-----------|-------------|
+| `validateToken` | `(token: string): Promise<Claims>` | JWT 토큰 검증 |
+
+## Behavior
+- valid token → Claims object
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_behavior_table_format_passes() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+
+| Input | Output |
+|-------|--------|
+| 유효한 JWT 토큰 | Claims 객체 반환 |
+| 만료된 토큰 | TokenExpiredError |
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_go_uint64_return_type() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Provides numeric utilities.
+
+## Exports
+- `GetCount(name string) uint64`
+
+## Behavior
+- name → count value
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "uint64 return type should be valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_go_float32_return_type() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Provides math utilities.
+
+## Exports
+- `Calculate(x int) float32`
+
+## Behavior
+- x → calculated float value
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "float32 return type should be valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_go_pointer_return_type() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Provides server management.
+
+## Exports
+- `NewServer(addr string) *Server`
+
+## Behavior
+- addr → server instance
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "*Server pointer return type should be valid: {:?}", result.errors);
     }
 }

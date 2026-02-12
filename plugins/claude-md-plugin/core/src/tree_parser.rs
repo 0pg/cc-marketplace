@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
-
-use crate::tree_utils::DirScanner;
 
 /// Result of tree parsing
 #[derive(Debug, Serialize, Deserialize)]
@@ -43,14 +42,18 @@ pub struct DirectoryInfo {
     pub depth: usize,
 }
 
+use crate::{EXCLUDED_DIRS, SOURCE_EXTENSIONS};
+
 pub struct TreeParser {
-    scanner: DirScanner,
+    source_extensions: HashSet<String>,
+    excluded_dirs: HashSet<String>,
 }
 
 impl TreeParser {
     pub fn new() -> Self {
         Self {
-            scanner: DirScanner::new(),
+            source_extensions: SOURCE_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
+            excluded_dirs: EXCLUDED_DIRS.iter().map(|s| s.to_string()).collect(),
         }
     }
 
@@ -58,14 +61,23 @@ impl TreeParser {
     pub fn parse(&self, root: &Path) -> TreeResult {
         let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
         let mut needs_claude_md = Vec::new();
+        let mut excluded: Vec<PathBuf>;
         let mut scan_errors = Vec::new();
 
-        // TreeParser needs to handle WalkDir errors for scan_errors, so we can't use
-        // collect_directories directly. We still use the scanner for individual checks.
+        // Collect directories, pruning excluded ones early via filter_entry.
+        // This avoids traversing into node_modules, target, etc. entirely.
         let mut dirs_to_check: Vec<PathBuf> = Vec::new();
-        let mut excluded = Vec::new();
 
-        let walker = WalkDir::new(&root).into_iter();
+        let walker = WalkDir::new(&root).into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    return !e.file_name()
+                        .to_str()
+                        .map(|n| self.excluded_dirs.contains(n))
+                        .unwrap_or(false);
+                }
+                true
+            });
 
         for entry in walker {
             let entry = match entry {
@@ -84,21 +96,27 @@ impl TreeParser {
 
             if entry.file_type().is_dir() {
                 let path = entry.path().to_path_buf();
-                if self.scanner.should_exclude(&path) {
-                    excluded.push(self.scanner.make_relative(&root, &path));
-                    continue;
-                }
+                dirs_to_check.push(path);
+            }
+        }
 
-                // Check if any ancestor is excluded
-                let is_under_excluded = path.ancestors().skip(1).any(|p| {
-                    self.scanner.should_exclude(p)
-                });
-
-                if !is_under_excluded {
-                    dirs_to_check.push(path);
+        // Collect excluded directories from immediate children of each checked dir.
+        // filter_entry skips excluded dirs entirely, so we gather them here for reporting.
+        let mut excluded_set: HashSet<PathBuf> = HashSet::new();
+        for dir in &dirs_to_check {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                        && self.should_exclude(&entry.path())
+                    {
+                        let rel = self.make_relative(&root, &entry.path());
+                        excluded_set.insert(rel);
+                    }
                 }
             }
         }
+        excluded = excluded_set.into_iter().collect();
+        excluded.sort();
 
         // Check each directory
         for dir in dirs_to_check {
@@ -118,9 +136,18 @@ impl TreeParser {
         }
     }
 
+    fn should_exclude(&self, path: &Path) -> bool {
+        if let Some(name) = path.file_name() {
+            if let Some(name_str) = name.to_str() {
+                return self.excluded_dirs.contains(name_str);
+            }
+        }
+        false
+    }
+
     fn check_directory(&self, root: &Path, dir: &Path) -> Option<DirectoryInfo> {
-        let source_file_count = self.scanner.count_source_files(dir);
-        let subdir_count = self.scanner.count_subdirs(dir);
+        let source_file_count = self.count_source_files(dir);
+        let subdir_count = self.count_subdirs(dir);
 
         // CON-1: CLAUDE.md needed if 1+ source files OR 2+ subdirs
         let needs_claude_md = source_file_count >= 1 || subdir_count >= 2;
@@ -137,8 +164,8 @@ impl TreeParser {
                 format!("{} subdirectories", subdir_count)
             };
 
-            let relative_path = self.scanner.make_relative(root, dir);
-            let depth = self.scanner.calculate_depth(&relative_path);
+            let relative_path = self.make_relative(root, dir);
+            let depth = self.calculate_depth(&relative_path);
 
             Some(DirectoryInfo {
                 path: relative_path,
@@ -150,6 +177,57 @@ impl TreeParser {
         } else {
             None
         }
+    }
+
+    /// Calculate the depth of a path from root
+    /// Root = 0, "src" = 1, "src/auth" = 2, etc.
+    fn calculate_depth(&self, relative_path: &Path) -> usize {
+        if relative_path.as_os_str().is_empty() {
+            0
+        } else {
+            relative_path.components().count()
+        }
+    }
+
+    fn count_source_files(&self, dir: &Path) -> usize {
+        std::fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                    .filter(|e| self.is_source_file(&e.path()))
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+
+    fn count_subdirs(&self, dir: &Path) -> usize {
+        std::fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                    .filter(|e| {
+                        let binding = e.file_name();
+                        let name = binding.to_str().unwrap_or("");
+                        !name.starts_with('.') && !self.should_exclude(&e.path())
+                    })
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+
+    fn is_source_file(&self, path: &Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| self.source_extensions.contains(ext))
+            .unwrap_or(false)
+    }
+
+    fn make_relative(&self, root: &Path, path: &Path) -> PathBuf {
+        path.strip_prefix(root)
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|_| path.to_path_buf())
     }
 }
 

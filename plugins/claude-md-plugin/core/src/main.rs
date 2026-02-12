@@ -1,32 +1,16 @@
 use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-mod tree_utils;
-mod tree_parser;
-mod boundary_resolver;
-mod schema_validator;
-mod claude_md_parser;
-mod implements_md_parser;
-mod code_analyzer;
-mod dependency_graph;
-mod auditor;
-mod symbol_index;
-mod diagram_generator;
-mod migrator;
-mod prompt_validator;
-
-use tree_parser::TreeParser;
-use boundary_resolver::BoundaryResolver;
-use schema_validator::SchemaValidator;
-use claude_md_parser::ClaudeMdParser;
-use implements_md_parser::ImplementsMdParser;
-use dependency_graph::DependencyGraphBuilder;
-use auditor::Auditor;
-use symbol_index::SymbolIndexBuilder;
-use symbol_index::SymbolIndexResult;
-use diagram_generator::DiagramGenerator;
-use migrator::Migrator;
-use prompt_validator::PromptValidator;
+use claude_md_core::{
+    TreeParser, BoundaryResolver, SchemaValidator,
+    ClaudeMdParser, ConventionValidator, CodeAnalyzer,
+};
+use claude_md_core::tree_parser;
+use claude_md_core::code_analyzer;
+use claude_md_core::dependency_resolver::DependencyResolver;
+use claude_md_core::claude_md_scanner::ClaudeMdScanner;
+use claude_md_core::compile_target_resolver::CompileTargetResolver;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -34,13 +18,6 @@ use prompt_validator::PromptValidator;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
-}
-
-#[derive(Clone, Debug, clap::ValueEnum)]
-enum DiagramType {
-    Usecase,
-    State,
-    Component,
 }
 
 #[derive(Subcommand)]
@@ -81,13 +58,9 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Root directory for symbol index (enables cross-reference validation)
-        #[arg(long)]
-        with_index: Option<PathBuf>,
-
-        /// Pre-built symbol index JSON file (avoids rebuilding index per file)
-        #[arg(long, conflicts_with = "with_index")]
-        index_file: Option<PathBuf>,
+        /// Enforce INV-3 (IMPLEMENTS.md existence) as error instead of warning
+        #[arg(long, default_value_t = false)]
+        strict: bool,
     },
 
     /// Parse CLAUDE.md into structured JSON spec
@@ -101,19 +74,54 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
-    /// Parse IMPLEMENTS.md into structured JSON spec
-    ParseImplementsMd {
-        /// IMPLEMENTS.md file to parse
+    /// Validate convention sections in CLAUDE.md files
+    ValidateConvention {
+        /// Project root directory
         #[arg(short, long)]
-        file: PathBuf,
+        project_root: PathBuf,
+
+        /// Module root directories (comma-separated). Auto-detected if omitted.
+        #[arg(short, long, value_delimiter = ',')]
+        module_roots: Option<Vec<PathBuf>>,
 
         /// Output JSON file path
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
 
-    /// Build dependency graph for the project
-    DependencyGraph {
+    /// Analyze source code to extract exports, dependencies, and behaviors
+    AnalyzeCode {
+        /// Directory or file path to analyze
+        #[arg(short, long)]
+        path: PathBuf,
+
+        /// Optional file filter (comma-separated filenames)
+        #[arg(short, long, value_delimiter = ',')]
+        files: Option<Vec<String>>,
+
+        /// Tree-parse result JSON file for dependency resolution.
+        /// When provided, internal deps are resolved to CLAUDE.md paths.
+        #[arg(short, long)]
+        tree_result: Option<PathBuf>,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Index entire project: tree-parse + code analysis for all directories
+    IndexProject {
+        /// Root directory to scan and analyze
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Scan existing CLAUDE.md files and build lightweight index
+    ScanClaudeMd {
         /// Root directory to scan
         #[arg(short, long, default_value = ".")]
         root: PathBuf,
@@ -123,8 +131,8 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
-    /// Audit directory tree for CLAUDE.md completeness
-    Audit {
+    /// Determine which CLAUDE.md files need recompilation (incremental diff)
+    DiffCompileTargets {
         /// Root directory to scan
         #[arg(short, long, default_value = ".")]
         root: PathBuf,
@@ -132,79 +140,21 @@ enum Commands {
         /// Output JSON file path
         #[arg(short, long)]
         output: Option<PathBuf>,
-
-        /// Only show directories where status is 'missing' or 'unexpected'
-        #[arg(long, default_value = "false")]
-        only_issues: bool,
     },
+}
 
-    /// Build symbol index for cross-reference resolution
-    SymbolIndex {
-        /// Root directory to scan
-        #[arg(short, long, default_value = ".")]
-        root: PathBuf,
+#[derive(Debug, Serialize, Deserialize)]
+struct IndexResult {
+    root: PathBuf,
+    directories: Vec<DirectoryAnalysis>,
+    excluded: Vec<PathBuf>,
+}
 
-        /// Output JSON file path
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Find a symbol by name (go-to-definition)
-        #[arg(long)]
-        find: Option<String>,
-
-        /// Find references to a symbol anchor
-        #[arg(long)]
-        references: Option<String>,
-
-        /// Skip cache and force full rebuild
-        #[arg(long, default_value = "false")]
-        no_cache: bool,
-    },
-
-    /// Generate Mermaid diagram (usecase, state, or component)
-    GenerateDiagram {
-        /// Diagram type to generate
-        #[arg(short = 't', long = "type")]
-        diagram_type: DiagramType,
-
-        /// CLAUDE.md file (required for usecase/state)
-        #[arg(short, long)]
-        file: Option<PathBuf>,
-
-        /// Root directory (for component diagram, default ".")
-        #[arg(short, long, default_value = ".")]
-        root: PathBuf,
-
-        /// Output file path for Mermaid diagram
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
-
-    /// Migrate CLAUDE.md files from v1 to v2 format
-    Migrate {
-        /// Root directory to scan
-        #[arg(short, long, default_value = ".")]
-        root: PathBuf,
-
-        /// Output JSON file path
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Preview changes without writing
-        #[arg(long, default_value = "false")]
-        dry_run: bool,
-    },
-
-    /// Validate skill and agent prompt files
-    ValidatePrompts {
-        /// Root directory containing skills/ and agents/
-        #[arg(short, long, default_value = ".")]
-        root: PathBuf,
-
-        /// Output JSON file path
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
+#[derive(Debug, Serialize, Deserialize)]
+struct DirectoryAnalysis {
+    path: PathBuf,
+    depth: usize,
+    analysis: code_analyzer::AnalysisResult,
 }
 
 fn main() {
@@ -221,40 +171,29 @@ fn main() {
             let boundary_result = resolver.resolve(path, claude_md.as_ref());
             output_result(&boundary_result, output.as_ref(), "resolve-boundary")
         }
-        Commands::ValidateSchema { file, output, with_index, index_file } => {
+        Commands::ValidateSchema { file, output, strict } => {
             let validator = SchemaValidator::new();
-            let is_implements = file.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.eq_ignore_ascii_case("IMPLEMENTS.md"))
-                .unwrap_or(false);
-            if is_implements {
-                let validation_result = validator.validate_implements(file);
-                output_result(&validation_result, output.as_ref(), "validate-schema")
-            } else if let Some(path) = index_file {
-                let json_str = std::fs::read_to_string(path)
-                    .map_err(|e| format!("Failed to read index file: {}", e));
-                let index = json_str.and_then(|s| {
-                    serde_json::from_str::<SymbolIndexResult>(&s)
-                        .map_err(|e| format!("Failed to parse index file JSON: {}", e))
-                });
-                match index {
-                    Ok(idx) => {
-                        let validation_result = validator.validate_with_index(file, &idx);
-                        output_result(&validation_result, output.as_ref(), "validate-schema")
-                    }
-                    Err(e) => Err(Box::<dyn std::error::Error>::from(e)),
+            let mut validation_result = validator.validate(file);
+
+            if *strict {
+                // Promote INV-3 warnings to errors
+                let (inv3_warnings, remaining): (Vec<_>, Vec<_>) = validation_result.warnings
+                    .into_iter()
+                    .partition(|w| w.starts_with("INV-3:"));
+
+                for warning in inv3_warnings {
+                    validation_result.errors.push(claude_md_core::schema_validator::ValidationError {
+                        error_type: "INV3Violation".to_string(),
+                        message: warning,
+                        line_number: None,
+                        section: None,
+                    });
                 }
-            } else if let Some(root) = with_index {
-                let index_builder = SymbolIndexBuilder::new();
-                let validation_result = match index_builder.build_with_cache(root, false) {
-                    Ok(index) => validator.validate_with_index(file, &index),
-                    Err(_) => validator.validate(file),
-                };
-                output_result(&validation_result, output.as_ref(), "validate-schema")
-            } else {
-                let validation_result = validator.validate(file);
-                output_result(&validation_result, output.as_ref(), "validate-schema")
+                validation_result.warnings = remaining;
+                validation_result.valid = validation_result.errors.is_empty();
             }
+
+            output_result(&validation_result, output.as_ref(), "validate-schema")
         }
         Commands::ParseClaudeMd { file, output } => {
             let parser = ClaudeMdParser::new();
@@ -263,106 +202,79 @@ fn main() {
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
-        Commands::ParseImplementsMd { file, output } => {
-            let parser = ImplementsMdParser::new();
-            match parser.parse(file) {
-                Ok(spec) => output_result(&spec, output.as_ref(), "parse-implements-md"),
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-            }
+        Commands::ValidateConvention { project_root, module_roots, output } => {
+            let validator = ConventionValidator::new();
+            let result = validator.validate(project_root, module_roots.clone());
+            output_result(&result, output.as_ref(), "validate-convention")
         }
-        Commands::DependencyGraph { root, output } => {
-            let builder = DependencyGraphBuilder::new();
-            match builder.build(root) {
-                Ok(graph) => output_result(&graph, output.as_ref(), "dependency-graph"),
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-            }
-        }
-        Commands::Audit { root, output, only_issues } => {
-            let auditor = Auditor::new();
-            let result = auditor.audit(root, *only_issues);
-            output_result(&result, output.as_ref(), "audit")
-        }
-        Commands::SymbolIndex { root, output, find, references, no_cache } => {
-            let builder = SymbolIndexBuilder::new();
-            match builder.build_with_cache(root, *no_cache) {
-                Ok(index) => {
-                    if let Some(name) = find {
-                        let found = SymbolIndexBuilder::find_symbol(&index, name);
-                        output_result(&found, output.as_ref(), "symbol-index")
-                    } else if let Some(anchor) = references {
-                        let refs = SymbolIndexBuilder::find_references(&index, anchor);
-                        output_result(&refs, output.as_ref(), "symbol-index")
-                    } else {
-                        output_result(&index, output.as_ref(), "symbol-index")
-                    }
-                }
-                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-            }
-        }
-        Commands::GenerateDiagram { diagram_type, file, root, output } => {
-            match diagram_type {
-                DiagramType::Usecase => {
-                    let file = file.as_ref().ok_or_else(|| {
-                        Box::<dyn std::error::Error>::from("--file is required for usecase diagram")
-                    });
-                    match file {
-                        Ok(f) => {
-                            let parser = ClaudeMdParser::new();
-                            match parser.parse(f) {
-                                Ok(spec) => {
-                                    let diagram = DiagramGenerator::generate_usecase(&spec);
-                                    output_text(&diagram, output.as_ref(), "generate-diagram")
-                                }
-                                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-                            }
-                        }
-                        Err(e) => Err(e),
-                    }
-                }
-                DiagramType::State => {
-                    let file = file.as_ref().ok_or_else(|| {
-                        Box::<dyn std::error::Error>::from("--file is required for state diagram")
-                    });
-                    match file {
-                        Ok(f) => {
-                            let parser = ClaudeMdParser::new();
-                            match parser.parse(f) {
-                                Ok(spec) => {
-                                    match DiagramGenerator::generate_state(&spec) {
-                                        Some(diagram) => output_text(&diagram, output.as_ref(), "generate-diagram"),
-                                        None => {
-                                            eprintln!("No Protocol section with states/transitions found");
-                                            Ok(())
-                                        }
+        Commands::AnalyzeCode { path, files, tree_result, output } => {
+            let analyzer = CodeAnalyzer::new();
+            let file_refs: Option<Vec<&str>> = files.as_ref()
+                .map(|f| f.iter().map(|s| s.as_str()).collect());
+            match analyzer.analyze_directory(path, file_refs.as_deref()) {
+                Ok(mut result) => {
+                    // Resolve internal deps if tree-parse result provided
+                    if let Some(tree_path) = tree_result {
+                        match std::fs::read_to_string(tree_path) {
+                            Ok(json) => {
+                                match serde_json::from_str::<tree_parser::TreeResult>(&json) {
+                                    Ok(tree) => {
+                                        let resolver = DependencyResolver::new(&tree);
+                                        // Derive source_dir: path relative to tree root
+                                        let source_dir = path.strip_prefix(&tree.root)
+                                            .unwrap_or(path);
+                                        resolver.resolve(&mut result, source_dir);
                                     }
+                                    Err(e) => eprintln!("Warning: failed to parse tree result: {}", e),
                                 }
-                                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
                             }
+                            Err(e) => eprintln!("Warning: failed to read tree result: {}", e),
                         }
-                        Err(e) => Err(e),
                     }
+                    output_result(&result, output.as_ref(), "analyze-code")
                 }
-                DiagramType::Component => {
-                    let builder = DependencyGraphBuilder::new();
-                    match builder.build(root) {
-                        Ok(graph) => {
-                            let diagram = DiagramGenerator::generate_component(&graph);
-                            output_text(&diagram, output.as_ref(), "generate-diagram")
-                        }
-                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
-                    }
-                }
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>),
             }
         }
-        Commands::Migrate { root, output, dry_run } => {
-            let migrator = Migrator::new();
-            let results = migrator.migrate_all(root, *dry_run);
-            output_result(&results, output.as_ref(), "migrate")
+        Commands::ScanClaudeMd { root, output } => {
+            let scanner = ClaudeMdScanner::new();
+            let scan_result = scanner.scan(root);
+            output_result(&scan_result, output.as_ref(), "scan-claude-md")
         }
-        Commands::ValidatePrompts { root, output } => {
-            let validator = PromptValidator::new();
-            let result = validator.validate(root);
-            output_result(&result, output.as_ref(), "validate-prompts")
+        Commands::DiffCompileTargets { root, output } => {
+            let resolver = CompileTargetResolver::new();
+            let result = resolver.resolve(root);
+            output_result(&result, output.as_ref(), "diff-compile-targets")
+        }
+        Commands::IndexProject { root, output } => {
+            let tree_parser = TreeParser::new();
+            let tree_result = tree_parser.parse(root);
+            let analyzer = CodeAnalyzer::new();
+            // Borrows tree_result temporarily; copies needed data internally via clone.
+            let resolver = DependencyResolver::new(&tree_result);
+
+            let mut directories = Vec::new();
+            for dir_info in &tree_result.needs_claude_md {
+                let dir_path = root.join(&dir_info.path);
+                match analyzer.analyze_directory(&dir_path, None) {
+                    Ok(mut analysis) => {
+                        resolver.resolve(&mut analysis, &dir_info.path);
+                        directories.push(DirectoryAnalysis {
+                            path: dir_info.path.clone(),
+                            depth: dir_info.depth,
+                            analysis,
+                        });
+                    }
+                    Err(e) => eprintln!("Warning: skipping {}: {}", dir_info.path.display(), e),
+                }
+            }
+
+            let index_result = IndexResult {
+                root: tree_result.root,
+                directories,
+                excluded: tree_result.excluded,
+            };
+            output_result(&index_result, output.as_ref(), "index-project")
         }
     };
 
@@ -371,14 +283,14 @@ fn main() {
             Commands::ParseTree { .. } => "parse-tree",
             Commands::ResolveBoundary { .. } => "resolve-boundary",
             Commands::ValidateSchema { .. } => "validate-schema",
+
             Commands::ParseClaudeMd { .. } => "parse-claude-md",
-            Commands::ParseImplementsMd { .. } => "parse-implements-md",
-            Commands::DependencyGraph { .. } => "dependency-graph",
-            Commands::Audit { .. } => "audit",
-            Commands::SymbolIndex { .. } => "symbol-index",
-            Commands::GenerateDiagram { .. } => "generate-diagram",
-            Commands::Migrate { .. } => "migrate",
-            Commands::ValidatePrompts { .. } => "validate-prompts",
+            Commands::ValidateConvention { .. } => "validate-convention",
+            Commands::AnalyzeCode { .. } => "analyze-code",
+
+            Commands::ScanClaudeMd { .. } => "scan-claude-md",
+            Commands::DiffCompileTargets { .. } => "diff-compile-targets",
+            Commands::IndexProject { .. } => "index-project",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
@@ -406,31 +318,6 @@ fn output_result<T: serde::Serialize>(
         }
         None => {
             println!("{}", json);
-        }
-    }
-
-    Ok(())
-}
-
-/// Output plain text (for Mermaid diagrams)
-fn output_text(
-    text: &str,
-    output_path: Option<&PathBuf>,
-    command_name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    match output_path {
-        Some(path) => {
-            std::fs::write(path, text)
-                .map_err(|e| format!(
-                    "Failed to write {} output to '{}': {} (check directory exists and permissions)",
-                    command_name,
-                    path.display(),
-                    e
-                ))?;
-            println!("Output written to: {}", path.display());
-        }
-        None => {
-            println!("{}", text);
         }
     }
 

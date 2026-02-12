@@ -28,6 +28,7 @@ pub enum AnalyzerError {
 
     #[error("Unsupported language for file: {0}")]
     UnsupportedLanguage(String),
+
 }
 
 /// Result of code analysis.
@@ -132,13 +133,49 @@ pub struct ExportedVariable {
     pub var_type: Option<String>,
 }
 
+/// A resolved internal dependency pointing to a specific CLAUDE.md
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternalDependency {
+    /// Original import path from source code (e.g., "../utils", "core.domain.pkg")
+    pub raw_import: String,
+
+    /// Project-root-relative directory path (e.g., "core/domain/transaction")
+    pub resolved_dir: String,
+
+    /// Project-root-relative CLAUDE.md path (e.g., "core/domain/transaction/CLAUDE.md")
+    pub claude_md_path: String,
+
+    /// Resolution quality
+    pub resolution: ResolutionStatus,
+
+    /// Whether resolved_dir is a child of the source directory (INV-1 compliant).
+    /// false means sibling/parent/external — agent should not write to Dependencies section.
+    #[serde(default)]
+    pub is_child: bool,
+}
+
+/// Resolution quality for an internal dependency
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ResolutionStatus {
+    /// CLAUDE.md exists at exact resolved directory
+    Exact,
+    /// Using nearest ancestor's CLAUDE.md (distance = levels up)
+    Ancestor { distance: usize },
+    /// No CLAUDE.md found
+    Unresolved,
+}
+
 /// Dependencies extracted from code.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Dependencies {
     /// External dependencies (third-party packages)
     pub external: Vec<String>,
-    /// Internal dependencies (local imports)
-    pub internal: Vec<String>,
+    /// Resolved internal dependencies (populated by DependencyResolver)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub internal: Vec<InternalDependency>,
+    /// Raw internal import paths (populated by analyzers, before resolution)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub internal_raw: Vec<String>,
 }
 
 /// A behavior inferred from code analysis.
@@ -276,7 +313,8 @@ impl CodeAnalyzer {
             },
             dependencies: Dependencies {
                 external: partial.external_deps,
-                internal: partial.internal_deps,
+                internal: Vec::new(),
+                internal_raw: partial.internal_deps,
             },
             behaviors: partial.behaviors,
             contracts: partial.contracts,
@@ -332,7 +370,9 @@ impl CodeAnalyzer {
         }
     }
 
-    /// Find all source files in a directory.
+    /// Find all source files in a directory (non-recursive).
+    /// INV-2: Self-contained boundary — only analyzes direct files;
+    /// subdirectories are handled by their own CLAUDE.md.
     fn find_source_files(&self, path: &Path) -> Result<Vec<std::path::PathBuf>, AnalyzerError> {
         let mut files = Vec::new();
 
@@ -346,7 +386,7 @@ impl CodeAnalyzer {
             let entry_path = entry.path();
 
             if entry_path.is_file() {
-                if let Ok(_) = self.detect_language(&entry_path) {
+                if self.detect_language(&entry_path).is_ok() {
                     files.push(entry_path);
                 }
             }
@@ -370,9 +410,9 @@ impl CodeAnalyzer {
                 target.dependencies.external.push(dep);
             }
         }
-        for dep in source.dependencies.internal {
-            if !target.dependencies.internal.contains(&dep) {
-                target.dependencies.internal.push(dep);
+        for dep in source.dependencies.internal_raw {
+            if !target.dependencies.internal_raw.contains(&dep) {
+                target.dependencies.internal_raw.push(dep);
             }
         }
 

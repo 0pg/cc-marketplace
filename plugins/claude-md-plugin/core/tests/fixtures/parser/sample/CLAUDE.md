@@ -3,9 +3,6 @@
 ## Purpose
 Sample module for testing CLAUDE.md parsing.
 
-## Summary
-A sample module used in CLI output tests.
-
 ## Exports
 
 ### Functions
@@ -14,11 +11,11 @@ A sample module used in CLI output tests.
 ## Behavior
 - valid input → processed output
 
+## Domain Context
+None
+
 ## Contract
 None
 
 ## Protocol
-None
-
-## Domain Context
 None
