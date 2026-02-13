@@ -100,11 +100,11 @@ scratchpad 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방
 │ │ (source_file_count, subdir_count)         ││
 │ └──────────────────┬───────────────────────┘│
 │                    ▼                        │
-│ ┌─ Skill("boundary-resolve") ────────────┐  │
+│ ┌─ Bash(resolve-boundary CLI) ───────────┐  │
 │ │ 바운더리 분석                           │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("code-analyze") ────────────────┐  │
+│ ┌─ Bash(analyze-code CLI) ──────────────┐  │
 │ │ 코드 분석 (exports, deps, behaviors)    │  │
 │ │ + 알고리즘, 상수, 에러처리, 상태 분석   │  │
 │ └──────────────────┬─────────────────────┘  │
@@ -119,7 +119,7 @@ scratchpad 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방
 │ │ IMPLEMENTS.md: HOW 전체 섹션 생성       │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ Skill("schema-validate") ─────────────┐  │
+│ ┌─ Bash(validate-schema CLI) ────────────┐  │
 │ │ 스키마 검증 (실패시 경고)               │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │

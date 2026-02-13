@@ -85,16 +85,14 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 
 **주의:** 사용자에게 확인을 묻지 않고 바로 실행. `/decompile` 호출 자체가 실행 의도임.
 
-## 내부 Skill 목록
+## 내부 도구 목록
 
-| Skill | 역할 | 호출 위치 |
-|-------|------|----------|
-| `tree-parse` | 디렉토리 트리 파싱 | decompile Skill |
-| `boundary-resolve` | 바운더리 분석 | decompiler Agent |
-| `code-analyze` | 코드 분석 | decompiler Agent |
-| `schema-validate` | 스키마 검증 | decompiler Agent |
-
-내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨짐.
+| 도구 | 역할 | 호출 위치 |
+|------|------|----------|
+| `tree-parse` Skill | 디렉토리 트리 파싱 | decompile Skill |
+| `claude-md-core resolve-boundary` CLI | 바운더리 분석 | decompiler Agent |
+| `claude-md-core analyze-code` CLI | 코드 분석 | decompiler Agent |
+| `claude-md-core validate-schema` CLI | 스키마 검증 | decompiler Agent |
 
 ## 최종 보고 예시
 
