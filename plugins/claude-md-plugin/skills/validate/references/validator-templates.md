@@ -67,6 +67,7 @@ CLAUDE.md의 Behavior 섹션과 실제 동작의 불일치.
 - public이 기본인 언어 (Kotlin): `^(fun|class|interface|object) [A-Z]`
 - 대문자 시작이 public인 언어 (Go): `^func [A-Z]|^type [A-Z]`
 - pub 키워드 언어 (Rust): `^pub (fn|struct|enum)`
+- 명시적 export 없는 언어 (Python): `__all__` 리스트 확인 또는 `_` 접두사 없는 top-level `^(def|class) [a-zA-Z]`
 
 ## Result Template
 
