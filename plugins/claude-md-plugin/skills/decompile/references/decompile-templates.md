@@ -1,14 +1,15 @@
 <!--
-  decompiler-workflow.md
-  Extracted detailed workflow reference for the decompiler agent.
-  Contains: Phase 3-4 pseudocode, CLAUDE.md/IMPLEMENTS.md templates,
-  Skill invocation chain, and detailed format examples.
+  decompile-templates.md
+  Consolidated reference for the decompiler agent.
+  Contains: Phase 3-4 workflow, CLAUDE.md/IMPLEMENTS.md templates,
+  Exports/Contract/Protocol extraction guides, IMPLEMENTS.md writing criteria,
+  and CLI output JSON structures.
 
-  This file is loaded at runtime by the decompiler agent via:
-    cat "${CLAUDE_PLUGIN_ROOT}/skills/decompile/references/decompiler-workflow.md"
+  Loaded at runtime by the decompiler agent via:
+    cat "${CLAUDE_PLUGIN_ROOT}/skills/decompile/references/decompile-templates.md"
 -->
 
-# Decompiler Detailed Workflow Reference
+# Decompiler Templates & Reference
 
 ## Phase 3: 불명확한 부분 질문 (필요시)
 
@@ -123,6 +124,83 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 3. **대상 디렉토리에 직접 Write** (scratchpad 미사용)
 
+---
+
+## Exports 형식 가이드
+
+### 상세 형식 (권장 - 복잡한 모듈)
+
+각 함수는 시그니처와 함께 도메인 맥락을 포함:
+
+```markdown
+#### validateToken
+`validateToken(token: string) -> Claims`
+
+JWT 토큰을 검증하고 Claims를 추출합니다.
+- **입력**: Bearer 토큰 (Authorization 헤더에서 추출된 문자열)
+- **출력**: 사용자 식별 정보와 권한 목록을 포함하는 Claims
+- **역할**: API 요청의 인증 게이트키퍼
+- **도메인 맥락**: PCI-DSS 준수를 위해 7일 만료 정책 적용
+```
+
+### 간략 형식 (단순한 모듈)
+
+```markdown
+### Functions
+- `functionName(param: Type, param2: Type) -> ReturnType`
+- `anotherFunction(param: Type) -> ReturnType`
+
+### Types
+- `TypeName { field: Type, field2: Type }`
+```
+
+**선택 기준**: public interface가 5개 이하이고 도메인 맥락이 적으면 간략 형식, 그 외 상세 형식.
+
+---
+
+## Behavior 형식
+
+시나리오 레벨 (input → output)로 명시:
+
+```markdown
+### 정상 케이스
+- 유효한 토큰 → Claims 객체 반환
+- 만료된 토큰 + refresh 옵션 → 새 토큰 쌍 반환
+
+### 에러 케이스
+- 잘못된 형식의 토큰 → InvalidTokenError
+- 위조된 토큰 → SignatureVerificationError
+```
+
+---
+
+## Contract 추출 패턴
+
+Contract 정보 추출 소스:
+
+1. **JSDoc/docstring 태그**: `@precondition`, `@postcondition`, `@invariant`, `@throws`
+2. **코드 패턴 추론**:
+   - `if (!x.prop) throw new Error` → precondition: `x.prop is required`
+   - `if (arr.length === 0) throw` → precondition: `arr not empty`
+   - `asserts x is T` → precondition: `x must be T`
+   - Validation 로직 (guard clauses) → preconditions
+
+없으면 `None` 명시.
+
+---
+
+## Protocol 추출 패턴
+
+Protocol 정보 추출 소스:
+
+1. **State enum**: `enum State { Idle, Loading, Loaded, Error }` 패턴 → State Machine 섹션
+2. **Lifecycle 태그**: `@lifecycle N` 순서 태그 → Lifecycle 섹션
+3. **순서 의존 호출**: `init()` → `start()` → `stop()` 패턴 → Lifecycle
+
+없으면 `None` 명시.
+
+---
+
 ## Phase 4.5: IMPLEMENTS.md 초안 생성 (HOW - 전체 섹션)
 
 분석 결과와 사용자 응답을 기반으로 IMPLEMENTS.md를 직접 생성합니다:
@@ -184,51 +262,112 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 대상 디렉토리에 직접 Write합니다 (scratchpad 미사용).
 
-## Skill 호출 체인
+---
 
+## IMPLEMENTS.md 조건부 섹션 작성 기준
+
+### Algorithm — "이 로직을 이해하려면 코드를 읽어야 하는가?"
+- **Yes** → Algorithm 섹션에 기술
+- **No** → `(No complex algorithms found)` 표기
+
+### Key Constants — "이 값이 변경되면 비즈니스에 영향이 있는가?"
+- **Yes** → Key Constants 섹션에 기술 (테이블: Name, Value, Rationale, 영향 범위)
+- **No** → `(No domain-significant constants)` 표기
+
+### Implementation Guide — "소스코드 탐색 없이 구현 시작점을 알 수 있는가?"
+- 의존 모듈의 CLAUDE.md 경로 + Export 이름 나열
+- 도메인 맥락(값의 근거)은 CLAUDE.md Domain Context에 기술
+
+---
+
+## IMPLEMENTS.md 축소 예시 (auth/)
+
+```markdown
+# auth/IMPLEMENTS.md
+
+## Dependencies Direction
+### External
+- `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 기존 프로젝트 호환)
+### Internal
+- `../utils/crypto`: hashPassword, verifyPassword
+
+## Implementation Approach
+### 전략
+- HMAC-SHA256 기반 토큰 검증, 메모리 캐시로 성능 최적화
+### 고려했으나 선택하지 않은 대안
+- RSA 서명: 키 관리 복잡성 → 내부 서비스라 HMAC 충분
+
+## Technology Choices
+| 선택 | 대안 | 선택 이유 |
+|------|------|----------|
+| jsonwebtoken | jose | 기존 코드베이스 호환성 |
+
+## Algorithm
+### tokenCache 무효화 전략
+1. 토큰 갱신 시 → 해당 userId의 캐시 삭제
+2. 주기적 정리 (5분) → 만료된 캐시 항목 제거
+
+## Key Constants
+| Name | Value | Rationale | 영향 범위 |
+|------|-------|-----------|----------|
+| TOKEN_EXPIRY_DAYS | 7 | PCI-DSS 요구사항 | 보안 정책 |
+
+## Error Handling
+| Error | Retry | Recovery | Log Level |
+|-------|-------|----------|-----------|
+| TokenExpiredError | ✗ | 401 반환, 재로그인 유도 | WARN |
+
+## State Management
+- tokenCache: Map<userId, CachedClaims>, 메모리 전용, 5분 주기 정리
+
+## Implementation Guide
+- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
+- 암호화 → ../utils/crypto/CLAUDE.md#hashPassword
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     decompiler Agent                          │
-│                                                              │
-│  ┌─ Phase 0: Bash(jq) ──────────────────────────────────┐   │
-│  │ tree.json에서 디렉토리 정보 조회                      │   │
-│  │ (source_file_count, subdir_count)                     │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ Skill("boundary-resolve") ─────────────────────────┐   │
-│  │ 바운더리 분석 → 결과 파일로 저장                      │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ Skill("code-analyze") ─────────────────────────────┐   │
-│  │ 코드 분석 (WHAT + HOW 모두)                          │   │
-│  │ - exports, deps, behaviors, contracts, protocol      │   │
-│  │ - algorithms, constants, error handling, state       │   │
-│  │ → 결과 파일로 저장                                    │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ AskUserQuestion (선택적) ──────────────────────────┐   │
-│  │ Domain Context 질문 (CLAUDE.md용)                    │   │
-│  │ Implementation 질문 (IMPLEMENTS.md용)                │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ CLAUDE.md 생성 (WHAT) ─────────────────────────────┐   │
-│  │ Purpose, Exports, Behavior, Contract, Protocol, DC   │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ IMPLEMENTS.md 생성 (HOW - 전체) ───────────────────┐   │
-│  │ Planning Section + Implementation Section            │   │
-│  └───────────────────────┬─────────────────────────────┘   │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ Skill("schema-validate") ──────────────────────────┐   │
-│  │ CLAUDE.md 스키마 검증 (1회, 실패 시 경고)            │   │
-│  │ → 결과 파일로 저장                                    │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+
+---
+
+## CLI 출력 JSON 구조
+
+### boundary-resolve 출력
+
+```json
+{
+  "path": "src/auth",
+  "direct_files": [{"name": "index.ts", "type": "typescript"}, ...],
+  "subdirs": [{"name": "jwt", "has_claude_md": true}, ...],
+  "source_file_count": 3,
+  "subdir_count": 2,
+  "violations": [{"violation_type": "Parent", "reference": "../utils", "line_number": 15}]
+}
 ```
+
+### code-analyze 출력
+
+```json
+{
+  "path": "src/auth",
+  "exports": {
+    "functions": [{"name": "validateToken", "signature": "validateToken(token: string): Promise<Claims>", "description": "..."}],
+    "types": [...],
+    "classes": [...]
+  },
+  "dependencies": {
+    "external": ["jsonwebtoken"],
+    "internal_raw": ["./types", "../utils/crypto"],
+    "internal": [
+      {"raw_import": "./types", "resolved_dir": "src/auth/types", "claude_md_path": "src/auth/types/CLAUDE.md", "resolution": "Exact"}
+    ]
+  },
+  "behaviors": [{"input": "유효한 JWT 토큰", "output": "Claims 객체 반환", "category": "success"}],
+  "analyzed_files": ["index.ts", "middleware.ts"]
+}
+```
+Note: `internal` 필드는 `--tree-result`가 주어졌을 때만 채워짐.
+
+### schema-validate 출력
+
+```json
+{"file": "path/CLAUDE.md", "valid": true, "errors": [], "warnings": []}
+```
+`valid: true`이면 통과. `valid: false`이면 `errors` 배열에서 이슈 확인.
