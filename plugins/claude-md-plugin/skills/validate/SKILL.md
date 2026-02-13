@@ -4,8 +4,8 @@ version: 1.1.0
 aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
-  "verify spec matches implementation", "check for drift", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation.
-  Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트
+  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation.
+  Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트, export 커버리지
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
 ---
@@ -226,13 +226,11 @@ src/legacy (개선 필요)
 
 ## 참조 자료
 
-- `references/drift-types.md`: 4가지 Drift 유형 상세 설명
-- `examples/validation-report.md`: 검증 결과 보고서 예시
+- `references/validator-templates.md`: Drift 유형, Export 패턴, Result Template (validator agent가 런타임에 `cat`으로 로드)
 
 ## 관련 컴포넌트
 
 - `agents/validator.md`: 코드-문서 일치 검증 및 Export 커버리지 (drift 검증만 담당)
-- `skills/schema-validate/SKILL.md`: 스키마 검증 CLI 래핑
 
 ## Examples
 
