@@ -193,12 +193,12 @@ User: /decompile
 ┌─────────────────────────────────────────────┐
 │ decompiler AGENT                            │
 │                                             │
-│ Skill("boundary-resolve") → 바운더리 분석   │
-│ Skill("code-analyze") → 코드 분석           │
+│ Bash(claude-md-core resolve-boundary)       │
+│ Bash(claude-md-core analyze-code)           │
 │ AskUserQuestion → 불명확한 부분 질문        │
 │ CLAUDE.md 생성 (WHAT)                       │
 │ IMPLEMENTS.md 생성 (HOW - 전체 섹션)        │
-│ Skill("schema-validate") → 검증 (1회)       │
+│ Bash(claude-md-core validate-schema)        │
 └─────────────────────────────────────────────┘
 ```
 
