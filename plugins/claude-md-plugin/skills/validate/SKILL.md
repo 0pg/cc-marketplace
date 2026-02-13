@@ -94,15 +94,15 @@ validator agent를 **최대 3개씩 배치 처리**하여 context 폭발을 방�
 
 validator agent의 결과 블록을 파싱하여 아래 형식으로 append합니다:
 ```bash
-echo '{"directory":"src/auth","status":"success","issues_count":0,"export_coverage":95,"result_file":"${TMP_DIR}validate-src-auth.md"}' >> "${TMP_DIR}validate-progress.jsonl"
-echo '{"directory":"src/utils","status":"success","issues_count":2,"export_coverage":72,"result_file":"${TMP_DIR}validate-src-utils.md"}' >> "${TMP_DIR}validate-progress.jsonl"
+printf '{"directory":"src/auth","status":"success","issues_count":0,"export_coverage":95,"result_file":"%svalidate-src-auth.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
+printf '{"directory":"src/utils","status":"success","issues_count":2,"export_coverage":72,"result_file":"%svalidate-src-utils.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
 ```
 
 **compact 대비:**
 - compact이 발생해도 `${TMP_DIR}validate-progress.jsonl`에 이전 배치 결과가 보존됨
 - 최종 보고서 생성 시 context가 아닌 이 파일을 읽어서 생성
 - validator agent의 상세 결과도 개별 `${TMP_DIR}validate-*.md` 파일에 저장되어 있음
-- **compact 후 재개:** `validate-progress.jsonl`을 Read하여 이미 완료된 directory 목록을 확인하고, 나머지 대상만 다음 배치로 처리. 중복 실행 방지를 위해 JSONL의 `directory` 필드와 대상 목록을 대조.
+- **compact 후 재개:** `${TMP_DIR}validate-progress.jsonl`을 Read하여 이미 완료된 directory 목록을 확인하고, 나머지 대상만 다음 배치로 처리. 중복 실행 방지를 위해 JSONL의 `directory` 필드와 대상 목록을 대조.
 
 ### 3. 결과 수집
 
@@ -160,7 +160,7 @@ export_coverage: {0-100}
 
 ### 5. 임시 파일 정리
 
-`${TMP_DIR}` 내 임시 파일은 세션 종료 시 자동으로 정리됨. `CLAUDE_SESSION_ID`가 설정된 경우 세션별로 격리되어 다른 세션과 충돌하지 않음.
+`${TMP_DIR}` 내 임시 파일은 세션별로 격리되어 다른 세션과 충돌하지 않음. 필요 시 `rm -rf .claude/tmp/` 으로 일괄 정리 가능.
 
 ## 성공 기준
 
