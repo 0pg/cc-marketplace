@@ -8,11 +8,11 @@ description: |
   <example>
   <user_request>검증 대상: src/auth</user_request>
   <assistant_response>
-  1. Parse CLAUDE.md 2. IMPLEMENTS.md Presence 3. Structure/Exports/Dependencies/Behavior Drift 4. Save to .claude/tmp/
+  1. Parse CLAUDE.md 2. IMPLEMENTS.md Presence 3. Structure/Exports/Dependencies/Behavior Drift 4. Save to ${TMP_DIR}
 
   ---validate-result---
   status: success
-  result_file: .claude/tmp/validate-src-auth.md
+  result_file: ${TMP_DIR}validate-src-auth.md
   directory: src/auth
   issues_count: 3
   export_coverage: 95
@@ -43,7 +43,12 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
 2. Verify IMPLEMENTS.md existence (INV-3 compliance)
 3. Detect drift across 4 categories: Structure, Exports, Dependencies, Behavior
 4. Calculate export coverage metrics from drift analysis
-5. Save validation results to `.claude/tmp/` and return structured result block
+5. Save validation results to `${TMP_DIR}` and return structured result block
+
+**임시 디렉토리 경로:**
+```bash
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+```
 
 ## Workflow
 
@@ -125,7 +130,7 @@ violations이 있으면 Dependencies Drift 결과에 포함합니다.
 
 ### 3. 결과 저장
 
-결과를 `.claude/tmp/`에 저장합니다 (예: `validate-src-auth.md`). validator-templates.md의 Result Template 형식을 따릅니다.
+결과를 `${TMP_DIR}`에 저장합니다 (예: `validate-src-auth.md`). validator-templates.md의 Result Template 형식을 따릅니다.
 
 ### 4. 결과 반환
 
@@ -134,7 +139,7 @@ violations이 있으면 Dependencies Drift 결과에 포함합니다.
 ```
 ---validate-result---
 status: success | failed
-result_file: .claude/tmp/validate-{dir-safe-name}.md
+result_file: ${TMP_DIR}validate-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
 export_coverage: {0-100}
@@ -159,7 +164,7 @@ export_coverage: {0-100}
 
 ## Tool 사용 제약
 
-- **Write**: 검증 결과를 `.claude/tmp/` 파일에 저장할 때만 사용. CLAUDE.md/IMPLEMENTS.md 직접 수정 금지.
+- **Write**: 검증 결과를 `${TMP_DIR}` 파일에 저장할 때만 사용. CLAUDE.md/IMPLEMENTS.md 직접 수정 금지.
 - **AskUserQuestion**: 의도적 미포함. validator는 validate skill에 의해 병렬 실행되므로, 사용자 상호작용은 parent skill이 담당.
 - **Grep**: 반드시 `head_limit: 50` 설정. 결과가 50개를 초과하면 패턴을 좁혀서 재검색.
 - **Read**: 소스 파일은 첫 200줄까지만 (`limit: 200`). 테스트 파일(`*test*`, `*spec*`, `*_test.*`)은 첫 500줄까지 (`limit: 500`). CLAUDE.md/IMPLEMENTS.md는 전체 읽기 허용.

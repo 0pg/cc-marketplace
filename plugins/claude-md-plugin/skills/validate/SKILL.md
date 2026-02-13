@@ -42,7 +42,8 @@ validate SKILL이 직접 Bash로 CLI를 실행하여 각 CLAUDE.md의 스키마�
 
 **임시 디렉토리 초기화:**
 ```bash
-mkdir -p .claude/tmp
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+mkdir -p "$TMP_DIR"
 ```
 
 **각 CLAUDE.md에 대해 CLI 실행:**
@@ -57,7 +58,7 @@ for claude_md in ${targets}; do
   dir_safe=$(echo "$claude_md" | sed 's/\//-/g' | sed 's/\.//g')
   $CLI_PATH validate-schema \
     --file "$claude_md" --strict \
-    --output ".claude/tmp/schema-${dir_safe}.json"
+    --output "${TMP_DIR}schema-${dir_safe}.json"
 done
 ```
 
@@ -67,9 +68,9 @@ done
 ```
 
 > **참고:** `schema-validate` internal skill은 `.claude/extract-results/`를 사용하지만,
-> validate는 세션 임시 결과이므로 `.claude/tmp/`에 저장합니다.
-> schema-validate는 decompile/impl 등 다른 workflow에서 영구 결과로 사용되는 반면,
-> validate의 스키마 결과는 보고서 생성 후 폐기됩니다.
+> validate는 세션 임시 결과이므로 `${TMP_DIR}`에 저장합니다.
+> `CLAUDE_SESSION_ID`가 설정되면 `.claude/tmp/{sessionId}/`로 세션별 격리되고,
+> 미설정 시 `.claude/tmp/`에 fallback합니다.
 
 validate SKILL이 각 JSON을 Read하여 스키마 이슈를 수집합니다.
 - `valid: true` → 스키마 통과, drift 검증 진행
@@ -86,21 +87,21 @@ validator agent를 **최대 3개씩 배치 처리**하여 context 폭발을 방�
 
 **진행 파일 초기화:**
 ```bash
-: > .claude/tmp/validate-progress.jsonl
+: > "${TMP_DIR}validate-progress.jsonl"
 ```
 
-**각 배치 완료 후, 결과를 `.claude/tmp/validate-progress.jsonl` 파일에 append:**
+**각 배치 완료 후, 결과를 `${TMP_DIR}validate-progress.jsonl` 파일에 append:**
 
 validator agent의 결과 블록을 파싱하여 아래 형식으로 append합니다:
 ```bash
-echo '{"directory":"src/auth","status":"success","issues_count":0,"export_coverage":95,"result_file":".claude/tmp/validate-src-auth.md"}' >> .claude/tmp/validate-progress.jsonl
-echo '{"directory":"src/utils","status":"success","issues_count":2,"export_coverage":72,"result_file":".claude/tmp/validate-src-utils.md"}' >> .claude/tmp/validate-progress.jsonl
+echo '{"directory":"src/auth","status":"success","issues_count":0,"export_coverage":95,"result_file":"${TMP_DIR}validate-src-auth.md"}' >> "${TMP_DIR}validate-progress.jsonl"
+echo '{"directory":"src/utils","status":"success","issues_count":2,"export_coverage":72,"result_file":"${TMP_DIR}validate-src-utils.md"}' >> "${TMP_DIR}validate-progress.jsonl"
 ```
 
 **compact 대비:**
-- compact이 발생해도 `.claude/tmp/validate-progress.jsonl`에 이전 배치 결과가 보존됨
+- compact이 발생해도 `${TMP_DIR}validate-progress.jsonl`에 이전 배치 결과가 보존됨
 - 최종 보고서 생성 시 context가 아닌 이 파일을 읽어서 생성
-- validator agent의 상세 결과도 개별 `.claude/tmp/validate-*.md` 파일에 저장되어 있음
+- validator agent의 상세 결과도 개별 `${TMP_DIR}validate-*.md` 파일에 저장되어 있음
 - **compact 후 재개:** `validate-progress.jsonl`을 Read하여 이미 완료된 directory 목록을 확인하고, 나머지 대상만 다음 배치로 처리. 중복 실행 방지를 위해 JSONL의 `directory` 필드와 대상 목록을 대조.
 
 ### 3. 결과 수집
@@ -110,7 +111,7 @@ validator agent는 구조화된 블록으로 결과를 반환:
 ```
 ---validate-result---
 status: success | failed
-result_file: .claude/tmp/validate-{dir-safe-name}.md
+result_file: ${TMP_DIR}validate-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
 export_coverage: {0-100}
@@ -119,7 +120,7 @@ export_coverage: {0-100}
 
 ### 4. 통합 보고서 생성
 
-`.claude/tmp/validate-progress.jsonl`을 Read하여 스키마 검증 결과와 Drift 검증 결과를 병합한 통합 보고서를 생성합니다.
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증 결과와 Drift 검증 결과를 병합한 통합 보고서를 생성합니다.
 
 **보고서 형식:**
 ```markdown
@@ -153,13 +154,13 @@ export_coverage: {0-100}
 ```
 
 **중요:** context에 남아있는 결과가 아닌, 파일에 누적된 결과를 사용합니다.
-- `.claude/tmp/validate-progress.jsonl`: 요약 정보 (모든 배치)
-- `.claude/tmp/schema-*.json`: 스키마 검증 결과
-- `.claude/tmp/validate-*.md`: Drift 검증 상세 결과
+- `${TMP_DIR}validate-progress.jsonl`: 요약 정보 (모든 배치)
+- `${TMP_DIR}schema-*.json`: 스키마 검증 결과
+- `${TMP_DIR}validate-*.md`: Drift 검증 상세 결과
 
 ### 5. 임시 파일 정리
 
-`.claude/tmp/`의 임시 파일은 세션 종료 시 자동으로 정리됨.
+`${TMP_DIR}` 내 임시 파일은 세션 종료 시 자동으로 정리됨. `CLAUDE_SESSION_ID`가 설정된 경우 세션별로 격리되어 다른 세션과 충돌하지 않음.
 
 ## 성공 기준
 
@@ -212,14 +213,14 @@ src/legacy (개선 필요)
 
 **DO:**
 - Run validator agent tasks in batches of max 3 parallel tasks
-- Append each batch result to `.claude/tmp/validate-progress.jsonl` before proceeding to next batch
+- Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
 - Report both schema, drift issues and export coverage metrics
 - Include IMPLEMENTS.md presence check (INV-3)
 - Use file-based progress accumulation for compact resilience
 
 **DON'T:**
-- Modify any files (validate is read-only, except `.claude/tmp/` for results)
+- Modify any files (validate is read-only, except `${TMP_DIR}` for results)
 - Ask user questions (validate runs non-interactively)
 - Skip any drift category
 - Launch all validator agents in a single message (use batches of max 3)
