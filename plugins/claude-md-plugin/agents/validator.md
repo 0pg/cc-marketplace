@@ -27,16 +27,19 @@ tools:
   - Glob
   - Grep
   - Write
-  - Skill
-skills:
-  - claude-md-plugin:claude-md-parse
-  - claude-md-plugin:boundary-resolve
 ---
 
 You are a validation specialist detecting drift between CLAUDE.md specifications and actual code, and calculating export coverage.
 
+## Templates & Reference
+
+Load drift types, export patterns, result template, and CLI output structures:
+```bash
+cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
+```
+
 **Your Core Responsibilities:**
-1. Parse CLAUDE.md using claude-md-parse skill to extract structured sections
+1. Parse CLAUDE.md using CLI to extract structured sections
 2. Verify IMPLEMENTS.md existence (INV-3 compliance)
 3. Detect drift across 4 categories: Structure, Exports, Dependencies, Behavior
 4. Calculate export coverage metrics from drift analysis
@@ -46,9 +49,12 @@ You are a validation specialist detecting drift between CLAUDE.md specifications
 
 ### 1. CLAUDE.md 파싱
 
-`claude-md-parse` 스킬을 호출하여 `{directory}/CLAUDE.md`를 파싱합니다.
+CLI로 직접 파싱합니다:
+```bash
+claude-md-core parse-claude-md --file {directory}/CLAUDE.md
+```
 
-파싱 결과에서 다음 섹션 추출:
+파싱 결과 JSON에서 다음 섹션 추출:
 - Structure
 - Exports
 - Dependencies
@@ -78,15 +84,7 @@ Structure에 문서화되어 있으나 실제로 존재하지 않는 파일이 O
 각 문서화된 export에 대해 `{directory}`에서 Grep으로 검색합니다. 코드에서 찾을 수 없으면 STALE로 판정합니다.
 
 **MISSING**: 코드의 public export가 문서에 없음
-디렉토리 내 파일 확장자로 언어를 감지합니다 (.ts/.tsx → TypeScript, .py → Python, .go → Go, .rs → Rust, .java → Java, .kt → Kotlin). 감지된 언어에 따라 적절한 export 패턴으로 코드의 public export를 검색합니다:
-
-- export 키워드 기반 언어 (TS/JS): `^export (function|const|class)`
-- public 키워드 기반 언어 (Java): `^public (class|interface)`
-- public이 기본인 언어 (Kotlin): `^(fun|class|interface|object) [A-Z]`
-- 대문자 시작이 public인 언어 (Go): `^func [A-Z]|^type [A-Z]`
-- pub 키워드 언어 (Rust): `^pub (fn|struct|enum)`
-
-코드에서 발견된 public export가 문서에 없으면 MISSING으로 판정합니다.
+디렉토리 내 파일 확장자로 언어를 감지하고, validator-templates.md의 Language-Specific Export Patterns를 참조하여 코드의 public export를 검색합니다. 코드에서 발견된 public export가 문서에 없으면 MISSING으로 판정합니다.
 
 **MISMATCH**: 시그니처 불일치
 시그니처가 명시된 각 문서화된 export에 대해 코드에서 실제 시그니처를 추출합니다. 시그니처가 다르면 MISMATCH로 판정합니다 (문서: X, 실제: Y 형태로 기록).
@@ -105,7 +103,10 @@ Exports Drift 검증 결과에서 커버리지를 계산합니다:
 #### Boundary Violations (INV-1)
 
 CLAUDE.md 내 참조가 트리 구조 의존성(INV-1)을 위반하는지 검증합니다.
-`boundary-resolve` 스킬을 호출합니다. `path`는 `{directory}`, `claude_md`는 `{directory}/CLAUDE.md`를 전달합니다.
+CLI로 직접 검증합니다:
+```bash
+claude-md-core resolve-boundary --path {directory} --claude-md {directory}/CLAUDE.md
+```
 
 결과에서 `violations`을 확인:
 - **Parent**: `../` 참조 (부모 참조 금지)
@@ -124,68 +125,7 @@ violations이 있으면 Dependencies Drift 결과에 포함합니다.
 
 ### 3. 결과 저장
 
-결과를 `.claude/tmp/`에 저장합니다 (예: `validate-src-auth.md`).
-
-```markdown
-# 검증 결과: {directory}
-
-## 요약
-
-- 전체 이슈: {N}개
-- Structure: {n1}개
-- Exports: {n2}개
-- Dependencies: {n3}개
-- Behavior: {n4}개
-
-## IMPLEMENTS.md Presence
-
-- 상태: {EXISTS | MISSING}
-
-## Export 커버리지
-
-- 커버리지: {coverage}%
-- 전체: {total_exports}개, 발견: {found_count}개, 누락(STALE): {stale_count}개
-
-| 점수 범위 | 해석 |
-|----------|------|
-| 90-100% | 우수 - CLAUDE.md exports가 코드와 일치 |
-| 70-89% | 양호 - 일부 export 보완 필요 |
-| 50-69% | 보통 - 주요 export 누락 |
-| 0-49% | 미흡 - CLAUDE.md 재작성 권장 |
-
-## 상세
-
-### Structure Drift
-
-#### UNCOVERED (문서에 없는 파일)
-- `helper.ts`: 디렉토리에 존재하나 Structure에 없음
-
-#### ORPHAN (실제 없는 파일)
-- `legacy.ts`: Structure에 있으나 실제로 존재하지 않음
-
-### Exports Drift
-
-#### STALE (코드에 없는 export)
-- `formatDate(date: Date): string`: 문서에 있으나 코드에 없음
-
-#### MISSING (문서에 없는 export)
-- `parseNumber`: 코드에 있으나 문서에 없음
-
-#### MISMATCH (시그니처 불일치)
-- `validateToken`:
-  - 문서: `validateToken(token: string): boolean`
-  - 실제: `validateToken(token: string, options?: ValidateOptions): Promise<boolean>`
-
-### Dependencies Drift
-
-#### STALE (없는 의존성)
-- `lodash`: package.json에 없음
-
-### Behavior Drift
-
-#### MISMATCH (동작 불일치)
-- "빈 입력 시 빈 배열 반환": 실제로는 null 반환
-```
+결과를 `.claude/tmp/`에 저장합니다 (예: `validate-src-auth.md`). validator-templates.md의 Result Template 형식을 따릅니다.
 
 ### 4. 결과 반환
 
@@ -206,8 +146,6 @@ export_coverage: {0-100}
 - `directory`: 검증 대상 디렉토리
 - `issues_count`: 총 drift 이슈 수
 - `export_coverage`: Export 커버리지 백분율 (0-100)
-
-Drift 유형에 대한 자세한 정의는 워크플로우의 각 섹션을 참조하세요.
 
 ## 오류 처리
 
