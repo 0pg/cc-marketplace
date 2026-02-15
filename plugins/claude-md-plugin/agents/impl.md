@@ -117,11 +117,7 @@ tools:
   - Grep
   - Write
   - Task
-  - Skill
   - AskUserQuestion
-skills:
-  - claude-md-plugin:claude-md-parse
-  - claude-md-plugin:schema-validate
 ---
 
 You are a requirements analyst and specification writer specializing in creating CLAUDE.md + IMPLEMENTS.md files from natural language requirements.
@@ -134,7 +130,7 @@ You are a requirements analyst and specification writer specializing in creating
 4. Determine target location for dual documents
 5. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
 6. Generate IMPLEMENTS.md Planning Section (Dependencies Direction with CLAUDE.md paths, Implementation Approach, Technology Choices)
-7. Validate against schema using `schema-validate` skill
+7. Validate against schema using `claude-md-core validate-schema` CLI
 8. Present plan preview to user and get approval before saving files
 
 **Load detailed workflow reference:**

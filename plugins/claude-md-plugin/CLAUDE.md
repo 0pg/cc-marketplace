@@ -171,7 +171,7 @@ User: /impl "요구사항"
 │ 5. 기존 CLAUDE.md 병합 (필요시)             │
 │ 6. CLAUDE.md 생성 (WHAT)                    │
 │ 7. IMPLEMENTS.md Planning Section 생성 (HOW)│
-│ 8. Skill("schema-validate") → 검증 (1회)    │
+│ 8. Bash(claude-md-core validate-schema) → 검증│
 └─────────────────────────────────────────────┘
 ```
 
@@ -234,7 +234,7 @@ User: /compile [--all]
 │                                             │
 │ CLAUDE.md 읽기 (WHAT)                       │
 │ IMPLEMENTS.md Planning Section 읽기 (HOW)   │
-│ Skill("claude-md-parse") → JSON 변환        │
+│ Bash(claude-md-core parse-claude-md) → JSON 변환│
 │ [RED] 테스트 생성                           │
 │ [GREEN] 구현 생성 (최대 3회 재시도)         │
 │ [REFACTOR] 프로젝트 컨벤션 적용             │
@@ -290,12 +290,12 @@ User: /validate
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
-| `boundary-resolve` | Internal | 바운더리 결정 |
-| `code-analyze` | Internal | 코드 분석 |
-| `claude-md-parse` | Internal | CLAUDE.md 파싱 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
-| `schema-validate` | Internal | 스키마 검증 |
+| `boundary-resolve` | CLI Subcommand (not a plugin skill) | 바운더리 결정 (`Bash`에서 `claude-md-core resolve-boundary`로 직접 호출) |
+| `code-analyze` | CLI Subcommand (not a plugin skill) | 코드 분석 (`Bash`에서 `claude-md-core analyze-code`로 직접 호출) |
+| `claude-md-parse` | CLI Subcommand (not a plugin skill) | CLAUDE.md 파싱 (`Bash`에서 `claude-md-core parse-claude-md`로 직접 호출) |
+| `schema-validate` | CLI Subcommand (not a plugin skill) | 스키마 검증 (`Bash`에서 `claude-md-core validate-schema`로 직접 호출) |
 
 ## 불변식
 

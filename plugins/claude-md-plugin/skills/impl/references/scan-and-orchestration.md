@@ -73,7 +73,7 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 - Implementation Section은 "(To be filled by /compile)" 플레이스홀더
 
 ### 6. 스키마 검증 (1회)
-- schema-validate Skill 호출
+- claude-md-core validate-schema CLI 호출
 - 실패 시 경고와 함께 이슈 보고
 
 ### 6.5. ⭐ Plan Preview (NEW)

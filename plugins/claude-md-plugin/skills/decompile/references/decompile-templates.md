@@ -122,7 +122,7 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 - CLAUDE.md: 심볼만 나열 (위 포맷)
 - IMPLEMENTS.md: 심볼 + 선택 이유/방향 포함 (예: `- \`path/CLAUDE.md\`: SymbolName — 이 모듈의 인증 기능 활용`)
 
-3. **대상 디렉토리에 직접 Write** (scratchpad 미사용)
+3. **대상 디렉토리에 직접 Write** (${TMP_DIR} 미사용)
 
 ---
 
@@ -260,7 +260,7 @@ Protocol 정보 추출 소스:
 - {current_date}: Initial extraction from existing code
 ```
 
-대상 디렉토리에 직접 Write합니다 (scratchpad 미사용).
+대상 디렉토리에 직접 Write합니다 (${TMP_DIR} 미사용).
 
 ---
 

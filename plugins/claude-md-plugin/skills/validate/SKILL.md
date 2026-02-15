@@ -67,7 +67,7 @@ done
 {"file": "src/auth/CLAUDE.md", "valid": false, "errors": [{"error_type": "MissingSection", "message": "Missing required section: Behavior", "section": "Behavior"}], "warnings": []}
 ```
 
-> **참고:** `schema-validate` internal skill은 `.claude/extract-results/`를 사용하지만,
+> **참고:** `validate-schema` CLI는 `.claude/extract-results/`를 사용하지만,
 > validate는 세션 임시 결과이므로 `${TMP_DIR}`에 저장합니다.
 > `CLAUDE_SESSION_ID`가 설정되면 `.claude/tmp/{sessionId}/`로 세션별 격리되고,
 > 미설정 시 `.claude/tmp/`에 fallback합니다.

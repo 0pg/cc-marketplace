@@ -136,7 +136,7 @@ Round 2: Tier 2 질문(최대 2개) + Tier 3 질문(최대 2개) 합산하여 �
 
 ### Phase 4: 기존 CLAUDE.md 확인 및 병합
 
-대상 경로에 CLAUDE.md가 존재하고 "update" 모드이면, `claude-md-parse` 스킬로 기존 CLAUDE.md를 파싱한 후 새 스펙과 smart merge합니다. 존재하지 않으면 새 스펙을 그대로 사용합니다.
+대상 경로에 CLAUDE.md가 존재하고 "update" 모드이면, `claude-md-core parse-claude-md` CLI로 기존 CLAUDE.md를 파싱한 후 새 스펙과 smart merge합니다. 존재하지 않으면 새 스펙을 그대로 사용합니다.
 
 #### Smart Merge 전략
 
@@ -301,7 +301,7 @@ dep-explorer 결과 JSON에서 의존성 정보를 포맷팅합니다:
 
 ### Phase 6: 스키마 검증 (1회)
 
-`schema-validate` 스킬을 호출하여 CLAUDE.md를 검증합니다. 검증 결과 JSON을 로드하여 `valid` 필드를 확인합니다. 검증이 실패하면 사용자에게 이슈를 보고하고 경고와 함께 진행합니다.
+`claude-md-core validate-schema` CLI를 호출하여 CLAUDE.md를 검증합니다. 검증 결과 JSON을 로드하여 `valid` 필드를 확인합니다. 검증이 실패하면 사용자에게 이슈를 보고하고 경고와 함께 진행합니다.
 
 ### Phase 6.5: Plan Preview & User Approval
 

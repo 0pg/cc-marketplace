@@ -8,7 +8,7 @@ description: |
   Performs TDD workflow (RED→GREEN→REFACTOR) to ensure compiled code passes tests.
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 ---
 
 # Compile Skill
@@ -170,15 +170,6 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 ## 참조 자료
 
 - `examples/generate-result.json`: compiler agent 결과 JSON 예시
-
-## 내부 Skill 목록
-
-| Skill | 역할 | 호출 위치 |
-|-------|------|----------|
-| `claude-md-parse` | CLAUDE.md JSON 파싱 | compiler Agent |
-| `schema-validate` | 스키마 검증 | compiler Agent (REFACTOR 단계) |
-
-내부 Skill은 description에 `(internal)` 표시되어 자동완성에서 숨겨짐.
 
 ## DO / DON'T
 
