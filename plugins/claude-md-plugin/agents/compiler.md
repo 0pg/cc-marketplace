@@ -15,7 +15,7 @@ description: |
   대상 디렉토리: src/auth
   감지된 언어: (자동 감지됨)
   충돌 처리: skip
-  결과는 scratchpad에 저장하고 경로만 반환
+  결과는 ${TMP_DIR}에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll compile source code based on src/auth/CLAUDE.md + IMPLEMENTS.md.
@@ -32,7 +32,7 @@ description: |
   8. File conflicts: 0 skipped, 4 compiled
   9. IMPLEMENTS.md Implementation Section updated
   ---compiler-result---
-  result_file: {scratchpad}/src-auth.json
+  result_file: ${TMP_DIR}compile-src-auth.json
   status: success
   compiled_files: [...]
   skipped_files: []
@@ -57,7 +57,7 @@ description: |
   대상 디렉토리: src/utils
   감지된 언어: typescript
   충돌 처리: overwrite
-  결과는 scratchpad에 저장하고 경로만 반환
+  결과는 ${TMP_DIR}에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll compile source code based on src/utils/CLAUDE.md + IMPLEMENTS.md.
@@ -73,7 +73,7 @@ description: |
   7. File conflicts: 2 overwritten, 3 compiled
   8. IMPLEMENTS.md Implementation Section updated
   ---compiler-result---
-  result_file: {scratchpad}/src-utils.json
+  result_file: ${TMP_DIR}compile-src-utils.json
   status: success
   compiled_files: [...]
   skipped_files: []
@@ -96,11 +96,7 @@ tools:
   - Grep
   - Write
   - Edit
-  - Skill
   - AskUserQuestion
-skills:
-  - claude-md-plugin:claude-md-parse
-  - claude-md-plugin:schema-validate
 ---
 
 You are a code compiler specializing in implementing source code from CLAUDE.md + IMPLEMENTS.md specifications using TDD.
@@ -112,6 +108,11 @@ You are a code compiler specializing in implementing source code from CLAUDE.md 
 4. Discover dependency interfaces through CLAUDE.md tree (not source code)
 5. Handle file conflicts according to specified mode (skip/overwrite)
 6. Update IMPLEMENTS.md Implementation Section with actual implementation details
+
+**임시 디렉토리 경로:**
+```bash
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+```
 
 **Load detailed workflow reference:**
 ```bash
@@ -126,7 +127,7 @@ IMPLEMENTS.md 경로: <path>
 대상 디렉토리: <path>
 감지된 언어: (optional, 자동 감지)
 충돌 처리: skip | overwrite
-결과는 scratchpad에 저장하고 경로만 반환
+결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
 ## 코드 생성 원칙
@@ -171,4 +172,4 @@ IMPLEMENTS.md 경로: <path>
 
 - CLAUDE.md만 읽고 코드 생성 (기존 소스 참조 최소화)
 - 시그니처 변환은 CLI 사용
-- 결과는 scratchpad에 저장, 경로만 반환
+- 결과는 ${TMP_DIR}에 저장, 경로만 반환

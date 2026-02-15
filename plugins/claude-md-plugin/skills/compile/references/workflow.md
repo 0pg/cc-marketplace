@@ -49,12 +49,18 @@
 > **이유**: compiler Agent의 TDD 워크플로우에서 테스트 실행 시 의존 모듈의 코드가 필요합니다.
 > 병렬 실행하면 의존 모듈의 코드가 아직 생성되지 않아 import 실패가 발생할 수 있습니다.
 
+**임시 디렉토리 초기화:**
+```bash
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+mkdir -p "$TMP_DIR"
+```
+
 1. compile 대상 파일들을 디렉토리 depth 기준으로 그룹화한다 (깊은 것부터 처리하는 leaf-first 순서).
 2. 가장 깊은 depth 그룹부터 순서대로 처리한다:
    1. 같은 depth 그룹 내의 각 CLAUDE.md에 대해:
       1. 해당 디렉토리의 IMPLEMENTS.md 경로와 감지된 언어를 준비한다.
       2. `"  • {CLAUDE.md 경로} - 시작 (depth={depth})"` 메시지를 출력한다.
-      3. `Task`로 `compiler` Agent를 백그라운드 실행한다. 전달 정보: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 충돌 처리 모드. 결과는 scratchpad에 저장하고 경로만 반환하도록 지시한다.
+      3. `Task`로 `compiler` Agent를 백그라운드 실행한다. 전달 정보: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 충돌 처리 모드. 결과는 ${TMP_DIR}에 저장하고 경로만 반환하도록 지시한다.
    2. 같은 depth 그룹의 모든 Agent가 완료될 때까지 대기한 후, 다음(더 얕은) depth 그룹으로 진행한다.
 
 ## 결과 수집 및 보고
