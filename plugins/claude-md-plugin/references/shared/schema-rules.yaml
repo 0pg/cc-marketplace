@@ -3,7 +3,7 @@
 # Rules are consumed by:
 #   - Rust core engine (build-time code generation via build.rs)
 #   - Documentation (templates/claude-md-schema.md)
-#   - Schema-validate skill (skills/schema-validate/SKILL.md)
+#   - Schema-validate skill (claude-md-core validate-schema CLI)
 
 version: "1.0.0"
 description: "CLAUDE.md 스키마 검증 규칙 - Single Source of Truth"

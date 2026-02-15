@@ -15,7 +15,7 @@
 1. **프로젝트 root CLAUDE.md 읽기**: `.git` 또는 `package.json` 등으로 `project_root`를 탐지하고, build marker 기반으로 `module_root`를 탐색합니다. `{project_root}/CLAUDE.md`를 Read합니다.
 2. **Convention 섹션 추출**: project CLAUDE.md에서 `## Project Convention` 섹션과 `## Code Convention` 섹션을 추출합니다 (project 기본값).
 3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Code Convention`이 있으면 이것으로 override합니다. `## Project Convention`이 있으면 이것으로도 override합니다.
-4. **대상 CLAUDE.md 파싱**: `claude-md-parse` 스킬을 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
+4. **대상 CLAUDE.md 파싱**: `claude-md-core parse-claude-md` CLI를 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
 5. **IMPLEMENTS.md 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "IMPLEMENTS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `implements_spec`에 저장합니다. 존재하지 않으면 기본 Planning Section 템플릿으로 자동 생성한 후 파싱합니다.
 
 **CLAUDE.md (WHAT)**에서 추출:
@@ -224,7 +224,7 @@ implements_md_updated: true
 │  └───────────────────────┬────────────────────────────────┘ │
 │                          │                                   │
 │                          ▼                                   │
-│  ┌─ Skill("claude-md-plugin:claude-md-parse") ─────────────┐ │
+│  ┌─ Bash(claude-md-core parse-claude-md) ──────────────────┐ │
 │  │ 대상 CLAUDE.md → ClaudeMdSpec JSON (WHAT)              │ │
 │  └───────────────────────┬────────────────────────────────┘ │
 │                          │                                   │

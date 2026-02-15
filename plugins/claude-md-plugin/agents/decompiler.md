@@ -198,6 +198,6 @@ Purpose, Exports, Behavior, Contract, Protocol, Domain Context
 
 - 전체 파일을 읽지 않고 symbol overview 우선 사용
 - 필요한 함수만 선택적으로 읽기
-- CLAUDE.md + IMPLEMENTS.md는 대상 디렉토리에 직접 Write (scratchpad 미사용)
+- CLAUDE.md + IMPLEMENTS.md는 대상 디렉토리에 직접 Write (${TMP_DIR} 미사용)
 - **최종 응답은 result block만 출력** (진행 상황 메시지 미포함)
 - tree.json 정보는 jq로 필요한 부분만 조회

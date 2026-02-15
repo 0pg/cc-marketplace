@@ -9,7 +9,7 @@ description: |
   Follows ATDD principle: specification first, then code generation via /compile.
   Trigger keywords: 요구사항 정의, 스펙 작성, 명세 먼저
 user_invocable: true
-allowed-tools: [Read, Glob, Write, Task, Skill, AskUserQuestion, Bash]
+allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash]
 ---
 
 # Impl Skill
@@ -67,7 +67,7 @@ User: /impl "요구사항"
 │ 4. 기존 CLAUDE.md 존재시 병합               │
 │ 5. CLAUDE.md 생성                           │
 │ 5.5. IMPLEMENTS.md Planning Section 생성   │
-│ 6. Skill("schema-validate") → 검증          │
+│ 6. Bash(claude-md-core validate-schema) → 검증│
 │ 6.5 ⭐ Plan Preview → AskUserQuestion       │
 │    (approve/modify/cancel)                  │
 │ 7. 승인 시에만 CLAUDE.md + IMPLEMENTS.md 저장│

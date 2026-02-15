@@ -114,7 +114,7 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 ## 결과 전달
 
 decompiler agent가 CLAUDE.md와 IMPLEMENTS.md를 **대상 디렉토리에 직접 Write**.
-scratchpad 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방지).
+${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방지).
 
 ### 흐름 (Foreground + 압축 응답)
 
@@ -138,7 +138,7 @@ validation: passed | failed_with_warnings
 - Process directories in leaf-first order
 - Instruct decompiler agent to return result block only (압축 응답)
 - Use jq for tree.json field extraction (NOT Read for full JSON)
-- Write results directly to target directory (NOT to scratchpad)
+- Write results directly to target directory (NOT to ${TMP_DIR})
 
 **DON'T:**
 - Read tree.json into main context (use jq extraction)
