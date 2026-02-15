@@ -256,6 +256,34 @@ User: /validate
 └─────────────────────────────────────────────┘
 ```
 
+### /debug (소스코드 버그 → 3계층 추적 → 수정)
+
+```
+User: /debug [--error "..."] [--test "..."]
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ debug SKILL (Entry Point)                   │
+│                                             │
+│ 1. Bug Report 수집 (에러/테스트 정보)       │
+│ 2. 입력 타입 분류 (기술적 에러/테스트/기능) │
+│ 3. CLAUDE.md + IMPLEMENTS.md 존재 확인      │
+│ 4. 사전 검증 (스키마/미컴파일 변경)         │
+│ 5. Task(debugger) → 진단 + 수정            │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│ debugger AGENT (3-Layer Analysis)           │
+│                                             │
+│ L3: 코드 분석 (에러 위치, 심볼 추적)        │
+│ L1: CLAUDE.md 교차 검증 (Exports, Behavior) │
+│ L2: IMPLEMENTS.md 교차 검증 (Algorithm, EH) │
+│ Root Cause 분류 → CLAUDE.md/IMPLEMENTS.md 수정│
+│ → `/compile` 권장으로 소스코드 재생성       │
+└─────────────────────────────────────────────┘
+```
+
 ### 설계 원칙
 
 | 컴포넌트 | 역할 | 오케스트레이션 |
@@ -272,6 +300,7 @@ User: /validate
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
+| `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
 
 ## Commands
@@ -289,6 +318,7 @@ User: /validate
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
+| `/debug` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
@@ -320,6 +350,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
+/debug → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile로 Source Code 재생성
 ```
 
 ### INV-5: Convention 섹션 배치 규칙
