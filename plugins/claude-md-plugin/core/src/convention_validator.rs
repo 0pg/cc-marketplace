@@ -69,6 +69,19 @@ impl ConventionValidator {
             }
         }
 
+        // 1b. Check project_root CLAUDE.md for Code Convention (canonical source)
+        let project_code_convention = self.check_file_section(
+            &project_claude_md,
+            "Code Convention",
+            CODE_CONVENTION_REQUIRED_SUBSECTIONS,
+        );
+
+        if !project_code_convention.valid {
+            for err in &project_code_convention.errors {
+                errors.push(err.clone());
+            }
+        }
+
         // 2. Determine module roots
         let detected_modules = match module_roots {
             Some(roots) => roots,
@@ -80,16 +93,29 @@ impl ConventionValidator {
         for module_root in &detected_modules {
             let module_claude_md = module_root.join("CLAUDE.md");
 
-            // Code Convention check (required for module roots)
+            // Code Convention check
+            // Multi-module: optional (inherits from project_root if absent)
+            // Single-module (project_root == module_root): already validated above
             let code_convention = self.check_file_section(
                 &module_claude_md,
                 "Code Convention",
                 CODE_CONVENTION_REQUIRED_SUBSECTIONS,
             );
 
+            let is_multi_module = module_root != project_root;
+
             if !code_convention.valid {
-                for err in &code_convention.errors {
-                    errors.push(err.clone());
+                if is_multi_module && !code_convention.section_found {
+                    // Multi-module: Code Convention absent = inherited from project_root → OK
+                } else {
+                    // Single-module: already validated at project_root level (1b)
+                    // Or section_found=true but malformed → report errors
+                    if !(module_root == project_root) {
+                        // Only add errors for non-root modules with malformed sections
+                        for err in &code_convention.errors {
+                            errors.push(err.clone());
+                        }
+                    }
                 }
             }
 

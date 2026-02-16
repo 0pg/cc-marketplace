@@ -65,3 +65,22 @@ Feature: Convention Validator
     When I validate conventions
     Then convention validation should pass
     And module should have project convention override
+
+  # ---- DRY: Convention Inheritance ----
+
+  Scenario: Multi-module module without Code Convention inherits from project root
+    Given a multi module project where module has no Code Convention
+    When I validate conventions
+    Then convention validation should pass
+
+  Scenario: Multi-module module with malformed Code Convention still fails
+    Given a multi module project where module has incomplete Code Convention
+    When I validate conventions
+    Then convention validation should fail
+    And convention error should mention "Naming Rules"
+
+  Scenario: Project root must have Code Convention as canonical source
+    Given a multi module project where project root has no Code Convention
+    When I validate conventions
+    Then convention validation should fail
+    And convention error should mention "Code Convention"

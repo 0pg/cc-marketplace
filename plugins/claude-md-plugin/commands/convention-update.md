@@ -85,6 +85,15 @@ AskUserQuestion으로 수정할 서브섹션을 질문합니다. 옵션은 대�
 2. 대상 섹션을 추출하고 수정 내용을 적용합니다.
 3. 수정된 섹션으로 교체한 후 전체 CLAUDE.md를 Write합니다.
 
+### 4.5 DRY 준수 확인 (module_root 업데이트 시)
+
+module_root Convention을 업데이트한 경우:
+1. 업데이트 후 내용을 project_root 동일 섹션과 비교
+2. 동일해진 경우 → AskUserQuestion: "project_root와 동일해졌습니다. 제거하고 상속으로 전환할까요?"
+   - **제거**: module_root에서 해당 섹션 삭제 (project_root에서 상속)
+   - **유지**: 명시적으로 유지
+3. 여전히 다른 경우 → 그대로 유지
+
 ### 5. 검증
 
 `claude-md-core validate-convention` CLI를 실행하여 수정된 섹션을 검증합니다:

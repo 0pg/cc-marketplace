@@ -130,9 +130,13 @@ auth/
   - 필수 서브섹션: `### Project Structure`, `### Module Boundaries`, `### Naming Conventions`
   - module_root CLAUDE.md에도 optional override 가능
 
-- **`## Code Convention`**: module_root CLAUDE.md에 배치. 소스코드 수준 규칙.
+- **`## Code Convention`**: project_root CLAUDE.md에 canonical source로 배치. 소스코드 수준 규칙.
   - 필수 서브섹션: `### Language & Runtime`, `### Code Style`, `### Naming Rules`
+  - module_root CLAUDE.md에는 project_root와 **다른** 내용만 override로 작성 (없으면 상속)
   - 싱글 모듈인 경우 project_root CLAUDE.md에 함께 배치
+
+**DRY 원칙**: Claude Code는 CLAUDE.md를 계층적으로 로드하므로, project_root Convention은
+하위 모듈에서 자동 참조됩니다. module_root에는 project_root와 다른 내용만 작성합니다.
 
 compiler agent의 REFACTOR 단계에서 자동 참조됩니다. 없으면 project root CLAUDE.md 일반 내용을 fallback으로 사용합니다.
 
@@ -403,8 +407,9 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 ### INV-5: Convention 섹션 배치 규칙
 ```
 project_root/CLAUDE.md MUST contain ## Project Convention
-module_root/CLAUDE.md MUST contain ## Code Convention
-module_root/CLAUDE.md MAY contain ## Project Convention (override)
+project_root/CLAUDE.md MUST contain ## Code Convention (canonical source)
+module_root/CLAUDE.md MAY contain ## Code Convention (override; 없으면 project_root에서 상속)
+module_root/CLAUDE.md MAY contain ## Project Convention (override; 없으면 project_root에서 상속)
 싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 두 섹션 모두 배치
 ```
 

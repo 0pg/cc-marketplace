@@ -407,9 +407,11 @@ src/ 하위에 기능별 디렉토리 구성.
 | Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
 | Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 
-### 11. Code Convention (조건부 - module_root)
+### 11. Code Convention (project_root 필수, module_root 선택)
 
-소스코드 수준 코딩 규칙입니다. module_root CLAUDE.md에 필수입니다. 싱글 모듈 프로젝트에서는 project_root CLAUDE.md에 함께 배치합니다.
+소스코드 수준 코딩 규칙입니다. project_root CLAUDE.md에 필수 (canonical source).
+module_root에서는 project_root와 다른 부분만 override로 작성합니다.
+project_root와 동일한 경우 module_root에 작성하지 않습니다 (계층적 로드로 자동 상속).
 
 ```markdown
 ## Code Convention
@@ -468,6 +470,8 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 **INV-5: Convention 섹션 배치 규칙**
 ```
 project_root/CLAUDE.md MUST contain ## Project Convention
-module_root/CLAUDE.md MUST contain ## Code Convention
-module_root/CLAUDE.md MAY contain ## Project Convention (override)
+project_root/CLAUDE.md MUST contain ## Code Convention (canonical source)
+module_root/CLAUDE.md MAY contain ## Code Convention (override; 없으면 project_root에서 상속)
+module_root/CLAUDE.md MAY contain ## Project Convention (override; 없으면 project_root에서 상속)
+싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 두 섹션 모두 배치
 ```
