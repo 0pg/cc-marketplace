@@ -234,6 +234,7 @@ status: cancelled_by_user
 - `examples/sample-implements-md.md`: 생성된 IMPLEMENTS.md Planning Section 예시
 - `examples/sample-vague-requirement.md`: 모호한 요구사항 처리 시나리오 (low completeness)
 - `examples/sample-multi-module.md`: 멀티 모듈 요구사항 분해 시나리오
+- `references/impl-workflow.md`: impl agent 상세 워크플로우 (Phase 1~8), AskUserQuestion 전략, Tier별 질문 로직
 
 ## /decompile과의 차이점
 

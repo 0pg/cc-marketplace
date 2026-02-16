@@ -14,7 +14,7 @@
 
 1. **프로젝트 root CLAUDE.md 읽기**: `.git` 또는 `package.json` 등으로 `project_root`를 탐지하고, build marker 기반으로 `module_root`를 탐색합니다. `{project_root}/CLAUDE.md`를 Read합니다.
 2. **Convention 섹션 추출**: project CLAUDE.md에서 `## Project Convention` 섹션과 `## Code Convention` 섹션을 추출합니다 (project 기본값).
-3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Code Convention`이 있으면 이것으로 override합니다. `## Project Convention`이 있으면 이것으로도 override합니다.
+3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Code Convention`이 있으면 project_root의 canonical source를 override합니다 (없으면 project_root에서 상속). `## Project Convention`이 있으면 이것으로도 override합니다.
 4. **대상 CLAUDE.md 파싱**: `claude-md-core parse-claude-md` CLI를 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
 5. **IMPLEMENTS.md 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "IMPLEMENTS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `implements_spec`에 저장합니다. 존재하지 않으면 기본 Planning Section 템플릿으로 자동 생성한 후 파싱합니다.
 
@@ -30,13 +30,13 @@
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
-**중요**: 코드 생성 시 CLAUDE.md 내 Convention 섹션의 규칙을 우선 따르고, 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
+**중요**: `project_root` CLAUDE.md의 Code Convention이 canonical source입니다. `module_root`에 Code Convention이 있으면 override로 사용합니다. Convention 섹션이 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
 `implements_spec`의 구현 방향도 함께 참조합니다.
 
 **컨벤션 참조 우선순위**:
-1. `module_root` CLAUDE.md `## Code Convention` → 코드 스타일, 네이밍 규칙
-2. `module_root` CLAUDE.md `## Project Convention` (optional override) → 구조 규칙
-3. `project_root` CLAUDE.md `## Code Convention` (default) → 코드 스타일 fallback
+1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코드 스타일, 네이밍 규칙
+2. `project_root` CLAUDE.md `## Code Convention` (canonical source) → 코드 스타일 기본값
+3. `module_root` CLAUDE.md `## Project Convention` (optional override) → 구조 규칙
 4. `project_root` CLAUDE.md `## Project Convention` → 구조 규칙
 5. `project_root` CLAUDE.md 일반 내용 → 최종 fallback
 
