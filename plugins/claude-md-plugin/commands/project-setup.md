@@ -86,9 +86,13 @@ AskUserQuestion 시퀀스로 컨벤션 정보를 수집합니다:
 
 **Q3. 코딩 스타일**: "코딩 스타일 기본 규칙을 선택해주세요." 옵션: Strict(엄격한 타입/린트), Moderate(일반적 규칙), Minimal(최소한의 규칙)
 
-### 6. project_root CLAUDE.md에 `## Project Convention` 섹션 추가
+### 6. project_root CLAUDE.md에 `## Project Convention` + `## Code Convention` 섹션 추가
 
 CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니다.
+
+project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
+
+#### 6-A. `## Project Convention`
 
 필수 3개 서브섹션은 반드시 포함합니다:
 
@@ -116,10 +120,7 @@ CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니�
 | Error Strategy | No | 글로벌 에러 핸들링 전략 |
 | Testing Strategy | No | 테스트 조직, 커버리지 기대 |
 
-### 7. 각 module_root CLAUDE.md에 `## Code Convention` 섹션 추가
-
-싱글 모듈인 경우 project_root CLAUDE.md에 함께 추가합니다.
-멀티 모듈인 경우 각 module_root CLAUDE.md에 추가합니다.
+#### 6-B. `## Code Convention`
 
 필수 3개 서브섹션은 반드시 포함합니다:
 
@@ -147,6 +148,24 @@ CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니�
 | Error Handling | No | try/catch 패턴, 에러 타입 |
 | Import/Export | No | import 순서, barrel file 규칙 |
 | Comments & Documentation | No | 주석/문서화 규칙 |
+
+### 7. 각 module_root CLAUDE.md Convention 처리 (DRY 원칙)
+
+> **DRY 원칙**: Claude Code는 CLAUDE.md를 계층적으로 로드합니다.
+> project_root에 작성한 Convention은 하위 모듈에서 자동 참조됩니다.
+> module_root에는 project_root와 **다른** 내용만 작성합니다.
+
+싱글 모듈(project_root == module_root)인 경우 Step 6에서 이미 완료. 이 단계를 건너뜁니다.
+
+멀티 모듈인 경우, 각 module_root에 대해:
+
+1. 해당 모듈의 Convention이 project_root와 동일한지 비교합니다.
+2. **동일한 경우**: 작성하지 않음. 안내 메시지 출력:
+   "ℹ {module_root}: Convention이 project_root와 동일 → 상속 (별도 작성 불필요)"
+3. **다른 경우**: AskUserQuestion으로 확인 후, 차이나는 섹션 전체를 module_root에 작성:
+   "ℹ {module_root}: Code Convention이 project_root와 다름 → module_root에 override 작성"
+
+`## Project Convention` override도 동일 원칙: 다를 때만 module_root에 작성.
 
 ### 8. CLI 빌드 확인
 
@@ -190,8 +209,12 @@ $CLI_PATH validate-convention --project-root {project_root}
 Convention 섹션이 CLAUDE.md에 추가되었습니다.
 
 변경된 파일:
-  - {project_root}/CLAUDE.md (## Project Convention 추가)
-  - {module_root}/CLAUDE.md (## Code Convention 추가)
+  - {project_root}/CLAUDE.md (## Project Convention + ## Code Convention 추가)
+  - {module_root}/CLAUDE.md (override 작성된 경우만 표시)
+
+상속 정보:
+  - {module_root}: project_root에서 상속 (별도 작성 없음)  ← 동일한 경우
+  - {module_root}: Code Convention override 작성            ← 다른 경우
 
 이 섹션들은 `/compile` 실행 시 REFACTOR 단계에서 자동 참조됩니다.
 컨벤션을 수정하려면 `/convention-update`를 사용하세요.

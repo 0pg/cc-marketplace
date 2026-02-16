@@ -1195,6 +1195,72 @@ fn multi_module_with_override(world: &mut TestWorld) {
     create_file_at(&sub, "CLAUDE.md", &sub_content);
 }
 
+// ---- DRY: Convention Inheritance steps ----
+
+#[given("a multi module project where module has no Code Convention")]
+fn multi_module_no_code_convention(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    // Project root has both conventions (canonical source)
+    let root_content = format!(
+        "# Root\n\n## Purpose\nRoot project.\n{}\n{}",
+        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
+    );
+    create_file_at(&root, "CLAUDE.md", &root_content);
+
+    // Sub-module has NO Code Convention (inherits from project root)
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n";
+    create_file_at(&sub, "CLAUDE.md", sub_content);
+}
+
+#[given("a multi module project where module has incomplete Code Convention")]
+fn multi_module_incomplete_code_convention(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    let root_content = format!(
+        "# Root\n\n## Purpose\nRoot project.\n{}\n{}",
+        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
+    );
+    create_file_at(&root, "CLAUDE.md", &root_content);
+
+    // Sub-module has Code Convention but missing Naming Rules
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Code Style\n2 spaces\n";
+    create_file_at(&sub, "CLAUDE.md", sub_content);
+}
+
+#[given("a multi module project where project root has no Code Convention")]
+fn multi_module_no_project_code_convention(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    // Project root has only Project Convention, no Code Convention
+    let root_content = format!(
+        "# Root\n\n## Purpose\nRoot project.\n{}",
+        VALID_PROJECT_CONVENTION
+    );
+    create_file_at(&root, "CLAUDE.md", &root_content);
+
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = format!(
+        "# API Module\n\n## Purpose\nAPI module.\n{}",
+        VALID_CODE_CONVENTION
+    );
+    create_file_at(&sub, "CLAUDE.md", &sub_content);
+}
+
 #[when("I validate conventions")]
 fn validate_conventions(world: &mut TestWorld) {
     let root = get_temp_path(world);
