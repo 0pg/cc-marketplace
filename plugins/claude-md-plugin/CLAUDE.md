@@ -377,6 +377,8 @@ User: /debug [--error "..."] [--test "..."]
 | `claude-md-parse` | CLI Subcommand (not a plugin skill) | CLAUDE.md 파싱 (`Bash`에서 `claude-md-core parse-claude-md`로 직접 호출) |
 | `schema-validate` | CLI Subcommand (not a plugin skill) | 스키마 검증 (`Bash`에서 `claude-md-core validate-schema`로 직접 호출) |
 | `format-exports` | CLI Subcommand (not a plugin skill) | analyze-code JSON → deterministic Exports 마크다운 생성 (`Bash`에서 `claude-md-core format-exports`로 직접 호출) |
+| `validate-convention` | CLI Subcommand (not a plugin skill) | Convention 섹션 검증 (`Bash`에서 `claude-md-core validate-convention`으로 직접 호출) |
+| `index-project` | CLI Subcommand (not a plugin skill) | 프로젝트 전체 인덱싱: tree-parse + code analysis (`Bash`에서 `claude-md-core index-project`로 직접 호출) |
 
 ## 불변식
 
