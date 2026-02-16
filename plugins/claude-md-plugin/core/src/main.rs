@@ -336,7 +336,7 @@ fn output_text(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match output_path {
         Some(path) => {
-            std::fs::write(path, text)
+            std::fs::write(path, format!("{}\n", text))
                 .map_err(|e| format!(
                     "Failed to write {} output to '{}': {} (check directory exists and permissions)",
                     command_name, path.display(), e

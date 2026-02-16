@@ -19,6 +19,21 @@ description: |
   ---end-validate-result---
   </assistant_response>
   </example>
+
+  <example>
+  <user_request>검증 대상: src/legacy</user_request>
+  <assistant_response>
+  1. Parse CLAUDE.md 2. IMPLEMENTS.md Presence 3. Structure/Exports/Dependencies/Behavior Drift 4. Save to ${TMP_DIR}
+
+  ---validate-result---
+  status: success
+  result_file: ${TMP_DIR}validate-src-legacy.md
+  directory: src/legacy
+  issues_count: 7
+  export_coverage: 62
+  ---end-validate-result---
+  </assistant_response>
+  </example>
 model: inherit
 color: yellow
 tools:

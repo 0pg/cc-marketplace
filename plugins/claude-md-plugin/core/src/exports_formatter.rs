@@ -436,6 +436,40 @@ mod tests {
     }
 
     #[test]
+    fn test_enum_with_empty_variants() {
+        let mut exports = empty_exports();
+        exports.enums.push(ExportedEnum {
+            name: "Color".to_string(),
+            variants: Some(vec![]),
+        });
+        let result = format_exports(&exports);
+        assert_eq!(result, "- `Color`");
+    }
+
+    #[test]
+    fn test_class_with_empty_signature() {
+        let mut exports = empty_exports();
+        exports.classes.push(ExportedClass {
+            name: "SimpleClass".to_string(),
+            signature: Some(String::new()),
+            description: None,
+        });
+        let result = format_exports(&exports);
+        assert_eq!(result, "- `SimpleClass`");
+    }
+
+    #[test]
+    fn test_variable_with_empty_type() {
+        let mut exports = empty_exports();
+        exports.variables.push(ExportedVariable {
+            name: "DEFAULT".to_string(),
+            var_type: Some(String::new()),
+        });
+        let result = format_exports(&exports);
+        assert_eq!(result, "- `DEFAULT`");
+    }
+
+    #[test]
     fn test_all_categories_comprehensive() {
         let mut exports = empty_exports();
         exports.functions.push(ExportedFunction {

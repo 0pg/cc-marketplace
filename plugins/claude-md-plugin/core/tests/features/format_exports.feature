@@ -70,6 +70,16 @@ Feature: Format Exports
       - `MAX_RETRIES: number`
       """
 
+  Scenario: Single class with signature
+    Given an analyze-code JSON with exports:
+      | category | name         | signature                    |
+      | class    | TokenManager | TokenManager(secret: string) |
+    When I format the exports
+    Then the formatted output should be:
+      """
+      - `TokenManager(secret: string)`
+      """
+
   Scenario: Single re-export with source
     Given an analyze-code JSON with exports:
       | category  | name   | source   |

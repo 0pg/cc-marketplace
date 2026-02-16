@@ -169,6 +169,8 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 ## 참조 자료
 
+- `references/compiler-workflow.md`: compiler agent 워크플로우 상세
+- `references/workflow.md`: compile skill 워크플로우 상세
 - `examples/generate-result.json`: compiler agent 결과 JSON 예시
 
 ## DO / DON'T
