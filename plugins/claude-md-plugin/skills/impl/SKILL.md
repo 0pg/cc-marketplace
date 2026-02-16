@@ -122,6 +122,34 @@ impl agent를 Task로 호출합니다. 프롬프트에 사용자 요구사항(`u
 6.5. **⭐ Plan Preview** — 생성 계획 요약 제시 → 사용자 승인 (approve/modify/cancel)
 7. 최종 저장 (승인된 경우만)
 
+### 3.5. 리뷰 (optional)
+
+```bash
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+mkdir -p "$TMP_DIR"
+```
+
+impl agent 결과의 status가 success인 경우에만:
+
+```
+AskUserQuestion: "생성된 CLAUDE.md + IMPLEMENTS.md를 리뷰할까요?"
+옵션:
+  - "리뷰 실행 (Recommended)": 4차원 품질 리뷰 수행
+  - "건너뛰기": 리뷰 없이 결과 보고
+```
+
+"리뷰 실행" 선택 시:
+```
+Task(impl-reviewer):
+  CLAUDE.md: {result.claude_md_file}
+  IMPLEMENTS.md: {result.implements_md_file}
+  원본 요구사항: {user_requirement}
+  스키마 검증 결과: N/A (impl agent가 이미 검증 완료)
+  결과 저장: ${TMP_DIR}impl-review-{dir-safe-name}.md
+```
+
+description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
+
 ### 4. 최종 결과 보고
 
 ```
@@ -147,6 +175,13 @@ impl agent를 Task로 호출합니다. 프롬프트에 사용자 요구사항(`u
 다음 단계:
   - /compile로 코드 구현 가능 (IMPLEMENTS.md Implementation Section도 업데이트됨)
   - /validate로 문서-코드 일치 검증 가능
+```
+
+리뷰를 실행한 경우, 최종 결과에 리뷰 결과 블록 추가:
+```
+리뷰 결과:
+  전체 점수: {overall_score}/100 ({grade})
+  이슈: {issues_count}개 (수정 적용: {fixes_applied}개)
 ```
 
 사용자가 Plan Preview에서 취소한 경우:

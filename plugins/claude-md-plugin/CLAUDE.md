@@ -172,6 +172,15 @@ User: /impl "요구사항"
 │ 6. CLAUDE.md 생성 (WHAT)                    │
 │ 7. IMPLEMENTS.md Planning Section 생성 (HOW)│
 │ 8. Bash(claude-md-core validate-schema) → 검증│
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼ (optional)
+┌─────────────────────────────────────────────┐
+│ impl-reviewer AGENT (optional review)       │
+│                                             │
+│ Phase 2-5: D1~D4 차원 분석                  │
+│ Phase 6: 점수 산출                          │
+│ Phase 7: 대화형 수정 제안 + Edit 적용       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -239,6 +248,30 @@ User: /compile [--all]
 │ [GREEN] 구현 생성 (최대 3회 재시도)         │
 │ [REFACTOR] 프로젝트 컨벤션 적용             │
 │ IMPLEMENTS.md Implementation Section 업데이트│
+└─────────────────────────────────────────────┘
+```
+
+### /impl-review (CLAUDE.md + IMPLEMENTS.md 품질 리뷰)
+
+```
+User: /impl-review [path]
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ impl-review SKILL (Entry Point)             │
+│                                             │
+│ 1. 인자 파싱 & 대상 해석                    │
+│ 2. Bash(claude-md-core validate-schema)     │
+│ 3. Task(impl-reviewer) → 4차원 리뷰        │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│ impl-reviewer AGENT                         │
+│                                             │
+│ Phase 2-5: D1~D4 차원 분석                  │
+│ Phase 6: 점수 산출 & 등급 판정              │
+│ Phase 7: 대화형 수정 제안 + Edit 적용       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -312,6 +345,7 @@ User: /debug [--error "..."] [--test "..."]
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
 | `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
+| `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
 
 ## Commands
@@ -330,6 +364,7 @@ User: /debug [--error "..."] [--test "..."]
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
 | `/debug` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
+| `/impl-review` | Entry Point | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
@@ -362,6 +397,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 /debug → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile로 Source Code 재생성
+/impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙
