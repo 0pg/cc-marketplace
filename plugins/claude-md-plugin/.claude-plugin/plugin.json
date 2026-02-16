@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "2.17.0",
+  "version": "2.18.1",
   "description": "CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인. /impl으로 요구사항에서 CLAUDE.md 생성, /decompile로 소스코드에서 CLAUDE.md 추출, /compile로 코드 생성, /validate로 일치 검증, /debug로 런타임 버그 3계층 추적",
   "author": {
     "name": "jhk"
@@ -25,6 +25,7 @@
   ],
   "agents": [
     "./agents/compiler.md",
+    "./agents/debug-layer-analyzer.md",
     "./agents/debugger.md",
     "./agents/decompiler.md",
     "./agents/dep-explorer.md",

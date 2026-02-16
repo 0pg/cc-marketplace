@@ -274,14 +274,24 @@ User: /debug [--error "..."] [--test "..."]
                      │
                      ▼
 ┌─────────────────────────────────────────────┐
-│ debugger AGENT (3-Layer Analysis)           │
+│ debugger AGENT (Orchestrator)               │
 │                                             │
-│ L3: 코드 분석 (에러 위치, 심볼 추적)        │
-│ L1: CLAUDE.md 교차 검증 (Exports, Behavior) │
-│ L2: IMPLEMENTS.md 교차 검증 (Algorithm, EH) │
-│ Root Cause 분류 → CLAUDE.md/IMPLEMENTS.md 수정│
-│ → `/compile` 권장으로 소스코드 재생성       │
-└─────────────────────────────────────────────┘
+│ Phase 1-2: 에러 재현 + 파싱 (inline)        │
+│ Phase 2.5: CLI → 파일 저장 (context 0)      │
+│ Phase 3: Task(debug-layer-analyzer, L3)     │
+│ Phase 4: Task(debug-layer-analyzer, L1)     │
+│ Phase 5: Task(debug-layer-analyzer, L2)     │
+│ Phase 6: Findings Read → 교차 분석          │
+│ Phase 7: Fix 제안 + 사용자 승인 + Edit      │
+└────────────────────┬────────────────────────┘
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+   ┌────────┐  ┌────────┐  ┌────────┐
+   │ L3 분석 │  │ L1 분석 │  │ L2 분석 │
+   │ (code)  │  │ (spec)  │  │ (plan)  │
+   └────────┘  └────────┘  └────────┘
+   debug-layer-analyzer (context 격리)
 ```
 
 ### 설계 원칙
@@ -300,7 +310,8 @@ User: /debug [--error "..."] [--test "..."]
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
-| `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
+| `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
+| `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
 
 ## Commands
