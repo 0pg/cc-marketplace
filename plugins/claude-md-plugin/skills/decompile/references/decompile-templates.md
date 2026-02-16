@@ -128,9 +128,36 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 ## Exports 형식 가이드
 
-### 상세 형식 (권장 - 복잡한 모듈)
+### Deterministic Skeleton + LLM Review
 
-각 함수는 시그니처와 함께 도메인 맥락을 포함:
+**Exports 섹션은 2단계로 생성됩니다:**
+
+1. **Phase 2.5**: `format-exports` CLI가 analyze-code JSON에서 deterministic 마크다운 골격을 생성
+2. **Phase 4**: LLM이 골격에 description만 추가 (시그니처/export 수정 금지)
+
+`format-exports` 출력 예시:
+```markdown
+### Functions
+- `validateToken(token: string): Promise<Claims>`
+- `generateToken(userId: string, role: string): string`
+
+### Types
+- `Claims { userId: string, role: Role }`
+```
+
+LLM review 후:
+```markdown
+### Functions
+- `validateToken(token: string): Promise<Claims>` - JWT 토큰을 검증하고 Claims를 추출
+- `generateToken(userId: string, role: string): string` - 새 JWT 토큰 생성
+
+### Types
+- `Claims { userId: string, role: Role }` - 인증된 사용자 정보
+```
+
+### 상세 형식 (복잡한 모듈에서 추가 가능)
+
+public interface가 5개 초과이거나 도메인 맥락이 풍부한 경우, `format-exports` 골격을 기반으로 각 항목에 상세 설명 블록을 추가할 수 있습니다:
 
 ```markdown
 #### validateToken
@@ -143,18 +170,9 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - **도메인 맥락**: PCI-DSS 준수를 위해 7일 만료 정책 적용
 ```
 
-### 간략 형식 (단순한 모듈)
+**주의**: 상세 형식에서도 시그니처는 `format-exports` 출력을 그대로 사용합니다.
 
-```markdown
-### Functions
-- `functionName(param: Type, param2: Type) -> ReturnType`
-- `anotherFunction(param: Type) -> ReturnType`
-
-### Types
-- `TypeName { field: Type, field2: Type }`
-```
-
-**선택 기준**: public interface가 5개 이하이고 도메인 맥락이 적으면 간략 형식, 그 외 상세 형식.
+**선택 기준**: public interface가 5개 이하이고 도메인 맥락이 적으면 간략 형식(description만 추가), 그 외 상세 형식.
 
 ---
 

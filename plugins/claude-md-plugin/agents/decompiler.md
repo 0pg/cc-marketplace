@@ -128,12 +128,28 @@ $CLI_PATH analyze-code \
 - **CLAUDE.md용 (WHAT):** Exports, Dependencies, Behaviors, Contracts, Protocol
 - **IMPLEMENTS.md용 (HOW):** Algorithm, Key Constants, Error Handling, State Management
 
+### Phase 2.5: Exports 마크다운 생성 (deterministic)
+
+`format-exports` CLI로 analyze-code JSON에서 Exports 섹션 마크다운을 생성합니다:
+```bash
+$CLI_PATH format-exports \
+  --input .claude/extract-results/{output_name}-analysis.json \
+  --output .claude/extract-results/{output_name}-exports.md
+```
+
+이 출력이 Phase 4 CLAUDE.md의 Exports 섹션 골격(skeleton)이 됩니다.
+
 ### Phase 3-4: 질문 + 문서 생성
 
 상세 워크플로우는 위 Reference 파일 참조. 요약:
 1. 불명확한 부분 AskUserQuestion (Domain Context, Implementation 관련)
-2. CLAUDE.md 초안 생성 (WHAT) - 자식 CLAUDE.md Purpose 추출 포함
+2. CLAUDE.md 초안 생성 (WHAT) - **Exports 섹션은 Phase 2.5의 format-exports 출력을 그대로 사용**하고 각 항목에 description만 추가. 자식 CLAUDE.md Purpose 추출 포함.
 3. IMPLEMENTS.md 초안 생성 (HOW - Planning + Implementation 전체 섹션)
+
+**Exports 섹션 규칙:**
+- `format-exports` 출력을 Exports 섹션 기반으로 사용
+- LLM은 각 항목에 ` - description` 추가만 허용
+- 시그니처 수정, export 추가/삭제 금지
 
 ### Phase 5: 스키마 검증 (1회)
 

@@ -13,6 +13,11 @@ use claude_md_core::schema_validator::ValidationResult;
 use claude_md_core::code_analyzer::AnalysisResult;
 use claude_md_core::convention_validator::ConventionValidationResult;
 use claude_md_core::compile_target_resolver::{CompileTargetResolver, DiffResult};
+use claude_md_core::exports_formatter;
+use claude_md_core::code_analyzer::{
+    Exports, ExportedFunction, ExportedType, ExportedClass, ExportedEnum,
+    ExportedVariable, ReExport, TypeKind,
+};
 
 #[derive(Debug, Default, World)]
 pub struct TestWorld {
@@ -34,6 +39,10 @@ pub struct TestWorld {
     // Compile target resolver fields
     diff_result: Option<DiffResult>,
     non_git_temp_dir: Option<TempDir>,
+    // Format exports fields
+    format_exports_input: Option<Exports>,
+    format_exports_output: Option<String>,
+    format_exports_output2: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -1688,6 +1697,158 @@ fn should_get_dep_warning(world: &mut TestWorld, changed: String, affected: Stri
         "Expected dependency warning for '{}' affecting '{}', got: {:?}",
         changed, affected, result.dependency_warnings,
     );
+}
+
+// ============== Format Exports Steps ==============
+
+#[given("an analyze-code JSON with no exports")]
+fn given_empty_exports(world: &mut TestWorld) {
+    world.format_exports_input = Some(Exports::default());
+}
+
+#[given("an analyze-code JSON with exports:")]
+fn given_exports_table(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let mut exports = Exports::default();
+    if let Some(table) = &step.table {
+        let headers: Vec<&str> = table.rows[0].iter().map(|s| s.as_str()).collect();
+        for row in table.rows.iter().skip(1) {
+            let get = |col: &str| -> String {
+                headers.iter().position(|&h| h == col)
+                    .and_then(|i| row.get(i))
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default()
+            };
+            let category = get("category");
+            match category.as_str() {
+                "function" => {
+                    exports.functions.push(ExportedFunction {
+                        name: get("name"),
+                        signature: get("signature"),
+                        description: None,
+                    });
+                }
+                "type" => {
+                    let def = get("definition");
+                    exports.types.push(ExportedType {
+                        name: get("name"),
+                        kind: TypeKind::Interface,
+                        definition: if def.is_empty() { None } else { Some(def) },
+                        description: None,
+                    });
+                }
+                "class" => {
+                    let sig = get("signature");
+                    exports.classes.push(ExportedClass {
+                        name: get("name"),
+                        signature: if sig.is_empty() { None } else { Some(sig) },
+                        description: None,
+                    });
+                }
+                "enum" => {
+                    let variants_str = get("variants");
+                    let variants = if variants_str.is_empty() {
+                        None
+                    } else {
+                        Some(variants_str.split(',').map(|s| s.trim().to_string()).collect())
+                    };
+                    exports.enums.push(ExportedEnum {
+                        name: get("name"),
+                        variants,
+                    });
+                }
+                "variable" => {
+                    let vt = get("var_type");
+                    exports.variables.push(ExportedVariable {
+                        name: get("name"),
+                        var_type: if vt.is_empty() { None } else { Some(vt) },
+                    });
+                }
+                "re_export" => {
+                    exports.re_exports.push(ReExport {
+                        name: get("name"),
+                        source: get("source"),
+                    });
+                }
+                other => panic!("Unknown export category: {}", other),
+            }
+        }
+    }
+    world.format_exports_input = Some(exports);
+}
+
+#[when("I format the exports")]
+fn when_format_exports(world: &mut TestWorld) {
+    let exports = world.format_exports_input.as_ref().expect("No exports input");
+    world.format_exports_output = Some(exports_formatter::format_exports(exports));
+}
+
+#[when("I format the exports twice")]
+fn when_format_exports_twice(world: &mut TestWorld) {
+    let exports = world.format_exports_input.as_ref().expect("No exports input");
+    world.format_exports_output = Some(exports_formatter::format_exports(exports));
+    world.format_exports_output2 = Some(exports_formatter::format_exports(exports));
+}
+
+#[then(expr = "the formatted output should be {string}")]
+fn then_output_equals_inline(world: &mut TestWorld, expected: String) {
+    let output = world.format_exports_output.as_ref().expect("No format output");
+    assert_eq!(output, &expected, "Formatted output mismatch");
+}
+
+#[then("the formatted output should be:")]
+fn then_output_equals_docstring(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let expected = step.docstring.as_ref().expect("No docstring in step").trim();
+    let output = world.format_exports_output.as_ref().expect("No format output");
+    assert_eq!(output.trim(), expected, "Formatted output mismatch");
+}
+
+#[then(expr = "the formatted output should contain subsection {string}")]
+fn then_output_contains_subsection(world: &mut TestWorld, subsection: String) {
+    let output = world.format_exports_output.as_ref().expect("No format output");
+    assert!(
+        output.contains(&subsection),
+        "Expected subsection '{}' in output:\n{}",
+        subsection, output
+    );
+}
+
+#[then(expr = "the formatted output should not contain subsection {string}")]
+fn then_output_not_contains_subsection(world: &mut TestWorld, subsection: String) {
+    let output = world.format_exports_output.as_ref().expect("No format output");
+    assert!(
+        !output.contains(&subsection),
+        "Did not expect subsection '{}' in output:\n{}",
+        subsection, output
+    );
+}
+
+#[then("the subsection order should be:")]
+fn then_subsection_order(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let output = world.format_exports_output.as_ref().expect("No format output");
+    let actual_sections: Vec<&str> = output
+        .lines()
+        .filter(|l| l.starts_with("### "))
+        .map(|l| l.trim_start_matches("### "))
+        .collect();
+
+    let expected_sections: Vec<String> = step.table.as_ref()
+        .expect("No table in step")
+        .rows.iter().skip(1)
+        .filter_map(|row| row.first().cloned())
+        .collect();
+
+    assert_eq!(
+        actual_sections,
+        expected_sections.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+        "Subsection order mismatch"
+    );
+}
+
+#[then("both outputs should be identical")]
+fn then_both_outputs_identical(world: &mut TestWorld) {
+    let output1 = world.format_exports_output.as_ref().expect("No first output");
+    let output2 = world.format_exports_output2.as_ref().expect("No second output");
+    assert_eq!(output1, output2, "Outputs should be identical for determinism");
 }
 
 #[tokio::main]

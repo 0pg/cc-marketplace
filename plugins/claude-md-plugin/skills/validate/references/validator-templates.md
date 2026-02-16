@@ -58,7 +58,29 @@ CLAUDE.md의 Behavior 섹션과 실제 동작의 불일치.
 - `missing_count`: MISSING으로 판정된 수
 - `total_exports + missing_count`가 0이면 coverage = 100
 
-## Language-Specific Export Patterns
+## Exports Ground Truth (Primary Method)
+
+`format-exports` CLI를 사용하여 코드에서 deterministic한 expected exports를 생성합니다:
+
+```bash
+# 1. 코드 분석
+claude-md-core analyze-code --path {directory} --output ${TMP_DIR}validate-{name}-analysis.json
+
+# 2. Exports 마크다운 생성
+claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --output ${TMP_DIR}validate-{name}-expected-exports.md
+```
+
+생성된 expected exports 파일과 CLAUDE.md의 Exports 섹션을 비교하여 STALE/MISSING/MISMATCH를 판정합니다.
+
+**비교 방법:**
+- expected exports의 각 항목(backtick 내 이름)과 CLAUDE.md Exports의 각 항목을 이름 기준으로 매칭
+- 이름이 expected에만 있으면 → MISSING
+- 이름이 CLAUDE.md에만 있으면 → STALE
+- 양쪽에 있으나 시그니처가 다르면 → MISMATCH (description 차이는 무시)
+
+## Language-Specific Export Patterns (Fallback)
+
+`format-exports` CLI 실행이 실패할 때 사용하는 Grep 기반 fallback 방법입니다.
 
 디렉토리 내 파일 확장자로 언어를 감지합니다 (.ts/.tsx → TypeScript, .py → Python, .go → Go, .rs → Rust, .java → Java, .kt → Kotlin).
 

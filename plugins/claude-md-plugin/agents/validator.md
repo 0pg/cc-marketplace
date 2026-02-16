@@ -85,14 +85,24 @@ Structure에 문서화되어 있으나 실제로 존재하지 않는 파일이 O
 
 #### Exports Drift
 
-**STALE**: 문서의 export가 코드에 없음
-각 문서화된 export에 대해 `{directory}`에서 Grep으로 검색합니다. 코드에서 찾을 수 없으면 STALE로 판정합니다.
+**Ground Truth 생성**: `format-exports` CLI로 코드에서 expected exports 마크다운을 생성합니다:
+```bash
+claude-md-core analyze-code --path {directory} --output ${TMP_DIR}validate-{dir-safe-name}-analysis.json
+claude-md-core format-exports --input ${TMP_DIR}validate-{dir-safe-name}-analysis.json --output ${TMP_DIR}validate-{dir-safe-name}-expected-exports.md
+```
 
-**MISSING**: 코드의 public export가 문서에 없음
-디렉토리 내 파일 확장자로 언어를 감지하고, validator-templates.md의 Language-Specific Export Patterns를 참조하여 코드의 public export를 검색합니다. 코드에서 발견된 public export가 문서에 없으면 MISSING으로 판정합니다.
+생성된 expected exports와 CLAUDE.md의 Exports 섹션을 비교합니다:
+
+**STALE**: 문서의 export가 expected에 없음
+CLAUDE.md에 문서화된 export가 `format-exports` ground truth에 없으면 STALE로 판정합니다.
+
+**MISSING**: expected의 export가 문서에 없음
+`format-exports` ground truth에 있으나 CLAUDE.md에 없는 export는 MISSING으로 판정합니다.
 
 **MISMATCH**: 시그니처 불일치
-시그니처가 명시된 각 문서화된 export에 대해 코드에서 실제 시그니처를 추출합니다. 시그니처가 다르면 MISMATCH로 판정합니다 (문서: X, 실제: Y 형태로 기록).
+양쪽에 같은 이름이 있으나 시그니처가 다르면 MISMATCH로 판정합니다 (문서: X, 실제: Y 형태로 기록).
+
+**Fallback**: `analyze-code` 또는 `format-exports` CLI 실행이 실패하면, 기존 Grep 기반 방식으로 fallback합니다 (validator-templates.md의 Language-Specific Export Patterns 참조).
 
 #### Export 커버리지 계산
 

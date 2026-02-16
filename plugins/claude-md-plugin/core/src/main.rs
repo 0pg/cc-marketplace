@@ -11,6 +11,7 @@ use claude_md_core::code_analyzer;
 use claude_md_core::dependency_resolver::DependencyResolver;
 use claude_md_core::claude_md_scanner::ClaudeMdScanner;
 use claude_md_core::compile_target_resolver::CompileTargetResolver;
+use claude_md_core::exports_formatter;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -141,6 +142,17 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Format analyze-code exports into deterministic CLAUDE.md Exports markdown
+    FormatExports {
+        /// analyze-code output JSON file
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Output markdown file path (stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -246,6 +258,24 @@ fn main() {
             let result = resolver.resolve(root);
             output_result(&result, output.as_ref(), "diff-compile-targets")
         }
+        Commands::FormatExports { input, output } => {
+            match std::fs::read_to_string(input) {
+                Ok(json) => match serde_json::from_str::<code_analyzer::AnalysisResult>(&json) {
+                    Ok(analysis) => {
+                        let markdown = exports_formatter::format_exports(&analysis.exports);
+                        output_text(&markdown, output.as_ref(), "format-exports")
+                    }
+                    Err(e) => Err(format!(
+                        "Failed to parse analyze-code JSON from '{}': {}",
+                        input.display(), e
+                    ).into()),
+                },
+                Err(e) => Err(format!(
+                    "Failed to read input file '{}': {}",
+                    input.display(), e
+                ).into()),
+            }
+        }
         Commands::IndexProject { root, output } => {
             let tree_parser = TreeParser::new();
             let tree_result = tree_parser.parse(root);
@@ -291,11 +321,33 @@ fn main() {
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
             Commands::IndexProject { .. } => "index-project",
+            Commands::FormatExports { .. } => "format-exports",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
         std::process::exit(1);
     }
+}
+
+fn output_text(
+    text: &str,
+    output_path: Option<&PathBuf>,
+    command_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match output_path {
+        Some(path) => {
+            std::fs::write(path, text)
+                .map_err(|e| format!(
+                    "Failed to write {} output to '{}': {} (check directory exists and permissions)",
+                    command_name, path.display(), e
+                ))?;
+            println!("Output written to: {}", path.display());
+        }
+        None => {
+            println!("{}", text);
+        }
+    }
+    Ok(())
 }
 
 fn output_result<T: serde::Serialize>(
