@@ -172,10 +172,10 @@ pub struct Dependencies {
     /// External dependencies (third-party packages)
     pub external: Vec<String>,
     /// Resolved internal dependencies (populated by DependencyResolver)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub internal: Vec<InternalDependency>,
     /// Raw internal import paths (populated by analyzers, before resolution)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub internal_raw: Vec<String>,
 }
 

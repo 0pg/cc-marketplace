@@ -139,12 +139,28 @@ $CLI_PATH format-exports \
 
 이 출력이 Phase 4 CLAUDE.md의 Exports 섹션 **후보(candidates)** 목록이 됩니다.
 
+### Phase 2.5b: 전체 분석 요약 생성
+
+```bash
+$CLI_PATH format-analysis \
+  --input .claude/extract-results/{output_name}-analysis.json \
+  --output .claude/extract-results/{output_name}-summary.md
+```
+
+이 출력이 Phase 3-4에서 Behaviors, Dependencies, Contracts, Protocol의 **primary data source**입니다.
+
 ### Phase 3-4: 질문 + 문서 생성
 
 상세 워크플로우는 위 Reference 파일 참조. 요약:
 1. 불명확한 부분 AskUserQuestion (Domain Context, Implementation 관련)
 2. CLAUDE.md 초안 생성 (WHAT) - **Exports 섹션은 Phase 2.5의 format-exports 출력을 후보(candidates)로 사용**하고 LLM이 코드를 읽고 최종 public exports를 결정. 자식 CLAUDE.md Purpose 추출 포함.
 3. IMPLEMENTS.md 초안 생성 (HOW - Planning + Implementation 전체 섹션)
+
+**데이터 소스 우선순위:**
+1. `format-exports` 출력 ({output_name}-exports.md) → Exports 후보
+2. `format-analysis` 출력 ({output_name}-summary.md) → Behaviors, Dependencies, Contracts, Protocol
+3. 자식 CLAUDE.md → Purpose 추출
+4. 소스 파일 직접 읽기 → Domain Context에서 추론 불가한 비즈니스 맥락만
 
 **Exports 섹션 규칙 (Export Candidates + LLM Review):**
 - `format-exports` 출력은 export **후보(candidates)** 목록
@@ -215,8 +231,10 @@ Purpose, Exports, Behavior, Contract, Protocol, Domain Context
 
 ## Context 효율성
 
-- 전체 파일을 읽지 않고 symbol overview 우선 사용
-- 필요한 함수만 선택적으로 읽기
+- 전체 파일을 읽지 않고 Grep으로 특정 함수/타입 검색 우선
+- 필요한 함수만 선택적으로 읽기 (Read with offset+limit)
+- `format-analysis` 출력(summary.md)에서 먼저 확인 — Behaviors, Dependencies, Contracts, Protocol
+- 소스 파일 직접 읽기는 Domain Context 파악에만 사용 (최대 2-3개 파일, 각 50-100줄 이하)
 - CLAUDE.md + IMPLEMENTS.md는 대상 디렉토리에 직접 Write (${TMP_DIR} 미사용)
 - **최종 응답은 result block만 출력** (진행 상황 메시지 미포함)
 - tree.json 정보는 jq로 필요한 부분만 조회

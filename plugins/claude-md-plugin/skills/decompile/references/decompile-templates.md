@@ -53,7 +53,8 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 ## Phase 4: CLAUDE.md 초안 생성 (WHAT)
 
-분석 결과를 기반으로 CLAUDE.md를 직접 생성합니다:
+`format-analysis` 출력(`{output_name}-summary.md`)을 primary data source로 사용하여 CLAUDE.md를 생성합니다.
+Behaviors, Dependencies, Contracts, Protocol은 summary.md에서 확인하고, 소스 파일 직접 읽기는 Domain Context 파악에만 사용합니다:
 
 1. **자식 CLAUDE.md Purpose 추출**: 각 자식 CLAUDE.md 파일이 존재하면 읽어서 Purpose 섹션을 추출합니다.
 2. **CLAUDE.md 템플릿 생성**: 다음 템플릿에 맞게 CLAUDE.md를 작성합니다:
@@ -310,6 +311,8 @@ Protocol 정보 추출 소스:
 
 ## IMPLEMENTS.md 축소 예시 (auth/)
 
+핵심 구조만 표시 (전체 섹션은 Phase 4.5 템플릿 참조):
+
 ```markdown
 # auth/IMPLEMENTS.md
 
@@ -318,17 +321,6 @@ Protocol 정보 추출 소스:
 - `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 기존 프로젝트 호환)
 ### Internal
 - `../utils/crypto`: hashPassword, verifyPassword
-
-## Implementation Approach
-### 전략
-- HMAC-SHA256 기반 토큰 검증, 메모리 캐시로 성능 최적화
-### 고려했으나 선택하지 않은 대안
-- RSA 서명: 키 관리 복잡성 → 내부 서비스라 HMAC 충분
-
-## Technology Choices
-| 선택 | 대안 | 선택 이유 |
-|------|------|----------|
-| jsonwebtoken | jose | 기존 코드베이스 호환성 |
 
 ## Algorithm
 ### tokenCache 무효화 전략
@@ -339,63 +331,4 @@ Protocol 정보 추출 소스:
 | Name | Value | Rationale | 영향 범위 |
 |------|-------|-----------|----------|
 | TOKEN_EXPIRY_DAYS | 7 | PCI-DSS 요구사항 | 보안 정책 |
-
-## Error Handling
-| Error | Retry | Recovery | Log Level |
-|-------|-------|----------|-----------|
-| TokenExpiredError | ✗ | 401 반환, 재로그인 유도 | WARN |
-
-## State Management
-- tokenCache: Map<userId, CachedClaims>, 메모리 전용, 5분 주기 정리
-
-## Implementation Guide
-- 토큰 검증 → ../jwt/CLAUDE.md#validateToken
-- 암호화 → ../utils/crypto/CLAUDE.md#hashPassword
 ```
-
----
-
-## CLI 출력 JSON 구조
-
-### boundary-resolve 출력
-
-```json
-{
-  "path": "src/auth",
-  "direct_files": [{"name": "index.ts", "type": "typescript"}, ...],
-  "subdirs": [{"name": "jwt", "has_claude_md": true}, ...],
-  "source_file_count": 3,
-  "subdir_count": 2,
-  "violations": [{"violation_type": "Parent", "reference": "../utils", "line_number": 15}]
-}
-```
-
-### code-analyze 출력
-
-```json
-{
-  "path": "src/auth",
-  "exports": {
-    "functions": [{"name": "validateToken", "signature": "validateToken(token: string): Promise<Claims>", "description": "..."}],
-    "types": [...],
-    "classes": [...]
-  },
-  "dependencies": {
-    "external": ["jsonwebtoken"],
-    "internal_raw": ["./types", "../utils/crypto"],
-    "internal": [
-      {"raw_import": "./types", "resolved_dir": "src/auth/types", "claude_md_path": "src/auth/types/CLAUDE.md", "resolution": "Exact"}
-    ]
-  },
-  "behaviors": [{"input": "유효한 JWT 토큰", "output": "Claims 객체 반환", "category": "success"}],
-  "analyzed_files": ["index.ts", "middleware.ts"]
-}
-```
-Note: `internal` 필드는 `--tree-result`가 주어졌을 때만 채워짐.
-
-### schema-validate 출력
-
-```json
-{"file": "path/CLAUDE.md", "valid": true, "errors": [], "warnings": []}
-```
-`valid: true`이면 통과. `valid: false`이면 `errors` 배열에서 이슈 확인.

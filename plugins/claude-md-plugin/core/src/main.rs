@@ -12,6 +12,7 @@ use claude_md_core::dependency_resolver::DependencyResolver;
 use claude_md_core::claude_md_scanner::ClaudeMdScanner;
 use claude_md_core::compile_target_resolver::CompileTargetResolver;
 use claude_md_core::exports_formatter;
+use claude_md_core::analysis_formatter;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -153,6 +154,17 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Format full analyze-code result into compact markdown summary
+    FormatAnalysis {
+        /// analyze-code output JSON file
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Output markdown file path (stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -276,6 +288,24 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::FormatAnalysis { input, output } => {
+            match std::fs::read_to_string(input) {
+                Ok(json) => match serde_json::from_str::<code_analyzer::AnalysisResult>(&json) {
+                    Ok(analysis) => {
+                        let markdown = analysis_formatter::format_analysis(&analysis);
+                        output_text(&markdown, output.as_ref(), "format-analysis")
+                    }
+                    Err(e) => Err(format!(
+                        "Failed to parse analyze-code JSON from '{}': {}",
+                        input.display(), e
+                    ).into()),
+                },
+                Err(e) => Err(format!(
+                    "Failed to read input file '{}': {}",
+                    input.display(), e
+                ).into()),
+            }
+        }
         Commands::IndexProject { root, output } => {
             let tree_parser = TreeParser::new();
             let tree_result = tree_parser.parse(root);
@@ -322,6 +352,7 @@ fn main() {
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
             Commands::IndexProject { .. } => "index-project",
             Commands::FormatExports { .. } => "format-exports",
+            Commands::FormatAnalysis { .. } => "format-analysis",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
