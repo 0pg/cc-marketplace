@@ -105,6 +105,7 @@ pub enum TypeKind {
     Enum,
     Class,
     DataClass,
+    Trait,
 }
 
 /// An exported class.

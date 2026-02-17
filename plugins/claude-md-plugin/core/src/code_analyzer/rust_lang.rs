@@ -5,7 +5,8 @@ use regex::Regex;
 
 use super::{
     AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedFunction, ExportedType,
-    FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, TypeKind, ExportedEnum,
+    ExportedVariable, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, ReExport,
+    TypeKind, ExportedEnum,
 };
 
 /// Analyzer for Rust files.
@@ -18,6 +19,13 @@ pub struct RustAnalyzer {
     use_re: Regex,
     derive_crate_re: Regex,
     error_enum_variant_re: Regex,
+    // Export candidates patterns
+    pub_const_re: Regex,
+    pub_static_re: Regex,
+    pub_type_alias_re: Regex,
+    pub_trait_re: Regex,
+    pub_use_re: Regex,
+    pub_use_single_re: Regex,
     // Contract extraction patterns
     doc_comment_fn_re: Regex,
     arguments_re: Regex,
@@ -45,6 +53,36 @@ impl RustAnalyzer {
             // pub enum EnumName
             pub_enum_re: Regex::new(
                 r"pub\s+enum\s+(\w+)"
+            ).unwrap(),
+
+            // pub const NAME: Type = value
+            pub_const_re: Regex::new(
+                r"pub\s+const\s+(\w+)\s*:\s*([^=]+?)\s*="
+            ).unwrap(),
+
+            // pub static NAME: Type = value
+            pub_static_re: Regex::new(
+                r"pub\s+static\s+(\w+)\s*:\s*([^=]+?)\s*="
+            ).unwrap(),
+
+            // pub type Name = ...
+            pub_type_alias_re: Regex::new(
+                r"pub\s+type\s+(\w+)(?:<[^>]*>)?\s*="
+            ).unwrap(),
+
+            // pub trait Name
+            pub_trait_re: Regex::new(
+                r"pub\s+trait\s+(\w+)"
+            ).unwrap(),
+
+            // pub use path::{Name1, Name2} (group re-export)
+            pub_use_re: Regex::new(
+                r"pub\s+use\s+(\w+(?:::\w+)*)::\{([^}]+)\}"
+            ).unwrap(),
+
+            // pub use path::Name (single re-export, where Name is the last segment)
+            pub_use_single_re: Regex::new(
+                r"pub\s+use\s+(\w+(?:::\w+)*)::(\w+)\s*;"
             ).unwrap(),
 
             // use crate_name::...
@@ -331,6 +369,82 @@ impl LanguageAnalyzer for RustAnalyzer {
                         }
                     }
                 }
+            }
+        }
+
+        // Extract pub const
+        for cap in self.pub_const_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let const_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: const_type,
+            });
+        }
+
+        // Extract pub static
+        for cap in self.pub_static_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let static_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: static_type,
+            });
+        }
+
+        // Extract pub type aliases
+        for cap in self.pub_type_alias_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Type,
+                definition: None,
+                description: None,
+            });
+        }
+
+        // Extract pub traits
+        for cap in self.pub_trait_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Trait,
+                definition: None,
+                description: None,
+            });
+        }
+
+        // Extract pub use re-exports (group form: pub use path::{Name1, Name2})
+        for cap in self.pub_use_re.captures_iter(content) {
+            let path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let names = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            for name_part in names.split(',') {
+                let name = name_part.trim();
+                if !name.is_empty() {
+                    analysis.re_exports.push(ReExport {
+                        name: name.to_string(),
+                        source: path.to_string(),
+                    });
+                }
+            }
+        }
+
+        // Extract pub use re-exports (single form: pub use path::Name;)
+        for cap in self.pub_use_single_re.captures_iter(content) {
+            let path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let name = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            // Skip if already captured by group form
+            if !name.is_empty() && !analysis.re_exports.iter().any(|r| r.name == name) {
+                analysis.re_exports.push(ReExport {
+                    name: name.to_string(),
+                    source: path.to_string(),
+                });
             }
         }
 

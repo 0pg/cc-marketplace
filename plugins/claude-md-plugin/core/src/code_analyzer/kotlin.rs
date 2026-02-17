@@ -5,7 +5,8 @@ use regex::Regex;
 
 use super::{
     AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedClass, ExportedFunction,
-    ExportedType, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, TypeKind, ExportedEnum,
+    ExportedType, ExportedVariable, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol,
+    TypeKind, ExportedEnum,
 };
 
 /// Analyzer for Kotlin files.
@@ -32,6 +33,11 @@ pub struct KotlinAnalyzer {
     // Sealed class/interface patterns
     sealed_class_re: Regex,
     sealed_subtype_re: Regex,
+    // Export candidates patterns
+    top_level_val_re: Regex,
+    typealias_re: Regex,
+    object_re: Regex,
+    interface_re: Regex,
 }
 
 impl KotlinAnalyzer {
@@ -122,6 +128,26 @@ impl KotlinAnalyzer {
             // Matches: object Idle : State(), data class Loading(val x: Int) : State()
             sealed_subtype_re: Regex::new(
                 r"(?:object|data\s+class|class)\s+(\w+)\s*(?:\([^)]*\))?\s*:\s*(\w+)"
+            ).unwrap(),
+
+            // Top-level val/const val: val NAME = value, const val NAME = value
+            top_level_val_re: Regex::new(
+                r"(?m)^(?:const\s+)?val\s+(\w+)\s*(?::\s*(\S+))?\s*="
+            ).unwrap(),
+
+            // typealias Name = Type
+            typealias_re: Regex::new(
+                r"(?m)^typealias\s+(\w+)\s*="
+            ).unwrap(),
+
+            // object Name
+            object_re: Regex::new(
+                r"(?m)^(?:companion\s+)?object\s+(\w+)"
+            ).unwrap(),
+
+            // interface Name
+            interface_re: Regex::new(
+                r"(?m)^interface\s+(\w+)"
             ).unwrap(),
         }
     }
@@ -353,6 +379,67 @@ impl LanguageAnalyzer for KotlinAnalyzer {
             analysis.enums.push(ExportedEnum {
                 name: name.to_string(),
                 variants: None,
+            });
+        }
+
+        // Extract top-level val/const val
+        for cap in self.top_level_val_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let val_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            // Skip private vals
+            if private_funs.contains(&name.to_string()) {
+                continue;
+            }
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: val_type,
+            });
+        }
+
+        // Extract typealias
+        for cap in self.typealias_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Type,
+                definition: None,
+                description: None,
+            });
+        }
+
+        // Extract objects as classes
+        for cap in self.object_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            // Skip companion objects (they're part of a class, not standalone)
+            // The regex will match "companion object Name" — check if it's companion
+            // Actually the regex prefix `(?:companion\s+)?` makes it optional
+            // We want to capture both companion and standalone objects
+
+            // Skip if already captured as class
+            if analysis.classes.iter().any(|c| c.name == name) {
+                continue;
+            }
+
+            analysis.classes.push(ExportedClass {
+                name: name.to_string(),
+                signature: Some(format!("object {}", name)),
+                description: None,
+            });
+        }
+
+        // Extract interfaces as types
+        for cap in self.interface_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Trait,
+                definition: None,
+                description: None,
             });
         }
 

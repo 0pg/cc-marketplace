@@ -5,7 +5,8 @@ use regex::Regex;
 
 use super::{
     AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedClass, ExportedFunction,
-    ExportedType, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, TypeKind, ExportedEnum,
+    ExportedType, ExportedVariable, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol,
+    TypeKind, ExportedEnum,
 };
 
 /// Analyzer for Java files.
@@ -30,6 +31,9 @@ pub struct JavaAnalyzer {
     lifecycle_re: Regex,
     // Sealed class patterns (Java 17+)
     sealed_class_re: Regex,
+    // Export candidates patterns
+    public_static_final_re: Regex,
+    public_record_re: Regex,
 }
 
 impl JavaAnalyzer {
@@ -109,6 +113,16 @@ impl JavaAnalyzer {
             // sealed class ClassName permits SubType1, SubType2, ...
             sealed_class_re: Regex::new(
                 r"(?:public\s+)?sealed\s+(?:class|interface)\s+\w+\s+permits\s+([^{]+)"
+            ).unwrap(),
+
+            // public static final Type NAME = value
+            public_static_final_re: Regex::new(
+                r"public\s+static\s+final\s+(\S+)\s+([A-Z][A-Z0-9_]*)\s*="
+            ).unwrap(),
+
+            // public record Name(fields)
+            public_record_re: Regex::new(
+                r"public\s+record\s+(\w+)\s*\(([^)]*)\)"
             ).unwrap(),
         }
     }
@@ -335,6 +349,29 @@ impl LanguageAnalyzer for JavaAnalyzer {
             analysis.enums.push(ExportedEnum {
                 name: name.to_string(),
                 variants: None,
+            });
+        }
+
+        // Extract public static final constants
+        for cap in self.public_static_final_re.captures_iter(content) {
+            let const_type = cap.get(1).map(|m| m.as_str().trim().to_string());
+            let name = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: const_type,
+            });
+        }
+
+        // Extract public records as classes
+        for cap in self.public_record_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let fields = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+            analysis.classes.push(ExportedClass {
+                name: name.to_string(),
+                signature: Some(format!("record {}({})", name, fields)),
+                description: None,
             });
         }
 

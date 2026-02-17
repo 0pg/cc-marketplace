@@ -499,6 +499,175 @@ Feature: Code Analyze Skill
       | Invalid token | TokenError::Invalid  |
 
   # =============================================================================
+  # Export Candidates - TypeScript
+  # =============================================================================
+
+  Scenario: Extract TypeScript enum exports
+    Given a TypeScript file "fixtures/typescript/export-candidates.ts"
+    When I analyze the file for exports
+    Then I should find exported enums:
+      | name      |
+      | Direction |
+      | Status    |
+
+  Scenario: Extract TypeScript const variable exports
+    Given a TypeScript file "fixtures/typescript/export-candidates.ts"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | MAX_RETRIES     |
+      | DEFAULT_TIMEOUT |
+      | API_BASE_URL    |
+    And I should NOT find exported variables:
+      | name        |
+      | processItem |
+
+  Scenario: Extract TypeScript let variable exports
+    Given a TypeScript file "fixtures/typescript/export-candidates.ts"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | currentUser     |
+      | connectionCount |
+
+  # =============================================================================
+  # Export Candidates - Python
+  # =============================================================================
+
+  Scenario: Extract Python UPPER_CASE constants
+    Given a Python file "fixtures/python/export_candidates.py"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | MAX_RETRIES     |
+      | DEFAULT_TIMEOUT |
+      | API_BASE_URL    |
+
+  Scenario: Extract Python type aliases
+    Given a Python file "fixtures/python/export_candidates.py"
+    When I analyze the file for exports
+    Then I should find exported types:
+      | name        | kind |
+      | UserId      | type |
+      | TokenResult | type |
+      | ItemList    | type |
+
+  # =============================================================================
+  # Export Candidates - Go
+  # =============================================================================
+
+  Scenario: Extract Go exported constants
+    Given a Go file "fixtures/go/export_candidates.go"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name           |
+      | MaxRetries     |
+      | DefaultTimeout |
+
+  Scenario: Extract Go type aliases
+    Given a Go file "fixtures/go/export_candidates.go"
+    When I analyze the file for exports
+    Then I should find exported types:
+      | name        | kind |
+      | UserID      | type |
+      | TokenResult | type |
+
+  # =============================================================================
+  # Export Candidates - Rust
+  # =============================================================================
+
+  Scenario: Extract Rust pub const and static
+    Given a Rust file "fixtures/rust/export_candidates.rs"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | MAX_RETRIES     |
+      | DEFAULT_TIMEOUT |
+      | GLOBAL_CONFIG   |
+
+  Scenario: Extract Rust pub type aliases
+    Given a Rust file "fixtures/rust/export_candidates.rs"
+    When I analyze the file for exports
+    Then I should find exported types:
+      | name     | kind  |
+      | UserId   | type  |
+      | TokenMap | type  |
+
+  Scenario: Extract Rust pub traits
+    Given a Rust file "fixtures/rust/export_candidates.rs"
+    When I analyze the file for exports
+    Then I should find exported types:
+      | name         | kind  |
+      | Validator    | trait |
+      | Serializable | trait |
+
+  Scenario: Extract Rust pub use re-exports
+    Given a Rust file "fixtures/rust/export_candidates.rs"
+    When I analyze the file for exports
+    Then I should find pub re-exports:
+      | name            |
+      | AppConfig       |
+      | AuthError       |
+      | ValidationError |
+
+  # =============================================================================
+  # Export Candidates - Java
+  # =============================================================================
+
+  Scenario: Extract Java public static final constants
+    Given a Java file "fixtures/java/ExportCandidates.java"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | MAX_RETRIES     |
+      | API_BASE_URL    |
+      | DEFAULT_TIMEOUT |
+
+  Scenario: Extract Java public record
+    Given a Java file "fixtures/java/UserRecord.java"
+    When I analyze the file for exports
+    Then I should find records as classes:
+      | name       |
+      | UserRecord |
+
+  # =============================================================================
+  # Export Candidates - Kotlin
+  # =============================================================================
+
+  Scenario: Extract Kotlin top-level val and const val
+    Given a Kotlin file "fixtures/kotlin/ExportCandidates.kt"
+    When I analyze the file for exports
+    Then I should find exported variables:
+      | name            |
+      | MAX_RETRIES     |
+      | DEFAULT_TIMEOUT |
+      | API_BASE_URL    |
+
+  Scenario: Extract Kotlin typealias
+    Given a Kotlin file "fixtures/kotlin/ExportCandidates.kt"
+    When I analyze the file for exports
+    Then I should find exported types:
+      | name     | kind |
+      | UserId   | type |
+      | TokenMap | type |
+
+  Scenario: Extract Kotlin objects as classes
+    Given a Kotlin file "fixtures/kotlin/ExportCandidates.kt"
+    When I analyze the file for exports
+    Then I should find objects as classes:
+      | name            |
+      | AppConfig       |
+      | DatabaseManager |
+
+  Scenario: Extract Kotlin interfaces as types
+    Given a Kotlin file "fixtures/kotlin/ExportCandidates.kt"
+    When I analyze the file for exports
+    Then I should find interfaces as types:
+      | name         |
+      | Validator    |
+      | Serializable |
+
+  # =============================================================================
   # Edge Cases
   # =============================================================================
 

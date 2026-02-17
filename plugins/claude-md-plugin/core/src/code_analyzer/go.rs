@@ -18,6 +18,9 @@ pub struct GoAnalyzer {
     var_re: Regex,
     import_re: Regex,
     error_return_re: Regex,
+    // Export candidates patterns
+    const_re: Regex,
+    type_alias_re: Regex,
     // Contract extraction patterns
     func_comment_re: Regex,
     precondition_re: Regex,
@@ -50,6 +53,16 @@ impl GoAnalyzer {
             // var/const ErrorName = errors.New(...)
             var_re: Regex::new(
                 r"(?:var|const)\s+(\w+)\s*=\s*errors\.New"
+            ).unwrap(),
+
+            // const Name Type = value (single-line exported const)
+            const_re: Regex::new(
+                r"(?m)^const\s+([A-Z]\w*)\s+(\S+)\s*="
+            ).unwrap(),
+
+            // type Name = OtherType (type alias, not struct/interface)
+            type_alias_re: Regex::new(
+                r"(?m)^type\s+([A-Z]\w*)\s*=\s*(\S+)"
             ).unwrap(),
 
             // import "package" or import ( "package" )
@@ -287,6 +300,42 @@ impl LanguageAnalyzer for GoAnalyzer {
             analysis.variables.push(ExportedVariable {
                 name: name.to_string(),
                 var_type: Some("error".to_string()),
+            });
+        }
+
+        // Extract exported constants
+        for cap in self.const_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let const_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            if !self.is_exported(name) {
+                continue;
+            }
+
+            // Skip if already captured as error variable
+            if analysis.variables.iter().any(|v| v.name == name) {
+                continue;
+            }
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: const_type,
+            });
+        }
+
+        // Extract type aliases
+        for cap in self.type_alias_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            if !self.is_exported(name) {
+                continue;
+            }
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Type,
+                definition: None,
+                description: None,
             });
         }
 

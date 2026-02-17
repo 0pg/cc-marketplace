@@ -100,19 +100,19 @@ Structure에 문서화되어 있으나 실제로 존재하지 않는 파일이 O
 
 #### Exports Drift
 
-**Ground Truth 생성**: `format-exports` CLI로 코드에서 expected exports 마크다운을 생성합니다:
+**Export Candidates 생성**: `format-exports` CLI로 코드에서 export 후보(candidates) 마크다운을 생성합니다:
 ```bash
 claude-md-core analyze-code --path {directory} --output ${TMP_DIR}validate-{dir-safe-name}-analysis.json
-claude-md-core format-exports --input ${TMP_DIR}validate-{dir-safe-name}-analysis.json --output ${TMP_DIR}validate-{dir-safe-name}-expected-exports.md
+claude-md-core format-exports --input ${TMP_DIR}validate-{dir-safe-name}-analysis.json --output ${TMP_DIR}validate-{dir-safe-name}-candidates.md
 ```
 
-생성된 expected exports와 CLAUDE.md의 Exports 섹션을 비교합니다:
+생성된 export candidates와 CLAUDE.md의 Exports 섹션을 비교합니다:
 
-**STALE**: 문서의 export가 expected에 없음
-CLAUDE.md에 문서화된 export가 `format-exports` ground truth에 없으면 STALE로 판정합니다.
+**STALE**: 문서의 export가 candidates에 없음
+CLAUDE.md에 문서화된 export가 candidates에도 없으면 **높은 신뢰도**로 STALE 판정합니다 (permissive analyzer도 못 찾으면 삭제된 것).
 
-**MISSING**: expected의 export가 문서에 없음
-`format-exports` ground truth에 있으나 CLAUDE.md에 없는 export는 MISSING으로 판정합니다.
+**MISSING**: candidates의 export가 문서에 없음
+Candidates에 있으나 CLAUDE.md에 없는 export는 **중간 신뢰도**로 MISSING 판정합니다 (LLM이 의도적으로 제외했을 수 있음).
 
 **MISMATCH**: 시그니처 불일치
 양쪽에 같은 이름이 있으나 시그니처가 다르면 MISMATCH로 판정합니다 (문서: X, 실제: Y 형태로 기록).

@@ -128,14 +128,14 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 ## Exports 형식 가이드
 
-### Deterministic Skeleton + LLM Review
+### Export Candidates + LLM Review
 
 **Exports 섹션은 2단계로 생성됩니다:**
 
-1. **Phase 2.5**: `format-exports` CLI가 analyze-code JSON에서 deterministic 마크다운 골격을 생성
-2. **Phase 4**: LLM이 골격에 description만 추가 (시그니처/export 수정 금지)
+1. **Phase 2.5**: `format-exports` CLI가 analyze-code JSON에서 export **후보(candidates)** 목록을 생성
+2. **Phase 4**: LLM이 코드를 읽고 후보를 리뷰하여 최종 public exports 결정
 
-`format-exports` 출력 예시:
+`format-exports` 출력은 **후보 목록**입니다 (regex 기반이므로 false positive 포함 가능):
 ```markdown
 ### Functions
 - `validateToken(token: string): Promise<Claims>`
@@ -143,9 +143,12 @@ Domain Context 추출을 위해 다음 카테고리의 질문을 합니다:
 
 ### Types
 - `Claims { userId: string, role: Role }`
+
+### Variables
+- `DEFAULT_TIMEOUT` (number)
 ```
 
-LLM review 후:
+LLM review 후 (false positive 제거 + description 추가):
 ```markdown
 ### Functions
 - `validateToken(token: string): Promise<Claims>` - JWT 토큰을 검증하고 Claims를 추출
@@ -154,10 +157,17 @@ LLM review 후:
 ### Types
 - `Claims { userId: string, role: Role }` - 인증된 사용자 정보
 ```
+(예: `DEFAULT_TIMEOUT`이 내부 전용이라 판단되면 제거)
+
+**LLM Review 규칙:**
+- 후보 중 실제 public이 아닌 항목 제거 가능 (false positive 필터링)
+- 각 항목에 description 추가
+- 시그니처는 format-exports 출력 기준 (수정 시 근거 필요)
+- 후보에 없는 export 추가는 원칙적으로 금지 (CLI 패턴 개선으로 대응)
 
 ### 상세 형식 (복잡한 모듈에서 추가 가능)
 
-public interface가 5개 초과이거나 도메인 맥락이 풍부한 경우, `format-exports` 골격을 기반으로 각 항목에 상세 설명 블록을 추가할 수 있습니다:
+public interface가 5개 초과이거나 도메인 맥락이 풍부한 경우, `format-exports` 후보 목록을 기반으로 각 항목에 상세 설명 블록을 추가할 수 있습니다:
 
 ```markdown
 #### validateToken
@@ -170,7 +180,7 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - **도메인 맥락**: PCI-DSS 준수를 위해 7일 만료 정책 적용
 ```
 
-**주의**: 상세 형식에서도 시그니처는 `format-exports` 출력을 그대로 사용합니다.
+**주의**: 상세 형식에서도 시그니처는 `format-exports` 출력을 기준으로 사용합니다.
 
 **선택 기준**: public interface가 5개 이하이고 도메인 맥락이 적으면 간략 형식(description만 추가), 그 외 상세 형식.
 
