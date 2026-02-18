@@ -5,7 +5,8 @@ use regex::Regex;
 
 use super::{
     AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedClass, ExportedFunction,
-    FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol,
+    ExportedType, ExportedVariable, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol,
+    TypeKind,
 };
 
 /// Analyzer for Python files.
@@ -29,6 +30,9 @@ pub struct PythonAnalyzer {
     lifecycle_re: Regex,
     // Union type pattern for state extraction
     union_type_re: Regex,
+    // Export candidates patterns
+    upper_case_const_re: Regex,
+    type_alias_re: Regex,
 }
 
 impl PythonAnalyzer {
@@ -106,6 +110,17 @@ impl PythonAnalyzer {
             // Captures: 1=type alias name, 2=Union contents
             union_type_re: Regex::new(
                 r"(?m)^(\w+)\s*=\s*Union\[([^\]]+)\]"
+            ).unwrap(),
+
+            // Top-level UPPER_CASE constants: MAX_RETRIES = 3, DEFAULT_TIMEOUT = 30
+            upper_case_const_re: Regex::new(
+                r"(?m)^([A-Z][A-Z0-9_]+)\s*(?::\s*\S+\s*)?=\s*(.+)"
+            ).unwrap(),
+
+            // Type alias: TypeName = Union[...] / TypeName = TypeAlias / TypeName: TypeAlias = ...
+            // Captures PascalCase names assigned to type constructs
+            type_alias_re: Regex::new(
+                r"(?m)^([A-Z][a-zA-Z0-9]+)\s*=\s*(Union\[|Optional\[|List\[|Dict\[|Tuple\[|Set\[|Type\[|Callable\[|Literal\[|TypeVar\(|NewType\()"
             ).unwrap(),
         }
     }
@@ -333,6 +348,53 @@ impl LanguageAnalyzer for PythonAnalyzer {
             analysis.classes.push(ExportedClass {
                 name: name.to_string(),
                 signature: Some(format!("class {}", name)),
+                description: None,
+            });
+        }
+
+        // Collect known class/function names to avoid duplicates
+        let known_names: Vec<String> = analysis.functions.iter().map(|f| f.name.clone())
+            .chain(analysis.classes.iter().map(|c| c.name.clone()))
+            .collect();
+
+        // Extract UPPER_CASE constants as variables
+        for cap in self.upper_case_const_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            // Skip __all__ and other dunder constants
+            if name.starts_with('_') {
+                continue;
+            }
+
+            // If __all__ is defined, only include listed symbols
+            if !all_symbols.is_empty() && !all_symbols.contains(&name.to_string()) && !is_init {
+                continue;
+            }
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type: None,
+            });
+        }
+
+        // Extract type aliases (PascalCase = Union[...], Optional[...], etc.)
+        for cap in self.type_alias_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+
+            // Skip if already captured as class
+            if known_names.contains(&name.to_string()) {
+                continue;
+            }
+
+            // If __all__ is defined, only include listed symbols
+            if !all_symbols.is_empty() && !all_symbols.contains(&name.to_string()) && !is_init {
+                continue;
+            }
+
+            analysis.types.push(ExportedType {
+                name: name.to_string(),
+                kind: TypeKind::Type,
+                definition: None,
                 description: None,
             });
         }

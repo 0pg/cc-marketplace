@@ -99,7 +99,7 @@ fi
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 
-$CLI_PATH validate-schema --file {claude_md_path} --schema ${CLAUDE_PLUGIN_ROOT}/references/shared/schema-rules.yaml 2>&1
+$CLI_PATH validate-schema --file {claude_md_path} 2>&1
 ```
 
 실패해도 리뷰 진행 (finding으로 기록).

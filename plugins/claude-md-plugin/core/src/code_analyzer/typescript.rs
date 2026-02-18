@@ -4,8 +4,9 @@ use std::path::Path;
 use regex::Regex;
 
 use super::{
-    AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedClass, ExportedFunction,
-    ExportedType, FunctionContract, LanguageAnalyzer, PartialAnalysis, Protocol, ReExport, TypeKind,
+    AnalyzerError, Behavior, BehaviorCategory, Contract, ExportedClass, ExportedEnum,
+    ExportedFunction, ExportedType, ExportedVariable, FunctionContract, LanguageAnalyzer,
+    PartialAnalysis, Protocol, ReExport, TypeKind,
 };
 
 /// Analyzer for TypeScript and JavaScript files.
@@ -33,6 +34,10 @@ pub struct TypeScriptAnalyzer {
     // Discriminated union patterns
     discriminated_union_re: Regex,
     union_variant_re: Regex,
+    // Export candidates patterns
+    export_enum_re: Regex,
+    export_const_var_re: Regex,
+    export_let_var_re: Regex,
 }
 
 impl TypeScriptAnalyzer {
@@ -131,6 +136,22 @@ impl TypeScriptAnalyzer {
             // Union variant pattern: extracts discriminator values like kind: 'idle', type: 'START', status: 'loading'
             union_variant_re: Regex::new(
                 r#"(?:kind|type|status)\s*:\s*['"](\w+)['"]"#
+            ).unwrap(),
+
+            // export enum EnumName { ... }
+            export_enum_re: Regex::new(
+                r"export\s+enum\s+(\w+)"
+            ).unwrap(),
+
+            // export const NAME = value (non-function, i.e. not followed by arrow =>)
+            // Captures: name, optional type annotation
+            export_const_var_re: Regex::new(
+                r"export\s+const\s+(\w+)\s*(?::\s*([^=]+?))?\s*="
+            ).unwrap(),
+
+            // export let NAME: Type
+            export_let_var_re: Regex::new(
+                r"export\s+let\s+(\w+)\s*(?::\s*(\S+))?"
             ).unwrap(),
         }
     }
@@ -481,6 +502,47 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
                 kind: TypeKind::Type,
                 definition: None,
                 description: None,
+            });
+        }
+
+        // Extract exported enums
+        for cap in self.export_enum_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            analysis.enums.push(ExportedEnum {
+                name: name.to_string(),
+                variants: None,
+            });
+        }
+
+        // Collect arrow function names to exclude from const variable extraction
+        let arrow_fn_names: Vec<String> = analysis.functions.iter()
+            .map(|f| f.name.clone())
+            .collect();
+
+        // Extract exported const variables (non-function)
+        for cap in self.export_const_var_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let var_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            // Skip if already captured as an arrow function
+            if arrow_fn_names.contains(&name.to_string()) {
+                continue;
+            }
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type,
+            });
+        }
+
+        // Extract exported let variables
+        for cap in self.export_let_var_re.captures_iter(content) {
+            let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let var_type = cap.get(2).map(|m| m.as_str().trim().to_string());
+
+            analysis.variables.push(ExportedVariable {
+                name: name.to_string(),
+                var_type,
             });
         }
 

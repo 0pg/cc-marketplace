@@ -1851,6 +1851,114 @@ fn then_both_outputs_identical(world: &mut TestWorld) {
     assert_eq!(output1, output2, "Outputs should be identical for determinism");
 }
 
+// ============== Export Candidates Step Definitions ==============
+
+#[then("I should find exported enums:")]
+fn should_find_exported_enums(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No enum name");
+
+            let found = result.exports.enums.iter().any(|e| e.name == *name);
+            assert!(found, "Expected to find enum '{}', found: {:?}",
+                    name, result.exports.enums.iter().map(|e| &e.name).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[then("I should find exported variables:")]
+fn should_find_exported_variables(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No variable name");
+
+            let found = result.exports.variables.iter().any(|v| v.name == *name);
+            assert!(found, "Expected to find variable '{}', found: {:?}",
+                    name, result.exports.variables.iter().map(|v| &v.name).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[then("I should NOT find exported variables:")]
+fn should_not_find_exported_variables(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No variable name");
+
+            let found = result.exports.variables.iter().any(|v| v.name == *name);
+            assert!(!found, "Found variable '{}' that should be excluded", name);
+        }
+    }
+}
+
+#[then("I should find pub re-exports:")]
+fn should_find_pub_re_exports(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No re-export name");
+
+            let found = result.exports.re_exports.iter().any(|r| r.name == *name);
+            assert!(found, "Expected to find re-export '{}', found: {:?}",
+                    name, result.exports.re_exports.iter().map(|r| &r.name).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[then("I should find objects as classes:")]
+fn should_find_objects_as_classes(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No object name");
+
+            let found = result.exports.classes.iter().any(|c| c.name == *name);
+            assert!(found, "Expected to find object '{}' as class, found: {:?}",
+                    name, result.exports.classes.iter().map(|c| &c.name).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[then("I should find interfaces as types:")]
+fn should_find_interfaces_as_types(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No interface name");
+
+            let found = result.exports.types.iter().any(|t| {
+                t.name == *name && t.kind == TypeKind::Trait
+            });
+            assert!(found, "Expected to find interface '{}' as type with Trait kind, found: {:?}",
+                    name, result.exports.types.iter().map(|t| (&t.name, &t.kind)).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[then("I should find records as classes:")]
+fn should_find_records_as_classes(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+
+    if let Some(table) = &step.table {
+        for row in table.rows.iter().skip(1) {
+            let name = row.first().expect("No record name");
+
+            let found = result.exports.classes.iter().any(|c| c.name == *name);
+            assert!(found, "Expected to find record '{}' as class, found: {:?}",
+                    name, result.exports.classes.iter().map(|c| &c.name).collect::<Vec<_>>());
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     TestWorld::run("tests/features").await;

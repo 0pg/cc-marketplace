@@ -24,13 +24,13 @@ CLAUDE.md의 Structure 섹션과 실제 디렉토리 내 파일/디렉토리의 
 
 ### 2. Exports Drift
 
-CLAUDE.md의 Exports 섹션과 실제 코드의 public export 불일치.
+CLAUDE.md의 Exports 섹션과 코드의 export 후보(candidates) 불일치.
 
-| 유형 | 설명 | 원인 |
-|------|------|------|
-| **STALE** | 문서의 export가 코드에 없음 | 함수 삭제/이름 변경 후 CLAUDE.md 미갱신 |
-| **MISSING** | 코드의 public export가 문서에 없음 | 새 함수 추가 후 CLAUDE.md 미갱신 |
-| **MISMATCH** | 시그니처 불일치 | 파라미터/반환 타입 변경 후 CLAUDE.md 미갱신 |
+| 유형 | 설명 | 신뢰도 | 원인 |
+|------|------|--------|------|
+| **STALE** | 문서의 export가 candidates에 없음 | 높음 | 함수 삭제/이름 변경 후 CLAUDE.md 미갱신 |
+| **MISSING** | 코드의 export 후보가 문서에 없음 | 중간 (의도적 제외 가능) | 새 함수 추가 후 CLAUDE.md 미갱신 또는 LLM이 의도적으로 제외 |
+| **MISMATCH** | 시그니처 불일치 | 높음 | 파라미터/반환 타입 변경 후 CLAUDE.md 미갱신 |
 
 ### 3. Dependencies Drift
 
@@ -58,24 +58,24 @@ CLAUDE.md의 Behavior 섹션과 실제 동작의 불일치.
 - `missing_count`: MISSING으로 판정된 수
 - `total_exports + missing_count`가 0이면 coverage = 100
 
-## Exports Ground Truth (Primary Method)
+## Export Candidates (Primary Method)
 
-`format-exports` CLI를 사용하여 코드에서 deterministic한 expected exports를 생성합니다:
+`format-exports` CLI를 사용하여 코드에서 export 후보(candidates) 목록을 생성합니다:
 
 ```bash
 # 1. 코드 분석
 claude-md-core analyze-code --path {directory} --output ${TMP_DIR}validate-{name}-analysis.json
 
-# 2. Exports 마크다운 생성
-claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --output ${TMP_DIR}validate-{name}-expected-exports.md
+# 2. Export candidates 마크다운 생성
+claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --output ${TMP_DIR}validate-{name}-candidates.md
 ```
 
-생성된 expected exports 파일과 CLAUDE.md의 Exports 섹션을 비교하여 STALE/MISSING/MISMATCH를 판정합니다.
+생성된 candidates 파일과 CLAUDE.md의 Exports 섹션을 비교하여 STALE/MISSING/MISMATCH를 판정합니다.
 
 **비교 방법:**
-- expected exports의 각 항목(backtick 내 이름)과 CLAUDE.md Exports의 각 항목을 이름 기준으로 매칭
-- 이름이 expected에만 있으면 → MISSING
-- 이름이 CLAUDE.md에만 있으면 → STALE
+- candidates의 각 항목(backtick 내 이름)과 CLAUDE.md Exports의 각 항목을 이름 기준으로 매칭
+- 이름이 candidates에만 있으면 → MISSING (중간 신뢰도: LLM이 의도적으로 제외했을 수 있음)
+- 이름이 CLAUDE.md에만 있으면 → STALE (높은 신뢰도: permissive analyzer도 못 찾으면 삭제된 것)
 - 양쪽에 있으나 시그니처가 다르면 → MISMATCH (description 차이는 무시)
 
 ## Language-Specific Export Patterns (Fallback)
