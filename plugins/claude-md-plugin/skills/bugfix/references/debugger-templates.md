@@ -6,7 +6,7 @@
   CLI output JSON structures, result template format, decision tree.
 
   Loaded at runtime by the debugger agent via:
-    cat "${CLAUDE_PLUGIN_ROOT}/skills/debug/references/debugger-templates.md"
+    cat "${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/debugger-templates.md"
 -->
 
 # Debugger Templates & Reference

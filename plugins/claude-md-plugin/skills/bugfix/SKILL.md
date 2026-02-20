@@ -1,24 +1,24 @@
 ---
-name: debug
+name: bugfix
 version: 1.0.0
 aliases: [diagnose, troubleshoot, fix-bug]
 description: |
-  This skill should be used when the user asks to "debug code", "fix a bug", "diagnose an error",
-  "trace a test failure", "find root cause", or uses "/debug".
+  This skill should be used when the user asks to "bugfix code", "fix a bug", "diagnose an error",
+  "trace a test failure", "find root cause", or uses "/bugfix".
   Traces root cause through CLAUDE.md (spec), IMPLEMENTS.md (plan), and Source Code layers.
   Trigger keywords: 디버그, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 ---
 
-# /debug
+# /bugfix
 
 compile 결과물(소스코드)의 런타임 버그/에러를 진단.
 근본 원인을 CLAUDE.md(스펙), IMPLEMENTS.md(플랜), Source Code 3계층으로 추적하여 적절한 레벨에서 수정.
 
 ## Triggers
 
-- `/debug`
+- `/bugfix`
 - `디버그`, `버그 수정`
 - `에러 추적`, `테스트 실패`
 - `런타임 에러`
@@ -27,7 +27,7 @@ compile 결과물(소스코드)의 런타임 버그/에러를 진단.
 
 | 이름 | 필수 | 기본값 | 설명 |
 |------|------|--------|------|
-| `path` | 아니오 | `.` | 디버그 대상 경로 |
+| `path` | 아니오 | `.` | 버그 수정 대상 경로 |
 | `--error` | 아니오 | (없음) | 에러 메시지, 스택 트레이스, 또는 기능 설명 |
 | `--test` | 아니오 | (없음) | 실패하는 테스트 이름/파일 |
 
@@ -38,7 +38,7 @@ compile 결과물(소스코드)의 런타임 버그/에러를 진단.
 `--error`/`--test` 인자가 없으면 AskUserQuestion으로 에러 정보 수집:
 
 ```
-AskUserQuestion: "디버그할 에러 정보를 알려주세요."
+AskUserQuestion: "버그 수정할 에러 정보를 알려주세요."
 옵션: [에러 메시지/스택 트레이스 붙여넣기, 실패하는 테스트 이름, 잘못 동작하는 기능 설명]
 ```
 
@@ -153,7 +153,7 @@ debugger agent 결과를 사용자에게 보고:
 
 **보고 형식:**
 ```
-/debug 결과
+/bugfix 결과
 =========
 
 Root Cause: {root_cause_layer} - {root_cause_type}
@@ -193,9 +193,9 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 
 <example>
 <context>
-사용자가 에러 메시지와 함께 디버그를 요청합니다.
+사용자가 에러 메시지와 함께 버그 수정을 요청합니다.
 </context>
-<user_request>/debug --error "TypeError: validateToken is not a function" --path src/auth</user_request>
+<user_request>/bugfix --error "TypeError: validateToken is not a function" --path src/auth</user_request>
 <assistant_response>
 src/auth에서 에러를 진단합니다...
 
@@ -205,7 +205,7 @@ src/auth에서 에러를 진단합니다...
 
 3-layer 진단을 실행합니다...
 
-/debug 결과
+/bugfix 결과
 =========
 
 Root Cause: L1 - SPEC_EXPORT_MISMATCH
@@ -221,9 +221,9 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 
 <example>
 <context>
-사용자가 실패하는 테스트로 디버그를 요청합니다.
+사용자가 실패하는 테스트로 버그 수정을 요청합니다.
 </context>
-<user_request>/debug --test "should return empty array for no results"</user_request>
+<user_request>/bugfix --test "should return empty array for no results"</user_request>
 <assistant_response>
 테스트를 실행하고 에러를 캡처합니다...
 
@@ -233,7 +233,7 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 
 3-layer 진단을 실행합니다...
 
-/debug 결과
+/bugfix 결과
 =========
 
 Root Cause: L3 - CODE_SPEC_DIVERGENCE
@@ -249,9 +249,9 @@ Root Cause: L3 - CODE_SPEC_DIVERGENCE
 
 <example>
 <context>
-사용자가 기능 설명으로 디버그를 요청합니다.
+사용자가 기능 설명으로 버그 수정을 요청합니다.
 </context>
-<user_request>/debug --error "로그인 시 토큰 만료되면 자동 갱신이 안 됩니다"</user_request>
+<user_request>/bugfix --error "로그인 시 토큰 만료되면 자동 갱신이 안 됩니다"</user_request>
 <assistant_response>
 기능 설명에서 관련 모듈을 탐색합니다...
 
@@ -265,7 +265,7 @@ Root Cause: L3 - CODE_SPEC_DIVERGENCE
 
 3-layer 진단을 실행합니다...
 
-/debug 결과
+/bugfix 결과
 =========
 
 Root Cause: MULTI - PLAN_ERROR_HANDLING_GAP + SPEC_BEHAVIOR_GAP

@@ -6,7 +6,7 @@ description: |
 
   <example>
   <context>
-  The debug skill has identified a technical error with CLAUDE.md + IMPLEMENTS.md available.
+  The bugfix skill has identified a technical error with CLAUDE.md + IMPLEMENTS.md available.
   </context>
   <user_request>
   대상 디렉토리: src/auth
@@ -39,7 +39,7 @@ description: |
 
   <example>
   <context>
-  The debug skill has identified a test failure with CLAUDE.md + IMPLEMENTS.md available.
+  The bugfix skill has identified a test failure with CLAUDE.md + IMPLEMENTS.md available.
   </context>
   <user_request>
   대상 디렉토리: src/utils
@@ -89,7 +89,7 @@ You are a debugging orchestrator that traces runtime bugs through 3 layers: CLAU
 
 Load root cause types, fix strategies, stack trace patterns, CLI usage, and result template:
 ```bash
-cat "${CLAUDE_PLUGIN_ROOT}/skills/debug/references/debugger-templates.md"
+cat "${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/debugger-templates.md"
 ```
 
 **Your Core Responsibilities:**
@@ -108,7 +108,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```bash
 CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
 ```
-> CLI 바이너리는 debug SKILL이 사전 빌드합니다.
+> CLI 바이너리는 bugfix SKILL이 사전 빌드합니다.
 
 ## 입력
 
