@@ -293,14 +293,14 @@ User: /validate
 └─────────────────────────────────────────────┘
 ```
 
-### /debug (소스코드 버그 → 3계층 추적 → 수정)
+### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
 
 ```
-User: /debug [--error "..."] [--test "..."]
+User: /bugfix [--error "..."] [--test "..."]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ debug SKILL (Entry Point)                   │
+│ bugfix SKILL (Entry Point)                  │
 │                                             │
 │ 1. Bug Report 수집 (에러/테스트 정보)       │
 │ 2. 입력 타입 분류 (기술적 에러/테스트/기능) │
@@ -367,7 +367,7 @@ User: /debug [--error "..."] [--test "..."]
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
-| `/debug` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
+| `/bugfix` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | Entry Point | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
@@ -403,7 +403,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
-/debug → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile로 Source Code 재생성
+/bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile로 Source Code 재생성
 /impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
 ```
 
