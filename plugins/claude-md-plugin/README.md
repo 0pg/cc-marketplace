@@ -1,4 +1,4 @@
-# claude-md-plugin (v2.22.0)
+# claude-md-plugin (v2.24.0)
 
 > CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템 기반의 문서-코드 동기화 플러그인
 
@@ -73,6 +73,8 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | 기존 코드 문서화 | `/decompile` | CLAUDE.md + IMPLEMENTS.md |
 | 명세 기반 코드 생성 | `/compile` | 소스코드 + 테스트 |
 | 문서-코드 일치 확인 | `/validate` | 통합 검증 보고서 |
+| 런타임 버그 수정 | `/bugfix --error "에러"` | 3계층 추적 → 문서 수정 |
+| 명세 품질 리뷰 | `/impl-review` | 4차원 품질 보고서 |
 
 ### 커맨드 상세
 
@@ -293,6 +295,106 @@ src/utils (개선 권장)
 
 ---
 
+#### `/bugfix` — 런타임 버그 진단 및 수정
+
+> Aliases: `diagnose`, `troubleshoot`, `fix-bug`
+
+**언제 사용하나요?**
+- `/compile`로 생성된 코드에서 런타임 에러가 발생했을 때
+- 테스트가 실패하여 근본 원인을 추적하고 싶을 때
+- 기능이 명세와 다르게 동작할 때
+
+**사용법:**
+```bash
+# 에러 메시지로 진단
+/bugfix --error "TypeError: validateToken is not a function" --path src/auth
+
+# 실패하는 테스트로 진단
+/bugfix --test "should return empty array for no results"
+
+# 기능 설명으로 진단
+/bugfix --error "로그인 시 토큰 만료되면 자동 갱신이 안 됩니다"
+```
+
+**실행 결과 예시:**
+```
+/bugfix 결과
+=========
+
+Root Cause: L1 - SPEC_EXPORT_MISMATCH
+요약: CLAUDE.md exports validateToken as standalone but code defines it as class method
+
+수정된 문서: [CLAUDE.md]
+
+⚠ `/compile --path src/auth --conflict overwrite`로 소스 코드를 재생성하세요.
+
+상세 결과: .claude/tmp/debug-src-auth.md
+```
+
+**에러 시 대응:**
+
+| 상황 | 대응 |
+|------|------|
+| CLAUDE.md 없음 | `/decompile` 먼저 실행하여 CLAUDE.md 생성 제안 |
+| CLAUDE.md 스키마 오류 | `/validate` 먼저 실행 안내 |
+| 미컴파일 변경 감지 | `/compile --path <path>` 먼저 실행 안내 |
+| 에러 정보 부족 | AskUserQuestion으로 에러 정보 수집 |
+
+**다음 단계:** `/compile --path <dir> --conflict overwrite` → 수정된 문서로 소스코드 재생성
+
+---
+
+#### `/impl-review` — 명세 품질 리뷰
+
+> Aliases: `review-impl`, `impl-quality`, `rate-impl`
+
+**언제 사용하나요?**
+- `/impl`로 생성한 CLAUDE.md + IMPLEMENTS.md의 품질을 확인하고 싶을 때
+- 요구사항이 문서에 충분히 반영되었는지 검증하고 싶을 때
+- `/validate`와 달리 코드가 아닌 **문서 자체의 품질**을 평가하고 싶을 때
+
+**사용법:**
+```bash
+# 기본 사용 (특정 경로)
+/impl-review src/auth
+
+# 프로젝트 전체
+/impl-review
+```
+
+**실행 결과 예시:**
+```
+=== /impl-review 완료 ===
+
+D1. 요구사항 커버리지: 85/100 (WARNING 1건)
+  - Edge case: 토큰 만료 시 갱신 로직 미정의
+
+D2. CLAUDE.md 품질: 92/100 (INFO 1건)
+  - Exports 시그니처 상세도 양호
+
+D3. IMPLEMENTS.md 계획 품질: 88/100 (WARNING 1건)
+  - Error handling strategy 미상세
+
+D4. 문서 간 일관성: 95/100 (INFO 1건)
+  - Dependencies 섹션과 Planning Section 일치
+
+종합: 89/100 (Good)
+
+수정 제안: 2건 (1 WARNING, 1 INFO)
+```
+
+**에러 시 대응:**
+
+| 상황 | 대응 |
+|------|------|
+| CLAUDE.md 없음 | `/impl` 먼저 실행 안내 |
+| IMPLEMENTS.md 없음 | `/impl`로 Planning Section 생성 안내 |
+| 스키마 검증 실패 | 스키마 오류 수정 후 재실행 |
+
+**다음 단계:** 수정 제안 적용 후 `/compile`로 코드 생성
+
+---
+
 #### `/project-setup` — 프로젝트 Convention 초기 설정
 
 **언제 사용하나요?**
@@ -366,6 +468,26 @@ src/utils (개선 권장)
 2. `/compile --conflict overwrite` — 변경된 명세로 코드 재생성 (기존 파일 덮어쓰기)
 3. `/validate` — 변경 사항 검증
 
+#### D. 런타임 버그 수정
+
+```
+/bugfix --error "에러" → /compile --conflict overwrite → /validate
+```
+
+1. `/bugfix --error "TypeError: ..."` — 3계층 추적으로 근본 원인 진단 및 문서 수정
+2. `/compile --conflict overwrite` — 수정된 문서로 소스코드 재생성
+3. `/validate` — 수정 후 문서-코드 일치 확인
+
+#### E. 명세 품질 리뷰
+
+```
+/impl-review → (수정 적용) → /compile
+```
+
+1. `/impl-review src/auth` — 4차원 품질 리뷰 수행
+2. 수정 제안 적용 — 대화형으로 CLAUDE.md / IMPLEMENTS.md 수정
+3. `/compile` — 수정된 명세로 코드 재생성
+
 ## 핵심 개념
 
 ### 듀얼 문서 시스템 (CLAUDE.md + IMPLEMENTS.md)
@@ -399,6 +521,7 @@ auth/
 | `/impl` | 생성/업데이트 | Planning Section 업데이트 |
 | `/compile` | 읽기 전용 | Implementation Section 업데이트 |
 | `/decompile` | 생성 (전체) | 생성 (전체 - Planning + Implementation) |
+| `/bugfix` | 수정 (L1 fix) | 수정 (L2 fix) |
 
 ### Exports = Interface Catalog
 
@@ -500,8 +623,12 @@ project/CLAUDE.md
 | Agent | 역할 |
 |-------|------|
 | `impl` | 요구사항 분석 및 CLAUDE.md + IMPLEMENTS.md 생성 |
+| `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md + IMPLEMENTS.md 추출 |
 | `compiler` | CLAUDE.md + IMPLEMENTS.md에서 소스코드 생성 (TDD) |
+| `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
+| `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
+| `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |
 
 ### Skills
@@ -514,16 +641,14 @@ project/CLAUDE.md
 | `/decompile` | 소스코드 → CLAUDE.md + IMPLEMENTS.md |
 | `/compile` | CLAUDE.md + IMPLEMENTS.md → 소스코드 |
 | `/validate` | 문서-코드 일치 검증 |
+| `/bugfix` | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
+| `/impl-review` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 |
 
 **Internal (Agent가 호출):**
 
 | Skill | 역할 |
 |-------|------|
 | `tree-parse` | 디렉토리 구조 분석 |
-| `boundary-resolve` | 바운더리 결정 |
-| `code-analyze` | 코드 분석 |
-| `claude-md-parse` | CLAUDE.md 파싱 |
-| `schema-validate` | 스키마 검증 |
 
 ### 설계 원칙
 
@@ -548,12 +673,33 @@ claude-md-core parse-tree --root . --output tree.json
 # 바운더리 결정 - 디렉토리의 책임 범위 분석
 claude-md-core resolve-boundary --path src/auth --output boundary.json
 
+# 코드 분석 - exports, dependencies, behaviors 추출
+claude-md-core analyze-code --path src/auth --output analysis.json
+
+# CLAUDE.md 파싱 - JSON 출력
+claude-md-core parse-claude-md --file src/auth/CLAUDE.md
+
 # 스키마 검증 - CLAUDE.md 형식 검증
 claude-md-core validate-schema --file CLAUDE.md --output validation.json
 
 # Convention 검증 - Convention 섹션 존재 및 필수 서브섹션 확인
 claude-md-core validate-convention --project-root .
 claude-md-core validate-convention --project-root . --module-roots packages/api,packages/web
+
+# CLAUDE.md 인덱스 생성 - 프로젝트 전체 CLAUDE.md 스캔
+claude-md-core scan-claude-md --root . --output index.json
+
+# 변경 감지 - incremental compile 대상 식별
+claude-md-core diff-compile-targets --root .
+
+# Exports 마크다운 생성 - analyze-code JSON → Exports 섹션
+claude-md-core format-exports --input analysis.json --output exports.md
+
+# 전체 분석 마크다운 생성 - analyze-code JSON → 분석 요약
+claude-md-core format-analysis --input analysis.json --output summary.md
+
+# 프로젝트 전체 인덱싱 - tree-parse + code analysis
+claude-md-core index-project --root . --output index-results/
 ```
 
 ## 언어 지원

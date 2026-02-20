@@ -193,7 +193,7 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 
 <example>
 <context>
-사용자가 에러 메시지와 함께 디버그를 요청합니다.
+사용자가 에러 메시지와 함께 버그 수정을 요청합니다.
 </context>
 <user_request>/bugfix --error "TypeError: validateToken is not a function" --path src/auth</user_request>
 <assistant_response>
@@ -221,7 +221,7 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 
 <example>
 <context>
-사용자가 실패하는 테스트로 디버그를 요청합니다.
+사용자가 실패하는 테스트로 버그 수정을 요청합니다.
 </context>
 <user_request>/bugfix --test "should return empty array for no results"</user_request>
 <assistant_response>
@@ -249,7 +249,7 @@ Root Cause: L3 - CODE_SPEC_DIVERGENCE
 
 <example>
 <context>
-사용자가 기능 설명으로 디버그를 요청합니다.
+사용자가 기능 설명으로 버그 수정을 요청합니다.
 </context>
 <user_request>/bugfix --error "로그인 시 토큰 만료되면 자동 갱신이 안 됩니다"</user_request>
 <assistant_response>
