@@ -176,6 +176,72 @@ for item in optional_value {
 }
 ```
 
+## 테스트 용이성 패턴
+
+Rust에서 테스트가 어려우면 trait 기반 의존성 주입으로 해결합니다.
+
+### 시간 추상화 (Clock 패턴)
+
+`Utc::now()` 직접 호출은 테스트에서 시간 제어가 불가능합니다.
+
+```rust
+// trait으로 추상화
+pub trait Clock {
+    fn now(&self) -> DateTime<Utc>;
+}
+
+pub struct SystemClock;
+impl Clock for SystemClock {
+    fn now(&self) -> DateTime<Utc> { Utc::now() }
+}
+
+// 프로덕션 코드: trait을 주입받음
+pub struct TokenValidator<C: Clock> {
+    clock: C,
+}
+
+// 테스트: 고정 시간 사용
+#[cfg(test)]
+struct FixedClock(DateTime<Utc>);
+#[cfg(test)]
+impl Clock for FixedClock {
+    fn now(&self) -> DateTime<Utc> { self.0 }
+}
+```
+
+### Trait 기반 의존성 주입
+
+```rust
+// Bad: 구체 타입에 직접 의존
+pub fn process(db: &PostgresPool) -> Result<()> { ... }
+
+// Good: trait으로 추상화
+pub fn process(repo: &impl OrderRepository) -> Result<()> { ... }
+```
+
+**적용 기준:**
+- 외부 I/O (DB, HTTP, 파일시스템) → trait 추상화 필수
+- 비결정적 값 (시간, 난수, UUID) → trait 추상화 필수
+- 순수 계산 로직 → trait 불필요, 직접 단위 테스트
+
+### #[cfg(test)] 모듈 패턴
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockRepo { /* ... */ }
+    impl OrderRepository for MockRepo { /* ... */ }
+
+    #[test]
+    fn test_process_order() {
+        let repo = MockRepo { /* setup */ };
+        assert!(process(&repo).is_ok());
+    }
+}
+```
+
 ## Private Dependencies
 
 ```toml
