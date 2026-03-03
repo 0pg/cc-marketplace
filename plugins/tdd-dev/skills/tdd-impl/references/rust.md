@@ -242,6 +242,108 @@ mod tests {
 }
 ```
 
+## Export 불변식 테스트 패턴
+
+CLAUDE.md Exports에서 STRUCT-XXX가 추출된 경우, Rust에서 구조적 불변식을 검증하는 패턴입니다.
+
+### 함수 시그니처 검증
+
+함수 포인터 바인딩으로 시그니처 불변식을 컴파일 타임에 검증합니다.
+
+```rust
+#[test]
+fn validate_token_exists_with_correct_signature() {
+    // 함수 포인터에 바인딩 → 시그니처 불일치 시 컴파일 에러
+    let _f: fn(&str) -> Result<Claims, TokenError> = validate_token;
+}
+```
+
+### 타입 필드 검증
+
+구조체 필드 접근으로 타입 구조 불변식을 검증합니다.
+
+```rust
+#[test]
+fn claims_has_required_fields() {
+    let claims = Claims { sub: "user".into(), exp: 0, iat: 0 };
+    let _: &str = claims.sub.as_str();
+    let _: u64 = claims.exp;
+    let _: u64 = claims.iat;
+}
+```
+
+### Enum variants 검증
+
+각 variant를 생성하여 존재를 검증합니다.
+
+```rust
+#[test]
+fn token_error_variants_exist() {
+    let _ = TokenError::Expired;
+    let _ = TokenError::Invalid("".into());
+    let _ = TokenError::MissingClaim("sub".into());
+}
+```
+
+### Trait export 검증
+
+`_probe` 함수 패턴으로 trait 메서드 시그니처를 검증합니다.
+`_` prefix는 "호출되지 않는 검증 전용 함수"를 나타내며, 컴파일러 경고를 억제합니다.
+
+```rust
+#[test]
+fn token_store_trait_has_required_methods() {
+    // trait 메서드 시그니처 검증 (구현 불필요)
+    fn _probe<T: TokenStore>(store: &T, token: &str) {
+        let _: Result<(), TokenError> = store.revoke(token);
+        let _: bool = store.is_revoked(token);
+    }
+}
+```
+
+### Contract 불변식 검증
+
+> Contract 테스트는 STRUCT RED-GREEN 사이클에서 작성합니다.
+> GREEN 단계에서 최소 스텁(빈 문자열 → 에러, 유효 입력 → 기본값)을 구현합니다.
+> 행위 로직(REQ-XXX)과는 분리되며, 계약 위반/보장만 검증합니다.
+
+사전조건/사후조건을 별도 테스트로 분리합니다.
+
+```rust
+#[test]
+fn validate_token_rejects_empty_token() {
+    let err = validate_token("").unwrap_err();
+    assert!(matches!(err, TokenError::Invalid(_)));
+}
+
+#[test]
+fn validate_token_guarantees_exp_field() {
+    let claims = validate_token("valid-token").unwrap();
+    assert!(claims.exp > 0, "Claims must always contain exp > 0");
+}
+```
+
+### 테스트 파일 구조
+
+구조적/계약/행위 테스트를 모듈로 분리합니다.
+
+```rust
+#[cfg(test)]
+mod structural_tests {
+    //! STRUCT-XXX: Export 존재 및 시그니처 검증
+}
+
+#[cfg(test)]
+mod contract_tests {
+    //! STRUCT-XXX: Contract 사전/사후조건 검증
+}
+
+#[cfg(test)]
+mod behavior_tests {
+    //! REQ-XXX: 행위적 요구사항 검증
+}
+```
+
 ## Private Dependencies
 
 ```toml

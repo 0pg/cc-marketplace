@@ -2,7 +2,8 @@
 name: tdd-impl
 description: |
   TDD/ATDD 기반으로 코드를 구현합니다. tdd-spec.md를 읽어 Red-Green-Refactor 사이클로 구현합니다.
-  "TDD로 구현해줘", "테스트 주도 개발", "테스트 먼저 작성", "Red-Green-Refactor" 요청 시 사용됩니다.
+  Export 불변식 검증(STRUCT-XXX)과 Testability Gate를 포함합니다.
+  "TDD로 구현해줘", "테스트 주도 개발", "테스트 먼저 작성", "Red-Green-Refactor", "Export 불변식 테스트", "구조적 불변식 검증" 요청 시 사용됩니다.
 ---
 
 # TDD Implementation Skill
@@ -75,6 +76,30 @@ tdd-spec.md 생성
 - 요구사항 목록 확인
 - 구현 범위 파악
 - Phase 2로 진행
+
+### Export Invariants Gate (Pre-RED)
+
+tdd-spec.md에 STRUCT-XXX (구조적 불변식)이 포함된 경우,
+**행위 테스트(REQ-XXX) 이전에 구조적 불변식 테스트를 먼저 작성합니다.**
+
+```
+STRUCT-XXX (구조적 불변식) ──→ 먼저 RED-GREEN
+    "함수가 존재하고 시그니처가 맞는가?"
+         │
+         ▼
+REQ-XXX (행위적 요구사항) ──→ 이후 RED-GREEN
+    "함수가 올바른 결과를 내는가?"
+```
+
+**이유:** 구조적 테스트는 뼈대(함수 시그니처, 타입 정의)를 세우고,
+행위 테스트는 살(로직, 분기, 에러 처리)을 붙입니다.
+
+| 특성 | STRUCT 테스트 | REQ 테스트 |
+|------|-------------|----------|
+| 실패 의미 | 공개 인터페이스 깨짐 | 동작이 기대와 다름 |
+| 자동화 | Exports에서 기계적 추출 가능 | 수동 설계 필요 |
+
+**STRUCT-XXX가 없으면** 이 게이트를 건너뛰고 Testability Gate로 진행.
 
 ### Testability Gate (Pre-RED)
 
