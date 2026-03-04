@@ -226,3 +226,26 @@ Agent가 판단할 때 참고하는 앵커. 좋은 vs 나쁜 예시.
 2. 해시 기반 중복 감지 (date+amount+description 복합키)
 3. 검증 실패 시 즉시 반환 (fail-fast)
 ```
+
+### Bad: Changelog in Domain Context
+```
+## Domain Context
+
+### Decision Rationale
+- TOKEN_EXPIRY: 7일 (PCI-DSS 요구사항)
+- v2.1.0에서 만료 기간을 14일 → 7일로 변경
+- v2.0.1에서 캐시 무효화 버그 수정
+- v1.5.0에서 RSA → HMAC-SHA256으로 전환
+```
+
+### Good: Domain Context without history
+```
+## Domain Context
+
+### Decision Rationale
+- TOKEN_EXPIRY: 7일 (PCI-DSS 컴플라이언스 요구사항)
+- HMAC-SHA256: 내부 서비스 간 통신이라 RSA 불필요
+
+### Compatibility
+- UUID v1 형식 지원 필요 (2023 마이그레이션)
+```
