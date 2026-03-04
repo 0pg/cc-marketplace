@@ -162,6 +162,7 @@ User: /impl "요구사항"
 │    인덱스 생성                              │
 │ 2. Task(impl) + claude_md_index_file        │
 │    → CLAUDE.md + IMPLEMENTS.md 작성         │
+│ 3. git diff → 변경사항 Diff 표시            │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -200,6 +201,7 @@ User: /decompile
 │ 1. Skill("tree-parse") → 대상 목록          │
 │ 2. For each directory (leaf-first):         │
 │    Task(decompiler) 호출                    │
+│    git diff → 추출 문서 Diff 표시           │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -267,6 +269,7 @@ User: /impl-review [path]
 │ 1. 인자 파싱 & 대상 해석                    │
 │ 2. Bash(claude-md-core validate-schema)     │
 │ 3. Task(impl-reviewer) → 4차원 리뷰        │
+│ 3.5. git diff → 수정 제안 Diff 표시        │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -307,6 +310,7 @@ User: /bugfix [--error "..."] [--test "..."]
 │ 3. CLAUDE.md + IMPLEMENTS.md 존재 확인      │
 │ 4. 사전 검증 (스키마/미컴파일 변경)         │
 │ 5. Task(debugger) → 진단 + 수정            │
+│ 6.5. git diff → 수정사항 Diff 표시         │
 │ 7. Skill("compile") → 소스코드 재생성       │
 │ 8. 검증 (원본 테스트 재실행)                 │
 │ 9. 결과 보고                                │

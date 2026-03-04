@@ -150,6 +150,23 @@ Task(impl-reviewer):
 
 description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
 
+### 3.7. 변경사항 Diff 표시
+
+impl agent가 파일을 저장한 후, 사용자에게 변경사항을 표시합니다:
+
+**기존 파일 수정인 경우 (tracked):**
+```
+Bash: git diff HEAD -- {target_path}/CLAUDE.md {target_path}/IMPLEMENTS.md
+```
+
+**새 파일 생성인 경우 (untracked):**
+- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
+
+**변경 없음:** 스킵.
+
+표시 후 안내:
+> "변경사항을 확인하세요. /compile로 코드를 생성하기 전에 커밋을 권장합니다."
+
 ### 4. 최종 결과 보고
 
 ```

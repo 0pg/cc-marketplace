@@ -117,6 +117,17 @@ Task(impl-reviewer):
 
 description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
 
+### 3.5. 수정 제안 Diff 표시
+
+impl-reviewer가 fix patch를 적용한 경우, 변경사항을 표시합니다:
+
+**기존 파일 수정인 경우 (tracked):**
+```
+Bash: git diff HEAD -- {claude_md_path} {implements_md_path}
+```
+
+fix patch가 적용되지 않은 경우 (리뷰만 수행) → 이 단계 스킵.
+
 ### 4. 최종 결과 보고
 
 impl-reviewer agent의 결과 블록을 파싱하여 최종 보고:

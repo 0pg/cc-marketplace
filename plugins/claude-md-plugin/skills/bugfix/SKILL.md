@@ -149,6 +149,23 @@ test_command: {command} | N/A
 ---end-debugger-result---
 ```
 
+### 6.5. 수정사항 Diff 표시
+
+debugger가 CLAUDE.md/IMPLEMENTS.md를 수정한 후, compile 전에 변경사항을 표시합니다:
+
+**기존 파일 수정인 경우 (tracked):**
+```
+Bash: git diff HEAD -- {path}/CLAUDE.md {path}/IMPLEMENTS.md
+```
+
+**새 파일 생성인 경우 (untracked):**
+- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
+
+**변경 없음:** 스킵.
+
+표시 후 안내:
+> "문서 수정사항을 확인하세요. 이어서 /compile을 자동 실행합니다."
+
 ### 7. Compile (소스코드 재생성)
 
 debugger result의 `compile_required` 필드에 따라 `/compile` 자동 실행:

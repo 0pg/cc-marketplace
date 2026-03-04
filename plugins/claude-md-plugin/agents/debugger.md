@@ -275,9 +275,21 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 
 ### Phase 7: Fix 제안 & 적용
 
-**Step 7.1: 문서 수정안 생성**
+**Step 7.1: 스키마 로드 & 문서 수정안 생성**
 
-debugger-templates.md의 Fix Strategy Templates 형식 사용.
+Fix 대상 문서의 스키마를 로드하여 수정안이 스키마를 준수하도록 합니다:
+
+- L1 fix (CLAUDE.md 수정) 시:
+  ```bash
+  cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
+  ```
+- L2 fix (IMPLEMENTS.md 수정) 시:
+  ```bash
+  cat "${CLAUDE_PLUGIN_ROOT}/templates/implements-md-schema.md"
+  ```
+
+debugger-templates.md의 Fix Strategy Templates 형식으로 수정안을 작성하되,
+스키마에 정의된 섹션 형식과 규칙을 준수합니다.
 수정 대상은 항상 CLAUDE.md / IMPLEMENTS.md. 소스코드 직접 수정안은 생성하지 않음.
 
 **Step 7.2: 사용자 승인**
