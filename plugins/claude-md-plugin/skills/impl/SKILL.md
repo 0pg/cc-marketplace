@@ -152,7 +152,7 @@ description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
 
 ### 3.7. 변경사항 Diff 표시
 
-impl agent가 파일을 저장한 후, 사용자에게 변경사항을 표시합니다:
+impl agent가 파일을 저장한 후 (리뷰 수정 포함), 사용자에게 변경사항을 표시합니다:
 
 **기존 파일 수정인 경우 (tracked):**
 ```

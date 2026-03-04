@@ -126,13 +126,13 @@ ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방
 
 decompiler가 CLAUDE.md + IMPLEMENTS.md를 생성한 후 변경사항을 표시합니다:
 
-**새 파일인 경우 (untracked):**
-- 생성된 CLAUDE.md의 Purpose, Exports 섹션 요약 표시
-
 **기존 파일 덮어쓰기인 경우 (tracked):**
 ```
 Bash: git diff HEAD -- {dir}/CLAUDE.md {dir}/IMPLEMENTS.md
 ```
+
+**새 파일인 경우 (untracked):**
+- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
 
 **변경 없음:** 스킵.
 
