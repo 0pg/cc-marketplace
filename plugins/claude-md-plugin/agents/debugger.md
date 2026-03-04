@@ -33,6 +33,8 @@ description: |
   summary: CLAUDE.md exports validateToken as standalone but code defines it as class method
   fix_targets: [CLAUDE.md]
   compile_path: src/auth
+  compile_required: true
+  test_command: N/A
   ---end-debugger-result---
   </assistant_response>
   </example>
@@ -57,7 +59,7 @@ description: |
   4. L1 Spec Analysis: Behavior says "no results -> empty collection" (correct)
   5. L2 Plan Analysis: Algorithm section specifies empty array return (correct)
   6. Root Cause: L3 CODE_SPEC_DIVERGENCE — spec/plan are correct, code diverged
-  7. Fix: Spec and plan already correct → `/compile` will regenerate correct code
+  7. Fix: Spec and plan already correct → recompile will regenerate correct code
 
   ---debugger-result---
   result_file: ${TMP_DIR}debug-src-utils.md
@@ -67,6 +69,8 @@ description: |
   summary: Code returns null instead of empty array as specified in CLAUDE.md Behavior
   fix_targets: [CLAUDE.md, IMPLEMENTS.md]
   compile_path: src/utils
+  compile_required: true
+  test_command: npx jest --testNamePattern "should return empty array for no results"
   ---end-debugger-result---
   </assistant_response>
   </example>
@@ -255,14 +259,19 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 모든 finding의 수정은 CLAUDE.md / IMPLEMENTS.md에서 수행한다.
 소스코드는 "바이너리"이므로 직접 패치하지 않고 `/compile`로 재생성한다.
 
-- L1 finding → CLAUDE.md 수정
-- L2 finding → IMPLEMENTS.md 수정
-- L3 finding → 근본 원인이 되는 L1/L2 문서 수정 (스펙/플랜이 모두 맞으면 `/compile`만으로 재생성)
+- L1 finding → CLAUDE.md 수정 → `compile_required: true`
+- L2 finding → IMPLEMENTS.md 수정 → `compile_required: true`
+- L3 finding → 근본 원인이 되는 L1/L2 문서 수정 (스펙/플랜이 모두 맞으면 재컴파일만으로 해결)
+
+**L3 finding 세부 처리:**
+- L3 CODE_LOGIC_ERROR → IMPLEMENTS.md Algorithm 섹션 보강 필수 (코드 로직 버그 = Algorithm이 불충분한 증거 = 설계 피드백 신호) → `compile_required: true`
+- L3 CODE_SPEC_DIVERGENCE (spec/plan 정확) → 문서 변경 불필요 → `compile_required: true` (재컴파일 트리거)
+- L3 CODE_GUARD_MISSING → CLAUDE.md Contract 명확화 필수 → `compile_required: true`
 
 **Fix 우선순위 (Multi-layer 시):**
 1. L1 먼저 — spec이 source of truth
 2. L2 다음 — plan이 코드 생성의 근거
-3. 수정 완료 후 `/compile --path {dir} --conflict overwrite` 권장
+3. bugfix SKILL이 `/compile` 자동 실행
 
 ### Phase 7: Fix 제안 & 적용
 
@@ -277,10 +286,9 @@ AskUserQuestion: "다음 CLAUDE.md/IMPLEMENTS.md 수정을 적용하시겠습니
 옵션: [전체 적용, 선택적 적용, 수정안만 확인 (dry-run)]
 ```
 
-**Step 7.3: Fix 적용 후 `/compile` 안내**
+**Step 7.3: Fix 적용**
 - CLAUDE.md / IMPLEMENTS.md 수정 적용
-- `/compile --path {dir} --conflict overwrite`로 소스코드 재생성 안내
-- `/compile` 실행은 사용자 판단 (자동 실행 금지)
+- `/compile`은 bugfix SKILL이 자동 실행 (debugger는 실행하지 않음)
 
 ## 모호한 케이스 처리
 
@@ -304,8 +312,21 @@ root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_EXPORT_MISMATCH | PLAN_ERROR_HANDLING_
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md, IMPLEMENTS.md]
 compile_path: {dir}
+compile_required: true | false
+test_command: {command} | N/A
 ---end-debugger-result---
 ```
+
+**`compile_required` 결정 로직:**
+
+| 조건 | 값 | 사유 |
+|------|------|------|
+| 문서 수정 적용됨 (L1/L2 fix) | `true` | 문서 변경 → 소스 재생성 필요 |
+| L3 finding + spec/plan 정확 (CODE_SPEC_DIVERGENCE) | `true` | 재컴파일로 정확한 코드 재생성 |
+| 사용자 dry-run 선택 | `false` | 문서 미수정 |
+| 진단 실패 (status: failed) | `false` | 진단 불완전 |
+
+**`test_command`:** Phase 1.1에서 테스트 실행 시 사용한 명령어 캡처. 테스트 미실행이면 `N/A`.
 
 ## 오류 처리
 

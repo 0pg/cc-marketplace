@@ -91,7 +91,7 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 {proposed_content}
 
 **근거:** {why_this_fix}
-**후속 조치:** `/compile --path {dir} --conflict overwrite` 권장
+**후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
 ### L2 Fix (IMPLEMENTS.md)
@@ -108,7 +108,7 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 {proposed_content}
 
 **근거:** {why_this_fix}
-**후속 조치:** `/compile --path {dir} --conflict overwrite` 권장
+**후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
 ### L3 Fix (소스코드 직접 수정 안 함 — L1/L2 수정 후 `/compile`)
@@ -129,7 +129,7 @@ L3 finding은 코드 증상. 수정은 항상 L1/L2 문서에서 수행하고 `/
 **수정안:**
 {proposed_doc_content}
 
-**후속 조치:** `/compile --path {dir} --conflict overwrite`
+**후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
 ## Stack Trace Patterns
@@ -312,8 +312,8 @@ INV-1 위반이 버그 원인일 수 있음.
 
 ## 후속 조치
 
-- **`/compile --path {dir} --conflict overwrite`** 로 소스코드 재생성
-- **테스트 재실행:** PASSED | FAILED | SKIPPED
+- **Compile:** bugfix SKILL이 자동 실행
+- **검증:** bugfix SKILL이 원본 테스트 자동 재실행
 ```
 
 ## Decision Tree (Root Cause Classification)
@@ -343,5 +343,5 @@ Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     |           NO --> IMPLEMENTS.md 맞으면 `/compile`로 재생성
     |           YES --> IMPLEMENTS.md Algorithm 보강 후 `/compile`
     |
-    +-- 모든 경우: Fix는 CLAUDE.md/IMPLEMENTS.md → `/compile`로 재생성
+    +-- 모든 경우: Fix는 CLAUDE.md/IMPLEMENTS.md → bugfix SKILL이 /compile 자동 실행 → 검증
 ```

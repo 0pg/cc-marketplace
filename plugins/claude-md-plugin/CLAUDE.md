@@ -307,6 +307,9 @@ User: /bugfix [--error "..."] [--test "..."]
 │ 3. CLAUDE.md + IMPLEMENTS.md 존재 확인      │
 │ 4. 사전 검증 (스키마/미컴파일 변경)         │
 │ 5. Task(debugger) → 진단 + 수정            │
+│ 7. Skill("compile") → 소스코드 재생성       │
+│ 8. 검증 (원본 테스트 재실행)                 │
+│ 9. 결과 보고                                │
 └────────────────────┬────────────────────────┘
                      │
                      ▼
@@ -404,7 +407,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
 /compile → IMPLEMENTS.md.ImplementationSection
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
-/bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile로 Source Code 재생성
+/bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
 /impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
 ```
 
