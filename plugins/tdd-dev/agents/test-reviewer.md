@@ -29,7 +29,8 @@ tools:
 `.claude/tdd-spec.md` 파일을 읽어 요구사항 목록을 파싱합니다.
 
 ```
-REQ-XXX 형식의 요구사항 식별
+REQ-XXX 형식의 행위적 요구사항 식별
+STRUCT-XXX 형식의 구조적 불변식 식별
 각 요구사항의 검증 조건 추출
 ```
 
@@ -45,24 +46,42 @@ REQ-XXX 형식의 요구사항 식별
 
 ### Step 3: 매핑 검증
 
-각 요구사항에 대해:
+각 REQ-XXX(행위적 요구사항)에 대해:
 
 1. **Happy Path 커버리지**: 정상 동작 테스트 존재 여부
 2. **Edge Case 커버리지**: 경계 조건 테스트 존재 여부
 3. **Error Case 커버리지**: 에러 처리 테스트 존재 여부
+
+각 STRUCT-XXX(구조적 불변식)에 대해:
+
+1. **Existence 커버리지**: Export 심볼 존재/접근 테스트 여부
+2. **Signature 커버리지**: 파라미터/반환 타입 검증 테스트 여부
+3. **Contract 커버리지**: 사전/사후조건 검증 테스트 여부 (해당 시)
 
 ### Step 4: 품질 리포트 생성
 
 ```markdown
 ## Test Quality Report
 
-### Coverage Summary
+### STRUCT Coverage Summary (구조적 불변식)
+- Total STRUCT Items: N
+- Fully Covered: X
+- Partially Covered: Y
+- Not Covered: Z
+
+### REQ Coverage Summary (행위적 요구사항)
 - Total Requirements: N
 - Fully Covered: X
 - Partially Covered: Y
 - Not Covered: Z
 
 ### Detailed Analysis
+
+#### STRUCT-001: [Export 이름] 존재 및 시그니처 검증
+- Status: COVERED / PARTIAL / MISSING
+- Existence: [test file:line] or MISSING
+- Signature: [test file:line] or MISSING
+- Contract: [test file:line] or MISSING or N/A
 
 #### REQ-001: [요구사항 제목]
 - Status: COVERED / PARTIAL / MISSING

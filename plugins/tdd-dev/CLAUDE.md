@@ -27,6 +27,15 @@ Outside-In TDD의 핵심:
 2. GREEN: 최소한의 코드로 통과
 3. REFACTOR: 동작 유지하며 개선
 
+### 4. Exports = Test Invariants (CLAUDE.md 연동 시)
+
+CLAUDE.md가 존재하면, Exports가 테스트 코드의 **구조적 불변식**이 됩니다:
+- Exports → STRUCT-XXX (존재, 시그니처, 접근성)
+- Behaviors → REQ-XXX (입력→출력)
+- Contract → 양쪽에 반영 (사전/사후조건)
+
+CLAUDE.md가 없으면 Outside-In TDD의 Mock 기반 인터페이스 발견으로 진행.
+
 ## Directory Structure
 
 ```
