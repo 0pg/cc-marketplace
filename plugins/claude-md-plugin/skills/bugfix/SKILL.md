@@ -8,7 +8,7 @@ description: |
   Traces root cause through CLAUDE.md (spec), IMPLEMENTS.md (plan), and Source Code layers.
   Trigger keywords: 디버그, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
 # /bugfix
@@ -144,14 +144,51 @@ root_cause_type: SPEC_BEHAVIOR_GAP | PLAN_ERROR_HANDLING_GAP | CODE_LOGIC_ERROR 
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md, IMPLEMENTS.md]
 compile_path: {dir}
+compile_required: true | false
+test_command: {command} | N/A
 ---end-debugger-result---
 ```
 
-### 7. 결과 보고
+### 6.5. 수정사항 Diff 표시
 
-debugger agent 결과를 사용자에게 보고:
+debugger가 CLAUDE.md/IMPLEMENTS.md를 수정한 후, compile 전에 변경사항을 표시합니다:
 
-**보고 형식:**
+**기존 파일 수정인 경우 (tracked):**
+```
+Bash: git diff HEAD -- {path}/CLAUDE.md {path}/IMPLEMENTS.md
+```
+
+**새 파일 생성인 경우 (untracked):**
+- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
+
+**변경 없음:** 스킵.
+
+표시 후 안내:
+> "문서 수정사항을 확인하세요. 이어서 /compile을 자동 실행합니다."
+
+### 7. Compile (소스코드 재생성)
+
+debugger result의 `compile_required` 필드에 따라 `/compile` 자동 실행:
+
+| 조건 | 동작 |
+|------|------|
+| `compile_required: true` | `Skill("compile", args: "--path {compile_path} --conflict overwrite")` 실행 |
+| `compile_required: false` | 스킵 (진단 실패 또는 사용자 dry-run) |
+| compile 실패 | 실패 보고 + 수동 점검 안내 |
+
+### 8. 검증 (원본 테스트 재실행)
+
+compile 성공 후, 원본 테스트를 재실행하여 fix를 검증:
+
+| 조건 | 동작 |
+|------|------|
+| `test_command` 있음 | 해당 테스트 명령어 실행 |
+| `test_command: N/A` + Type B (테스트 실패) | Step 1에서 수집한 테스트로 실행 |
+| 그 외 | 스킵 (compile 자체 테스트로 갈음) |
+
+### 9. 결과 보고
+
+**성공:**
 ```
 /bugfix 결과
 =========
@@ -160,8 +197,41 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 요약: {summary}
 
 수정된 문서: {fix_targets}
+Compile: PASS
+검증: PASS ({test_command})
 
-⚠ `/compile --path {compile_path} --conflict overwrite`로 소스 코드를 재생성하세요.
+상세 결과: {result_file}
+```
+
+**부분 성공 (검증 실패):**
+```
+/bugfix 결과
+=========
+
+Root Cause: {root_cause_layer} - {root_cause_type}
+요약: {summary}
+
+수정된 문서: {fix_targets}
+Compile: PASS
+검증: FAIL ({test_command})
+
+⚠ 추가 `/bugfix`로 남은 문제를 진단하세요.
+
+상세 결과: {result_file}
+```
+
+**실패 (compile 실패):**
+```
+/bugfix 결과
+=========
+
+Root Cause: {root_cause_layer} - {root_cause_type}
+요약: {summary}
+
+수정된 문서: {fix_targets}
+Compile: FAIL
+
+⚠ 수동 점검이 필요합니다. 상세 결과를 확인하세요.
 
 상세 결과: {result_file}
 ```
@@ -172,11 +242,12 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 - 근본 원인을 가능한 높은 계층(L1 > L2 > L3)으로 추적
 - Fix는 항상 CLAUDE.md / IMPLEMENTS.md에서 수행 (소스코드는 "바이너리")
 - Fix 전 사용자 승인 (AskUserQuestion)
-- 수정 후 `/compile --path <dir> --conflict overwrite` 권장
+- Fix 적용 후 `/compile` 자동 실행 (`compile_required: true`인 경우)
+- Compile 후 원본 테스트 재실행 검증
 
 **DON'T:**
 - 소스코드 직접 수정 (항상 문서 수정 → `/compile`로 재생성)
-- `/compile` 자동 실행 (사용자 판단)
+- compile 없이 bugfix 완료 보고 금지 (`compile_required: true`인 경우)
 - 사용자 승인 없이 CLAUDE.md/IMPLEMENTS.md 수정
 - 전체 소스 디렉토리 읽기 (에러 위치 중심 타깃 분석)
 - 상세 진단을 context에 반환 (`${TMP_DIR}` 파일 사용)
@@ -205,6 +276,8 @@ src/auth에서 에러를 진단합니다...
 
 3-layer 진단을 실행합니다...
 
+/compile 자동 실행 중...
+
 /bugfix 결과
 =========
 
@@ -212,8 +285,8 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 요약: CLAUDE.md exports validateToken as standalone but code defines it as class method
 
 수정된 문서: [CLAUDE.md]
-
-⚠ `/compile --path src/auth --conflict overwrite`로 소스 코드를 재생성하세요.
+Compile: PASS
+검증: PASS (npx jest src/auth --no-coverage)
 
 상세 결과: .claude/tmp/debug-src-auth.md
 </assistant_response>
@@ -233,15 +306,17 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 
 3-layer 진단을 실행합니다...
 
+/compile 자동 실행 중...
+
 /bugfix 결과
 =========
 
 Root Cause: L3 - CODE_SPEC_DIVERGENCE
 요약: Code returns null instead of empty array as specified in CLAUDE.md Behavior
 
-수정된 문서: [CLAUDE.md, IMPLEMENTS.md] (스펙/플랜 정확 — 재컴파일로 해결)
-
-⚠ `/compile --path src/utils --conflict overwrite`로 소스 코드를 재생성하세요.
+수정된 문서: (스펙/플랜 정확 — 재컴파일로 해결)
+Compile: PASS
+검증: PASS (npx jest --testNamePattern "should return empty array for no results")
 
 상세 결과: .claude/tmp/debug-src-utils.md
 </assistant_response>
@@ -265,6 +340,8 @@ Root Cause: L3 - CODE_SPEC_DIVERGENCE
 
 3-layer 진단을 실행합니다...
 
+/compile 자동 실행 중...
+
 /bugfix 결과
 =========
 
@@ -272,8 +349,8 @@ Root Cause: MULTI - PLAN_ERROR_HANDLING_GAP + SPEC_BEHAVIOR_GAP
 요약: Token refresh on expiry not specified in CLAUDE.md Behavior, not handled in IMPLEMENTS.md
 
 수정된 문서: [CLAUDE.md, IMPLEMENTS.md]
-
-⚠ `/compile --path src/auth --conflict overwrite`로 소스 코드를 재생성하세요.
+Compile: PASS
+검증: PASS (npx jest --testNamePattern "should refresh token on expiry")
 
 상세 결과: .claude/tmp/debug-src-auth.md
 </assistant_response>

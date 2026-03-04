@@ -1,4 +1,4 @@
-# claude-md-plugin (v2.24.0)
+# claude-md-plugin (v2.26.1)
 
 > CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템 기반의 문서-코드 동기화 플러그인
 
