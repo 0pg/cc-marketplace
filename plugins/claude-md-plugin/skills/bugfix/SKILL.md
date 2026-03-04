@@ -153,13 +153,9 @@ test_command: {command} | N/A
 
 debugger가 CLAUDE.md/IMPLEMENTS.md를 수정한 후, compile 전에 변경사항을 표시합니다:
 
-**기존 파일 수정인 경우 (tracked):**
 ```
 Bash: git diff HEAD -- {path}/CLAUDE.md {path}/IMPLEMENTS.md
 ```
-
-**새 파일 생성인 경우 (untracked):**
-- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
 
 **변경 없음:** 스킵.
 

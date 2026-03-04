@@ -121,12 +121,14 @@ description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
 
 impl-reviewer가 fix patch를 적용한 경우, 변경사항을 표시합니다:
 
-**기존 파일 수정인 경우 (tracked):**
 ```
 Bash: git diff HEAD -- {claude_md_path} {implements_md_path}
 ```
 
-fix patch가 적용되지 않은 경우 (리뷰만 수행) → 이 단계 스킵.
+**변경 없음 (리뷰만 수행):** 스킵.
+
+표시 후 안내:
+> "수정사항을 확인하세요. 수정이 적절하지 않으면 /impl-review를 다시 실행할 수 있습니다."
 
 ### 4. 최종 결과 보고
 
