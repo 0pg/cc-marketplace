@@ -358,6 +358,7 @@ User: /bugfix [--error "..."] [--test "..."]
 |---------|------|
 | `/project-setup` | CLAUDE.md에 Convention 섹션 생성 |
 | `/convention-update` | CLAUDE.md Convention 섹션 업데이트 |
+| `/dev` | 자연어 요청 → /impl 또는 /bugfix 자동 라우팅 |
 
 ## Skills
 
