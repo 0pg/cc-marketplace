@@ -9,16 +9,36 @@
 
 ## Phase 0: Scope Assessment
 
-- **completeness**: low (추상적 기능 설명만, Exports 추론 불가)
-- **scope**: single-module (단일 도메인 "사용자 관리")
-- **다음 단계**: Phase 2 Tier 1부터 시작
+```
+---scope-assessment---
+completeness: low
+scope: single-module
+evidence:
+  D1_purpose: 추론 가능 — "사용자 관리 기능" (CRUD/인증/권한 등 구체적 범위 불명)
+  D2_interface: 없음 — 함수명/타입 리터럴 없음
+  D3_constraints: 없음 — 제약/규칙 미언급
+next_phase: Phase 2 Tier 1
+---end-scope-assessment---
+```
 
 ## Phase 1: Requirements Analysis
 
-초기 추출 결과 (불완전):
-- Purpose: 사용자 관리 (구체적 범위 불명확)
-- Exports: 추론 불가
-- Behaviors: 추론 불가
+```
+---extraction-summary---
+format: natural-language
+purpose: 사용자 관리 [inferred]
+exports:
+  (none - gap)
+behaviors:
+  confirmed: 0
+  inferred: 0
+contracts: gap
+protocol: gap
+domain_context: gap
+location: unknown [gap]
+gaps: [PURPOSE 구체화, EXPORTS, BEHAVIORS, CONTRACTS, LOCATION]
+---end-extraction-summary---
+```
 
 ## Phase 1.5: dep-explorer
 

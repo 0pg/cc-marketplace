@@ -124,8 +124,18 @@ IMPLEMENTS.md: {implements_md_path} # 없으면 "N/A"
 테스트: {test_name_or_none}
 스키마 검증: PASS | FAIL ({errors})     # SKILL이 사전 실행한 결과
 미컴파일 변경: NONE | DETECTED ({reason}) # SKILL이 사전 실행한 결과
+리스크 레벨: NONE | LOW | MEDIUM | HIGH # SKILL이 분류한 사전 검증 리스크
+리스크 오버라이드: false | true          # HIGH 리스크를 사용자가 오버라이드했는지
 결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
+
+### 리스크 오버라이드 처리
+
+`리스크 오버라이드: true`인 경우:
+- 영향받는 계층의 findings에 `confidence: LOW` 강제 부여
+- 스키마 FAIL 오버라이드 → L1 findings에 `confidence: LOW`
+- 미컴파일 변경 오버라이드 → L3 findings에 `confidence: LOW`
+- 결과 블록에 `risk_override: true` 포함
 
 ## Workflow
 
@@ -148,6 +158,57 @@ cargo test {test_name} -- --nocapture 2>&1 | head -200             # Rust
 **Step 1.2: 언어 감지**
 - 스택 트레이스 패턴으로 감지 (debugger-templates.md의 Stack Trace Patterns 참조)
 - 스택 없으면 `Glob(**/*.{ts,py,go,rs,java})` 결과 카운트로 판단
+
+### Phase 1.3: 에러 재현 실패 처리
+
+Phase 1.1에서 테스트 실행 결과 에러가 재현되지 않은 경우 실행합니다.
+
+**Step 1.3.1: 환경 정보 자동 수집**
+
+재현 실패 시 환경 차이를 파악하기 위해 자동 수집합니다:
+
+```bash
+{
+  echo "=== Runtime ==="
+  node --version 2>/dev/null || python3 --version 2>/dev/null || go version 2>/dev/null || rustc --version 2>/dev/null
+  echo "=== Lock File ==="
+  ls -la package-lock.json yarn.lock pnpm-lock.yaml Cargo.lock poetry.lock go.sum 2>/dev/null
+  echo "=== OS ==="
+  uname -a
+  echo "=== Git Status ==="
+  git status --short
+} > ${TMP_DIR}debug-env-info.txt 2>&1
+```
+
+**Step 1.3.2: 재현 실패 분류**
+
+| 분류 | 판별 | 대응 |
+|------|------|------|
+| **INTERMITTENT** | 테스트 존재하나 이번에 통과 | Step 1.3.3 재시도 |
+| **ENV_MISMATCH** | 모듈 없음/버전 충돌로 실행 자체 실패 | AskUserQuestion: 환경 질문 |
+| **UNREPRODUCIBLE** | 에러와 코드의 연관 불명 | AskUserQuestion: 상세 질문 |
+| **DIFFERENT_ERROR** | 다른 에러 발생 | 양쪽 에러 기록 후 새 에러로 진행 |
+
+**Step 1.3.3: 재시도 (INTERMITTENT 전용)**
+
+최대 3회 재시도합니다. 1회라도 실패하면 해당 에러로 Phase 2 진행합니다.
+3회 모두 통과하면 Step 1.3.4로 이동합니다.
+
+**Step 1.3.4: AskUserQuestion 템플릿**
+
+```
+AskUserQuestion: "에러를 재현할 수 없습니다. 추가 정보를 제공해주세요."
+옵션:
+1. 특정 환경에서만 발생 — 환경/설정 정보 제공
+2. 특정 데이터에서만 발생 — 입력 데이터/조건 제공
+3. 간헐적 발생 — 코드 분석만으로 진행
+4. 포기 — 진단 중단
+```
+
+**Step 1.3.5: 종료 조건**
+
+- "포기" 선택 → `status: failed`, `reproduction: N/A` 반환
+- "코드 분석만으로 진행" 선택 → `reproduction: STATIC_ANALYSIS_ONLY`로 설정, Phase 2로 진행 (테스트 실행 없이 에러 메시지 기반 분석)
 
 ### Phase 2: Stack Trace / Error 분석
 
@@ -184,7 +245,12 @@ CLAUDE.md가 "N/A"가 아닌 경우:
 $CLI_PATH parse-claude-md --file {claude_md_path} > ${TMP_DIR}debug-spec.json 2>&1
 ```
 
-### Phase 3: L3 탐색 (코드 분석 — Task 위임)
+### Phase 3-5: Layer 분석 (Task 위임)
+
+Phase 3-5는 상호 독립적이므로, Phase 2.5에서 모든 입력 파일이 준비되면 병렬 Task 호출이 가능합니다 (3개 debug-layer-analyzer 동시 실행).
+단, CLAUDE.md 또는 IMPLEMENTS.md가 "N/A"인 경우 해당 Phase를 스킵합니다.
+
+#### Phase 3: L3 탐색 (코드 분석)
 
 ```
 Task(debug-layer-analyzer):
@@ -196,7 +262,7 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l3-findings.md
 ```
 
-### Phase 4: L1 탐색 (스펙 교차 검증 — Task 위임)
+#### Phase 4: L1 탐색 (스펙 교차 검증)
 
 CLAUDE.md가 "N/A"이면 이 Phase를 스킵.
 
@@ -212,7 +278,7 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l1-findings.md
 ```
 
-### Phase 5: L2 탐색 (플랜 교차 검증 — Task 위임)
+#### Phase 5: L2 탐색 (플랜 교차 검증)
 
 IMPLEMENTS.md가 "N/A"이면 이 Phase를 스킵.
 
@@ -326,6 +392,8 @@ fix_targets: [CLAUDE.md, IMPLEMENTS.md]
 compile_path: {dir}
 compile_required: true | false
 test_command: {command} | N/A
+risk_override: false | true
+reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 ---end-debugger-result---
 ```
 
@@ -346,8 +414,9 @@ test_command: {command} | N/A
 |------|------|
 | CLAUDE.md 파싱 실패 | L1 스킵, L3 분석만 진행 |
 | IMPLEMENTS.md 없음 | L2 스킵 |
-| 에러 재현 불가 | AskUserQuestion으로 재현 조건 확인 |
+| 에러 재현 불가 | Phase 1.3 재현 실패 처리 절차 실행 |
 | 소스 파일 없음 | 에러 반환, status: failed |
+| 리스크 오버라이드 (risk_override: true) | 영향 계층 findings에 confidence: LOW 강제, 결과에 risk_override 명시 |
 | CLI 빌드 실패 | 경고 기록, CLI 없이 수동 분석 진행 |
 | Sub-agent 실패 | 해당 layer 스킵, 나머지 layer 결과로 판단 |
 
