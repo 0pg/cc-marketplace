@@ -199,7 +199,7 @@ debugger result의 `compile_required` 필드에 따라 `/compile` 자동 실행:
 
 | 조건 | 동작 |
 |------|------|
-| `compile_required: true` | `Skill("compile", args: "--path {compile_path} --conflict overwrite")` 실행 |
+| `compile_required: true` | `Skill("claude-md-plugin:compile", args: "--path {compile_path} --conflict overwrite")` 실행 |
 | `compile_required: false` | 스킵 (진단 실패 또는 사용자 dry-run) |
 | compile 실패 | 실패 보고 + 수동 점검 안내 |
 
