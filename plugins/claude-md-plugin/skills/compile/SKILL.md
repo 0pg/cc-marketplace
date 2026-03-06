@@ -5,7 +5,7 @@ aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement CLAUDE.md",
   "create source files", or uses "/compile". Processes changed CLAUDE.md files in the target path (or all with --all flag).
-  Performs TDD workflow (RED→GREEN→REFACTOR) to ensure compiled code passes tests.
+  Performs 2-agent TDD workflow: test-designer (RED) → compiler (GREEN+REFACTOR) to ensure compiled code passes tests.
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
@@ -23,6 +23,23 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 전통적 컴파일러가 소스코드를 바이너리로 변환하듯,
 `/compile`은 CLAUDE.md + IMPLEMENTS.md 명세를 실행 가능한 소스코드로 변환.
+
+## 2-Agent 아키텍처
+
+```
+/compile
+    │
+    ├─ Step 1: Task(test-designer) → 테스트 설계 (RED)
+    │   INV-EXPORT: Exports 시그니처를 불변 테스트로 변환
+    │
+    └─ Step 2: Task(compiler) → 코드 생성 (GREEN + REFACTOR)
+        INV-EXPORT: 테스트 수정 금지, 구현만 수정
+```
+
+**왜 2-Agent인가?**
+1. **설계와 구현의 명확한 분리**: RED(설계)가 별도 agent이므로 GREEN이 설계를 변경할 수 없음
+2. **Context 격리**: GREEN agent는 "테스트를 통과시키는 코드"만 생성
+3. **INV-EXPORT 자연 보장**: compiler에게 테스트 파일은 Read-only → 시그니처 변경 원천 차단
 
 ## 듀얼 문서 시스템
 
@@ -79,10 +96,24 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
               의존성 그래프 기반 실행 순서 결정 (leaf-first)
                     │
                     ▼
-              같은 depth의 독립 모듈은 병렬, 의존 관계는 순차 처리
-                    │
-                    ▼
-              결과 수집 및 보고
+              각 대상에 대해 2-Agent 실행:
+              │
+              ├─ Step 1: Task(test-designer) → 테스트 설계
+              │
+              ├─ Step 2: Task(compiler) → 코드 생성
+              │   │
+              │   ├─ 성공 → 완료
+              │   │
+              │   └─ 실패 (3회 재시도 후)
+              │       │
+              │       ├─ Step 3: Task(test-designer) + 에러 컨텍스트
+              │       │   → 테스트 인프라 수정 (assertion 변경 금지)
+              │       │
+              │       └─ Step 4: Task(compiler) → 재시도
+              │           ├─ 성공 → 완료
+              │           └─ 실패 → 사용자에게 보고
+              │
+              └─ 결과 수집 및 보고
 ```
 
 상세 구현은 `references/workflow.md` 참조.
@@ -93,6 +124,7 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 - **언어**: 파일 확장자 기반
 - **테스트 프레임워크**: 프로젝트 설정 파일 분석 (package.json, pyproject.toml, Cargo.toml 등)
+- **Test Convention**: 프로젝트 CLAUDE.md `### Test Convention` 서브섹션 (있으면 우선)
 
 ## 파일 충돌 처리
 
@@ -124,24 +156,24 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
 ✓ IMPLEMENTS.md Planning Section 로드
-✓ 테스트 생성 (5 test cases)
-✓ 구현 생성
-✓ 테스트 실행: 5 passed
+✓ [RED] test-designer: 5 export tests + 3 behavior tests
+✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
+✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
 ✓ IMPLEMENTS.md Implementation Section 업데이트
 
 [2/2] src/new/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 1개
 ✓ IMPLEMENTS.md Planning Section 로드
-✓ 테스트 생성 (2 test cases)
-✓ 구현 생성
-✓ 테스트 실행: 2 passed
+✓ [RED] test-designer: 1 export test + 2 behavior tests
+✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
+✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
 ✓ IMPLEMENTS.md Implementation Section 업데이트
 
 === 생성 완료 ===
 총 CLAUDE.md: 2개 (변경분)
 생성된 파일: 5개
 건너뛴 파일: 0개
-테스트: 7 passed, 0 failed
+테스트: 11 passed, 0 failed
 업데이트된 IMPLEMENTS.md: 2개
 ```
 
@@ -170,20 +202,24 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 ## 참조 자료
 
 - `references/compiler-workflow.md`: compiler agent 워크플로우 상세
+- `references/test-designer-reference.md`: test-designer agent 방법론 + 언어별 패턴
 - `references/workflow.md`: compile skill 워크플로우 상세
 - `examples/generate-result.json`: compiler agent 결과 JSON 예시
 
 ## DO / DON'T
 
 **DO:**
-- Follow TDD workflow (RED→GREEN→REFACTOR)
+- Follow 2-agent TDD workflow (test-designer → compiler)
+- Respect INV-EXPORT: test files are read-only for compiler
 - Respect file conflict mode (skip/overwrite)
-- Generate test files alongside implementation
+- Run feedback loop (max 1 round) when compiler fails
 
 **DON'T:**
 - Delete existing test files
+- Let compiler modify test-designer's test files
 - Overwrite files when conflict mode is "skip"
 - Modify CLAUDE.md (read-only during compile)
+- Run more than 1 feedback loop (infinite loop prevention)
 
 ## 오류 처리
 
@@ -193,7 +229,8 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 | IMPLEMENTS.md 없음 | 기본 템플릿으로 자동 생성 후 진행 |
 | 파싱 오류 | 해당 파일 건너뛰고 계속 진행, 오류 로그 |
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
-| 테스트 실패 | 경고 표시, 수동 수정 필요 안내 |
+| test-designer 실패 | 해당 대상 건너뛰고 오류 로그 |
+| compiler 실패 (피드백 루프 포함) | 경고 표시, 수동 수정 필요 안내 |
 | 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
 
 ## Examples
@@ -214,19 +251,19 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
-✓ 테스트 생성
-✓ 구현 생성
-✓ 테스트 실행: 5 passed
+✓ [RED] test-designer: 4 export tests + 3 behavior tests
+✓ [GREEN] 구현 생성 → 테스트 통과
+✓ [REFACTOR] Convention 적용
 
 [2/2] src/utils/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
-✓ 테스트 생성
-✓ 구현 생성
-✓ 테스트 실행: 3 passed
+✓ [RED] test-designer: 3 export tests + 2 behavior tests
+✓ [GREEN] 구현 생성 → 테스트 통과
+✓ [REFACTOR] Convention 적용
 
 === 생성 완료 ===
 총 CLAUDE.md: 2개
 생성된 파일: 7개
-테스트: 8 passed, 0 failed
+테스트: 12 passed, 0 failed
 </assistant_response>
 </example>

@@ -230,9 +230,6 @@ User: /compile [--all]
 │    ├─ YES → 모든 CLAUDE.md 검색             │
 │    └─ NO  → Bash(diff-compile-targets)      │
 │             변경 감지                        │
-│             판별 조건: staged, modified,     │
-│             untracked, spec-newer,           │
-│             no-source-code                   │
 │             targets = 0 → 종료              │
 │ 1. 대상 CLAUDE.md + IMPLEMENTS.md 필터      │
 │ 2. IMPLEMENTS.md 없으면 자동 생성           │
@@ -240,21 +237,21 @@ User: /compile [--all]
 │ 4. 의존성 그래프 기반 실행 (leaf-first)     │
 │    같은 depth 독립 모듈은 병렬,             │
 │    의존 관계는 순차 처리                    │
-│    Task(compiler) 호출                      │
+│    Task(test-designer) → Task(compiler)     │
+│    실패 시 피드백 루프 (최대 1회)           │
 └────────────────────┬────────────────────────┘
                      │
-                     ▼
-┌─────────────────────────────────────────────┐
-│ compiler AGENT (TDD Workflow)               │
-│                                             │
-│ CLAUDE.md 읽기 (WHAT)                       │
-│ IMPLEMENTS.md Planning Section 읽기 (HOW)   │
-│ Bash(claude-md-core parse-claude-md) → JSON 변환│
-│ [RED] 테스트 생성                           │
-│ [GREEN] 구현 생성 (최대 3회 재시도)         │
-│ [REFACTOR] 프로젝트 컨벤션 적용             │
-│ IMPLEMENTS.md Implementation Section 업데이트│
-└─────────────────────────────────────────────┘
+          ┌──────────┴──────────┐
+          ▼                     ▼
+┌──────────────────┐  ┌──────────────────────┐
+│ test-designer    │  │ compiler AGENT       │
+│ AGENT (RED)      │  │ (GREEN + REFACTOR)   │
+│                  │  │                      │
+│ CLAUDE.md →      │  │ 테스트 Read (R/O)    │
+│ Export Tests     │→│ 구현 생성 (3회 재시도)│
+│ Behavior Tests   │  │ Convention 적용      │
+│ Mock 생성        │  │ IMPLEMENTS.md 업데이트│
+└──────────────────┘  └──────────────────────┘
 ```
 
 ### /impl-review (CLAUDE.md + IMPLEMENTS.md 품질 리뷰)
@@ -353,7 +350,8 @@ User: /bugfix [--error "..."] [--test "..."]
 | `impl` | 요구사항 분석 및 CLAUDE.md + IMPLEMENTS.md 생성 |
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
-| `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
+| `test-designer` | CLAUDE.md Exports/Behaviors → 불변 테스트 생성 (RED phase) |
+| `compiler` | test-designer 테스트 기반 소스코드 생성 (GREEN + REFACTOR) |
 | `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
@@ -387,6 +385,7 @@ User: /bugfix [--error "..."] [--test "..."]
 | `schema-validate` | CLI Subcommand (not a plugin skill) | 스키마 검증 (`Bash`에서 `claude-md-core validate-schema`로 직접 호출) |
 | `format-exports` | CLI Subcommand (not a plugin skill) | analyze-code JSON → deterministic Exports 마크다운 생성 (`Bash`에서 `claude-md-core format-exports`로 직접 호출) |
 | `validate-convention` | CLI Subcommand (not a plugin skill) | Convention 섹션 검증 (`Bash`에서 `claude-md-core validate-convention`으로 직접 호출) |
+| `fix-schema` | CLI Subcommand (not a plugin skill) | 누락된 allow-none 섹션 자동 추가 (`Bash`에서 `claude-md-core fix-schema`로 직접 호출) |
 | `index-project` | CLI Subcommand (not a plugin skill) | 프로젝트 전체 인덱싱: tree-parse + code analysis (`Bash`에서 `claude-md-core index-project`로 직접 호출) |
 
 ## 불변식
@@ -423,6 +422,14 @@ project_root/CLAUDE.md MUST contain ## Code Convention (canonical source)
 module_root/CLAUDE.md MAY contain ## Code Convention (override; 없으면 project_root에서 상속)
 module_root/CLAUDE.md MAY contain ## Project Convention (override; 없으면 project_root에서 상속)
 싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 두 섹션 모두 배치
+```
+
+### INV-EXPORT: Exports 불변식
+```
+CLAUDE.md Exports 시그니처 = 불변 (정답)
+test-designer가 생성한 테스트 구조 = 불변
+compiler(GREEN)는 테스트를 수정할 수 없음
+Export Interface Tests 실패 → 구현을 수정 (테스트 변경 금지)
 ```
 
 ## 개발 원칙

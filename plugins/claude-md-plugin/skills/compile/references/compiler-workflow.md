@@ -1,9 +1,9 @@
 # Compiler Agent - Detailed Workflow Reference
 <!--
-  This file contains the detailed phase-by-phase workflow, pseudocode blocks,
-  skill invocation chain diagrams, and example tables extracted from agents/compiler.md.
-  It is loaded at runtime by the compiler agent via cat command.
-  Do not edit the main agent file's workflow without updating this file accordingly.
+  This file contains the detailed phase-by-phase workflow for the compiler agent.
+  The compiler handles GREEN + REFACTOR phases only.
+  RED phase (test generation) is handled by the test-designer agent.
+  Loaded at runtime by the compiler agent via cat command.
 -->
 
 ## 워크플로우
@@ -20,7 +20,7 @@
 
 **CLAUDE.md (WHAT)**에서 추출:
 - `exports`: 함수, 타입, 클래스 정의
-- `behaviors`: 동작 시나리오 (테스트 케이스로 변환)
+- `behaviors`: 동작 시나리오 (테스트는 test-designer가 이미 생성)
 - `contracts`: 사전/사후조건 (검증 로직으로 변환)
 - `dependencies`: 필요한 import문 생성
 - `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
@@ -89,37 +89,26 @@ Domain Context가 있으면 다음 규칙에 따라 코드에 반영합니다:
 | `UUID v1 지원 필요` | UUID v1 파싱 로직 포함 |
 | `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
 
-### Phase 2: 언어 감지 확인
+### Phase 2: 테스트 확인
 
-감지된 언어가 없으면 다음 절차를 따릅니다:
+test-designer가 생성한 테스트 파일을 Read하여 다음을 확인합니다:
+1. 테스트 파일 목록 확인 (입력의 `테스트 파일` 필드)
+2. 각 테스트 파일 Read — 테스트 구조와 assertion 파악
+3. Export Interface Tests와 Behavior Tests 구분 파악
+4. **테스트 파일 경로를 수정 금지 목록에 등록**
 
-1. 대상 디렉토리의 파일 확장자를 기반으로 언어를 자동 감지합니다.
-2. 자동 감지가 불가능하면 AskUserQuestion으로 사용자에게 질문합니다. 옵션은 프로젝트에서 사용 중인 언어 목록으로 동적 생성합니다.
-
-### Phase 3: TDD 워크플로우 (내부 자동 수행)
-
-#### 3.1 RED Phase - 테스트 생성
-
-Behaviors를 기반으로 테스트 파일을 생성합니다. 테스트 프레임워크는 프로젝트 설정(package.json, pyproject.toml 등)에서 감지하며, 감지 불가 시 `project_claude_md`에 명시된 프레임워크를 사용합니다.
-
-각 behavior에 대해:
-- `success` 카테고리이면 성공 케이스 테스트를 생성합니다.
-- 그 외이면 에러 케이스 테스트를 생성합니다.
-
-테스트 생성 시:
-- 프로젝트 CLAUDE.md의 테스트 프레임워크/컨벤션을 따름
-- 명시되지 않은 경우 해당 언어의 표준 테스트 프레임워크 사용
-
-#### 3.2 GREEN Phase - 구현 + 테스트 통과
+### Phase 3: GREEN Phase - 구현 + 테스트 통과
 
 Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가 통과할 때까지 반복합니다:
 
 1. **타입/인터페이스 파일 생성**: `spec.exports.types`에서 타입 파일을 생성합니다.
 2. **에러 클래스 파일 생성**: behaviors에서 에러 타입을 추출하여 에러 파일을 생성합니다.
 3. **메인 구현 파일 생성**: 각 함수에 대해 시그니처, contracts, behaviors를 기반으로 구현을 생성합니다.
-4. **테스트 실행 및 반복**: 테스트를 실행하고, 실패하면 실패한 테스트를 분석하여 구현을 수정한 후 재실행합니다. 최대 3회 재시도합니다. 3회 재시도 후에도 실패하면 경고를 기록합니다.
+4. **테스트 실행 및 반복**: 테스트를 실행하고, 실패하면 실패한 테스트를 분석하여 **구현을 수정**한 후 재실행합니다. 최대 3회 재시도합니다. 3회 재시도 후에도 실패하면 경고를 기록합니다.
 
-#### 3.3 REFACTOR Phase - 코드 개선
+**INV-EXPORT 준수**: Export Interface Tests가 실패하면 구현의 시그니처를 CLAUDE.md에 맞춰 수정합니다. 테스트를 수정하는 것은 금지입니다.
+
+### Phase 4: REFACTOR Phase - 코드 개선
 
 테스트가 모두 통과하면 CLAUDE.md Convention 섹션의 규칙에 맞게 리팩토링합니다. Convention 섹션이 없으면 project CLAUDE.md를 fallback으로 참조합니다:
 - `## Code Convention`: 코드 스타일, 네이밍 규칙 (PRIMARY)
@@ -128,14 +117,14 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 
 리팩토링 후 테스트를 재실행하여 회귀를 확인합니다. 리팩토링으로 테스트가 실패하면 롤백합니다.
 
-### Phase 4: 파일 충돌 처리
+### Phase 5: 파일 충돌 처리
 
 생성된 각 파일에 대해 대상 경로에 파일이 이미 존재하는지 확인합니다:
 - `conflict_mode`가 "skip"이면 기존 파일을 유지하고 건너뜁니다.
 - `conflict_mode`가 "overwrite"이면 기존 파일을 덮어씁니다.
 - 존재하지 않으면 새 파일을 생성합니다.
 
-### Phase 5: IMPLEMENTS.md Implementation Section 업데이트
+### Phase 6: IMPLEMENTS.md Implementation Section 업데이트
 
 코드 생성 과정에서 발견된 정보를 수집하여 IMPLEMENTS.md의 Implementation Section을 업데이트합니다:
 
@@ -159,7 +148,7 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 | State Management | 상태 관리가 있을 때 | 초기 상태, 저장, 정리 |
 | Implementation Guide | 구현 중 특이사항이 있을 때 | 날짜, 변경 사항, 이유 |
 
-### Phase 6: 결과 반환
+### Phase 7: 결과 반환
 
 다음 구조의 결과 JSON을 생성하여 파일에 저장합니다:
 
@@ -209,65 +198,61 @@ implements_md_updated: true
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     compiler Agent                          │
-│                                                              │
+│                                                             │
 │  ┌─ Read(project_root/CLAUDE.md) ────────────────────────┐ │
-│  │ 프로젝트 코딩 컨벤션, 구조 규칙 수집                    │ │
-│  │  - ## Project Convention (구조 규칙)                    │ │
-│  │  - ## Code Convention (코드 스타일)                     │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
+│  │ 프로젝트 코딩 컨벤션, 구조 규칙 수집                   │ │
+│  │  - ## Project Convention (구조 규칙)                   │ │
+│  │  - ## Code Convention (코드 스타일)                    │ │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
 │  ┌─ Read(module_root/CLAUDE.md) Convention sections ────┐ │
 │  │ module_root != project_root 시 override 로드         │ │
-│  │  - ## Code Convention (override)                      │ │
-│  │  - ## Project Convention (optional override)          │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ Bash(claude-md-core parse-claude-md) ──────────────────┐ │
-│  │ 대상 CLAUDE.md → ClaudeMdSpec JSON (WHAT)              │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌─ Bash(claude-md-core parse-claude-md) ──────────────┐  │
+│  │ 대상 CLAUDE.md → ClaudeMdSpec JSON (WHAT)           │  │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
 │  ┌─ Read(IMPLEMENTS.md) ─────────────────────────────────┐ │
 │  │ Planning Section 로드 (HOW direction)                  │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ 언어 감지 (또는 AskUserQuestion) ─────────────────────┐ │
-│  │ 대상 디렉토리 파일 확장자 기반 언어 결정               │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌─ TDD Workflow (내부 자동) ────────────────────────────┐ │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌─ Read(테스트 파일) ────────────────────────────────────┐ │
+│  │ test-designer 산출물 확인 (Read-only)                  │ │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌─ GREEN + REFACTOR Workflow ────────────────────────────┐ │
 │  │                                                        │ │
-│  │  [RED] behaviors → 테스트 파일 생성 (실패 확인)       │ │
-│  │                     │                                  │ │
-│  │                     ▼                                  │ │
-│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)    │ │
-│  │         └─ CLAUDE.md + IMPLEMENTS.md Planning 참조    │ │
+│  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)     │ │
+│  │         └─ CLAUDE.md + IMPLEMENTS.md Planning 참조     │ │
+│  │         └─ INV-EXPORT: 테스트 수정 금지               │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
 │  │  [REFACTOR] Convention 섹션 기반 코드 정리             │ │
-│  │         └─ Convention sections > project CLAUDE.md   │ │
-│  │         └─ 회귀 테스트로 안전성 확인                  │ │
+│  │         └─ Convention sections > project CLAUDE.md     │ │
+│  │         └─ 회귀 테스트로 안전성 확인                   │ │
 │  │                                                        │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
 │  ┌─ 파일 충돌 처리 ──────────────────────────────────────┐ │
 │  │ skip (기본) 또는 overwrite 모드                        │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
 │  ┌─ IMPLEMENTS.md Implementation Section 업데이트 ───────┐ │
 │  │ Algorithm, Key Constants, Error Handling 등 기록       │ │
-│  └───────────────────────┬────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
+│  └───────────────────────┬───────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
 │  ┌─ 결과 반환 ───────────────────────────────────────────┐ │
 │  │ 생성된 파일 목록, 테스트 결과, 상태                    │ │
 │  └────────────────────────────────────────────────────────┘ │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```

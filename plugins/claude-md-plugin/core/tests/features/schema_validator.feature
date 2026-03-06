@@ -481,6 +481,51 @@ Feature: Schema Validation
     When I validate the schema
     Then validation should pass
 
+  # Fix schema: auto-fix missing allow-none sections
+  Scenario: Fix schema adds missing allow-none sections
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Exports
+      - `foo(x: int): string`
+
+      ## Behavior
+      - input → output
+      """
+    When I fix the schema
+    Then fix should add sections "Contract, Protocol, Domain Context"
+    And the fixed file should pass validation
+
+  Scenario: Fix schema does not modify complete files
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Exports
+      - `foo(x: int): string`
+
+      ## Behavior
+      - input → output
+
+      ## Contract
+      None
+
+      ## Protocol
+      None
+
+      ## Domain Context
+      None
+      """
+    When I fix the schema
+    Then fix should add sections ""
+
   # C-3: Table format support
   Scenario: Valid exports in table format pass
     Given CLAUDE.md with content:

@@ -74,7 +74,14 @@ done
 
 validate SKILL이 각 JSON을 Read하여 스키마 이슈를 수집합니다.
 - `valid: true` → 스키마 통과, drift 검증 진행
-- `valid: false` → 스키마 이슈를 기록, drift 검증은 여전히 진행 (스키마 문제와 drift는 독립적)
+- `valid: false` → **auto-fix 시도**: `claude-md-core fix-schema`를 실행하여 누락된 allow-none 섹션을 자동 추가한 후, `validate-schema`를 재실행합니다. 재검증 후에도 실패하면 스키마 이슈를 기록합니다. drift 검증은 스키마 결과와 무관하게 진행합니다.
+
+```bash
+# Auto-fix (검증 실패 시만)
+$CLI_PATH fix-schema --file "$claude_md"
+# 재검증
+$CLI_PATH validate-schema --file "$claude_md" --strict --output "${TMP_DIR}schema-${dir_safe}.json"
+```
 
 ### 2. 배치 Drift 검증
 

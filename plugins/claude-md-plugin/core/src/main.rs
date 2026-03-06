@@ -165,6 +165,17 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Fix missing allow-none sections in CLAUDE.md by appending "## Section\nNone\n"
+    FixSchema {
+        /// CLAUDE.md file to fix
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Output file path (defaults to overwriting the input file)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -306,6 +317,35 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::FixSchema { file, output } => {
+            match std::fs::read_to_string(&file) {
+                Ok(content) => {
+                    let validator = SchemaValidator::new();
+                    let (fixed, added) = validator.fix_missing_sections(&content);
+                    if added.is_empty() {
+                        println!("No missing sections to fix.");
+                        Ok(())
+                    } else {
+                        let target = output.as_ref().unwrap_or(&file);
+                        match std::fs::write(target, &fixed) {
+                            Ok(()) => {
+                                println!("Fixed {} section(s): {}", added.len(), added.join(", "));
+                                println!("Output written to: {}", target.display());
+                                Ok(())
+                            }
+                            Err(e) => Err(format!(
+                                "Failed to write fixed CLAUDE.md to '{}': {}",
+                                target.display(), e
+                            ).into()),
+                        }
+                    }
+                }
+                Err(e) => Err(format!(
+                    "Failed to read CLAUDE.md '{}': {}",
+                    file.display(), e
+                ).into()),
+            }
+        }
         Commands::IndexProject { root, output } => {
             let tree_parser = TreeParser::new();
             let tree_result = tree_parser.parse(root);
@@ -351,6 +391,7 @@ fn main() {
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
             Commands::IndexProject { .. } => "index-project",
+            Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",
             Commands::FormatAnalysis { .. } => "format-analysis",
         };

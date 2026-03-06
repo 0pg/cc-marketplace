@@ -43,6 +43,8 @@ pub struct TestWorld {
     format_exports_input: Option<Exports>,
     format_exports_output: Option<String>,
     format_exports_output2: Option<String>,
+    // Fix schema fields
+    fix_schema_added: Option<Vec<String>>,
 }
 
 // ============== Common Steps ==============
@@ -394,6 +396,45 @@ fn warning_should_mention(world: &mut TestWorld, text: String) {
     let result = world.validation_result.as_ref().expect("No validation result");
     let found = result.warnings.iter().any(|w| w.contains(&text));
     assert!(found, "Expected warning mentioning '{}', got: {:?}", text, result.warnings);
+}
+
+// ============== Fix Schema Steps ==============
+
+#[when("I fix the schema")]
+fn fix_schema(world: &mut TestWorld) {
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let content = fs::read_to_string(claude_md_path).expect("Failed to read CLAUDE.md");
+
+    let validator = SchemaValidator::new();
+    let (fixed, added) = validator.fix_missing_sections(&content);
+
+    // Write fixed content back
+    fs::write(claude_md_path, &fixed).expect("Failed to write fixed CLAUDE.md");
+    world.fix_schema_added = Some(added);
+}
+
+#[then(expr = "fix should add sections {string}")]
+fn fix_should_add_sections(world: &mut TestWorld, expected: String) {
+    let added = world.fix_schema_added.as_ref().expect("No fix result");
+    if expected.is_empty() {
+        assert!(added.is_empty(), "Expected no sections added, got: {:?}", added);
+    } else {
+        let expected_sections: Vec<&str> = expected.split(", ").collect();
+        for section in &expected_sections {
+            assert!(added.iter().any(|a| a == section),
+                "Expected section '{}' to be added, got: {:?}", section, added);
+        }
+        assert_eq!(added.len(), expected_sections.len(),
+            "Expected {} sections, got {}: {:?}", expected_sections.len(), added.len(), added);
+    }
+}
+
+#[then("the fixed file should pass validation")]
+fn fixed_file_should_pass(world: &mut TestWorld) {
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let validator = SchemaValidator::new();
+    let result = validator.validate(claude_md_path);
+    assert!(result.valid, "Fixed file should pass validation, but got errors: {:?}", result.errors);
 }
 
 // ============== Code Analyzer Steps ==============

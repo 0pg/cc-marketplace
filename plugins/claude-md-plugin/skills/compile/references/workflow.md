@@ -41,12 +41,24 @@
 2. 각 CLAUDE.md와 같은 디렉토리에 IMPLEMENTS.md가 존재하는지 확인한다.
 3. IMPLEMENTS.md가 없으면 `"  ⚠ {경로} 없음 - 자동 생성"` 메시지를 출력하고, 기본 Planning Section으로 IMPLEMENTS.md를 자동 생성한다.
 
-## compiler Agent 실행 (의존성 인식)
+## 테스트 프레임워크 감지
+
+프로젝트에서 사용 중인 테스트 프레임워크를 감지합니다:
+
+1. 프로젝트 CLAUDE.md `### Test Convention` 서브섹션이 있으면 그것을 사용합니다.
+2. 없으면 프로젝트 설정 파일을 분석합니다:
+   - `package.json`: jest, vitest, mocha 등
+   - `pyproject.toml`: pytest, unittest 등
+   - `Cargo.toml`: 기본 Rust test framework
+   - `go.mod`: 기본 Go test framework
+3. 감지 결과를 test-designer에게 전달합니다.
+
+## 2-Agent 실행 (의존성 인식)
 
 의존 모듈 간 순서를 보장하기 위해, depth 기반 leaf-first 실행을 수행합니다.
 같은 depth의 독립 모듈은 병렬로 처리하되, 상위(부모) 모듈은 하위(자식) 모듈 compile 완료 후 실행합니다.
 
-> **이유**: compiler Agent의 TDD 워크플로우에서 테스트 실행 시 의존 모듈의 코드가 필요합니다.
+> **이유**: compiler Agent의 GREEN 워크플로우에서 테스트 실행 시 의존 모듈의 코드가 필요합니다.
 > 병렬 실행하면 의존 모듈의 코드가 아직 생성되지 않아 import 실패가 발생할 수 있습니다.
 
 **임시 디렉토리 초기화:**
@@ -60,8 +72,22 @@ mkdir -p "$TMP_DIR"
    1. 같은 depth 그룹 내의 각 CLAUDE.md에 대해:
       1. 해당 디렉토리의 IMPLEMENTS.md 경로와 감지된 언어를 준비한다.
       2. `"  • {CLAUDE.md 경로} - 시작 (depth={depth})"` 메시지를 출력한다.
-      3. `Task`로 `compiler` Agent를 백그라운드 실행한다. 전달 정보: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 충돌 처리 모드. 결과는 ${TMP_DIR}에 저장하고 경로만 반환하도록 지시한다.
-   2. 같은 depth 그룹의 모든 Agent가 완료될 때까지 대기한 후, 다음(더 얕은) depth 그룹으로 진행한다.
+      3. **Step 1: test-designer 호출** — `Task`로 `test-designer` Agent를 실행한다:
+         - 입력: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 테스트 프레임워크, 프로젝트 CLAUDE.md 경로, 모드 (full/incremental), 대상 exports, dependency CLAUDE.md 경로 목록
+         - test-designer 결과에서 테스트 파일 목록을 추출한다.
+      4. **Step 2: compiler 호출** — `Task`로 `compiler` Agent를 실행한다:
+         - 입력: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 테스트 파일 목록, 충돌 처리 모드
+         - 결과는 ${TMP_DIR}에 저장하고 경로만 반환하도록 지시한다.
+      5. **피드백 루프 (compiler 실패 시):**
+         - compiler가 3회 재시도 후 실패하면:
+         - **Step 3**: test-designer를 에러 컨텍스트와 함께 재호출 (에러 메시지, 실패 테스트 정보 포함)
+         - **Step 4**: compiler를 재호출
+         - Step 4도 실패하면 사용자에게 실패 보고 (최대 1회 피드백 루프)
+   2. 같은 depth 그룹의 모든 2-Agent 실행이 완료될 때까지 대기한 후, 다음(더 얕은) depth 그룹으로 진행한다.
+
+**같은 depth 병렬 처리 시 주의:**
+- 각 모듈의 test-designer → compiler는 순차 (dependency)
+- 같은 depth의 독립 모듈은 병렬 가능 (각 모듈 내에서 순차)
 
 ## 결과 수집 및 보고
 
@@ -81,7 +107,7 @@ mkdir -p "$TMP_DIR"
 - **`--conflict skip` (기본)**: 대상 파일이 이미 존재하면 `"⏭ Skipped: {경로}"` 메시지를 출력하고 건너뛴 파일 목록에 추가한 뒤, 다음 파일로 넘어간다.
 - **`--conflict overwrite`**: 대상 파일이 이미 존재해도 `"↻ Overwriting: {경로}"` 메시지를 출력하고 덮어쓴다.
 
-## 내부 TDD 워크플로우
+## 내부 2-Agent TDD 워크플로우
 
 사용자에게 노출되지 않는 내부 프로세스:
 
@@ -89,14 +115,19 @@ mkdir -p "$TMP_DIR"
 CLAUDE.md + IMPLEMENTS.md 파싱
      │
      ▼
-[RED] behaviors → 테스트 코드 생성 (실패 확인)
-     │
+[RED] Task(test-designer)
+     │   └─ CLAUDE.md Exports → Export Interface Tests (불변)
+     │   └─ CLAUDE.md Behaviors → Behavior Tests
+     │   └─ dependency CLAUDE.md → Mock 생성
      ▼
-[GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)
+[GREEN] Task(compiler)
+     │   └─ 구현 생성 + 테스트 통과 (최대 3회 재시도)
      │   └─ IMPLEMENTS.md Planning Section 참조
+     │   └─ 테스트 파일 수정 금지 (INV-EXPORT)
      ▼
-[REFACTOR] CLAUDE.md Convention 섹션 적용 + 회귀 테스트
-     │
+[REFACTOR] (compiler 내부)
+     │   └─ Convention 섹션 기반 코드 정리
+     │   └─ 회귀 테스트로 안전성 확인
      ▼
 파일 충돌 처리
      │
@@ -106,4 +137,11 @@ IMPLEMENTS.md Implementation Section 업데이트
      │   - State Management, Implementation Guide
      ▼
 결과 반환
+     │
+     ▼ (실패 시)
+[Feedback Loop] (최대 1회)
+     │   └─ Task(test-designer) + 에러 컨텍스트 → 인프라 수정
+     │   └─ Task(compiler) → 재시도
+     ▼
+최종 결과
 ```
