@@ -99,11 +99,11 @@ module_root Convention을 업데이트한 경우:
 `claude-md-core validate-convention` CLI를 실행하여 수정된 섹션을 검증합니다:
 
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 $CLI_PATH validate-convention --project-root {project_root}
 ```
 
+CLI 빌드에 실패하면 검증 단계를 건너뛰고, 수동 검증을 안내합니다.
 검증 실패 시 에러 내용을 표시하고, 수동 수정을 안내합니다.
 
 ### 6. 결과 보고
