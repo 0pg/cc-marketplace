@@ -50,6 +50,7 @@ Convention 섹션이 CLAUDE.md에 존재하지 않습니다.
 |------------|-----------|
 | 디렉토리 구조, 모듈 경계, 레이어링, 의존성 방향 | `## Project Convention` |
 | 코드 스타일, 네이밍 규칙, 들여쓰기, 포맷팅, import 순서 | `## Code Convention` |
+| 테스트 프레임워크, 테스트 패턴, Mock 전략 | `## Code Convention > ### Test Convention` |
 | 둘 다 해당하는 경우 | 두 섹션 모두 업데이트 |
 
 #### 2-B. 인자가 없는 경우: 대화형 선택

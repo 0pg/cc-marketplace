@@ -393,7 +393,13 @@ dep-explorer 결과 JSON에서 의존성 정보를 포맷팅합니다:
 
 ### Phase 6: 스키마 검증 (1회)
 
-`claude-md-core validate-schema` CLI를 호출하여 CLAUDE.md를 검증합니다. 검증 결과 JSON을 로드하여 `valid` 필드를 확인합니다. 검증이 실패하면 사용자에게 이슈를 보고하고 경고와 함께 진행합니다.
+`claude-md-core validate-schema` CLI를 호출하여 CLAUDE.md를 검증합니다. 검증 결과 JSON을 로드하여 `valid` 필드를 확인합니다.
+
+검증이 실패하면 `claude-md-core fix-schema` CLI를 실행하여 누락된 allow-none 섹션을 자동 추가합니다:
+```bash
+$CLI_PATH fix-schema --file {target_dir}/CLAUDE.md
+```
+auto-fix 후에도 검증이 실패하면 사용자에게 이슈를 보고하고 경고와 함께 진행합니다.
 
 ### Phase 6.5: Plan Preview & User Approval
 

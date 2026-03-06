@@ -144,10 +144,25 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 | Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
 | Code Style | Yes | 포맷팅, 들여쓰기, 줄 길이 |
 | Naming Rules | Yes | 변수/함수/클래스/상수 네이밍 |
+| Test Convention | No | 테스트 프레임워크, 파일 패턴, Mock 전략 |
 | Type System | No | 타입 어노테이션 규칙 |
 | Error Handling | No | try/catch 패턴, 에러 타입 |
 | Import/Export | No | import 순서, barrel file 규칙 |
 | Comments & Documentation | No | 주석/문서화 규칙 |
+
+#### Test Convention 자동 감지
+
+기존 프로젝트에서 테스트 패턴을 자동 감지하여 `### Test Convention`을 생성합니다:
+
+| 감지 대상 | 방법 |
+|-----------|------|
+| 테스트 프레임워크 | `package.json` (jest/vitest/mocha), `pyproject.toml` (pytest), `Cargo.toml`, `go.mod` |
+| 테스트 파일 패턴 | 기존 테스트 파일의 이름 패턴 분석 (`*.test.ts`, `test_*.py`, `*_test.go`) |
+| 테스트 구조 | 기존 테스트 파일에서 describe/it, test(), #[test] 패턴 분석 |
+| Mock 전략 | jest.fn, vi.fn, unittest.mock, gomock 등 사용 여부 |
+| 테스트 위치 | co-located vs `__tests__`/`tests` 디렉토리 |
+
+감지 결과는 사용자에게 확인을 받습니다 (기존 컨벤션 추출 플로우와 동일).
 
 ### 7. 각 module_root CLAUDE.md Convention 처리 (DRY 원칙)
 

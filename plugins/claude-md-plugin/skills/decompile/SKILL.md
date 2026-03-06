@@ -8,7 +8,7 @@ description: |
   Analyzes existing source code (binary) and creates CLAUDE.md (source) documentation for each directory.
   Trigger keywords: 디컴파일, 코드에서 문서 추출, 기존 코드 문서화
 user_invocable: true
-allowed-tools: [Bash, Read, Write, Glob, Task, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Write, Glob, Task, Skill]
 ---
 
 # Decompile Skill

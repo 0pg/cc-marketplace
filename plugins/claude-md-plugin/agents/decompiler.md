@@ -172,13 +172,19 @@ $CLI_PATH format-analysis \
 
 ### Phase 5: 스키마 검증 (1회)
 
-CLI로 생성된 CLAUDE.md를 검증합니다. 검증 실패 시 경고와 함께 진행합니다 (재시도 없음):
+CLI로 생성된 CLAUDE.md를 검증합니다:
 ```bash
 $CLI_PATH validate-schema \
   --file {target_dir}/CLAUDE.md \
   --output .claude/extract-results/{output_name}-validation.json
 ```
 결과 JSON의 `valid` 필드로 통과/실패 판정. (JSON 구조는 Templates Reference 참조)
+
+검증 실패 시 `fix-schema`를 자동 실행하여 누락된 allow-none 섹션을 추가합니다:
+```bash
+$CLI_PATH fix-schema --file {target_dir}/CLAUDE.md
+```
+auto-fix 후에도 실패하면 경고와 함께 진행합니다 (재시도 없음).
 
 ### Phase 6: 결과 반환
 

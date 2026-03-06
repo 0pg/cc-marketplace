@@ -496,6 +496,31 @@ impl SchemaValidator {
 
         false
     }
+
+    /// Fix missing required sections that allow "None" by appending them with "None" content.
+    /// Returns the fixed content and a list of sections that were added.
+    pub fn fix_missing_sections(&self, content: &str) -> (String, Vec<String>) {
+        let sections = self.parse_sections(content);
+        let mut fixed = content.to_string();
+        let mut added = Vec::new();
+
+        for required in REQUIRED_SECTIONS {
+            let found = sections.iter().any(|s| s.name.eq_ignore_ascii_case(required));
+            if found {
+                continue;
+            }
+            let allows_none = ALLOW_NONE_SECTIONS.iter().any(|s| s.eq_ignore_ascii_case(required));
+            if allows_none {
+                if !fixed.ends_with('\n') {
+                    fixed.push('\n');
+                }
+                fixed.push_str(&format!("\n## {}\nNone\n", required));
+                added.push(required.to_string());
+            }
+        }
+
+        (fixed, added)
+    }
 }
 
 impl Default for SchemaValidator {
@@ -909,6 +934,75 @@ Provides math utilities.
         let result = validator.validate(&path);
 
         assert!(result.valid, "float32 return type should be valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_fix_missing_sections_adds_none_sections() {
+        let content = r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#;
+        let validator = SchemaValidator::new();
+        let (fixed, added) = validator.fix_missing_sections(content);
+
+        // Should add Contract, Protocol, Domain Context (all allow_none)
+        assert!(added.contains(&"Contract".to_string()));
+        assert!(added.contains(&"Protocol".to_string()));
+        assert!(added.contains(&"Domain Context".to_string()));
+        assert_eq!(added.len(), 3);
+
+        // Fixed content should pass validation
+        let (_temp, path) = create_test_file(&fixed);
+        let result = validator.validate(&path);
+        assert!(result.valid, "Fixed content should pass: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_fix_missing_sections_no_change_when_complete() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#,
+        );
+        let validator = SchemaValidator::new();
+        let (_, added) = validator.fix_missing_sections(&content);
+
+        assert!(added.is_empty(), "No sections should be added: {:?}", added);
+    }
+
+    #[test]
+    fn test_fix_missing_sections_skips_non_none_sections() {
+        // Purpose does not allow None, so it should NOT be auto-added
+        let content = r#"# Test Module
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#;
+        let validator = SchemaValidator::new();
+        let (_, added) = validator.fix_missing_sections(content);
+
+        // Purpose is required but does NOT allow none — should not be added
+        assert!(!added.contains(&"Purpose".to_string()));
+        // But allow_none sections should be added
+        assert!(added.contains(&"Contract".to_string()));
     }
 
     #[test]

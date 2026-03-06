@@ -443,6 +443,30 @@ TypeScript 5.0, Node.js 20 LTS
 | Code Style | Yes | 포맷팅, 들여쓰기, 줄 길이 |
 | Naming Rules | Yes | 변수/함수/클래스/상수 네이밍 |
 
+**선택 서브섹션:**
+
+| 서브섹션 | 필수 | 설명 |
+|----------|------|------|
+| Test Convention | No | 테스트 프레임워크, 파일 패턴, 구조, Mock 전략 |
+| Type System | No | 타입 어노테이션 규칙 |
+| Error Handling | No | try/catch 패턴, 에러 타입 |
+| Import/Export | No | import 순서, barrel file 규칙 |
+| Comments & Documentation | No | 주석/문서화 규칙 |
+
+#### Test Convention 서브섹션 (선택)
+
+`/compile`의 test-designer agent가 테스트 생성 시 참조하는 테스트 컨벤션입니다.
+없으면 프로젝트 설정 파일에서 자동 감지합니다.
+
+```markdown
+### Test Convention
+- Framework: vitest
+- Test file pattern: `*.test.ts`
+- Test structure: describe/it
+- Mock strategy: vi.fn()
+- Test location: co-located (same directory as source)
+```
+
 **Convention 섹션 검증:**
 
 ```bash
