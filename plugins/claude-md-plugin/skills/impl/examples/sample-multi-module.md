@@ -9,9 +9,19 @@
 
 ## Phase 0: Scope Assessment
 
-- **completeness**: medium (명확한 목적 + 모호한 인터페이스)
-- **scope**: **multi-module** (3개 독립 도메인 감지)
-  - 감지 신호: 나열형 "카드 결제, 정산, 환불" — 각각 독립된 Exports 보유 가능
+```
+---scope-assessment---
+completeness: medium
+scope: multi-module
+evidence:
+  D1_purpose: 있음 — "결제 시스템" (명확한 도메인)
+  D2_interface: 추론 가능 — "카드 결제, 정산, 환불" (구체적 함수명 없음)
+  D3_constraints: 없음 — 제약/규칙 미언급
+next_phase: Phase 2 Tier 2
+---end-scope-assessment---
+```
+
+- **감지 신호**: 나열형 "카드 결제, 정산, 환불" — 각각 독립된 Exports 보유 가능
 
 ### AskUserQuestion: 멀티 모듈 처리 방법
 

@@ -20,8 +20,31 @@ description: |
   <assistant_response>
   I'll analyze the requirements and generate CLAUDE.md + IMPLEMENTS.md.
 
-  1. Scope Assessment - completeness: medium, scope: single-module
-  2. Requirements Analysis - extracted purpose, exports, behaviors
+  1. Scope Assessment:
+     ---scope-assessment---
+     completeness: medium
+     scope: single-module
+     evidence:
+       D1_purpose: 있음 — "JWT 토큰을 검증하는 인증 모듈"
+       D2_interface: 추론 가능 — "검증", "에러", "사용자 정보 반환" (리터럴 시그니처 없음)
+       D3_constraints: 있음 — "토큰이 만료되면 에러를 던지고"
+     next_phase: Phase 2 Tier 2
+     ---end-scope-assessment---
+  2. Requirements Analysis:
+     ---extraction-summary---
+     format: natural-language
+     purpose: JWT 토큰 검증 인증 모듈 [confirmed]
+     exports:
+       - validateToken [inferred]
+     behaviors:
+       confirmed: 2
+       inferred: 0
+     contracts: inferred
+     protocol: confirmed-none
+     domain_context: inferred
+     location: unknown [gap]
+     gaps: [EXPORTS 시그니처, LOCATION]
+     ---end-extraction-summary---
   3. Task(dep-explorer) - 2 internal deps, 1 external existing
   4. [AskUserQuestion Round 2 (Tier 2+3): fields to return, token signing algorithm]
   5. Target path determined: src/auth
@@ -58,9 +81,35 @@ description: |
   claude_md_index_file: .claude/extract-results/claude-md-index.json
   </user_request>
   <assistant_response>
-  1. Scope Assessment - completeness: low, scope: single-module
+  1. Scope Assessment:
+     ---scope-assessment---
+     completeness: low
+     scope: single-module
+     evidence:
+       D1_purpose: 추론 가능 — "사용자 관리 기능" (구체적 범위 불명)
+       D2_interface: 없음 — 함수명/타입 리터럴 없음
+       D3_constraints: 없음 — 제약/규칙 미언급
+     next_phase: Phase 2 Tier 1
+     ---end-scope-assessment---
   2. [AskUserQuestion Round 1 (Tier 1): "핵심 책임은?" → CRUD, "위치는?" → src/user]
-  3. Requirements Analysis - extracted CRUD purpose
+  3. Requirements Analysis:
+     ---extraction-summary---
+     format: natural-language
+     purpose: 사용자 CRUD 관리 [confirmed]
+     exports:
+       - createUser [inferred]
+       - getUser [inferred]
+       - updateUser [inferred]
+       - deleteUser [inferred]
+     behaviors:
+       confirmed: 0
+       inferred: 2
+     contracts: gap
+     protocol: confirmed-none
+     domain_context: gap
+     location: src/user [confirmed]
+     gaps: [EXPORTS 시그니처, CONTRACTS, DOMAIN_CONTEXT]
+     ---end-extraction-summary---
   4. Task(dep-explorer) - 0 internal, 1 external existing (bcrypt)
   5. [AskUserQuestion Round 2 (Tier 2+3): "어떤 함수 export?" → 4 functions, "에러 시나리오?" → DuplicateUserError]
   6. Target path: src/user
@@ -90,8 +139,32 @@ description: |
   <assistant_response>
   I'll analyze the requirements and merge with existing CLAUDE.md.
 
-  1. Scope Assessment - completeness: medium, scope: single-module
-  2. Requirements Analysis - extracted OAuth2 exports and behaviors
+  1. Scope Assessment:
+     ---scope-assessment---
+     completeness: medium
+     scope: single-module
+     evidence:
+       D1_purpose: 있음 — "기존 auth 모듈에 OAuth2 소셜 로그인 기능 추가"
+       D2_interface: 추론 가능 — "OAuth2 소셜 로그인" (구체적 시그니처 없음)
+       D3_constraints: 없음 — 제약 미언급
+     next_phase: Phase 2 Tier 2
+     ---end-scope-assessment---
+  2. Requirements Analysis:
+     ---extraction-summary---
+     format: natural-language
+     purpose: OAuth2 소셜 로그인 기능 추가 [confirmed]
+     exports:
+       - socialLogin [inferred]
+       - handleCallback [inferred]
+     behaviors:
+       confirmed: 0
+       inferred: 2
+     contracts: gap
+     protocol: inferred
+     domain_context: gap
+     location: src/auth [confirmed]
+     gaps: [EXPORTS 시그니처, CONTRACTS, DOMAIN_CONTEXT]
+     ---end-extraction-summary---
   3. Task(dep-explorer) - found existing src/auth/CLAUDE.md with JWT exports
   4. [AskUserQuestion Round 2 (Tier 2+3): OAuth provider selection, callback URL handling]
   5. Target path determined: src/auth (existing, merge mode)

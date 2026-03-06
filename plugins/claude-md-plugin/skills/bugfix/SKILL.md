@@ -70,7 +70,18 @@ mkdir -p "$TMP_DIR"
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}debug-scan-index.json"
 ```
 
-**3.2. 의미적 매칭:** 기능 설명의 키워드와 각 모듈의 `purpose` + `export_names` 매칭.
+**3.2. 의미적 매칭 & 신뢰도 분류:**
+
+기능 설명의 키워드와 각 모듈의 `purpose` + `export_names` 매칭 후 결과 분류:
+
+```
+매칭 결과 분류:
+- 확실 (1개, purpose 직접 일치) → 바로 3.3으로 진행
+- 후보 다수 (2-3개) → Exports 요약과 함께 AskUserQuestion으로 선택
+- 매칭 실패 (0개) → Grep fallback:
+    Grep: pattern="{keyword}" glob="**/*.{ts,py,go,rs}" head_limit=30
+  → 여전히 없으면 AskUserQuestion으로 경로 직접 입력 요청
+```
 
 **3.3. 매칭된 모듈(최대 3개)에서 관련 테스트 탐색:**
 ```
@@ -91,7 +102,7 @@ Glob: {matched_dir}/**/*test*  또는  {matched_dir}/**/*spec*
 | CLAUDE.md만 | L1+L3 진단 (L2 스킵, IMPLEMENTS.md 생성 권장) |
 | 없음 | `/decompile` 먼저 실행하여 CLAUDE.md 생성 제안 |
 
-### 5. 사전 검증 (CLI)
+### 5. 사전 검증 (CLI) — 리스크 레벨 분류
 
 CLAUDE.md가 존재할 때만 실행:
 
@@ -110,14 +121,32 @@ fi
 ```bash
 $CLI_PATH validate-schema --file {claude_md_path}
 ```
-- `valid: false` → "CLAUDE.md 스키마 오류 발견. `/validate` 먼저 실행하거나 스키마를 수정하세요" 안내
 
 **5.2. 미컴파일 변경 확인:**
 ```bash
 $CLI_PATH diff-compile-targets --root {project_root}
 ```
-- 대상 모듈이 `targets`에 포함 → "CLAUDE.md가 소스 코드보다 최신입니다. `/compile --path {path}`로 먼저 재컴파일하세요" 안내
-- 사용자가 그래도 진행 원하면 계속
+
+**5.3. 리스크 레벨 분류:**
+
+| 검증 결과 | 조건 | 리스크 | 대응 |
+|-----------|------|--------|------|
+| 스키마 FAIL (필수 섹션 누락) | Exports/Behavior 오류 | **HIGH** | 차단 + AskUserQuestion 오버라이드 확인 |
+| 스키마 FAIL (선택 섹션만) | 경고만 | **LOW** | 경고 후 계속 |
+| 미컴파일: `untracked`/`no-source-code` | 소스코드 없음 | **HIGH** | 차단 + `/compile` 안내 |
+| 미컴파일: `staged`/`modified`/`spec-newer` | 코드-스펙 불일치 | **MEDIUM** | 경고 + AskUserQuestion |
+| 스키마 FAIL + 미컴파일 | 복합 | **HIGH** (에스컬레이션) | 차단 + 단계별 해결 안내 |
+| 둘 다 PASS | 정상 | **NONE** | 그대로 진행 |
+
+**HIGH 리스크 차단 시:**
+```
+AskUserQuestion: "사전 검증에서 HIGH 리스크가 발견되었습니다. {상세 설명}. 그래도 진행할까요?"
+옵션: [오버라이드하고 진행, 먼저 해결 후 재시도]
+```
+
+**오버라이드 시 후속 처리:**
+- debugger Task 호출 시 `risk_override: true` 플래그 전달
+- debugger가 영향받는 계층 findings에 `confidence: LOW` 강제
 
 ### 6. 진단 (debugger agent)
 
@@ -130,6 +159,8 @@ Task(debugger):
   테스트: {test_name_or_none}
   스키마 검증: PASS | FAIL ({errors})
   미컴파일 변경: NONE | DETECTED ({reason})
+  리스크 레벨: NONE | LOW | MEDIUM | HIGH
+  리스크 오버라이드: false | true
   결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
@@ -168,7 +199,7 @@ debugger result의 `compile_required` 필드에 따라 `/compile` 자동 실행:
 
 | 조건 | 동작 |
 |------|------|
-| `compile_required: true` | `Skill("compile", args: "--path {compile_path} --conflict overwrite")` 실행 |
+| `compile_required: true` | `Skill("claude-md-plugin:compile", args: "--path {compile_path} --conflict overwrite")` 실행 |
 | `compile_required: false` | 스킵 (진단 실패 또는 사용자 dry-run) |
 | compile 실패 | 실패 보고 + 수동 점검 안내 |
 
@@ -193,6 +224,7 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 요약: {summary}
 
 수정된 문서: {fix_targets}
+재현: {reproduction}
 Compile: PASS
 검증: PASS ({test_command})
 
@@ -208,6 +240,7 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 요약: {summary}
 
 수정된 문서: {fix_targets}
+재현: {reproduction}
 Compile: PASS
 검증: FAIL ({test_command})
 
@@ -225,12 +258,18 @@ Root Cause: {root_cause_layer} - {root_cause_type}
 요약: {summary}
 
 수정된 문서: {fix_targets}
+재현: {reproduction}
 Compile: FAIL
 
 ⚠ 수동 점검이 필요합니다. 상세 결과를 확인하세요.
 
 상세 결과: {result_file}
 ```
+
+`reproduction` 필드:
+- `REPRODUCED`: 에러가 정상적으로 재현됨
+- `STATIC_ANALYSIS_ONLY`: 재현 실패 → 코드 분석만으로 진행
+- `N/A`: 재현 시도 없음 (에러 메시지만 제공)
 
 ## DO / DON'T
 

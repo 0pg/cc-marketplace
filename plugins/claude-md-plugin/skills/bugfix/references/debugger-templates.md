@@ -283,6 +283,8 @@ INV-1 위반이 버그 원인일 수 있음.
 - **스키마 검증:** PASS | FAIL ({errors})
 - **미컴파일 변경:** NONE | DETECTED ({reason})
 - **바운더리 위반:** NONE | DETECTED ({violations})
+- **리스크 레벨:** NONE | LOW | MEDIUM | HIGH
+- **리스크 오버라이드:** false | true
 
 ## 3-Layer 분석
 
@@ -315,11 +317,66 @@ INV-1 위반이 버그 원인일 수 있음.
 
 {fix_details_per_layer}
 
+## 리스크 & 신뢰도 영향
+
+- **리스크 오버라이드 시:** 영향받는 계층 findings에 `confidence: LOW` 강제
+  - 스키마 FAIL 오버라이드 → L1 findings confidence: LOW
+  - 미컴파일 변경 오버라이드 → L3 findings confidence: LOW
+- **confidence: LOW findings:** Root cause 판정 시 가중치 낮춤, 사용자 확인 필수
+
+### Confidence 결정 우선순위
+
+복수 조건이 동시에 적용될 경우, 낮은 쪽이 우선합니다:
+- `risk_override: true` + `reproduction: STATIC_ANALYSIS_ONLY` → `confidence: LOW` 적용 (LOW < MEDIUM)
+- 원칙: confidence는 항상 하향만 가능 (상향 불가)
+
+### LOW Confidence Root Cause 판정
+
+모든 findings가 `confidence: LOW`인 경우:
+- Root cause를 단정하지 않고 **후보(candidates)**로 제시
+- 결과 블록의 `confidence` 필드를 `LOW`로 설정
+- 사용자에게 AskUserQuestion으로 다음 선택지 제공:
+  1. 후보 기반으로 수정 진행 (리스크 인지)
+  2. 사전 검증 문제 먼저 해결 후 재실행
+  3. 진단 중단
+
+## Reproduction
+
+- **상태:** REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
+- **재현 실패 분류:** INTERMITTENT | ENV_MISMATCH | UNREPRODUCIBLE | DIFFERENT_ERROR
+- **재현 실패 시 대응:** Phase 1.3 절차 참조
+
 ## 후속 조치
 
 - **Compile:** bugfix SKILL이 자동 실행
 - **검증:** bugfix SKILL이 원본 테스트 자동 재실행
 ```
+
+## Reproduction Failure Handling
+
+### 재현 실패 분류
+
+| 분류 | 판별 기준 | 대응 |
+|------|----------|------|
+| **INTERMITTENT** | 테스트 존재, 이번 실행에서 통과 | 최대 3회 재시도, 1회라도 실패 시 해당 에러로 진행 |
+| **ENV_MISMATCH** | 모듈 미설치, 버전 충돌, 실행 자체 실패 | 환경 정보 수집 + AskUserQuestion |
+| **UNREPRODUCIBLE** | 에러와 코드 연관 불명, 재현 경로 불명확 | AskUserQuestion: 상세 재현 조건 요청 |
+| **DIFFERENT_ERROR** | 보고된 에러와 다른 에러 발생 | 양쪽 에러 기록, 새 에러로 분석 진행 |
+
+### 환경 정보 수집 항목
+
+- 런타임 버전 (node/python/go/rust)
+- 의존성 lock 파일 존재 여부
+- OS 정보
+- git status (dirty files 확인)
+
+### STATIC_ANALYSIS_ONLY 모드
+
+재현 실패 후 "코드 분석만으로 진행" 선택 시:
+- 테스트 실행 없이 에러 메시지 기반으로 Phase 2 진행
+- L3 분석은 코드 정적 분석만 수행
+- 결과 블록에 `reproduction: STATIC_ANALYSIS_ONLY` 표기
+- findings에 `confidence: MEDIUM` 적용 (재현 미확인)
 
 ## Decision Tree (Root Cause Classification)
 

@@ -31,14 +31,17 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 
 ## impl agent 워크플로우 (Phase 0~7)
 
-### 0. ⭐ Scope Assessment (NEW)
-- 완성도 분류: high / medium / low
+### 0. ⭐ Scope Assessment (3차원 증거 기반)
+- 3차원 평가: D1(Purpose 명확도), D2(Interface 구체성), D3(제약/맥락 포함)
+- 각 차원 `있음/추론 가능/없음` → completeness 결정 (high/medium/low)
 - 멀티 모듈 감지: single-module / multi-module
 - multi-module → AskUserQuestion (분해/도메인 그룹/단일유지)
+- `---scope-assessment---` 구조화 출력 (evidence 포함)
 
-### 1. 요구사항 분석
-- 자연어에서 Purpose, Exports, Behaviors, Contracts 추출
-- User Story, Feature 목록, 기능 요청 형태 지원
+### 1. 요구사항 분석 (구조화된 추출)
+- Step 1: 요구사항 형식 식별 (User Story / Feature List / 자연어 / 기술 요구사항)
+- Step 2: 7개 스펙 요소 순차 추출 (신뢰도 `confirmed/inferred/gap` 부여)
+- Step 3: `---extraction-summary---` 구조화 출력 (gap 항목 → Phase 2 질문 대상)
 
 ### 1.5. 의존성 탐색 (dep-explorer)
 - scan 인덱스(~6KB) 로드 → purpose + export_names로 관련 모듈 판단
