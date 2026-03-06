@@ -324,6 +324,22 @@ INV-1 위반이 버그 원인일 수 있음.
   - 미컴파일 변경 오버라이드 → L3 findings confidence: LOW
 - **confidence: LOW findings:** Root cause 판정 시 가중치 낮춤, 사용자 확인 필수
 
+### Confidence 결정 우선순위
+
+복수 조건이 동시에 적용될 경우, 낮은 쪽이 우선합니다:
+- `risk_override: true` + `reproduction: STATIC_ANALYSIS_ONLY` → `confidence: LOW` 적용 (LOW < MEDIUM)
+- 원칙: confidence는 항상 하향만 가능 (상향 불가)
+
+### LOW Confidence Root Cause 판정
+
+모든 findings가 `confidence: LOW`인 경우:
+- Root cause를 단정하지 않고 **후보(candidates)**로 제시
+- 결과 블록의 `confidence` 필드를 `LOW`로 설정
+- 사용자에게 AskUserQuestion으로 다음 선택지 제공:
+  1. 후보 기반으로 수정 진행 (리스크 인지)
+  2. 사전 검증 문제 먼저 해결 후 재실행
+  3. 진단 중단
+
 ## Reproduction
 
 - **상태:** REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
