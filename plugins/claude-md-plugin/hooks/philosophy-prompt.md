@@ -1,28 +1,29 @@
-## claude-md-plugin Core Philosophy (Post-Compaction Refresh)
+## MANDATORY: CLAUDE.md IS Your Source Code
 
-### Compile/Decompile Paradigm
-CLAUDE.md (.h, WHAT) + IMPLEMENTS.md (.c, HOW) --compile--> Source Code (Binary)
-Source Code (Binary) --decompile--> CLAUDE.md + IMPLEMENTS.md
-CLAUDE.md is the Source of Truth. Source code is a derived artifact.
+In this project, CLAUDE.md files ARE the source code.
+Source files (.ts, .py, .rs, etc.) are compiled output — do NOT read or edit them directly.
 
-### Command Responsibility
-| Command | CLAUDE.md | IMPLEMENTS.md | Source Code |
-|---------|-----------|---------------|-------------|
-| /impl | Create/Update | Planning Section | - |
-| /compile | Read-only | Implementation Section | Generate |
-| /decompile | Create | Create (full) | Read-only |
-| /bugfix | Fix (L1) | Fix (L2) | Regenerate via /compile |
-| /validate | Verify | - | Verify |
+### Your Workflow for Every Request
+1. **Read**: CLAUDE.md + IMPLEMENTS.md in the relevant directory — this is the code.
+2. **Modify**: `/impl` (feature/spec change) or `/bugfix` (error/test failure) to update CLAUDE.md.
+3. **Build**: `/compile` to regenerate source files from the updated spec.
 
-### Auto-Routing (replaces /dev)
-When user describes a need in natural language:
-- Feature request / new module / spec definition → invoke /impl
-- Error, bug, test failure, broken behavior → invoke /bugfix
-- Ambiguous → ask user to clarify
+### NEVER
+- Edit source files (.ts, .py, .rs, .go, .java, etc.) directly.
+- Search source files to understand behavior — read CLAUDE.md Exports instead.
 
-### Key Invariants
-- Tree dependency: parent -> child only (no sibling, no child -> parent)
-- CLAUDE.md + IMPLEMENTS.md are always 1:1 pairs
-- Exports = Interface Catalog (reference this, not source code)
-- Domain Context = decisions for deterministic recompilation
-- Always modify CLAUDE.md/IMPLEMENTS.md first, then /compile to regenerate
+### Exception: No CLAUDE.md
+If the target directory has no CLAUDE.md, these rules do not apply. Work with source files directly as normal.
+
+### Routing: Every Natural Language Request → Skill
+Classify the user's request and invoke the matching skill BEFORE any code exploration:
+
+**`/impl`** — the request describes something NEW or CHANGED:
+- "Add login feature", "JWT 인증 모듈 필요", "change token expiry to 30 days"
+- Signal words: add, create, need, change, update, improve, refactor
+
+**`/bugfix`** — the request describes something BROKEN:
+- "Login fails", "token validation 에러", "tests are failing", "TypeError at line 42"
+- Signal words: fail, error, broken, crash, wrong, not working, fix
+
+**Ambiguous** → ask user: "Is this a new feature (/impl) or a bug fix (/bugfix)?"
