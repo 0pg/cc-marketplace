@@ -157,7 +157,7 @@ IMPLEMENTS.md 경로: <path>
 | Domain Context (제약) | 검증 로직, 리밋 적용 |
 | Domain Context (호환성) | 레거시 지원 코드 |
 
-구체적인 코드 스타일, 네이밍, 에러 처리 방식은 CLAUDE.md Convention 섹션을 우선 따르고, 없으면 프로젝트 CLAUDE.md 일반 내용을 참조합니다.
+구체적인 코딩 규칙, 네이밍, 에러 처리 방식은 CLAUDE.md Convention 섹션을 우선 따르고, 없으면 프로젝트 CLAUDE.md 일반 내용을 참조합니다.
 
 ### 테스트 파일 수정 금지 규칙
 
