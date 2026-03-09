@@ -131,7 +131,7 @@ auth/
   - module_root CLAUDE.md에도 optional override 가능
 
 - **`## Code Convention`**: project_root CLAUDE.md에 canonical source로 배치. 소스코드 수준 규칙.
-  - 필수 서브섹션: `### Language & Runtime`, `### Code Style`, `### Naming Rules`
+  - 필수 서브섹션: `### Language & Runtime`, `### Code Style` (lint로 강제할 수 없는 코드 작성 패턴), `### Naming Rules`
   - module_root CLAUDE.md에는 project_root와 **다른** 내용만 override로 작성 (없으면 상속)
   - 싱글 모듈인 경우 project_root CLAUDE.md에 함께 배치
 
