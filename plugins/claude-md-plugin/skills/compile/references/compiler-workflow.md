@@ -34,8 +34,8 @@
 `implements_spec`의 구현 방향도 함께 참조합니다.
 
 **컨벤션 참조 우선순위**:
-1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코드 스타일, 네이밍 규칙
-2. `project_root` CLAUDE.md `## Code Convention` (canonical source) → 코드 스타일 기본값
+1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코딩 규칙, 네이밍 규칙
+2. `project_root` CLAUDE.md `## Code Convention` (canonical source) → 코딩 규칙 기본값
 3. `module_root` CLAUDE.md `## Project Convention` (optional override) → 구조 규칙
 4. `project_root` CLAUDE.md `## Project Convention` → 구조 규칙
 5. `project_root` CLAUDE.md 일반 내용 → 최종 fallback
@@ -111,7 +111,7 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 ### Phase 4: REFACTOR Phase - 코드 개선
 
 테스트가 모두 통과하면 CLAUDE.md Convention 섹션의 규칙에 맞게 리팩토링합니다. Convention 섹션이 없으면 project CLAUDE.md를 fallback으로 참조합니다:
-- `## Code Convention`: 코드 스타일, 네이밍 규칙 (PRIMARY)
+- `## Code Convention`: 코딩 규칙, 네이밍 규칙 (PRIMARY)
 - `## Project Convention`: 구조 규칙, 모듈 경계 (PRIMARY)
 - `project_claude_md` 일반 내용: FALLBACK
 
@@ -202,7 +202,7 @@ implements_md_updated: true
 │  ┌─ Read(project_root/CLAUDE.md) ────────────────────────┐ │
 │  │ 프로젝트 코딩 컨벤션, 구조 규칙 수집                   │ │
 │  │  - ## Project Convention (구조 규칙)                   │ │
-│  │  - ## Code Convention (코드 스타일)                    │ │
+│  │  - ## Code Convention (코딩 규칙)                      │ │
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │

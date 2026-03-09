@@ -1130,8 +1130,10 @@ const VALID_CODE_CONVENTION: &str = r#"
 ### Language & Runtime
 TypeScript 5.0, Node.js 20 LTS
 
-### Code Style
-2 spaces indent, single quotes, semicolons required.
+### Coding Rules
+- 비동기: async/await 사용, raw Promise 금지
+- 타입: strict mode, any 금지
+- 불변성: const 우선, let 최소화
 
 ### Naming Rules
 camelCase for variables and functions, PascalCase for types.
@@ -1197,7 +1199,7 @@ fn project_root_incomplete_code_convention(world: &mut TestWorld) {
     let root = get_temp_path(world);
     File::create(root.join("package.json")).expect("create marker");
     let content = format!(
-        "# Test\n\n## Purpose\nTest.\n{}\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Code Style\n2 spaces\n",
+        "# Test\n\n## Purpose\nTest.\n{}\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Coding Rules\n- async/await 사용\n",
         VALID_PROJECT_CONVENTION
     );
     create_file_at(&root, "CLAUDE.md", &content);
@@ -1284,7 +1286,7 @@ fn multi_module_incomplete_code_convention(world: &mut TestWorld) {
     fs::create_dir_all(&sub).expect("create sub");
     File::create(sub.join("package.json")).expect("create sub marker");
 
-    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Code Style\n2 spaces\n";
+    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Coding Rules\n- async/await 사용\n";
     create_file_at(&sub, "CLAUDE.md", sub_content);
 }
 

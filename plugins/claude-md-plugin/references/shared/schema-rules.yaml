@@ -109,7 +109,7 @@ sections:
     description: "소스코드 수준 코딩 규칙"
     required_subsections:
       - "Language & Runtime"
-      - "Code Style"
+      - "Coding Rules"
       - "Naming Rules"
 
 convention_rules:

@@ -395,8 +395,9 @@ camelCase for files.
 ### Language & Runtime
 TypeScript 5.0, Node.js 20
 
-### Code Style
-2 spaces indent, single quotes
+### Coding Rules
+- async/await 사용, raw Promise 금지
+- strict mode, any 금지
 
 ### Naming Rules
 camelCase for variables
@@ -458,8 +459,8 @@ Layered architecture.
 ### Language & Runtime
 TypeScript
 
-### Code Style
-2 spaces
+### Coding Rules
+- async/await 사용
 
 ### Naming Rules
 camelCase

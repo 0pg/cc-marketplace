@@ -594,12 +594,12 @@ project/CLAUDE.md
 - **`## Project Convention`** (project_root CLAUDE.md): 아키텍처/모듈 구조 규칙
   - 필수: Project Structure, Module Boundaries, Naming Conventions
 - **`## Code Convention`** (module_root CLAUDE.md): 소스코드 수준 규칙
-  - 필수: Language & Runtime, Code Style, Naming Rules
+  - 필수: Language & Runtime, Coding Rules, Naming Rules
 
 멀티 모듈 프로젝트에서는 module_root가 project_root의 Convention을 override할 수 있습니다.
 
 **컨벤션 우선순위:**
-1. module_root `## Code Convention` → 코드 스타일
+1. module_root `## Code Convention` → 코딩 규칙
 2. module_root `## Project Convention` (optional override)
 3. project_root `## Code Convention` (fallback)
 4. project_root `## Project Convention`
@@ -643,7 +643,7 @@ project/CLAUDE.md
 
 ## Code Convention (module root만)
 ### Language & Runtime
-### Code Style
+### Coding Rules
 ### Naming Rules
 ```
 
