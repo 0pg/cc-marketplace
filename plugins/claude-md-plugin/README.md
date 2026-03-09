@@ -657,7 +657,7 @@ project/CLAUDE.md
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md + IMPLEMENTS.md 추출 |
 | `compiler` | CLAUDE.md + IMPLEMENTS.md에서 소스코드 생성 (TDD) |
-| `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
+| `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |

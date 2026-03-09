@@ -319,9 +319,9 @@ User: /bugfix [--error "..."] [--test "..."]
 │                                             │
 │ Phase 1-2: 에러 재현 + 파싱 (inline)        │
 │ Phase 2.5: CLI → 파일 저장 (context 0)      │
-│ Phase 3: Task(debug-layer-analyzer, L3)     │
-│ Phase 4: Task(debug-layer-analyzer, L1)     │
-│ Phase 5: Task(debug-layer-analyzer, L2)     │
+│ Phase 3: Task(debug-layer-analyzer, L1)     │
+│ Phase 4: Task(debug-layer-analyzer, L2)     │
+│ Phase 5: Task(debug-layer-analyzer, L3)     │
 │ Phase 6: Findings Read → 교차 분석          │
 │ Phase 7: Fix 제안 + 사용자 승인 + Edit      │
 └────────────────────┬────────────────────────┘
@@ -329,8 +329,8 @@ User: /bugfix [--error "..."] [--test "..."]
           ┌──────────┼──────────┐
           ▼          ▼          ▼
    ┌────────┐  ┌────────┐  ┌────────┐
-   │ L3 분석 │  │ L1 분석 │  │ L2 분석 │
-   │ (code)  │  │ (spec)  │  │ (plan)  │
+   │ L1 분석 │  │ L2 분석 │  │ L3 분석 │
+   │ (spec)  │  │ (plan)  │  │ (code)  │
    └────────┘  └────────┘  └────────┘
    debug-layer-analyzer (context 격리)
 ```
@@ -370,7 +370,7 @@ User: /dev "request"
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `test-designer` | CLAUDE.md Exports/Behaviors → 불변 테스트 생성 (RED phase) |
 | `compiler` | test-designer 테스트 기반 소스코드 생성 (GREEN + REFACTOR) |
-| `debug-layer-analyzer` | 단일 계층(L3/L1/L2) 진단 분석 (debugger의 sub-agent) |
+| `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
