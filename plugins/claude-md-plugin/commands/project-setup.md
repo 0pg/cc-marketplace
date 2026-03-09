@@ -86,6 +86,27 @@ AskUserQuestion 시퀀스로 컨벤션 정보를 수집합니다:
 
 **Q3. 코딩 스타일**: "코딩 스타일 기본 규칙을 선택해주세요." 옵션: Strict(엄격한 타입/린트), Moderate(일반적 규칙), Minimal(최소한의 규칙)
 
+### 5.5. Source of Truth 섹션 확인 및 추가
+
+project_root CLAUDE.md에 `## Source of Truth` 섹션이 이미 있는지 확인합니다.
+
+**있음** → 스킵 (안내: "ℹ Source of Truth 섹션이 이미 존재합니다")
+
+**없음** → CLAUDE.md 최상단(첫 `##` 섹션 앞)에 다음 내용을 추가합니다:
+
+```markdown
+## Source of Truth
+
+CLAUDE.md를 소스코드로, Source Code를 바이너리로 취급합니다.
+모듈을 이해하려면 소스코드가 아닌 CLAUDE.md를 먼저 읽으세요.
+CLAUDE.md가 없는 디렉토리는 소스코드로 직접 작업합니다.
+```
+
+> Convention 섹션보다 앞에 배치: Source of Truth는 프로젝트의 근본 패러다임 선언이므로
+> Convention(코딩 규칙)보다 상위 개념입니다.
+
+CLAUDE.md가 아직 없는 경우, Step 6에서 파일을 생성할 때 `## Source of Truth` 섹션을 맨 위에 포함합니다.
+
 ### 6. project_root CLAUDE.md에 `## Project Convention` + `## Code Convention` 섹션 추가
 
 CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니다.
