@@ -20,10 +20,11 @@ description: |
   I'll diagnose the runtime error through 3-layer analysis.
   1. Templates loaded
   2. Error parsed: TypeError at src/auth/index.ts:15 (validateToken)
-  3. L3 Code Analysis: validateToken is a class method, not standalone function
-  4. L1 Spec Analysis: CLAUDE.md Exports lists validateToken as standalone function
-  5. Root Cause: L1 SPEC_EXPORT_MISMATCH
-  6. Fix proposed: Update CLAUDE.md Exports
+  3. L1 Spec Analysis: CLAUDE.md Exports lists validateToken as standalone function
+  4. L2 Plan Analysis: N/A (no relevant plan issue)
+  5. L3 Code Analysis: validateToken is a class method, not standalone function
+  6. Root Cause: L1 SPEC_EXPORT_MISMATCH
+  7. Fix proposed: Update CLAUDE.md Exports
 
   ---debugger-result---
   result_file: ${TMP_DIR}debug-src-auth.md
@@ -55,9 +56,9 @@ description: |
   I'll diagnose the test failure through 3-layer analysis.
   1. Templates loaded
   2. Test executed: FAIL - Expected [] Received null
-  3. L3 Code Analysis: searchItems returns null when no results
-  4. L1 Spec Analysis: Behavior says "no results -> empty collection" (correct)
-  5. L2 Plan Analysis: Algorithm section specifies empty array return (correct)
+  3. L1 Spec Analysis: Behavior says "no results -> empty collection" (correct)
+  4. L2 Plan Analysis: Algorithm section specifies empty array return (correct)
+  5. L3 Code Analysis: searchItems returns null when no results
   6. Root Cause: L3 CODE_SPEC_DIVERGENCE — spec/plan are correct, code diverged
   7. Fix: Spec and plan already correct → recompile will regenerate correct code
 
@@ -98,7 +99,7 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/debugger-templates.md"
 
 **Your Core Responsibilities:**
 1. Analyze error/test failure to identify the failing code location (Phase 1-2, inline)
-2. Delegate layer analysis to Task(debug-layer-analyzer) for context isolation (Phase 3-5)
+2. Delegate layer analysis to Task(debug-layer-analyzer) for context isolation (Phase 3-5, document-first: L1→L2→L3)
 3. Read compact findings and perform cross-layer analysis (Phase 6)
 4. Propose fixes to CLAUDE.md / IMPLEMENTS.md (Phase 7)
 5. Save results to `${TMP_DIR}` and return structured result block
@@ -245,24 +246,16 @@ CLAUDE.md가 "N/A"가 아닌 경우:
 $CLI_PATH parse-claude-md --file {claude_md_path} > ${TMP_DIR}debug-spec.json 2>&1
 ```
 
-### Phase 3-5: Layer 분석 (Task 위임)
+### Phase 3-5: Layer 분석 (Task 위임, 문서 우선 순서)
 
 Phase 3-5는 상호 독립적이므로, Phase 2.5에서 모든 입력 파일이 준비되면 병렬 Task 호출이 가능합니다 (3개 debug-layer-analyzer 동시 실행).
 단, CLAUDE.md 또는 IMPLEMENTS.md가 "N/A"인 경우 해당 Phase를 스킵합니다.
 
-#### Phase 3: L3 탐색 (코드 분석)
+> **문서 우선 원칙**: Phase 번호가 L1→L2→L3 순서를 따릅니다.
+> CLAUDE.md(스펙)가 Source of Truth이므로, 순차 실행 시에도 문서를 먼저 분석합니다.
+> Decision Tree(debugger-templates.md)의 탐색 순서와 일치합니다.
 
-```
-Task(debug-layer-analyzer):
-  분석 계층: L3
-  대상 디렉토리: {path}
-  에러 정보: {error_type}: {error_message}
-  에러 위치: {file}:{line} ({function})
-  analyze-code 결과: ${TMP_DIR}debug-analyze.json
-  결과 저장: ${TMP_DIR}debug-l3-findings.md
-```
-
-#### Phase 4: L1 탐색 (스펙 교차 검증)
+#### Phase 3: L1 탐색 (스펙 분석)
 
 CLAUDE.md가 "N/A"이면 이 Phase를 스킵.
 
@@ -278,7 +271,7 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l1-findings.md
 ```
 
-#### Phase 5: L2 탐색 (플랜 교차 검증)
+#### Phase 4: L2 탐색 (플랜 분석)
 
 IMPLEMENTS.md가 "N/A"이면 이 Phase를 스킵.
 
@@ -292,15 +285,27 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l2-findings.md
 ```
 
+#### Phase 5: L3 탐색 (코드 교차 검증)
+
+```
+Task(debug-layer-analyzer):
+  분석 계층: L3
+  대상 디렉토리: {path}
+  에러 정보: {error_type}: {error_message}
+  에러 위치: {file}:{line} ({function})
+  analyze-code 결과: ${TMP_DIR}debug-analyze.json
+  결과 저장: ${TMP_DIR}debug-l3-findings.md
+```
+
 ### Phase 6: 교차 분석 & Root Cause 분류
 
 **Step 6.0: Findings 로드**
 
 Read compact findings files (~20-30 lines each):
 ```
-Read: ${TMP_DIR}debug-l3-findings.md
 Read: ${TMP_DIR}debug-l1-findings.md  (L1 실행 시)
 Read: ${TMP_DIR}debug-l2-findings.md  (L2 실행 시)
+Read: ${TMP_DIR}debug-l3-findings.md
 ```
 
 **Step 6.1: Finding 집계**
@@ -412,7 +417,7 @@ reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 
 | 상황 | 대응 |
 |------|------|
-| CLAUDE.md 파싱 실패 | L1 스킵, L3 분석만 진행 |
+| CLAUDE.md 파싱 실패 | L1 스킵, L2/L3 분석으로 진행 |
 | IMPLEMENTS.md 없음 | L2 스킵 |
 | 에러 재현 불가 | Phase 1.3 재현 실패 처리 절차 실행 |
 | 소스 파일 없음 | 에러 반환, status: failed |

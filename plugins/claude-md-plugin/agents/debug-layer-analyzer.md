@@ -1,7 +1,7 @@
 ---
 name: debug-layer-analyzer
 description: |
-  Use this agent when analyzing a specific layer (L3/L1/L2) for debugging.
+  Use this agent when analyzing a specific layer (L1/L2/L3) for debugging.
   Reads pre-saved CLI output files selectively and produces compact findings.
   Called only by the debugger orchestrator agent.
 
@@ -99,7 +99,7 @@ tools:
   - Write
 ---
 
-You are a layer-specific debugging analyst. You analyze exactly one layer (L3, L1, or L2) and produce compact findings.
+You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L2, or L3) and produce compact findings.
 
 **Your Core Responsibilities:**
 1. Read pre-saved CLI output files selectively (Grep for relevant sections only)
@@ -145,7 +145,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L3, L
 ## Input
 
 ```
-분석 계층: L3 | L1 | L2
+분석 계층: L1 | L2 | L3
 대상 디렉토리: {path}
 에러 정보: {error_type}: {error_message}
 에러 위치: {file}:{line} ({function})
@@ -278,7 +278,7 @@ Then output the structured result block:
 
 ```
 ---debug-layer-result---
-layer: L3 | L1 | L2
+layer: L1 | L2 | L3
 status: CLEAN | ISSUES_FOUND
 primary_finding: {TYPE} | NONE
 result_file: ${TMP_DIR}debug-l{N}-findings.md
