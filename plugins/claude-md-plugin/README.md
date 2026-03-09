@@ -1,4 +1,4 @@
-# claude-md-plugin (v2.29.4)
+# claude-md-plugin (v2.31.0)
 
 > CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템 기반의 문서-코드 동기화 플러그인
 
@@ -69,6 +69,7 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 | 상황 | 커맨드 | 결과 |
 |------|--------|------|
+| 자연어로 작업 요청 | `/dev "요청"` | 적절한 스킬로 라우팅 |
 | 새 모듈 요구사항 정의 | `/impl "요구사항"` | CLAUDE.md + IMPLEMENTS.md |
 | 기존 코드 문서화 | `/decompile` | CLAUDE.md + IMPLEMENTS.md |
 | 명세 기반 코드 생성 | `/compile` | 소스코드 + 테스트 |
@@ -77,6 +78,36 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | 명세 품질 리뷰 | `/impl-review` | 4차원 품질 보고서 |
 
 ### 커맨드 상세
+
+#### `/dev` — 자연어 → 스킬 라우팅
+
+**언제 사용하나요?**
+- 어떤 스킬을 사용해야 할지 모를 때
+- 자연어로 작업을 요청하고 싶을 때
+
+**사용법:**
+```bash
+# 기능 추가 요청 → /impl로 라우팅
+/dev "로그인 기능 추가"
+
+# 버그 수정 요청 → /bugfix로 라우팅
+/dev "토큰 검증 에러"
+
+# 경로 지정
+/dev "인증 모듈 검증" --path src/auth
+```
+
+**분류 기준:**
+
+| 카테고리 | 키워드 | 대상 스킬 |
+|----------|--------|-----------|
+| FEATURE | add, create, new, 추가, 생성, 기능 | `/impl` |
+| BUGFIX | fix, bug, error, 버그, 에러, 실패 | `/bugfix` |
+| COMPILE | compile, generate, build, 컴파일 | `/compile` |
+| VALIDATE | validate, check, verify, 검증 | `/validate` |
+| AMBIGUOUS | (매칭 없음) | 사용자에게 질문 |
+
+---
 
 #### `/impl` — 요구사항에서 명세 생성
 

@@ -335,6 +335,24 @@ User: /bugfix [--error "..."] [--test "..."]
    debug-layer-analyzer (context 격리)
 ```
 
+### /dev (자연어 → 스킬 라우팅)
+
+```
+User: /dev "request"
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ dev COMMAND                                 │
+│                                             │
+│ 1. 인자 파싱 (request + --path)             │
+│ 2. 의도 분류 (FEATURE/BUGFIX/COMPILE/       │
+│    VALIDATE/AMBIGUOUS)                      │
+│ 3. CLAUDE.md 존재 확인 (FEATURE 제외)       │
+│    없으면 → 안내 후 종료                    │
+│ 4. Skill(target) 호출                       │
+└─────────────────────────────────────────────┘
+```
+
 ### 설계 원칙
 
 | 컴포넌트 | 역할 | 오케스트레이션 |
@@ -361,10 +379,11 @@ User: /bugfix [--error "..."] [--test "..."]
 
 | Command | 역할 |
 |---------|------|
+| `/dev` | 자연어 요청 분류 → 스킬 라우팅 |
 | `/project-setup` | CLAUDE.md에 Convention 섹션 생성 |
 | `/convention-update` | CLAUDE.md Convention 섹션 업데이트 |
 
-> **Auto-routing**: SessionStart hook이 자연어 요청 라우팅 가이드를 자동 주입합니다. Feature requests → `/impl`, Bugs/errors → `/bugfix`.
+> **Routing**: `/dev` 스킬로 자연어 요청을 적절한 skill에 라우팅합니다. SessionStart hook은 철학 프레이밍만 주입합니다.
 
 ## Skills
 
