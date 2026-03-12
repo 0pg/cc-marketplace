@@ -221,6 +221,13 @@ printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"sch
 
 `${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증, 재검증, 수정 결과를 병합한 통합 보고서를 생성합니다.
 
+**JSONL 파싱 방법:** 같은 파일에 phase별 라인이 혼재합니다. `directory` 필드 기준으로 그룹화:
+- `phase` 필드 없음 → validate 결과 (`issues_count`, `export_coverage`)
+- `"phase":"verify"` → verifier 결과 (`confirmed_issues`, `false_positives`)
+- `"phase":"fix"` → fixer 결과 (`fixed_count`, `skipped_count`, `schema_revalidation`)
+
+이슈가 없어 verify/fix 단계를 스킵한 디렉토리는 phase 라인이 없으므로 `-` 로 표시.
+
 **보고서 형식:**
 ```markdown
 # CLAUDE.md 검증 보고서
@@ -230,8 +237,8 @@ printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"sch
 | 디렉토리 | 스키마 | Drift 이슈 | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태 |
 |----------|--------|-----------|--------|------|--------|---------------|------|
 | src/auth | PASS | 0 | - | - | - | 95% | 양호 |
-| src/utils | PASS | 3 | 2 | 1 | 2 | 78% | 수정 완료 |
-| src/legacy | FAIL (1) | 5 | 4 | 1 | 4 | 45% | 수정 완료 |
+| src/utils | PASS | 3 | 2 | 1 | 2 | 78%→85% | 수정 완료 |
+| src/legacy | FAIL (1) | 5 | 4 | 1 | 3 | 45%→60% | 개선 필요 |
 
 ## 상세 결과
 

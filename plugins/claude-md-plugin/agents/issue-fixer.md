@@ -175,6 +175,11 @@ $CLI_PATH validate-schema --file {directory}/CLAUDE.md --strict --output ${TMP_D
 
 ### 6. 결과 저장
 
+수정된 CLAUDE.md의 변경사항을 git diff로 확인합니다:
+```bash
+git diff {directory}/CLAUDE.md
+```
+
 결과를 `${TMP_DIR}fixed-{dir-safe-name}.md`에 저장합니다.
 
 **결과 형식:**

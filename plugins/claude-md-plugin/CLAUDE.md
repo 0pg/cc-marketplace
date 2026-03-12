@@ -446,6 +446,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 /bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
 /impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
+/validate → CLAUDE.md (drift fix, confirmed issues only via issue-fixer)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙
