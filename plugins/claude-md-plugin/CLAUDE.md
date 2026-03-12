@@ -279,7 +279,7 @@ User: /impl-review [path]
 └─────────────────────────────────────────────┘
 ```
 
-### /validate (문서-코드 일치 검증)
+### /validate (문서-코드 일치 검증 + 자동 수정)
 
 ```
 User: /validate
@@ -288,9 +288,21 @@ User: /validate
 ┌─────────────────────────────────────────────┐
 │ validate SKILL (Entry Point)                │
 │                                             │
-│ For each CLAUDE.md (병렬):                  │
-│   Task(validator)                            │
-└─────────────────────────────────────────────┘
+│ 1. Bash(validate-schema) → 스키마 검증      │
+│ 2. Task(validator) 배치 병렬 → Drift 검증   │
+│ 3. 중간 결과 확인 (이슈 있는 디렉토리 선별) │
+│ 4. Task(issue-verifier) 배치 병렬 → 재검증  │
+│ 5. Task(issue-fixer) 배치 병렬 → 수정       │
+│ 6. 통합 보고서 생성                         │
+└────────────────────┬────────────────────────┘
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+┌──────────────┐ ┌────────────────┐ ┌─────────────┐
+│ validator    │ │ issue-verifier │ │ issue-fixer  │
+│ (drift 검증) │ │ (이슈 재검증)  │ │ (CLAUDE.md   │
+│              │ │ CONFIRMED/     │ │  수정)       │
+│              │ │ FALSE_POSITIVE │ │              │
+└──────────────┘ └────────────────┘ └─────────────┘
 ```
 
 ### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
@@ -374,6 +386,8 @@ User: /dev "request"
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
+| `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
+| `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
 
 ## Commands
 
@@ -432,6 +446,7 @@ path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
 /decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
 /bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
 /impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
+/validate → CLAUDE.md (drift fix, confirmed issues only via issue-fixer)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙

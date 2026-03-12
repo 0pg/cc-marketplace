@@ -1,13 +1,13 @@
 ---
 name: validate
-version: 1.1.0
+version: 1.2.0
 aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
-  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation.
+  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation, then verifies and fixes confirmed issues via multi-agent pipeline.
   Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트, export 커버리지
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task]
 ---
 
 # /validate
@@ -125,9 +125,108 @@ export_coverage: {0-100}
 ---end-validate-result---
 ```
 
-### 4. 통합 보고서 생성
+### 4. 중간 결과 확인
 
-`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증 결과와 Drift 검증 결과를 병합한 통합 보고서를 생성합니다.
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 이슈가 있는 디렉토리를 파악합니다. 이슈가 있는 디렉토리는 Step 5 재검증 대상이 됩니다.
+
+**이슈 없는 경우:** 모든 디렉토리가 이슈 0개이고 스키마도 모두 PASS이면, Step 5-6을 스킵하고 Step 7로 직행합니다.
+
+### 5. 이슈 재검증 (issue-verifier)
+
+검증 보고서에서 이슈가 있는 디렉토리만 대상으로, issue-verifier agent를 통해 각 이슈가 진짜 문제인지 재검증합니다.
+
+**재검증 대상 선별:**
+- `${TMP_DIR}validate-progress.jsonl`에서 `issues_count > 0`인 디렉토리만 추출
+- 스키마 검증에서도 `valid: false`인 디렉토리 포함
+
+**배치 처리 규칙:**
+- validator agent와 동일하게 **최대 3개씩 배치 처리**
+- 각 배치 내의 issue-verifier agent Task를 **단일 메시지에서 병렬로 호출**
+
+**각 배치에서 issue-verifier agent 호출:**
+```
+Task(issue-verifier):
+  검증 대상: {directory}
+  검증 결과 파일: ${TMP_DIR}validate-{dir-safe-name}.md
+  CLAUDE.md: {directory}/CLAUDE.md
+  스키마 결과: ${TMP_DIR}schema-{dir-safe-name}.json
+```
+
+**결과 수집:**
+
+issue-verifier agent는 구조화된 블록으로 결과를 반환:
+```
+---issue-verifier-result---
+status: success | failed
+result_file: ${TMP_DIR}verified-{dir-safe-name}.md
+directory: {directory}
+total_issues: {N}
+confirmed_issues: {N}
+false_positives: {N}
+---end-issue-verifier-result---
+```
+
+**진행 파일 업데이트:**
+```bash
+printf '{"directory":"%s","phase":"verify","confirmed_issues":%d,"false_positives":%d,"result_file":"%s"}\n' \
+  "$directory" "$confirmed" "$false_positives" "${TMP_DIR}verified-${dir_safe}.md" \
+  >> "${TMP_DIR}validate-progress.jsonl"
+```
+
+**스킵 조건:** 이슈가 0개인 디렉토리는 재검증을 스킵합니다.
+
+### 6. 이슈 수정 (issue-fixer)
+
+재검증에서 CONFIRMED된 이슈가 있는 디렉토리를 대상으로, issue-fixer agent를 통해 CLAUDE.md를 수정합니다.
+
+**수정 대상 선별:**
+- Step 5에서 `confirmed_issues > 0`인 디렉토리만 추출
+
+**배치 처리 규칙:**
+- **최대 3개씩 배치 처리**
+- 각 배치 내의 issue-fixer agent Task를 **단일 메시지에서 병렬로 호출**
+
+**각 배치에서 issue-fixer agent 호출:**
+```
+Task(issue-fixer):
+  수정 대상: {directory}
+  재검증 결과 파일: ${TMP_DIR}verified-{dir-safe-name}.md
+  CLAUDE.md: {directory}/CLAUDE.md
+```
+
+**결과 수집:**
+
+issue-fixer agent는 구조화된 블록으로 결과를 반환:
+```
+---issue-fixer-result---
+status: success | failed
+result_file: ${TMP_DIR}fixed-{dir-safe-name}.md
+directory: {directory}
+fixed_count: {N}
+skipped_count: {N}
+schema_revalidation: PASS | FAIL
+---end-issue-fixer-result---
+```
+
+**진행 파일 업데이트:**
+```bash
+printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"schema_revalidation":"%s","result_file":"%s"}\n' \
+  "$directory" "$fixed" "$skipped" "$schema_result" "${TMP_DIR}fixed-${dir_safe}.md" \
+  >> "${TMP_DIR}validate-progress.jsonl"
+```
+
+**스킵 조건:** CONFIRMED 이슈가 0개인 디렉토리는 수정을 스킵합니다.
+
+### 7. 통합 보고서 생성
+
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증, 재검증, 수정 결과를 병합한 통합 보고서를 생성합니다.
+
+**JSONL 파싱 방법:** 같은 파일에 phase별 라인이 혼재합니다. `directory` 필드 기준으로 그룹화:
+- `phase` 필드 없음 → validate 결과 (`issues_count`, `export_coverage`)
+- `"phase":"verify"` → verifier 결과 (`confirmed_issues`, `false_positives`)
+- `"phase":"fix"` → fixer 결과 (`fixed_count`, `skipped_count`, `schema_revalidation`)
+
+이슈가 없어 verify/fix 단계를 스킵한 디렉토리는 phase 라인이 없으므로 `-` 로 표시.
 
 **보고서 형식:**
 ```markdown
@@ -135,10 +234,11 @@ export_coverage: {0-100}
 
 ## 요약
 
-| 디렉토리 | 스키마 | Drift 이슈 | Export 커버리지 | 상태 |
-|----------|--------|-----------|---------------|------|
-| src/auth | PASS | 0 | 95% | 양호 |
-| src/utils | FAIL (1) | 2 | 72% | 개선 필요 |
+| 디렉토리 | 스키마 | Drift 이슈 | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태 |
+|----------|--------|-----------|--------|------|--------|---------------|------|
+| src/auth | PASS | 0 | - | - | - | 95% | 양호 |
+| src/utils | PASS | 3 | 2 | 1 | 2 | 78%→85% | 수정 완료 |
+| src/legacy | FAIL (1) | 5 | 4 | 1 | 3 | 45%→60% | 개선 필요 |
 
 ## 상세 결과
 
@@ -148,24 +248,36 @@ export_coverage: {0-100}
 - PASS
 
 #### Drift 검증
-(validator agent 결과 - drift 이슈 + export 커버리지)
+- 이슈 없음
 
 ### src/utils
 
 #### 스키마 검증
-- [MissingSection] Missing required section: Behavior
+- PASS
 
-#### Drift 검증
+#### Drift 검증 (원본)
 - STALE: formatDate export가 코드에 없음
 - MISSING: parseNumber export가 문서에 없음
+- MISSING: _internalHelper export가 문서에 없음
+
+#### 재검증 결과
+- STALE formatDate → **CONFIRMED** (코드에서 삭제 확인)
+- MISSING parseNumber → **CONFIRMED** (public API)
+- MISSING _internalHelper → **FALSE_POSITIVE** (private 헬퍼)
+
+#### 수정 결과
+- formatDate: Exports 섹션에서 제거 ✓
+- parseNumber: Exports 섹션에 추가 ✓
 ```
 
 **중요:** context에 남아있는 결과가 아닌, 파일에 누적된 결과를 사용합니다.
-- `${TMP_DIR}validate-progress.jsonl`: 요약 정보 (모든 배치)
+- `${TMP_DIR}validate-progress.jsonl`: 요약 정보 (모든 phase)
 - `${TMP_DIR}schema-*.json`: 스키마 검증 결과
 - `${TMP_DIR}validate-*.md`: Drift 검증 상세 결과
+- `${TMP_DIR}verified-*.md`: 재검증 상세 결과
+- `${TMP_DIR}fixed-*.md`: 수정 상세 결과
 
-### 5. 임시 파일 정리
+### 8. 임시 파일 정리
 
 `${TMP_DIR}` 내 임시 파일은 세션별로 격리되어 다른 세션과 충돌하지 않음. 필요 시 `rm -rf .claude/tmp/` 으로 일괄 정리 가능.
 
@@ -174,8 +286,9 @@ export_coverage: {0-100}
 | 상태 | 조건 |
 |------|------|
 | **양호** | 스키마 PASS AND Drift 이슈 0개 AND Export 커버리지 점수 90% 이상 |
-| **개선 권장** | 스키마 PASS AND (Drift 1-2개 OR Export 커버리지 점수 70-89%) |
-| **개선 필요** | 스키마 FAIL OR Drift 3개 이상 OR Export 커버리지 점수 70% 미만 |
+| **수정 완료** | 이슈가 있었으나 issue-fixer가 모두 수정 완료 |
+| **개선 권장** | 스키마 PASS AND (확인된 Drift 1-2개 OR Export 커버리지 점수 70-89%) AND 미수정 이슈 있음 |
+| **개선 필요** | 스키마 FAIL OR 확인된 Drift 3개 이상 OR Export 커버리지 점수 70% 미만 AND 미수정 이슈 있음 |
 
 ## 출력 예시
 
@@ -189,8 +302,14 @@ CLAUDE.md 검증 보고서
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 개선 권장: 1개
-- 개선 필요: 1개
+- 수정 완료: 1개
+- 개선 필요: 1개 (일부 수정 실패)
+
+| 디렉토리   | 스키마 | Drift | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태      |
+|------------|--------|-------|--------|------|--------|---------------|-----------|
+| src/auth   | PASS   | 0     | -      | -    | -      | 95%           | 양호      |
+| src/utils  | PASS   | 3     | 2      | 1    | 2      | 78%→85%       | 수정 완료 |
+| src/legacy | FAIL(1)| 5     | 4      | 1    | 3      | 45%→60%       | 개선 필요 |
 
 상세 결과
 ---------
@@ -200,37 +319,41 @@ src/auth (양호)
   Drift: 0개 이슈
   Export 커버리지: 95% (18/19 예측 성공)
 
-src/utils (개선 권장)
+src/utils (수정 완료)
   스키마: PASS
-  Drift: 2개 이슈
-    - STALE: formatDate export가 코드에 없음
-    - MISSING: parseNumber export가 문서에 없음
-  Export 커버리지: 78% (14/18 예측 성공)
+  Drift: 3개 이슈 → 재검증: 2개 확인, 1개 오탐 → 2개 수정 완료
+    - STALE: formatDate → 확인됨 → Exports에서 제거 ✓
+    - MISSING: parseNumber → 확인됨 → Exports에 추가 ✓
+    - MISSING: _internalHelper → 오탐 (private 헬퍼)
+  Export 커버리지: 78%→85%
 
 src/legacy (개선 필요)
   스키마: FAIL (1)
-    - [MissingSection] Missing required section: Behavior
-  Drift: 5개 이슈
-    - UNCOVERED: 3개 파일이 Structure에 없음
-    - MISMATCH: 2개 시그니처 불일치
-  Export 커버리지: 45% (9/20 예측 성공)
+    - [MissingSection] Missing required section: Behavior → fix-schema로 수정 ✓
+  Drift: 5개 이슈 → 재검증: 4개 확인, 1개 오탐 → 3개 수정 완료
+    - UNCOVERED: 3개 파일 → 2개 확인, 1개 오탐 → 2개 Structure에 추가 ✓
+    - MISMATCH: 2개 시그니처 → 모두 확인 → 1개 수정 ✓, 1개 수정 실패 ✗
+  Export 커버리지: 45%→60%
 ```
 
 ## DO / DON'T
 
 **DO:**
-- Run validator agent tasks in batches of max 3 parallel tasks
+- Run validator/issue-verifier/issue-fixer agent tasks in batches of max 3 parallel tasks
 - Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
 - Report both schema, drift issues and export coverage metrics
 - Include IMPLEMENTS.md presence check (INV-3)
 - Use file-based progress accumulation for compact resilience
+- Skip issue-verifier/issue-fixer for directories with 0 issues
+- Run issue-verifier before issue-fixer (verify first, then fix)
 
 **DON'T:**
-- Modify any files (validate is read-only, except `${TMP_DIR}` for results)
 - Ask user questions (validate runs non-interactively)
 - Skip any drift category
-- Launch all validator agents in a single message (use batches of max 3)
+- Launch all agent tasks in a single message (use batches of max 3)
+- Run issue-fixer without issue-verifier (always verify before fixing)
+- Modify files other than CLAUDE.md during fix phase (source code, IMPLEMENTS.md are out of scope)
 
 ## 참조 자료
 
@@ -239,6 +362,8 @@ src/legacy (개선 필요)
 ## 관련 컴포넌트
 
 - `agents/validator.md`: 코드-문서 일치 검증 및 Export 커버리지 (drift 검증만 담당)
+- `agents/issue-verifier.md`: 검증 이슈 재검증 (false positive 필터링)
+- `agents/issue-fixer.md`: 확인된 이슈 기반 CLAUDE.md 수정
 
 ## Examples
 
@@ -252,8 +377,14 @@ CLAUDE.md 검증 보고서
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 개선 권장: 1개
+- 수정 완료: 1개
 - 개선 필요: 1개
+
+| 디렉토리   | 스키마 | Drift | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태      |
+|------------|--------|-------|--------|------|--------|---------------|-----------|
+| src/auth   | PASS   | 0     | -      | -    | -      | 95%           | 양호      |
+| src/utils  | PASS   | 2     | 2      | 0    | 2      | 78%→90%       | 수정 완료 |
+| src/legacy | FAIL(1)| 5     | 4      | 1    | 3      | 45%→60%       | 개선 필요 |
 </assistant_response>
 </example>
 

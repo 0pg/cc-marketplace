@@ -1,4 +1,4 @@
-# claude-md-plugin (v2.31.0)
+# claude-md-plugin (v2.33.0)
 
 > CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템 기반의 문서-코드 동기화 플러그인
 
@@ -661,6 +661,8 @@ project/CLAUDE.md
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |
+| `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
+| `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
 
 ### Skills
 
