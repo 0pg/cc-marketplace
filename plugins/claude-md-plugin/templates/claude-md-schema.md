@@ -9,31 +9,25 @@
 
 **CLAUDE.md = WHAT (정형화된 PRD)**
 - CLAUDE.md는 "무엇을(WHAT)" 정의하는 문서입니다.
-- IMPLEMENTS.md는 "어떻게(HOW)" 구현하는지 정의합니다.
+- DEVELOPERS.md는 "왜(WHY)" 그렇게 결정했는지 맥락을 제공합니다.
 - 두 문서는 1:1로 매핑됩니다.
 
-## 듀얼 문서 시스템
+## 문서 시스템
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    C 언어 비유                              │
-│                                                             │
-│   .h (헤더)    +  .c (소스)     ─── compile ──→  .o/.exe   │
-│   WHAT            HOW                            Binary     │
-└─────────────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin                         │
 │                                                             │
-│   CLAUDE.md     +  IMPLEMENTS.md  ─── /compile ──→  소스코드│
-│   WHAT (스펙)      HOW (구현명세)                   (실행물)│
+│   CLAUDE.md (WHAT) + DEVELOPERS.md (WHY)                   │
+│         │                                                   │
+│         └──── /compile ──→  Source Code (구현)              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 문서 | 역할 | 비유 | 주요 내용 |
-|------|------|------|----------|
-| **CLAUDE.md** | WHAT | .h (헤더) | 도메인맥락, PRD, 인터페이스 |
-| **IMPLEMENTS.md** | HOW | .c (구현) | 알고리즘, 상수, 구현 상세 |
+| 문서 | 역할 | 주요 내용 |
+|------|------|----------|
+| **CLAUDE.md** | WHAT | 도메인맥락, PRD, 인터페이스 |
+| **DEVELOPERS.md** | WHY | 파일관계, 결정근거, 운영 |
 
 ## 필수 섹션 요약 (6개)
 
@@ -481,22 +475,22 @@ claude-md-core validate-convention --project-root /path/to/project
 
 ## 관련 문서
 
-- **IMPLEMENTS.md**: HOW(구현 명세)를 정의하는 쌍 문서
-- 템플릿: `templates/implements-md-schema.md`
+- **DEVELOPERS.md**: WHY(결정근거, 운영맥락)를 정의하는 쌍 문서
+- 템플릿: `templates/developers-md-schema.md`
 
 ### 불변식
 
-**INV-3: CLAUDE.md ↔ IMPLEMENTS.md 쌍**
+**INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍**
 ```
-∀ CLAUDE.md ∃ IMPLEMENTS.md (1:1 mapping)
-path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
+∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
+path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 ```
 
 **INV-4: Section 업데이트 책임**
 ```
-/impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
-/compile → IMPLEMENTS.md.ImplementationSection
-/decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
+/impl → CLAUDE.md
+/compile → Source Code
+/decompile → CLAUDE.md + DEVELOPERS.md (향후)
 ```
 
 **INV-5: Convention 섹션 배치 규칙**

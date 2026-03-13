@@ -41,25 +41,14 @@ CLAUDE.md의 내재적 품질을 평가.
 | D2-8 | Domain Context | INFO | 비자명한 결정에 대한 근거 문서화 |
 | D2-9 | "None" 섹션 감사 | INFO | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
 
-### D3: IMPLEMENTS.md Planning Quality (없으면 스킵)
+### D3: Internal Consistency
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D3-1 | 외부 의존성 완성도 | CRITICAL | version + 선택 이유 포함 |
-| D3-2 | 내부 의존성 경로 | WARNING | CLAUDE.md 경로로 참조 (소스코드 경로 아님) |
-| D3-3 | 전략 명확성 | WARNING | Implementation Approach에 실행 가능한 항목 존재 |
-| D3-4 | 대안 문서화 | INFO | "Considered but Rejected" 또는 대안 언급 존재 |
-| D3-5 | 기술 선택 근거 | INFO | Technology Choices 테이블에 이유 컬럼 채워짐 |
-| D3-6 | 구현 누출 없음 | WARNING | Planning Section에 알고리즘/코드 디테일이 없는가 |
-
-### D4: Cross-Document Consistency
-
-| ID | Check | Severity | Criteria |
-|----|-------|----------|----------|
-| D4-1 | Exports ↔ Dependencies 정렬 | CRITICAL | 의존성에서 import하는 심볼이 실제 Exports에 존재 |
-| D4-2 | Purpose ↔ Strategy 정렬 | WARNING | Implementation Approach가 Purpose로부터 논리적으로 도출 |
-| D4-3 | Domain Context ↔ Technology Choices | WARNING | Domain Context 제약이 Technology Choices에 반영 |
-| D4-4 | Behavior ↔ Error Handling 방향 | INFO | 에러 Behavior가 Implementation Approach에서 예견 |
+| D3-1 | Exports ↔ Dependencies 정렬 | CRITICAL | 의존성에서 import하는 심볼이 실제 Exports에 존재 |
+| D3-2 | Purpose ↔ Exports 정렬 | WARNING | Exports가 Purpose에서 논리적으로 도출되는가 |
+| D3-3 | Behavior ↔ Contract 정합성 | WARNING | 에러 Behavior에 대응하는 Contract/throws 존재 |
+| D3-4 | Domain Context 활용 | INFO | Domain Context 제약이 Contract 또는 Behavior에 반영 |
 
 ## Scoring Formula
 
@@ -78,13 +67,8 @@ Each dimension starts at 100. Minimum score per dimension: 0.
 | Dimension | With Requirements | Without Requirements |
 |-----------|-------------------|----------------------|
 | D1 Requirements Coverage | 30% | — (skipped) |
-| D2 CLAUDE.md Quality | 35% | 45% |
-| D3 IMPLEMENTS.md Planning | 20% | 35% |
-| D4 Cross-Document Consistency | 15% | 20% |
-
-If IMPLEMENTS.md is absent, D3 weight is redistributed:
-- With Requirements: D1=35%, D2=45%, D4=20%
-- Without Requirements: D2=60%, D4=40%
+| D2 CLAUDE.md Quality | 45% | 60% |
+| D3 Internal Consistency | 25% | 40% |
 
 ### Grade Interpretation
 
@@ -142,7 +126,6 @@ AskUserQuestion으로 수정 제안 시 사용하는 형식.
 |--------|-------|
 | Directory | {directory} |
 | CLAUDE.md | {claude_md_path} |
-| IMPLEMENTS.md | {implements_md_path} |
 | Requirements | {provided / N/A} |
 | Overall Score | {score}/100 ({grade}) |
 | Issues | {total} (CRITICAL: {n}, WARNING: {n}, INFO: {n}) |
@@ -154,8 +137,7 @@ AskUserQuestion으로 수정 제안 시 사용하는 형식.
 |-----------|-------|--------|----------|
 | D1 Requirements Coverage | {score} | {weight}% | {weighted} |
 | D2 CLAUDE.md Quality | {score} | {weight}% | {weighted} |
-| D3 IMPLEMENTS.md Planning | {score} | {weight}% | {weighted} |
-| D4 Cross-Document Consistency | {score} | {weight}% | {weighted} |
+| D3 Internal Consistency | {score} | {weight}% | {weighted} |
 | **Overall** | | | **{overall}** |
 
 ## Findings
@@ -210,21 +192,6 @@ Agent가 판단할 때 참고하는 앵커. 좋은 vs 나쁜 예시.
 - 빈 CSV 입력 → 빈 배열 반환
 - 필수 컬럼 누락 → ValidationError (누락 컬럼명 포함)
 - 중복 행 존재 → 첫 번째 행만 유지, 중복 수 로그
-```
-
-### Bad: Implementation Leak in Planning Section
-```
-## Implementation Approach
-1. for 루프로 각 행을 순회하면서 regex `/^\d{4}-\d{2}-\d{2}$/`로 날짜 검증
-2. Map<string, Transaction>으로 중복 감지
-```
-
-### Good: Strategy-level Planning
-```
-## Implementation Approach
-1. 스트리밍 방식으로 행 단위 처리 (메모리 효율)
-2. 해시 기반 중복 감지 (date+amount+description 복합키)
-3. 검증 실패 시 즉시 반환 (fail-fast)
 ```
 
 ### Bad: Changelog in Domain Context

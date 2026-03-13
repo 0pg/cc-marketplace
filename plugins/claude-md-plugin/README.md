@@ -1,10 +1,10 @@
-# claude-md-plugin (v2.33.0)
+# claude-md-plugin (v3.0.0)
 
-> CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템 기반의 문서-코드 동기화 플러그인
+> CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인
 
 ## 개요
 
-기존의 "소스코드 → 문서" 접근법을 역전시켜 **CLAUDE.md + IMPLEMENTS.md가 소스코드**이고, **소스코드가 바이너리**가 되는 Compile/Decompile 패러다임을 제공합니다.
+기존의 "소스코드 → 문서" 접근법을 역전시켜 **CLAUDE.md가 소스코드**이고, **소스코드가 바이너리**가 되는 Compile/Decompile 패러다임을 제공합니다.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -15,24 +15,20 @@
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin (듀얼 문서 시스템)       │
+│                    claude-md-plugin                          │
 │                                                             │
-│   CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)                    │
-│         │                                                   │
-│         └──── /compile ──→  Source Code (구현)              │
+│   CLAUDE.md (WHAT)  ─── /compile ──→  Source Code (구현)    │
 │                                                             │
-│   Source Code (구현)  ─── /decompile ──→                    │
-│         └──→ CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)         │
+│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 | 전통적 개념 | claude-md-plugin | 역할 |
 |------------|------------------|------|
 | .h (헤더) | CLAUDE.md | **WHAT** - 인터페이스, 스펙 |
-| .c (소스) | IMPLEMENTS.md | **HOW** - 구현 명세 |
 | Binary | Source Code (.ts, .py, ...) | 실행물 |
-| **compile** | CLAUDE.md + IMPLEMENTS.md → Source Code | `/compile` |
-| **decompile** | Source Code → CLAUDE.md + IMPLEMENTS.md | `/decompile` |
+| **compile** | CLAUDE.md → Source Code | `/compile` |
+| **decompile** | Source Code → CLAUDE.md | `/decompile` |
 
 ## Prerequisites
 
@@ -70,12 +66,12 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | 상황 | 커맨드 | 결과 |
 |------|--------|------|
 | 자연어로 작업 요청 | `/dev "요청"` | 적절한 스킬로 라우팅 |
-| 새 모듈 요구사항 정의 | `/impl "요구사항"` | CLAUDE.md + IMPLEMENTS.md |
-| 기존 코드 문서화 | `/decompile` | CLAUDE.md + IMPLEMENTS.md |
+| 새 모듈 요구사항 정의 | `/impl "요구사항"` | CLAUDE.md + compile-context |
+| 기존 코드 문서화 | `/decompile` | CLAUDE.md |
 | 명세 기반 코드 생성 | `/compile` | 소스코드 + 테스트 |
 | 문서-코드 일치 확인 | `/validate` | 통합 검증 보고서 |
 | 런타임 버그 수정 | `/bugfix --error "에러"` | 3계층 추적 → 문서 수정 |
-| 명세 품질 리뷰 | `/impl-review` | 4차원 품질 보고서 |
+| 명세 품질 리뷰 | `/impl-review` | 3차원 품질 보고서 |
 
 ### 커맨드 상세
 
@@ -128,7 +124,7 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 생성/업데이트된 파일:
   ✓ src/auth/CLAUDE.md (WHAT - 스펙)
-  ✓ src/auth/IMPLEMENTS.md (HOW - Planning Section)
+  ✓ .claude/tmp/compile-context-{hash}.md (compile-context)
 
 스펙 요약:
   - Purpose: JWT 토큰 검증 및 사용자 인증
@@ -149,7 +145,6 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | 요구사항 불명확 | AskUserQuestion으로 명확화 질문 |
 | 대상 경로 모호 | 후보 목록 제시 후 선택 요청 |
 | 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
-| 기존 IMPLEMENTS.md와 충돌 | Planning Section만 업데이트 (Implementation Section 유지) |
 
 **다음 단계:** `/compile` → 명세 기반 코드 생성
 
@@ -170,16 +165,15 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 **실행 결과 예시:**
 ```
-=== CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
+=== CLAUDE.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/auth/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/api/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/CLAUDE.md
+  ✓ src/auth/CLAUDE.md
+  ✓ src/api/CLAUDE.md
 
 검증 결과:
   - CLAUDE.md 스키마: 3/3 통과
-  - IMPLEMENTS.md 스키마: 3/3 통과
 
 다음 단계:
   - /validate로 문서-코드 일치 검증 가능
@@ -228,18 +222,17 @@ cd plugins/claude-md-plugin/core && cargo build --release
 **실행 결과 예시:**
 ```
 발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md + IMPLEMENTS.md
-2. src/utils/CLAUDE.md + IMPLEMENTS.md
+1. src/auth/CLAUDE.md
+2. src/utils/CLAUDE.md
 
 코드 생성을 시작합니다...
 
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
-✓ IMPLEMENTS.md Planning Section 로드
+✓ compile-context 로드 (있는 경우)
 ✓ 테스트 생성 (5 test cases)
 ✓ 구현 생성
 ✓ 테스트 실행: 5 passed
-✓ IMPLEMENTS.md Implementation Section 업데이트
 
 [2/2] src/utils/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 3개
@@ -257,7 +250,6 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 | 상황 | 대응 |
 |------|------|
-| IMPLEMENTS.md 없음 | 기본 템플릿으로 자동 생성 후 진행 |
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | 테스트 실패 | 최대 3회 재시도, 이후 경고 표시 |
 | 파일 충돌 (skip 모드) | 기존 파일 유지, 새 파일만 생성 |
@@ -380,7 +372,7 @@ Root Cause: L1 - SPEC_EXPORT_MISMATCH
 > Aliases: `review-impl`, `impl-quality`, `rate-impl`
 
 **언제 사용하나요?**
-- `/impl`로 생성한 CLAUDE.md + IMPLEMENTS.md의 품질을 확인하고 싶을 때
+- `/impl`로 생성한 CLAUDE.md의 품질을 확인하고 싶을 때
 - 요구사항이 문서에 충분히 반영되었는지 검증하고 싶을 때
 - `/validate`와 달리 코드가 아닌 **문서 자체의 품질**을 평가하고 싶을 때
 
@@ -403,13 +395,10 @@ D1. 요구사항 커버리지: 85/100 (WARNING 1건)
 D2. CLAUDE.md 품질: 92/100 (INFO 1건)
   - Exports 시그니처 상세도 양호
 
-D3. IMPLEMENTS.md 계획 품질: 88/100 (WARNING 1건)
-  - Error handling strategy 미상세
+D3. 문서 간 일관성: 95/100 (INFO 1건)
+  - Dependencies 섹션 일치
 
-D4. 문서 간 일관성: 95/100 (INFO 1건)
-  - Dependencies 섹션과 Planning Section 일치
-
-종합: 89/100 (Good)
+종합: 91/100 (Good)
 
 수정 제안: 2건 (1 WARNING, 1 INFO)
 ```
@@ -419,7 +408,6 @@ D4. 문서 간 일관성: 95/100 (INFO 1건)
 | 상황 | 대응 |
 |------|------|
 | CLAUDE.md 없음 | `/impl` 먼저 실행 안내 |
-| IMPLEMENTS.md 없음 | `/impl`로 Planning Section 생성 안내 |
 | 스키마 검증 실패 | 스키마 오류 수정 후 재실행 |
 
 **다음 단계:** 수정 제안 적용 후 `/compile`로 코드 생성
@@ -474,7 +462,7 @@ D4. 문서 간 일관성: 95/100 (INFO 1건)
 /impl "요구사항" → /compile → /validate
 ```
 
-1. `/impl "JWT 인증 모듈이 필요합니다"` — 요구사항을 CLAUDE.md + IMPLEMENTS.md로 변환
+1. `/impl "JWT 인증 모듈이 필요합니다"` — 요구사항을 CLAUDE.md로 변환
 2. `/compile` — 명세 기반 코드 + 테스트 자동 생성
 3. `/validate` — 생성된 코드와 문서 일치 확인
 
@@ -484,7 +472,7 @@ D4. 문서 간 일관성: 95/100 (INFO 1건)
 /decompile → /validate → (드리프트 수정) → /validate
 ```
 
-1. `/decompile` — 기존 코드에서 CLAUDE.md + IMPLEMENTS.md 추출
+1. `/decompile` — 기존 코드에서 CLAUDE.md 추출
 2. `/validate` — 추출된 문서와 코드 일치 확인
 3. 이슈가 있으면 CLAUDE.md 또는 코드 수정
 4. `/validate` — 수정 후 재검증
@@ -515,44 +503,36 @@ D4. 문서 간 일관성: 95/100 (INFO 1건)
 /impl-review → (수정 적용) → /compile
 ```
 
-1. `/impl-review src/auth` — 4차원 품질 리뷰 수행
-2. 수정 제안 적용 — 대화형으로 CLAUDE.md / IMPLEMENTS.md 수정
+1. `/impl-review src/auth` — 3차원 품질 리뷰 수행
+2. 수정 제안 적용 — 대화형으로 CLAUDE.md 수정
 3. `/compile` — 수정된 명세로 코드 재생성
 
 ## 핵심 개념
 
-### 듀얼 문서 시스템 (CLAUDE.md + IMPLEMENTS.md)
+### 문서 체계
 
-각 디렉토리에 CLAUDE.md와 IMPLEMENTS.md가 1:1로 매핑됩니다.
+CLAUDE.md가 유일한 Source of Truth이며, 보조 문서가 이를 보완합니다.
 
 ```
 auth/
-├── CLAUDE.md       ← WHAT (스펙)
+├── CLAUDE.md              ← WHAT (스펙, Source of Truth)
 │   ├── Exports: validateToken(token: string): Claims
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
-└── IMPLEMENTS.md   ← HOW (구현 명세)
-    ├── [Planning Section] - /impl이 업데이트
-    │   ├── Dependencies Direction
-    │   ├── Implementation Approach
-    │   └── Technology Choices
-    │
-    └── [Implementation Section] - /compile이 업데이트
-        ├── Algorithm
-        ├── Key Constants
-        ├── Error Handling
-        ├── State Management
-        └── Implementation Guide
+├── DEVELOPERS.md          ← WHY (파일 관계, 결정 근거, 운영 정보) [미래 구현]
+│
+└── .claude/tmp/
+    └── compile-context-{hash}.md  ← /impl → /compile 핸드오프용 세션 임시 파일 (optional)
 ```
 
 **명령어별 업데이트 범위:**
 
-| 명령어 | CLAUDE.md | IMPLEMENTS.md |
-|--------|-----------|---------------|
-| `/impl` | 생성/업데이트 | Planning Section 업데이트 |
-| `/compile` | 읽기 전용 | Implementation Section 업데이트 |
-| `/decompile` | 생성 (전체) | 생성 (전체 - Planning + Implementation) |
-| `/bugfix` | 수정 (L1 fix) | 수정 (L2 fix) |
+| 명령어 | CLAUDE.md | compile-context |
+|--------|-----------|-----------------|
+| `/impl` | 생성/업데이트 | 생성 (세션 스코프) |
+| `/compile` | 읽기 전용 | 읽기 전용 (있으면 참조) |
+| `/decompile` | 생성 (전체) | - |
+| `/bugfix` | 수정 | - |
 
 ### Exports = Interface Catalog
 
@@ -653,13 +633,13 @@ project/CLAUDE.md
 
 | Agent | 역할 |
 |-------|------|
-| `impl` | 요구사항 분석 및 CLAUDE.md + IMPLEMENTS.md 생성 |
+| `impl` | 요구사항 분석 및 CLAUDE.md 생성 |
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
-| `decompiler` | 소스코드에서 CLAUDE.md + IMPLEMENTS.md 추출 |
-| `compiler` | CLAUDE.md + IMPLEMENTS.md에서 소스코드 생성 (TDD) |
+| `decompiler` | 소스코드에서 CLAUDE.md 추출 |
+| `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
-| `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
+| `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |
 | `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
 | `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
@@ -670,12 +650,12 @@ project/CLAUDE.md
 
 | Skill | 역할 |
 |-------|------|
-| `/impl` | 요구사항 → CLAUDE.md + IMPLEMENTS.md |
-| `/decompile` | 소스코드 → CLAUDE.md + IMPLEMENTS.md |
-| `/compile` | CLAUDE.md + IMPLEMENTS.md → 소스코드 |
+| `/impl` | 요구사항 → CLAUDE.md |
+| `/decompile` | 소스코드 → CLAUDE.md |
+| `/compile` | CLAUDE.md → 소스코드 |
 | `/validate` | 문서-코드 일치 검증 |
 | `/bugfix` | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
-| `/impl-review` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 |
+| `/impl-review` | CLAUDE.md 품질 리뷰 |
 
 **Internal (Agent가 호출):**
 

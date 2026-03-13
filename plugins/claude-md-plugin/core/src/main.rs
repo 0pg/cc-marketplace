@@ -60,7 +60,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Enforce INV-3 (IMPLEMENTS.md existence) as error instead of warning
+        /// Strict mode (reserved for future DEVELOPERS.md validation)
         #[arg(long, default_value_t = false)]
         strict: bool,
     },

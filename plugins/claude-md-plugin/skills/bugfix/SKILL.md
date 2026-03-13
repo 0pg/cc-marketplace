@@ -5,7 +5,7 @@ aliases: [diagnose, troubleshoot, fix-bug]
 description: |
   This skill should be used when the user asks to "bugfix code", "fix a bug", "diagnose an error",
   "trace a test failure", "find root cause", or uses "/bugfix".
-  Traces root cause through CLAUDE.md (spec), IMPLEMENTS.md (plan), and Source Code layers.
+  Traces root cause through CLAUDE.md (spec), DEVELOPERS.md (context, optional), and Source Code layers.
   Trigger keywords: 버그 진단, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
@@ -14,7 +14,7 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 # /bugfix
 
 compile 결과물(소스코드)의 런타임 버그/에러를 진단.
-근본 원인을 CLAUDE.md(스펙), IMPLEMENTS.md(플랜), Source Code 3계층으로 추적하여 적절한 레벨에서 수정.
+근본 원인을 CLAUDE.md(스펙), DEVELOPERS.md(맥락, optional), Source Code 3계층으로 추적하여 적절한 레벨에서 수정.
 
 ## Triggers
 
@@ -94,12 +94,12 @@ Glob: {matched_dir}/**/*test*  또는  {matched_dir}/**/*spec*
 
 ### 4. 대상 식별
 
-`path`에서 CLAUDE.md + IMPLEMENTS.md 존재 확인:
+`path`에서 CLAUDE.md + DEVELOPERS.md 존재 확인:
 
 | 상태 | 진단 범위 |
 |------|----------|
 | 둘 다 있음 | 3-layer 진단 (L1+L2+L3) |
-| CLAUDE.md만 | L1+L3 진단 (L2 스킵, IMPLEMENTS.md 생성 권장) |
+| CLAUDE.md만 | L1+L3 진단 (L2 스킵 — 2계층 fallback) |
 | 없음 | `/decompile` 먼저 실행하여 CLAUDE.md 생성 제안 |
 
 ### 5. 사전 검증 (CLI) — 리스크 레벨 분류
@@ -154,7 +154,7 @@ AskUserQuestion: "사전 검증에서 HIGH 리스크가 발견되었습니다. {
 Task(debugger):
   대상 디렉토리: {path}
   CLAUDE.md: {claude_md_path}
-  IMPLEMENTS.md: {implements_md_path}
+  DEVELOPERS.md: {developers_md_path}
   에러 정보: {error_message}
   테스트: {test_name_or_none}
   스키마 검증: PASS | FAIL ({errors})
@@ -173,7 +173,7 @@ status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
 root_cause_type: SPEC_BEHAVIOR_GAP | PLAN_ERROR_HANDLING_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
-fix_targets: [CLAUDE.md, IMPLEMENTS.md]
+fix_targets: [CLAUDE.md]
 compile_path: {dir}
 compile_required: true | false
 test_command: {command} | N/A
@@ -182,10 +182,10 @@ test_command: {command} | N/A
 
 ### 6.5. 수정사항 Diff 표시
 
-debugger가 CLAUDE.md/IMPLEMENTS.md를 수정한 후, compile 전에 변경사항을 표시합니다:
+debugger가 CLAUDE.md를 수정한 후, compile 전에 변경사항을 표시합니다:
 
 ```
-Bash: git diff HEAD -- {path}/CLAUDE.md {path}/IMPLEMENTS.md
+Bash: git diff HEAD -- {path}/CLAUDE.md
 ```
 
 **변경 없음:** 스킵.
@@ -275,7 +275,7 @@ Compile: FAIL
 
 **DO:**
 - 근본 원인을 가능한 높은 계층(L1 > L2 > L3)으로 추적
-- Fix는 항상 CLAUDE.md / IMPLEMENTS.md에서 수행 (소스코드는 "바이너리")
+- Fix는 항상 CLAUDE.md에서 수행 (소스코드는 "바이너리")
 - Fix 전 사용자 승인 (AskUserQuestion)
 - Fix 적용 후 `/compile` 자동 실행 (`compile_required: true`인 경우)
 - Compile 후 원본 테스트 재실행 검증
@@ -283,7 +283,7 @@ Compile: FAIL
 **DON'T:**
 - 소스코드 직접 수정 (항상 문서 수정 → `/compile`로 재생성)
 - compile 없이 bugfix 완료 보고 금지 (`compile_required: true`인 경우)
-- 사용자 승인 없이 CLAUDE.md/IMPLEMENTS.md 수정
+- 사용자 승인 없이 CLAUDE.md 수정
 - 전체 소스 디렉토리 읽기 (에러 위치 중심 타깃 분석)
 - 상세 진단을 context에 반환 (`${TMP_DIR}` 파일 사용)
 
@@ -380,10 +380,10 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: MULTI - PLAN_ERROR_HANDLING_GAP + SPEC_BEHAVIOR_GAP
-요약: Token refresh on expiry not specified in CLAUDE.md Behavior, not handled in IMPLEMENTS.md
+Root Cause: L1 - SPEC_BEHAVIOR_GAP
+요약: Token refresh on expiry not specified in CLAUDE.md Behavior
 
-수정된 문서: [CLAUDE.md, IMPLEMENTS.md]
+수정된 문서: [CLAUDE.md]
 Compile: PASS
 검증: PASS (npx jest --testNamePattern "should refresh token on expiry")
 

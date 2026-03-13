@@ -69,11 +69,11 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 - 필수 6개 섹션: Purpose, Exports, Behavior, Contract, Protocol, Domain Context
 - Contract/Protocol/Domain Context는 "None" 허용
 
-### 5.5. IMPLEMENTS.md Planning Section 생성
+### 5.5. compile-context 생성 (session temp)
 - Dependencies Direction: CLAUDE.md 경로로 resolve된 의존성
 - Implementation Approach: 구현 전략과 대안
 - Technology Choices: 기술 선택 근거
-- Implementation Section은 "(To be filled by /compile)" 플레이스홀더
+- `.claude/tmp/compile-context-{dir-hash}.md`에 저장 (세션 한정)
 
 ### 6. 스키마 검증 (1회)
 - claude-md-core validate-schema CLI 호출
@@ -86,7 +86,7 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 - 승인된 경우만 Phase 7로 진행
 
 ### 7. 최종 저장
-- 승인된 경우에만 CLAUDE.md + IMPLEMENTS.md 파일 저장
+- 승인된 경우에만 CLAUDE.md + compile-context 파일 저장
 
 ## Planning Section 생성 로직
 

@@ -54,14 +54,14 @@
 | **SPEC_CONTRACT_GAP** | Contract에 이 에러 조건이 없음 | `spec_json.contracts.throws`에 에러 타입 없음 |
 | **SPEC_STALE** | CLAUDE.md가 코드보다 오래됨 | `git log` 타임스탬프 비교 |
 
-### L2: IMPLEMENTS.md (Plan) Issues
+### L2: DEVELOPERS.md (Plan) Issues
 
 | 타입 | 설명 | 증거 패턴 |
 |------|------|----------|
 | **PLAN_ERROR_HANDLING_GAP** | Error Handling에 에러 타입 미포함 | Error Handling 테이블에 에러 없음 |
 | **PLAN_ALGORITHM_FLAW** | Algorithm 섹션 설계 자체가 잘못됨 | 알고리즘과 에러 로직의 인과관계 |
 | **PLAN_STATE_GAP** | State Management에 상태 전이 미기술 | 상태 관련 에러 + State 섹션 누락 |
-| **PLAN_CONSTANT_MISMATCH** | Key Constants와 코드 상수 불일치 | 코드 상수값 vs IMPLEMENTS.md 명세값 차이 |
+| **PLAN_CONSTANT_MISMATCH** | Key Constants와 코드 상수 불일치 | 코드 상수값 vs DEVELOPERS.md 명세값 차이 |
 
 ### L3: Source Code Issues (진단용 — 수정은 L1/L2에서)
 
@@ -71,15 +71,15 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 | 타입 | 설명 | 증거 패턴 | L1/L2 수정 방향 |
 |------|------|----------|----------------|
 | **CODE_SPEC_DIVERGENCE** | 코드가 스펙/플랜을 따르지 않음 | 스펙 behavior 존재 + 코드 동작 불일치 | 스펙이 맞으면 `/compile`로 재생성 |
-| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 스펙/플랜 모두 올바르나 코드 잘못됨 | IMPLEMENTS.md Algorithm 보강 후 `/compile` |
+| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 스펙/플랜 모두 올바르나 코드 잘못됨 | DEVELOPERS.md Algorithm 보강 후 `/compile` |
 | **CODE_GUARD_MISSING** | guard clause/입력 검증 누락 | Contract precondition 존재 + 코드에 guard 없음 | Contract 명확화 후 `/compile` |
-| **CODE_IMPLEMENTATION_BUG** | 코드가 IMPLEMENTS.md 플랜을 따르지 않음 | 플랜 기술 존재 + 코드가 플랜 불이행 | 플랜이 맞으면 `/compile`로 재생성 |
+| **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 플랜을 따르지 않음 | 플랜 기술 존재 + 코드가 플랜 불이행 | 플랜이 맞으면 `/compile`로 재생성 |
 
 ## Fix Strategy Templates
 
 > **스키마 SSOT**: 수정안은 반드시 스키마 템플릿을 준수해야 합니다.
 > - CLAUDE.md: `templates/claude-md-schema.md`
-> - IMPLEMENTS.md: `templates/implements-md-schema.md`
+> - DEVELOPERS.md: `templates/developers-md-schema.md`
 > debugger agent가 Phase 7.1에서 해당 스키마를 로드합니다.
 
 ### L1 Fix (CLAUDE.md)
@@ -99,11 +99,11 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 **후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
-### L2 Fix (IMPLEMENTS.md)
+### L2 Fix (DEVELOPERS.md)
 ```markdown
 ## L2 Fix: {root_cause_type}
 
-**대상 파일:** {implements_md_path}
+**대상 파일:** {developers_md_path}
 **대상 섹션:** {Error Handling | Algorithm | State Management | Key Constants}
 
 **현재:**
@@ -128,7 +128,7 @@ L3 finding은 코드 증상. 수정은 항상 L1/L2 문서에서 수행하고 `/
 
 **근본 원인:** {L1 또는 L2 어느 문서의 어느 섹션이 부족/불일치}
 
-**수정 대상:** {claude_md_path 또는 implements_md_path}
+**수정 대상:** {claude_md_path 또는 developers_md_path}
 **수정 섹션:** {Exports | Behavior | Contract | Algorithm | Error Handling}
 
 **수정안:**
@@ -300,7 +300,7 @@ INV-1 위반이 버그 원인일 수 있음.
 - **Behavior 커버리지:** COVERED | GAP | PARTIAL
 - **Contract 검증:** VALID | VIOLATION | GAP
 
-### L2: IMPLEMENTS.md (Plan)
+### L2: DEVELOPERS.md (Plan)
 
 - **Error Handling:** COVERED | GAP
 - **Algorithm:** CORRECT | FLAW | DIVERGENCE
@@ -313,7 +313,7 @@ INV-1 위반이 버그 원인일 수 있음.
 - **타입:** {root_cause_type}
 - **요약:** {one_line_summary}
 
-## Fix 제안 (CLAUDE.md / IMPLEMENTS.md)
+## Fix 제안 (CLAUDE.md / DEVELOPERS.md)
 
 {fix_details_per_layer}
 
@@ -392,8 +392,8 @@ Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     |       +-- Exports 시그니처가 코드와 일치하는가?
     |       |   NO --> L1: SPEC_EXPORT_MISMATCH
     |       |   YES |
-    |       +-- IMPLEMENTS.md 존재?
-    |       |   NO --> L1 분석 (L2 스킵, IMPLEMENTS.md 생성 권장)
+    |       +-- DEVELOPERS.md 존재?
+    |       |   NO --> L1 분석 (L2 스킵, DEVELOPERS.md 생성 권장)
     |       |   YES |
     |       +-- Error Handling이 이 에러를 다루는가?
     |       |   NO --> L2: PLAN_ERROR_HANDLING_GAP
@@ -401,9 +401,9 @@ Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     |       +-- Algorithm이 이 로직을 기술하는가?
     |       |   NO --> L2: PLAN_ALGORITHM_FLAW
     |       |   YES |
-    |       +-- 코드가 IMPLEMENTS.md대로 구현되어 있는가?
-    |           NO --> IMPLEMENTS.md 맞으면 `/compile`로 재생성
-    |           YES --> IMPLEMENTS.md Algorithm 보강 후 `/compile`
+    |       +-- 코드가 DEVELOPERS.md대로 구현되어 있는가?
+    |           NO --> DEVELOPERS.md 맞으면 `/compile`로 재생성
+    |           YES --> DEVELOPERS.md Algorithm 보강 후 `/compile`
     |
-    +-- 모든 경우: Fix는 CLAUDE.md/IMPLEMENTS.md → bugfix SKILL이 /compile 자동 실행 → 검증
+    +-- 모든 경우: Fix는 CLAUDE.md/DEVELOPERS.md → bugfix SKILL이 /compile 자동 실행 → 검증
 ```
