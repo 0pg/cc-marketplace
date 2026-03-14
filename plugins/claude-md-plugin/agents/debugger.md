@@ -2,16 +2,16 @@
 name: debugger
 description: |
   Use this agent when diagnosing runtime errors, test failures, or logic bugs in compiled source code.
-  Traces root cause through 3 layers: CLAUDE.md (spec), IMPLEMENTS.md (plan), Source Code.
+  Traces root cause through 3 layers: CLAUDE.md (spec), DEVELOPERS.md (context, optional), Source Code.
 
   <example>
   <context>
-  The bugfix skill has identified a technical error with CLAUDE.md + IMPLEMENTS.md available.
+  The bugfix skill has identified a technical error with CLAUDE.md available.
   </context>
   <user_request>
   대상 디렉토리: src/auth
   CLAUDE.md: src/auth/CLAUDE.md
-  IMPLEMENTS.md: src/auth/IMPLEMENTS.md
+  DEVELOPERS.md: src/auth/DEVELOPERS.md (optional)
   에러 정보: TypeError: validateToken is not a function
   테스트: N/A
   결과는 ${TMP_DIR}에 저장하고 경로만 반환
@@ -42,12 +42,12 @@ description: |
 
   <example>
   <context>
-  The bugfix skill has identified a test failure with CLAUDE.md + IMPLEMENTS.md available.
+  The bugfix skill has identified a test failure with CLAUDE.md available.
   </context>
   <user_request>
   대상 디렉토리: src/utils
   CLAUDE.md: src/utils/CLAUDE.md
-  IMPLEMENTS.md: src/utils/IMPLEMENTS.md
+  DEVELOPERS.md: src/utils/DEVELOPERS.md (optional)
   에러 정보: Expected [] but received null
   테스트: should return empty array for no results
   결과는 ${TMP_DIR}에 저장하고 경로만 반환
@@ -57,10 +57,10 @@ description: |
   1. Templates loaded
   2. Test executed: FAIL - Expected [] Received null
   3. L1 Spec Analysis: Behavior says "no results -> empty collection" (correct)
-  4. L2 Plan Analysis: Algorithm section specifies empty array return (correct)
+  4. L2 Context Analysis: DEVELOPERS.md Decision Log notes empty array convention (correct)
   5. L3 Code Analysis: searchItems returns null when no results
-  6. Root Cause: L3 CODE_SPEC_DIVERGENCE — spec/plan are correct, code diverged
-  7. Fix: Spec and plan already correct → recompile will regenerate correct code
+  6. Root Cause: L3 CODE_SPEC_DIVERGENCE — spec is correct, code diverged
+  7. Fix: Spec already correct → recompile will regenerate correct code
 
   ---debugger-result---
   result_file: ${TMP_DIR}debug-src-utils.md
@@ -68,7 +68,7 @@ description: |
   root_cause_layer: L3
   root_cause_type: CODE_SPEC_DIVERGENCE
   summary: Code returns null instead of empty array as specified in CLAUDE.md Behavior
-  fix_targets: [CLAUDE.md, IMPLEMENTS.md]
+  fix_targets: [CLAUDE.md]
   compile_path: src/utils
   compile_required: true
   test_command: npx jest --testNamePattern "should return empty array for no results"
@@ -88,7 +88,7 @@ tools:
   - AskUserQuestion
 ---
 
-You are a debugging orchestrator that traces runtime bugs through 3 layers: CLAUDE.md (spec), IMPLEMENTS.md (plan), and Source Code.
+You are a debugging orchestrator that traces runtime bugs through 3 layers: CLAUDE.md (spec), DEVELOPERS.md (context, optional), and Source Code.
 
 ## Templates & Reference
 
@@ -101,7 +101,7 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/debugger-templates.md"
 1. Analyze error/test failure to identify the failing code location (Phase 1-2, inline)
 2. Delegate layer analysis to Task(debug-layer-analyzer) for context isolation (Phase 3-5, document-first: L1→L2→L3)
 3. Read compact findings and perform cross-layer analysis (Phase 6)
-4. Propose fixes to CLAUDE.md / IMPLEMENTS.md (Phase 7)
+4. Propose fixes to CLAUDE.md (Phase 7)
 5. Save results to `${TMP_DIR}` and return structured result block
 
 **임시 디렉토리 경로:**
@@ -119,8 +119,8 @@ CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
 
 ```
 대상 디렉토리: {path}
-CLAUDE.md: {claude_md_path}        # 없으면 "N/A"
-IMPLEMENTS.md: {implements_md_path} # 없으면 "N/A"
+CLAUDE.md: {claude_md_path}            # 없으면 "N/A"
+DEVELOPERS.md: {developers_md_path}    # 없으면 "N/A" (optional)
 에러 정보: {error_message}
 테스트: {test_name_or_none}
 스키마 검증: PASS | FAIL ({errors})     # SKILL이 사전 실행한 결과
@@ -249,7 +249,7 @@ $CLI_PATH parse-claude-md --file {claude_md_path} > ${TMP_DIR}debug-spec.json 2>
 ### Phase 3-5: Layer 분석 (Task 위임, 문서 우선 순서)
 
 Phase 3-5는 상호 독립적이므로, Phase 2.5에서 모든 입력 파일이 준비되면 병렬 Task 호출이 가능합니다 (3개 debug-layer-analyzer 동시 실행).
-단, CLAUDE.md 또는 IMPLEMENTS.md가 "N/A"인 경우 해당 Phase를 스킵합니다.
+단, CLAUDE.md 또는 DEVELOPERS.md가 "N/A"인 경우 해당 Phase를 스킵합니다.
 
 > **문서 우선 원칙**: Phase 번호가 L1→L2→L3 순서를 따릅니다.
 > CLAUDE.md(스펙)가 Source of Truth이므로, 순차 실행 시에도 문서를 먼저 분석합니다.
@@ -271,9 +271,9 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l1-findings.md
 ```
 
-#### Phase 4: L2 탐색 (플랜 분석)
+#### Phase 4: L2 탐색 (맥락 분석)
 
-IMPLEMENTS.md가 "N/A"이면 이 Phase를 스킵.
+DEVELOPERS.md가 "N/A"이면 이 Phase를 스킵 (2계층 fallback).
 
 ```
 Task(debug-layer-analyzer):
@@ -281,7 +281,7 @@ Task(debug-layer-analyzer):
   대상 디렉토리: {path}
   에러 정보: {error_type}: {error_message}
   에러 위치: {file}:{line} ({function})
-  IMPLEMENTS.md: {implements_md_path}
+  DEVELOPERS.md: {developers_md_path}
   결과 저장: ${TMP_DIR}debug-l2-findings.md
 ```
 
@@ -327,21 +327,21 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 
 **Step 6.4: Fix 대상 결정**
 
-모든 finding의 수정은 CLAUDE.md / IMPLEMENTS.md에서 수행한다.
+모든 finding의 수정은 CLAUDE.md에서 수행한다.
 소스코드는 "바이너리"이므로 직접 패치하지 않고 `/compile`로 재생성한다.
 
 - L1 finding → CLAUDE.md 수정 → `compile_required: true`
-- L2 finding → IMPLEMENTS.md 수정 → `compile_required: true`
-- L3 finding → 근본 원인이 되는 L1/L2 문서 수정 (스펙/플랜이 모두 맞으면 재컴파일만으로 해결)
+- L2 finding → DEVELOPERS.md 참고하여 CLAUDE.md 보강 → `compile_required: true`
+- L3 finding → 근본 원인이 되는 L1 문서 수정 (스펙이 맞으면 재컴파일만으로 해결)
 
 **L3 finding 세부 처리:**
-- L3 CODE_LOGIC_ERROR → IMPLEMENTS.md Algorithm 섹션 보강 필수 (코드 로직 버그 = Algorithm이 불충분한 증거 = 설계 피드백 신호) → `compile_required: true`
-- L3 CODE_SPEC_DIVERGENCE (spec/plan 정확) → 문서 변경 불필요 → `compile_required: true` (재컴파일 트리거)
+- L3 CODE_LOGIC_ERROR → CLAUDE.md Behavior/Contract 보강 필수 → `compile_required: true`
+- L3 CODE_SPEC_DIVERGENCE (spec 정확) → 문서 변경 불필요 → `compile_required: true` (재컴파일 트리거)
 - L3 CODE_GUARD_MISSING → CLAUDE.md Contract 명확화 필수 → `compile_required: true`
 
 **Fix 우선순위 (Multi-layer 시):**
 1. L1 먼저 — spec이 source of truth
-2. L2 다음 — plan이 코드 생성의 근거
+2. L2는 진단 참고용 (DEVELOPERS.md는 직접 수정하지 않음)
 3. bugfix SKILL이 `/compile` 자동 실행
 
 ### Phase 7: Fix 제안 & 적용
@@ -350,27 +350,22 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 
 Fix 대상 문서의 스키마를 로드하여 수정안이 스키마를 준수하도록 합니다:
 
-- L1 fix (CLAUDE.md 수정) 시:
-  ```bash
-  cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
-  ```
-- L2 fix (IMPLEMENTS.md 수정) 시:
-  ```bash
-  cat "${CLAUDE_PLUGIN_ROOT}/templates/implements-md-schema.md"
-  ```
+```bash
+cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
+```
 
 debugger-templates.md의 Fix Strategy Templates 형식으로 수정안을 작성하되,
 스키마에 정의된 섹션 형식과 규칙을 준수합니다.
-수정 대상은 항상 CLAUDE.md / IMPLEMENTS.md. 소스코드 직접 수정안은 생성하지 않음.
+수정 대상은 항상 CLAUDE.md. 소스코드 직접 수정안은 생성하지 않음.
 
 **Step 7.2: 사용자 승인**
 ```
-AskUserQuestion: "다음 CLAUDE.md/IMPLEMENTS.md 수정을 적용하시겠습니까?"
+AskUserQuestion: "다음 CLAUDE.md 수정을 적용하시겠습니까?"
 옵션: [전체 적용, 선택적 적용, 수정안만 확인 (dry-run)]
 ```
 
 **Step 7.3: Fix 적용**
-- CLAUDE.md / IMPLEMENTS.md 수정 적용
+- CLAUDE.md 수정 적용
 - `/compile`은 bugfix SKILL이 자동 실행 (debugger는 실행하지 않음)
 
 ## 모호한 케이스 처리
@@ -393,7 +388,7 @@ status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
 root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_EXPORT_MISMATCH | PLAN_ERROR_HANDLING_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
-fix_targets: [CLAUDE.md, IMPLEMENTS.md]
+fix_targets: [CLAUDE.md]
 compile_path: {dir}
 compile_required: true | false
 test_command: {command} | N/A
@@ -418,7 +413,7 @@ reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 | 상황 | 대응 |
 |------|------|
 | CLAUDE.md 파싱 실패 | L1 스킵, L2/L3 분석으로 진행 |
-| IMPLEMENTS.md 없음 | L2 스킵 |
+| DEVELOPERS.md 없음 | L2 스킵 (2계층 fallback) |
 | 에러 재현 불가 | Phase 1.3 재현 실패 처리 절차 실행 |
 | 소스 파일 없음 | 에러 반환, status: failed |
 | 리스크 오버라이드 (risk_override: true) | 영향 계층 findings에 confidence: LOW 강제, 결과에 risk_override 명시 |
@@ -431,5 +426,5 @@ reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 - **Read**: 소스 파일 `limit: 200`, 테스트 파일 `limit: 500`, findings 파일 전체 읽기 허용.
 - **Glob**: `node_modules`, `target`, `dist`, `__pycache__`, `.git` 디렉토리 제외.
 - **Write**: 결과를 `${TMP_DIR}` 파일에 저장할 때만 사용.
-- **Edit**: CLAUDE.md/IMPLEMENTS.md Fix 적용 시 사용자 승인 후에만 사용. 소스코드 직접 수정 금지.
+- **Edit**: CLAUDE.md Fix 적용 시 사용자 승인 후에만 사용. 소스코드 직접 수정 금지.
 - **Task**: debug-layer-analyzer agent 호출에만 사용. 각 layer 분석을 별도 context로 격리.

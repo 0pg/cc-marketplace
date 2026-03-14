@@ -16,7 +16,7 @@
 2. **Convention 섹션 추출**: project CLAUDE.md에서 `## Project Convention` 섹션과 `## Code Convention` 섹션을 추출합니다 (project 기본값).
 3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Code Convention`이 있으면 project_root의 canonical source를 override합니다 (없으면 project_root에서 상속). `## Project Convention`이 있으면 이것으로도 override합니다.
 4. **대상 CLAUDE.md 파싱**: `claude-md-core parse-claude-md` CLI를 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
-5. **IMPLEMENTS.md 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "IMPLEMENTS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `implements_spec`에 저장합니다. 존재하지 않으면 기본 Planning Section 템플릿으로 자동 생성한 후 파싱합니다.
+5. **compile-context 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "compile-context.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `compile_context`에 저장합니다. 존재하지 않으면 이 단계를 건너뜁니다 (compile-context는 optional).
 
 **CLAUDE.md (WHAT)**에서 추출:
 - `exports`: 함수, 타입, 클래스 정의
@@ -25,13 +25,13 @@
 - `dependencies`: 필요한 import문 생성
 - `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
 
-**IMPLEMENTS.md Planning Section (HOW)**에서 추출:
+**compile-context (HOW, optional)**에서 추출:
 - `dependencies_direction`: 의존성 위치와 사용 목적
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
 **중요**: `project_root` CLAUDE.md의 Code Convention이 canonical source입니다. `module_root`에 Code Convention이 있으면 override로 사용합니다. Convention 섹션이 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
-`implements_spec`의 구현 방향도 함께 참조합니다.
+`compile_context`의 구현 방향도 함께 참조합니다 (존재하는 경우).
 
 **컨벤션 참조 우선순위**:
 1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코딩 규칙, 네이밍 규칙
@@ -124,9 +124,9 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 - `conflict_mode`가 "overwrite"이면 기존 파일을 덮어씁니다.
 - 존재하지 않으면 새 파일을 생성합니다.
 
-### Phase 6: IMPLEMENTS.md Implementation Section 업데이트
+### Phase 6: compile-context 업데이트 (session temp)
 
-코드 생성 과정에서 발견된 정보를 수집하여 IMPLEMENTS.md의 Implementation Section을 업데이트합니다:
+코드 생성 과정에서 발견된 정보를 수집하여 compile-context를 업데이트합니다. compile-context는 세션 임시 파일로, 다음 compile 시 참고용입니다:
 
 1. 생성된 코드에서 다음 정보를 추출합니다:
    - Algorithm: 복잡한 로직만 추출
@@ -135,10 +135,10 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
    - State Management: 상태 관리 패턴
    - Implementation Guide: 변경 사항 기록
 
-2. `{target_dir}/IMPLEMENTS.md`를 Read하여 기존 내용을 로드합니다.
-3. Implementation Section을 업데이트한 후 Write합니다.
+2. `{target_dir}/compile-context.md`가 존재하면 Read하여 기존 내용을 로드합니다.
+3. compile-context를 업데이트한 후 Write합니다.
 
-#### Implementation Section 업데이트 규칙
+#### compile-context 업데이트 규칙
 
 | 섹션 | 업데이트 조건 | 내용 |
 |------|--------------|------|
@@ -155,7 +155,7 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 ```json
 {
   "claude_md_path": "{claude_md_path}",
-  "implements_md_path": "{implements_md_path}",
+  "compile_context_path": "{compile_context_path}",
   "target_dir": "{target_dir}",
   "detected_language": "{detected_language}",
   "generated_files": ["{written_files}"],
@@ -166,7 +166,7 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
     "passed": "{passed}",
     "failed": "{failed}"
   },
-  "implements_md_updated": true,
+  "compile_context_updated": true,
   "status": "success | warning"
 }
 ```
@@ -181,7 +181,7 @@ generated_files: {written_files}
 skipped_files: {skipped_files}
 tests_passed: {passed}
 tests_failed: {failed}
-implements_md_updated: true
+compile_context_updated: true
 ---end-compiler-result---
 ```
 
@@ -216,8 +216,8 @@ implements_md_updated: true
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │
-│  ┌─ Read(IMPLEMENTS.md) ─────────────────────────────────┐ │
-│  │ Planning Section 로드 (HOW direction)                  │ │
+│  ┌─ Read(compile-context.md) ─────────────────────────────┐ │
+│  │ compile-context 로드 (HOW direction, optional)         │ │
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │
@@ -229,7 +229,7 @@ implements_md_updated: true
 │  ┌─ GREEN + REFACTOR Workflow ────────────────────────────┐ │
 │  │                                                        │ │
 │  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)     │ │
-│  │         └─ CLAUDE.md + IMPLEMENTS.md Planning 참조     │ │
+│  │         └─ CLAUDE.md + compile-context 참조 (optional)  │ │
 │  │         └─ INV-EXPORT: 테스트 수정 금지               │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
@@ -245,7 +245,7 @@ implements_md_updated: true
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │
-│  ┌─ IMPLEMENTS.md Implementation Section 업데이트 ───────┐ │
+│  ┌─ compile-context 업데이트 (session temp) ─────────────┐ │
 │  │ Algorithm, Key Constants, Error Handling 등 기록       │ │
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
