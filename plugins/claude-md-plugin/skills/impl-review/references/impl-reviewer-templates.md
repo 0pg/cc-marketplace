@@ -1,7 +1,7 @@
 <!--
   impl-reviewer-templates.md
   Consolidated reference for the impl-reviewer agent.
-  Contains: Review dimensions (D1-D4), check definitions, severity levels,
+  Contains: Review dimensions (D1-D3), check definitions, severity levels,
   scoring formula, finding format, fix proposal format, result template,
   and quality anti-patterns.
 

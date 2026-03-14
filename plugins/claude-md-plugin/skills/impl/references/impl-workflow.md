@@ -425,12 +425,12 @@ Dependencies: Internal {count}개, External {count}개
 
 1. 대상 디렉토리를 생성합니다 (필요시).
 2. **CLAUDE.md 저장**: `{target_path}/CLAUDE.md`에 Write합니다.
-3. **compile-context 저장**: `{target_path}/compile-context.md`에 Write합니다 (session temp, optional).
+3. **compile-context 저장**: `.claude/tmp/compile-context-{dir-hash}.md`에 Write합니다 (session temp, optional).
 
 ```
 ---impl-result---
 claude_md_file: {target_path}/CLAUDE.md
-compile_context_file: {target_path}/compile-context.md
+compile_context_file: .claude/tmp/compile-context-{dir-hash}.md
 status: success
 action: {created|updated}
 validation: {passed|failed_with_warnings}

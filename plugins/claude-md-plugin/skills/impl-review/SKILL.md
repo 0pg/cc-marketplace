@@ -44,7 +44,7 @@ allowed-tools: [Bash, Read, Write, Task, AskUserQuestion]
 
 `/impl` SKILL.md에서 자동 호출.
 
-- impl agent 결과의 `claude_md_file`, `implements_md_file` + 원본 `user_requirement` 전달
+- impl agent 결과의 `claude_md_file`, `compile_context_file` + 원본 `user_requirement` 전달
 - 스키마 검증 스킵 (impl agent가 이미 검증 완료)
 
 ## Workflow

@@ -54,14 +54,14 @@
 | **SPEC_CONTRACT_GAP** | Contract에 이 에러 조건이 없음 | `spec_json.contracts.throws`에 에러 타입 없음 |
 | **SPEC_STALE** | CLAUDE.md가 코드보다 오래됨 | `git log` 타임스탬프 비교 |
 
-### L2: DEVELOPERS.md (Plan) Issues
+### L2: DEVELOPERS.md (Context) Issues
 
 | 타입 | 설명 | 증거 패턴 |
 |------|------|----------|
-| **PLAN_ERROR_HANDLING_GAP** | Error Handling에 에러 타입 미포함 | Error Handling 테이블에 에러 없음 |
-| **PLAN_ALGORITHM_FLAW** | Algorithm 섹션 설계 자체가 잘못됨 | 알고리즘과 에러 로직의 인과관계 |
-| **PLAN_STATE_GAP** | State Management에 상태 전이 미기술 | 상태 관련 에러 + State 섹션 누락 |
-| **PLAN_CONSTANT_MISMATCH** | Key Constants와 코드 상수 불일치 | 코드 상수값 vs DEVELOPERS.md 명세값 차이 |
+| **CONTEXT_DECISION_GAP** | Decision Log에 관련 결정/근거 미기술 | Decision Log에 매칭 엔트리 없음 |
+| **CONTEXT_FILE_MAP_STALE** | File Map 관계가 실제 코드 의존성과 불일치 | File Map 의존관계 vs 실제 import 불일치 |
+| **CONTEXT_DATA_STRUCTURE_GAP** | Data Structures에 관련 내부 구조 미기술 | Data Structures 섹션에 구조 누락 |
+| **CONTEXT_OPERATIONS_GAP** | Operations에 관련 gotcha/트러블슈팅 미기술 | Operations 섹션에 정보 누락 |
 
 ### L3: Source Code Issues (진단용 — 수정은 L1/L2에서)
 
@@ -71,9 +71,9 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 | 타입 | 설명 | 증거 패턴 | L1/L2 수정 방향 |
 |------|------|----------|----------------|
 | **CODE_SPEC_DIVERGENCE** | 코드가 스펙/플랜을 따르지 않음 | 스펙 behavior 존재 + 코드 동작 불일치 | 스펙이 맞으면 `/compile`로 재생성 |
-| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 스펙/플랜 모두 올바르나 코드 잘못됨 | DEVELOPERS.md Algorithm 보강 후 `/compile` |
+| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 스펙/플랜 모두 올바르나 코드 잘못됨 | DEVELOPERS.md Decision Log 보강 후 `/compile` |
 | **CODE_GUARD_MISSING** | guard clause/입력 검증 누락 | Contract precondition 존재 + 코드에 guard 없음 | Contract 명확화 후 `/compile` |
-| **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 플랜을 따르지 않음 | 플랜 기술 존재 + 코드가 플랜 불이행 | 플랜이 맞으면 `/compile`로 재생성 |
+| **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 맥락을 따르지 않음 | DEVELOPERS.md 기술 존재 + 코드가 맥락 불이행 | DEVELOPERS.md가 맞으면 `/compile`로 재생성 |
 
 ## Fix Strategy Templates
 
@@ -104,7 +104,7 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 ## L2 Fix: {root_cause_type}
 
 **대상 파일:** {developers_md_path}
-**대상 섹션:** {Error Handling | Algorithm | State Management | Key Constants}
+**대상 섹션:** {File Map | Data Structures | Decision Log | Operations}
 
 **현재:**
 {current_content}
@@ -395,15 +395,15 @@ Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     |       +-- DEVELOPERS.md 존재?
     |       |   NO --> L1 분석 (L2 스킵, DEVELOPERS.md 생성 권장)
     |       |   YES |
-    |       +-- Error Handling이 이 에러를 다루는가?
-    |       |   NO --> L2: PLAN_ERROR_HANDLING_GAP
+    |       +-- Decision Log가 이 결정/에러를 다루는가?
+    |       |   NO --> L2: CONTEXT_DECISION_GAP
     |       |   YES |
-    |       +-- Algorithm이 이 로직을 기술하는가?
-    |       |   NO --> L2: PLAN_ALGORITHM_FLAW
+    |       +-- File Map/Data Structures가 이 구조를 기술하는가?
+    |       |   NO --> L2: CONTEXT_FILE_MAP_STALE 또는 CONTEXT_DATA_STRUCTURE_GAP
     |       |   YES |
-    |       +-- 코드가 DEVELOPERS.md대로 구현되어 있는가?
+    |       +-- 코드가 DEVELOPERS.md 맥락대로 구현되어 있는가?
     |           NO --> DEVELOPERS.md 맞으면 `/compile`로 재생성
-    |           YES --> DEVELOPERS.md Algorithm 보강 후 `/compile`
+    |           YES --> DEVELOPERS.md Decision Log 보강 후 `/compile`
     |
     +-- 모든 경우: Fix는 CLAUDE.md/DEVELOPERS.md → bugfix SKILL이 /compile 자동 실행 → 검증
 ```
