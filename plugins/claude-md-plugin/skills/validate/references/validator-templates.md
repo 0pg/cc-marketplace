@@ -104,10 +104,6 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 - Dependencies: {n3}개
 - Behavior: {n4}개
 
-## IMPLEMENTS.md Presence
-
-- 상태: {EXISTS | MISSING}
-
 ## Export 커버리지
 
 - 커버리지: {coverage}%

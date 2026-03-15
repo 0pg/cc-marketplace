@@ -157,16 +157,72 @@ impl SchemaValidator {
         // Validate Dependencies for forbidden references (INV-1: tree structure)
         self.validate_dependencies(&content, &mut errors);
 
-        // INV-3: 1:1 mapping required. WARNING (not ERROR) because:
-        // - /impl creates CLAUDE.md first, then IMPLEMENTS.md (transient absence)
-        // - /compile auto-generates missing IMPLEMENTS.md before compilation
-        // Strict enforcement would break these valid intermediate states.
-        let implements_md_path = file.with_file_name("IMPLEMENTS.md");
-        if !implements_md_path.exists() {
-            warnings.push(format!(
-                "INV-3: IMPLEMENTS.md not found at '{}' (expected 1:1 mapping with CLAUDE.md)",
-                implements_md_path.display()
-            ));
+        ValidationResult {
+            file: file_str,
+            valid: errors.is_empty(),
+            errors,
+            warnings,
+        }
+    }
+
+    /// Validate DEVELOPERS.md schema (called in strict mode)
+    pub fn validate_developers(&self, developers_path: &Path) -> ValidationResult {
+        let file_str = developers_path.to_string_lossy().to_string();
+
+        let content = match std::fs::read_to_string(developers_path) {
+            Ok(c) => c,
+            Err(e) => {
+                return ValidationResult {
+                    file: file_str,
+                    valid: false,
+                    errors: vec![ValidationError {
+                        error_type: "FileError".to_string(),
+                        message: format!("Cannot read file: {}", e),
+                        line_number: None,
+                        section: None,
+                    }],
+                    warnings: vec![],
+                };
+            }
+        };
+
+        let mut errors = Vec::new();
+        let warnings = Vec::new();
+
+        let sections = self.parse_sections(&content);
+
+        // Check required sections for DEVELOPERS.md
+        for required in DEVELOPERS_REQUIRED_SECTIONS {
+            let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
+
+            match section_found {
+                None => {
+                    errors.push(ValidationError {
+                        error_type: "MissingSection".to_string(),
+                        message: format!("Missing required section: {}", required),
+                        line_number: None,
+                        section: Some(required.to_string()),
+                    });
+                }
+                Some(section) => {
+                    let allows_none = DEVELOPERS_ALLOW_NONE_SECTIONS
+                        .iter()
+                        .any(|s| s.eq_ignore_ascii_case(required));
+                    let is_none = self.is_none_marker(section);
+
+                    if !allows_none && is_none {
+                        errors.push(ValidationError {
+                            error_type: "InvalidSectionContent".to_string(),
+                            message: format!(
+                                "Section '{}' does not allow 'None' as value",
+                                required
+                            ),
+                            line_number: Some(section.start_line),
+                            section: Some(required.to_string()),
+                        });
+                    }
+                }
+            }
         }
 
         ValidationResult {
@@ -175,6 +231,41 @@ impl SchemaValidator {
             errors,
             warnings,
         }
+    }
+
+    /// Validate CLAUDE.md with strict mode: also checks DEVELOPERS.md presence and schema (INV-3)
+    pub fn validate_strict(&self, claude_md_path: &Path) -> ValidationResult {
+        // First validate CLAUDE.md itself
+        let mut result = self.validate(claude_md_path);
+
+        // Check DEVELOPERS.md existence (INV-3)
+        let developers_path = claude_md_path
+            .parent()
+            .map(|p| p.join("DEVELOPERS.md"))
+            .unwrap_or_else(|| std::path::PathBuf::from("DEVELOPERS.md"));
+
+        if !developers_path.exists() {
+            result.warnings.push(format!(
+                "INV-3: DEVELOPERS.md not found at {}",
+                developers_path.display()
+            ));
+        } else {
+            // Validate DEVELOPERS.md schema
+            let dev_result = self.validate_developers(&developers_path);
+            if !dev_result.valid {
+                for err in dev_result.errors {
+                    result.errors.push(ValidationError {
+                        error_type: format!("DEVELOPERS.md:{}", err.error_type),
+                        message: format!("DEVELOPERS.md: {}", err.message),
+                        line_number: err.line_number,
+                        section: err.section,
+                    });
+                }
+                result.valid = false;
+            }
+        }
+
+        result
     }
 
     fn parse_sections(&self, content: &str) -> Vec<ValidatorSection> {
@@ -1003,6 +1094,235 @@ Test module.
         assert!(!added.contains(&"Purpose".to_string()));
         // But allow_none sections should be added
         assert!(added.contains(&"Contract".to_string()));
+    }
+
+    // DEVELOPERS.md validation tests
+
+    fn create_developers_file(dir: &std::path::Path, content: &str) -> std::path::PathBuf {
+        let file_path = dir.join("DEVELOPERS.md");
+        let mut file = File::create(&file_path).unwrap();
+        write!(file, "{}", content).unwrap();
+        file_path
+    }
+
+    #[test]
+    fn test_developers_valid_all_sections() {
+        let content = r#"# Test Module
+
+## File Map
+
+| 파일 | 역할 | 의존 |
+|------|------|------|
+| index.ts | 진입점 | - |
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_developers_missing_file_map_fails() {
+        let content = r#"# Test Module
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| e.message.contains("File Map")));
+    }
+
+    #[test]
+    fn test_developers_file_map_none_not_allowed() {
+        let content = r#"# Test Module
+
+## File Map
+None
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e|
+            e.error_type == "InvalidSectionContent" && e.message.contains("File Map")
+        ));
+    }
+
+    #[test]
+    fn test_developers_data_structures_allows_none() {
+        let content = r#"# Test Module
+
+## File Map
+
+| 파일 | 역할 | 의존 |
+|------|------|------|
+| index.ts | 진입점 | - |
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(result.valid, "Data Structures with None should pass: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_strict_mode_missing_developers_md() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_strict(&path);
+
+        // Should have INV-3 warning (DEVELOPERS.md not found)
+        assert!(result.warnings.iter().any(|w| w.starts_with("INV-3:")));
+    }
+
+    #[test]
+    fn test_strict_mode_with_valid_developers_md() {
+        let claude_content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#,
+        );
+        let temp = TempDir::new().unwrap();
+        let claude_path = temp.path().join("CLAUDE.md");
+        let mut f = File::create(&claude_path).unwrap();
+        write!(f, "{}", claude_content).unwrap();
+
+        let dev_content = r#"# Test Module
+
+## File Map
+
+| 파일 | 역할 | 의존 |
+|------|------|------|
+| index.ts | 진입점 | - |
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        create_developers_file(temp.path(), dev_content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_strict(&claude_path);
+
+        assert!(result.valid, "Strict validation with valid DEVELOPERS.md should pass: {:?}", result.errors);
+        assert!(!result.warnings.iter().any(|w| w.starts_with("INV-3:")));
+    }
+
+    #[test]
+    fn test_strict_mode_with_invalid_developers_md() {
+        let claude_content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+"#,
+        );
+        let temp = TempDir::new().unwrap();
+        let claude_path = temp.path().join("CLAUDE.md");
+        let mut f = File::create(&claude_path).unwrap();
+        write!(f, "{}", claude_content).unwrap();
+
+        // DEVELOPERS.md missing File Map
+        let dev_content = r#"# Test Module
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        create_developers_file(temp.path(), dev_content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_strict(&claude_path);
+
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e|
+            e.error_type.starts_with("DEVELOPERS.md:") && e.message.contains("File Map")
+        ));
     }
 
     #[test]

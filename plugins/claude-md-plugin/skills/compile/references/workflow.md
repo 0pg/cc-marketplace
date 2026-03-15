@@ -35,11 +35,12 @@
 2. 기존 파일이 없으면, 부모 디렉토리의 언어 정보를 참조한다. 성공하면 해당 언어를 반환한다.
 3. 위 두 방법 모두 실패하면, 프로젝트에서 사용 중인 언어 목록을 옵션으로 구성하여 `AskUserQuestion`으로 사용자에게 질문한다.
 
-## IMPLEMENTS.md 존재 확인 및 자동 생성
+## compile-context 확인 (optional)
 
 1. compile 대상 CLAUDE.md 목록을 순회한다.
-2. 각 CLAUDE.md와 같은 디렉토리에 IMPLEMENTS.md가 존재하는지 확인한다.
-3. IMPLEMENTS.md가 없으면 `"  ⚠ {경로} 없음 - 자동 생성"` 메시지를 출력하고, 기본 Planning Section으로 IMPLEMENTS.md를 자동 생성한다.
+2. 각 CLAUDE.md에 대응하는 compile-context 파일이 `.claude/tmp/compile-context-{dir-hash}.md`에 존재하는지 확인한다.
+3. compile-context가 있으면 참조용으로 사용한다 (Dependencies Direction, Implementation Approach, Technology Choices).
+4. compile-context가 없어도 compile은 정상 진행한다 (CLAUDE.md만으로 충분).
 
 ## 테스트 프레임워크 감지
 
@@ -70,13 +71,13 @@ mkdir -p "$TMP_DIR"
 1. compile 대상 파일들을 디렉토리 depth 기준으로 그룹화한다 (깊은 것부터 처리하는 leaf-first 순서).
 2. 가장 깊은 depth 그룹부터 순서대로 처리한다:
    1. 같은 depth 그룹 내의 각 CLAUDE.md에 대해:
-      1. 해당 디렉토리의 IMPLEMENTS.md 경로와 감지된 언어를 준비한다.
+      1. 해당 디렉토리의 compile-context 경로(있으면)와 감지된 언어를 준비한다.
       2. `"  • {CLAUDE.md 경로} - 시작 (depth={depth})"` 메시지를 출력한다.
       3. **Step 1: test-designer 호출** — `Task`로 `test-designer` Agent를 실행한다:
-         - 입력: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 테스트 프레임워크, 프로젝트 CLAUDE.md 경로, 모드 (full/incremental), 대상 exports, dependency CLAUDE.md 경로 목록
+         - 입력: CLAUDE.md 경로, compile-context 경로(optional), 대상 디렉토리, 감지된 언어, 테스트 프레임워크, 프로젝트 CLAUDE.md 경로, 모드 (full/incremental), 대상 exports, dependency CLAUDE.md 경로 목록
          - test-designer 결과에서 테스트 파일 목록을 추출한다.
       4. **Step 2: compiler 호출** — `Task`로 `compiler` Agent를 실행한다:
-         - 입력: CLAUDE.md 경로, IMPLEMENTS.md 경로, 대상 디렉토리, 감지된 언어, 테스트 파일 목록, 충돌 처리 모드
+         - 입력: CLAUDE.md 경로, compile-context 경로(optional), 대상 디렉토리, 감지된 언어, 테스트 파일 목록, 충돌 처리 모드
          - 결과는 ${TMP_DIR}에 저장하고 경로만 반환하도록 지시한다.
       5. **피드백 루프 (compiler 실패 시):**
          - compiler가 3회 재시도 후 실패하면:
@@ -112,7 +113,7 @@ mkdir -p "$TMP_DIR"
 사용자에게 노출되지 않는 내부 프로세스:
 
 ```
-CLAUDE.md + IMPLEMENTS.md 파싱
+CLAUDE.md 파싱 (+ compile-context 참조, optional)
      │
      ▼
 [RED] Task(test-designer)
@@ -122,7 +123,7 @@ CLAUDE.md + IMPLEMENTS.md 파싱
      ▼
 [GREEN] Task(compiler)
      │   └─ 구현 생성 + 테스트 통과 (최대 3회 재시도)
-     │   └─ IMPLEMENTS.md Planning Section 참조
+     │   └─ compile-context 참조 (있으면)
      │   └─ 테스트 파일 수정 금지 (INV-EXPORT)
      ▼
 [REFACTOR] (compiler 내부)
@@ -131,10 +132,6 @@ CLAUDE.md + IMPLEMENTS.md 파싱
      ▼
 파일 충돌 처리
      │
-     ▼
-IMPLEMENTS.md Implementation Section 업데이트
-     │   - Algorithm, Key Constants, Error Handling
-     │   - State Management, Implementation Guide
      ▼
 결과 반환
      │

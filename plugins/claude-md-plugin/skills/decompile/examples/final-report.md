@@ -1,13 +1,13 @@
 # Extract Final Report Example
 
 ```
-=== CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
+=== CLAUDE.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/auth/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/auth/jwt/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/api/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/CLAUDE.md
+  ✓ src/auth/CLAUDE.md
+  ✓ src/auth/jwt/CLAUDE.md
+  ✓ src/api/CLAUDE.md
 
 검증 결과: 4/4 통과
 

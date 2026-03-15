@@ -46,7 +46,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-**각 CLAUDE.md에 대해 CLI 실행:**
+**각 CLAUDE.md에 대해 CLI 실행 (`--strict` 모드로 DEVELOPERS.md도 함께 검증):**
 ```bash
 CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
 CLI_PATH="$CORE_DIR/target/release/claude-md-core"
@@ -61,6 +61,8 @@ for claude_md in ${targets}; do
     --output "${TMP_DIR}schema-${dir_safe}.json"
 done
 ```
+
+> **`--strict` 모드**: CLAUDE.md 스키마 검증과 함께 DEVELOPERS.md 존재(INV-3) 및 스키마 검증을 수행합니다.
 
 **결과 JSON (~500bytes/file):**
 ```json
@@ -343,7 +345,7 @@ src/legacy (개선 필요)
 - Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
 - Report both schema, drift issues and export coverage metrics
-- Include IMPLEMENTS.md presence check (INV-3)
+- Check CLAUDE.md schema validity
 - Use file-based progress accumulation for compact resilience
 - Skip issue-verifier/issue-fixer for directories with 0 issues
 - Run issue-verifier before issue-fixer (verify first, then fix)
@@ -353,7 +355,7 @@ src/legacy (개선 필요)
 - Skip any drift category
 - Launch all agent tasks in a single message (use batches of max 3)
 - Run issue-fixer without issue-verifier (always verify before fixing)
-- Modify files other than CLAUDE.md during fix phase (source code, IMPLEMENTS.md are out of scope)
+- Modify files other than CLAUDE.md during fix phase (source code is out of scope)
 
 ## 참조 자료
 

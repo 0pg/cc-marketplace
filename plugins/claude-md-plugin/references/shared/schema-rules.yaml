@@ -135,6 +135,36 @@ reference_rules:
     - pattern: "^\\.\\/|^\\.\\\\/"
       description: "자식 디렉토리 참조 허용"
 
+developers_sections:
+  file_map:
+    name: "File Map"
+    required: true
+    allow_none: false
+    description: "파일별 역할 및 의존관계 테이블"
+  data_structures:
+    name: "Data Structures"
+    required: true
+    allow_none: true
+    description: "내부 자료구조 관계 및 변환 흐름"
+  decision_log:
+    name: "Decision Log"
+    required: true
+    allow_none: true
+    description: "ADR 스타일 결정 기록. 각 결정을 소제목으로, 맥락/결정/근거 고정 스키마"
+    required_entry_fields:
+      - "맥락"
+      - "결정"
+      - "근거"
+  operations:
+    name: "Operations"
+    required: true
+    allow_none: true
+    description: "배포, 모니터링, 트러블슈팅"
+    subsections:
+      - "Gotchas"
+      - "배포"
+      - "모니터링"
+
 none_marker:
   values:
     - "None"

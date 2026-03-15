@@ -60,7 +60,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Enforce INV-3 (IMPLEMENTS.md existence) as error instead of warning
+        /// Strict mode (reserved for future DEVELOPERS.md validation)
         #[arg(long, default_value_t = false)]
         strict: bool,
     },
@@ -208,7 +208,11 @@ fn main() {
         }
         Commands::ValidateSchema { file, output, strict } => {
             let validator = SchemaValidator::new();
-            let mut validation_result = validator.validate(file);
+            let mut validation_result = if *strict {
+                validator.validate_strict(file)
+            } else {
+                validator.validate(file)
+            };
 
             if *strict {
                 // Promote INV-3 warnings to errors

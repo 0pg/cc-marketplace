@@ -8,42 +8,37 @@
 
 ## Core Philosophy: Compile/Decompile 패러다임
 
-**CLAUDE.md + IMPLEMENTS.md는 소스코드이고, 소스코드는 바이너리다.**
+**CLAUDE.md는 소스코드이고, 소스코드는 바이너리다.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    전통적 소프트웨어                          │
 │                                                             │
-│   .h (헤더)  +  .c (소스)  ─── compile ──→  Binary (.exe)   │
-│   Binary (.exe)  ─── decompile ──→  .h + .c                 │
+│   .h (헤더)  ─── compile ──→  Binary (.exe)                 │
+│   Binary (.exe)  ─── decompile ──→  .h                      │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin (듀얼 문서 시스템)       │
+│                    claude-md-plugin                          │
 │                                                             │
-│   CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)                    │
+│   CLAUDE.md (WHAT)                                          │
 │         │                                                   │
 │         └──── /compile ──→  Source Code (구현)              │
 │                                                             │
-│   Source Code (구현)  ─── /decompile ──→                    │
-│         └──→ CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)         │
+│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 | 전통적 개념 | claude-md-plugin | 역할 |
 |------------|------------------|------|
 | .h (헤더) | CLAUDE.md | WHAT - 인터페이스, 스펙 |
-| .c (소스) | IMPLEMENTS.md | HOW - 구현 명세 |
 | Binary | Source Code (.ts, .py, ...) | 실행물 |
-| **compile** | CLAUDE.md + IMPLEMENTS.md → Source Code | `/compile` |
-| **decompile** | Source Code → CLAUDE.md + IMPLEMENTS.md | `/decompile` |
+| **compile** | CLAUDE.md → Source Code | `/compile` |
+| **decompile** | Source Code → CLAUDE.md | `/decompile` |
 
-**왜 이 비유인가?**
-- **CLAUDE.md** (.h)는 "무엇을(WHAT)" 정의 → 인터페이스, PRD
-- **IMPLEMENTS.md** (.c)는 "어떻게(HOW)" 구현하는지 정의 → 알고리즘, 상수, 에러처리
-- **Source Code**는 기계가 실행하는 것 → 실제 소스코드 (런타임이 실행)
-- **Compile**은 스펙+구현명세에서 실행 가능한 형태로 변환
-- **Decompile**은 실행 가능한 형태에서 스펙+구현명세 추출
+**보조 문서:**
+- **DEVELOPERS.md** (WHY) — 파일관계, 결정근거, 운영 맥락. CLAUDE.md와 1:1 매핑 (INV-3)
+- **compile-context** — /impl → /compile 핸드오프용 세션 한정 임시 파일
 
 ## 핵심 개념
 
@@ -88,9 +83,11 @@
 | **자체 compile 재현** | 해당 CLAUDE.md → 동일한 코드 |
 | **의존자 compile 영향** | 이 모듈을 참조하는 다른 모듈의 compile 결정에 필요한 맥락 |
 
-### IMPLEMENTS.md = 구현 명세 (듀얼 문서 시스템)
+### DEVELOPERS.md = 맥락 문서
 
-**IMPLEMENTS.md는 CLAUDE.md와 1:1로 매핑되는 "어떻게(HOW)" 문서입니다.**
+**DEVELOPERS.md는 CLAUDE.md와 1:1로 매핑되는 "왜(WHY)" 문서입니다.**
+
+**핵심 원칙:** 현재 상태만 기록, 히스토리는 git에 의존.
 
 ```
 auth/
@@ -98,29 +95,26 @@ auth/
 │   ├── Exports: validateToken(token: string): Claims
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
-└── IMPLEMENTS.md   ← HOW (구현 명세)
-    ├── [Planning Section] - /impl이 업데이트
-    │   ├── Dependencies Direction
-    │   ├── Implementation Approach
-    │   └── Technology Choices
-    │
-    └── [Implementation Section] - /compile이 업데이트
-        ├── Algorithm
-        ├── Key Constants
-        ├── Error Handling
-        ├── State Management
-        └── Implementation Guide
+└── DEVELOPERS.md   ← WHY (맥락)
+    ├── ## File Map           ← 파일별 역할 및 의존관계 (필수, None 불가)
+    ├── ## Data Structures    ← 내부 자료구조 관계 (None 허용)
+    ├── ## Decision Log       ← ADR 스타일: 맥락/결정/근거 (None 허용)
+    └── ## Operations         ← Gotchas/배포/모니터링 (None 허용)
 ```
 
-**명령어별 업데이트 범위:**
+### compile-context = 세션 한정 구현 계획
 
-| 명령어 | CLAUDE.md | IMPLEMENTS.md |
-|--------|-----------|---------------|
-| `/impl` | 생성/업데이트 | Planning Section 업데이트 |
-| `/compile` | 읽기 전용 | Implementation Section 업데이트 |
-| `/decompile` | 생성 (전체) | 생성 (전체 - Planning + Implementation) |
+**compile-context는 /impl → /compile 핸드오프용 세션 임시 파일입니다.**
 
-**Exports = 인터페이스 카탈로그, Domain Context = 맥락 카탈로그, IMPLEMENTS.md = 구현 명세**
+경로: `.claude/tmp/compile-context-{dir-hash}.md`
+
+| 명령어 | CLAUDE.md | compile-context |
+|--------|-----------|-----------------|
+| `/impl` | 생성/업데이트 | 생성 (세션 한정) |
+| `/compile` | 읽기 전용 | 읽기 전용 (optional) |
+| `/decompile` | 생성 (전체) | N/A |
+
+**Exports = 인터페이스 카탈로그, Domain Context = 맥락 카탈로그**
 
 ### Convention Sections
 
@@ -149,7 +143,7 @@ compiler agent의 REFACTOR 단계에서 자동 참조됩니다. 없으면 projec
 
 ## Architecture
 
-### /impl (요구사항 → CLAUDE.md + IMPLEMENTS.md)
+### /impl (요구사항 → CLAUDE.md)
 
 ```
 User: /impl "요구사항"
@@ -161,7 +155,7 @@ User: /impl "요구사항"
 │ 1. Bash(scan-claude-md) → 기존 CLAUDE.md    │
 │    인덱스 생성                              │
 │ 2. Task(impl) + claude_md_index_file        │
-│    → CLAUDE.md + IMPLEMENTS.md 작성         │
+│    → CLAUDE.md 작성 + compile-context 생성  │
 │ 3. git diff → 변경사항 Diff 표시            │
 └────────────────────┬────────────────────────┘
                      │
@@ -175,7 +169,7 @@ User: /impl "요구사항"
 │ 4. 대상 경로 결정                           │
 │ 5. 기존 CLAUDE.md 병합 (필요시)             │
 │ 6. CLAUDE.md 생성 (WHAT)                    │
-│ 7. IMPLEMENTS.md Planning Section 생성 (HOW)│
+│ 7. compile-context 생성 (세션 한정 HOW)     │
 │ 8. Bash(claude-md-core validate-schema) → 검증│
 └────────────────────┬────────────────────────┘
                      │
@@ -183,13 +177,13 @@ User: /impl "요구사항"
 ┌─────────────────────────────────────────────┐
 │ impl-reviewer AGENT (optional review)       │
 │                                             │
-│ Phase 2-5: D1~D4 차원 분석                  │
+│ Phase 2-5: D1~D3 차원 분석                  │
 │ Phase 6: 점수 산출                          │
 │ Phase 7: 대화형 수정 제안 + Edit 적용       │
 └─────────────────────────────────────────────┘
 ```
 
-### /decompile (소스코드 → CLAUDE.md + IMPLEMENTS.md)
+### /decompile (소스코드 → CLAUDE.md)
 
 ```
 User: /decompile
@@ -212,12 +206,11 @@ User: /decompile
 │ Bash(claude-md-core analyze-code)           │
 │ AskUserQuestion → 불명확한 부분 질문        │
 │ CLAUDE.md 생성 (WHAT)                       │
-│ IMPLEMENTS.md 생성 (HOW - 전체 섹션)        │
 │ Bash(claude-md-core validate-schema)        │
 └─────────────────────────────────────────────┘
 ```
 
-### /compile (CLAUDE.md + IMPLEMENTS.md → 소스코드)
+### /compile (CLAUDE.md → 소스코드)
 
 ```
 User: /compile [--all]
@@ -231,8 +224,8 @@ User: /compile [--all]
 │    └─ NO  → Bash(diff-compile-targets)      │
 │             변경 감지                        │
 │             targets = 0 → 종료              │
-│ 1. 대상 CLAUDE.md + IMPLEMENTS.md 필터      │
-│ 2. IMPLEMENTS.md 없으면 자동 생성           │
+│ 1. 대상 CLAUDE.md 필터                      │
+│ 2. compile-context 존재 확인 (optional)     │
 │ 3. 언어 자동 감지                           │
 │ 4. 의존성 그래프 기반 실행 (leaf-first)     │
 │    같은 depth 독립 모듈은 병렬,             │
@@ -250,11 +243,11 @@ User: /compile [--all]
 │ CLAUDE.md →      │  │ 테스트 Read (R/O)    │
 │ Export Tests     │→│ 구현 생성 (3회 재시도)│
 │ Behavior Tests   │  │ Convention 적용      │
-│ Mock 생성        │  │ IMPLEMENTS.md 업데이트│
+│ Mock 생성        │  │                      │
 └──────────────────┘  └──────────────────────┘
 ```
 
-### /impl-review (CLAUDE.md + IMPLEMENTS.md 품질 리뷰)
+### /impl-review (CLAUDE.md 품질 리뷰)
 
 ```
 User: /impl-review [path]
@@ -265,7 +258,7 @@ User: /impl-review [path]
 │                                             │
 │ 1. 인자 파싱 & 대상 해석                    │
 │ 2. Bash(claude-md-core validate-schema)     │
-│ 3. Task(impl-reviewer) → 4차원 리뷰        │
+│ 3. Task(impl-reviewer) → 3차원 리뷰        │
 │ 3.5. git diff → 수정 제안 Diff 표시        │
 └────────────────────┬────────────────────────┘
                      │
@@ -273,9 +266,9 @@ User: /impl-review [path]
 ┌─────────────────────────────────────────────┐
 │ impl-reviewer AGENT                         │
 │                                             │
-│ Phase 2-5: D1~D4 차원 분석                  │
-│ Phase 6: 점수 산출 & 등급 판정              │
-│ Phase 7: 대화형 수정 제안 + Edit 적용       │
+│ Phase 2-4: D1~D3 차원 분석                  │
+│ Phase 5: 점수 산출 & 등급 판정              │
+│ Phase 6: 대화형 수정 제안 + Edit 적용       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -316,7 +309,7 @@ User: /bugfix [--error "..."] [--test "..."]
 │                                             │
 │ 1. Bug Report 수집 (에러/테스트 정보)       │
 │ 2. 입력 타입 분류 (기술적 에러/테스트/기능) │
-│ 3. CLAUDE.md + IMPLEMENTS.md 존재 확인      │
+│ 3. CLAUDE.md + DEVELOPERS.md 존재 확인      │
 │ 4. 사전 검증 (스키마/미컴파일 변경)         │
 │ 5. Task(debugger) → 진단 + 수정            │
 │ 6.5. git diff → 수정사항 Diff 표시         │
@@ -342,7 +335,7 @@ User: /bugfix [--error "..."] [--test "..."]
           ▼          ▼          ▼
    ┌────────┐  ┌────────┐  ┌────────┐
    │ L1 분석 │  │ L2 분석 │  │ L3 분석 │
-   │ (spec)  │  │ (plan)  │  │ (code)  │
+   │ (spec)  │  │(context)│  │ (code)  │
    └────────┘  └────────┘  └────────┘
    debug-layer-analyzer (context 격리)
 ```
@@ -377,14 +370,14 @@ User: /dev "request"
 
 | Agent | 역할 |
 |-------|------|
-| `impl` | 요구사항 분석 및 CLAUDE.md + IMPLEMENTS.md 생성 |
+| `impl` | 요구사항 분석 및 CLAUDE.md 생성 + compile-context 생성 |
 | `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `test-designer` | CLAUDE.md Exports/Behaviors → 불변 테스트 생성 (RED phase) |
 | `compiler` | test-designer 테스트 기반 소스코드 생성 (GREEN + REFACTOR) |
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
-| `impl-reviewer` | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 및 요구사항 커버리지 검증 |
+| `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
 | `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
 | `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
@@ -408,7 +401,7 @@ User: /dev "request"
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
 | `/validate` | Entry Point | 문서-코드 일치 검증 |
 | `/bugfix` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
-| `/impl-review` | Entry Point | CLAUDE.md + IMPLEMENTS.md 품질 리뷰 |
+| `/impl-review` | Entry Point | CLAUDE.md 품질 리뷰 |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
@@ -430,23 +423,24 @@ node.dependencies ⊆ node.children
 
 ### INV-2: Self-contained 바운더리
 ```
-validate(node) = validate(node.claude_md, node.implements_md, node.direct_files)
+validate(node) = validate(node.claude_md, node.direct_files)
 ```
 
-### INV-3: CLAUDE.md ↔ IMPLEMENTS.md 쌍
+### INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍 (활성)
 ```
-∀ CLAUDE.md ∃ IMPLEMENTS.md (1:1 mapping)
-path(IMPLEMENTS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'IMPLEMENTS.md')
+∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
+path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
+--strict 모드에서 DEVELOPERS.md 부재를 에러로 보고
 ```
 
-### INV-4: Section 업데이트 책임
+### INV-4: 업데이트 책임
 ```
-/impl → CLAUDE.md + IMPLEMENTS.md.PlanningSection
-/compile → IMPLEMENTS.md.ImplementationSection
-/decompile → CLAUDE.md + IMPLEMENTS.md.* (전체)
-/bugfix → CLAUDE.md (L1 fix) + IMPLEMENTS.md (L2 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
-/impl-review → CLAUDE.md + IMPLEMENTS.md (사용자 승인 후 fix patch)
-/validate → CLAUDE.md (drift fix, confirmed issues only via issue-fixer)
+/impl → CLAUDE.md + DEVELOPERS.md + compile-context (세션 한정)
+/compile → Source Code (CLAUDE.md + compile-context 읽기 전용)
+/decompile → CLAUDE.md + DEVELOPERS.md
+/bugfix → CLAUDE.md (L1 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
+/impl-review → CLAUDE.md (사용자 승인 후 fix patch)
+/validate → CLAUDE.md + DEVELOPERS.md (drift fix, confirmed issues only via issue-fixer)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙
