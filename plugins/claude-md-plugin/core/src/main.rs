@@ -208,7 +208,11 @@ fn main() {
         }
         Commands::ValidateSchema { file, output, strict } => {
             let validator = SchemaValidator::new();
-            let mut validation_result = validator.validate(file);
+            let mut validation_result = if *strict {
+                validator.validate_strict(file)
+            } else {
+                validator.validate(file)
+            };
 
             if *strict {
                 // Promote INV-3 warnings to errors

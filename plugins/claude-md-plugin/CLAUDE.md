@@ -37,7 +37,7 @@
 | **decompile** | Source Code → CLAUDE.md | `/decompile` |
 
 **보조 문서:**
-- **DEVELOPERS.md** (WHY) — 파일관계, 결정근거, 운영 맥락 (향후 구현 예정)
+- **DEVELOPERS.md** (WHY) — 파일관계, 결정근거, 운영 맥락. CLAUDE.md와 1:1 매핑 (INV-3)
 - **compile-context** — /impl → /compile 핸드오프용 세션 한정 임시 파일
 
 ## 핵심 개념
@@ -83,9 +83,11 @@
 | **자체 compile 재현** | 해당 CLAUDE.md → 동일한 코드 |
 | **의존자 compile 영향** | 이 모듈을 참조하는 다른 모듈의 compile 결정에 필요한 맥락 |
 
-### DEVELOPERS.md = 맥락 문서 (향후 구현 예정)
+### DEVELOPERS.md = 맥락 문서
 
 **DEVELOPERS.md는 CLAUDE.md와 1:1로 매핑되는 "왜(WHY)" 문서입니다.**
+
+**핵심 원칙:** 현재 상태만 기록, 히스토리는 git에 의존.
 
 ```
 auth/
@@ -93,11 +95,11 @@ auth/
 │   ├── Exports: validateToken(token: string): Claims
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
-└── DEVELOPERS.md   ← WHY (맥락, 향후 구현)
-    ├── ## File Map           ← 파일별 역할 및 의존관계
-    ├── ## Data Structures    ← 내부 자료구조 관계
-    ├── ## Decision Log       ← 비직관적 결정 근거
-    └── ## Operations         ← 배포/모니터링, 트러블슈팅
+└── DEVELOPERS.md   ← WHY (맥락)
+    ├── ## File Map           ← 파일별 역할 및 의존관계 (필수, None 불가)
+    ├── ## Data Structures    ← 내부 자료구조 관계 (None 허용)
+    ├── ## Decision Log       ← ADR 스타일: 맥락/결정/근거 (None 허용)
+    └── ## Operations         ← Gotchas/배포/모니터링 (None 허용)
 ```
 
 ### compile-context = 세션 한정 구현 계획
@@ -424,21 +426,21 @@ node.dependencies ⊆ node.children
 validate(node) = validate(node.claude_md, node.direct_files)
 ```
 
-### INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍 (향후 활성화)
+### INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍 (활성)
 ```
-∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping) — 향후 구현 예정
+∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
-현재: DEVELOPERS.md 부재를 에러로 보고하지 않음
+--strict 모드에서 DEVELOPERS.md 부재를 에러로 보고
 ```
 
 ### INV-4: 업데이트 책임
 ```
-/impl → CLAUDE.md + compile-context (세션 한정)
+/impl → CLAUDE.md + DEVELOPERS.md + compile-context (세션 한정)
 /compile → Source Code (CLAUDE.md + compile-context 읽기 전용)
-/decompile → CLAUDE.md
+/decompile → CLAUDE.md + DEVELOPERS.md
 /bugfix → CLAUDE.md (L1 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
 /impl-review → CLAUDE.md (사용자 승인 후 fix patch)
-/validate → CLAUDE.md (drift fix, confirmed issues only via issue-fixer)
+/validate → CLAUDE.md + DEVELOPERS.md (drift fix, confirmed issues only via issue-fixer)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙

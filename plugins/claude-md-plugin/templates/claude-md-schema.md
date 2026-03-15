@@ -488,9 +488,9 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 
 **INV-4: Section 업데이트 책임**
 ```
-/impl → CLAUDE.md
+/impl → CLAUDE.md + DEVELOPERS.md
 /compile → Source Code
-/decompile → CLAUDE.md + DEVELOPERS.md (향후)
+/decompile → CLAUDE.md + DEVELOPERS.md
 ```
 
 **INV-5: Convention 섹션 배치 규칙**

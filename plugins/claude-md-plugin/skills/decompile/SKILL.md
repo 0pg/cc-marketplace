@@ -29,6 +29,7 @@ Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)
 | 출력 | 역할 | 내용 |
 |------|------|------|
 | CLAUDE.md | WHAT (스펙) | Purpose, Exports, Behavior, Contract, Protocol, Domain Context |
+| DEVELOPERS.md | WHY (맥락) | File Map, Data Structures, Decision Log, Operations |
 
 ## 워크플로우
 
@@ -95,12 +96,12 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 ## 최종 보고 예시
 
 ```
-=== CLAUDE.md 추출 완료 ===
+=== CLAUDE.md + DEVELOPERS.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/CLAUDE.md
-  ✓ src/auth/CLAUDE.md
-  ✓ src/api/CLAUDE.md
+  ✓ src/CLAUDE.md + DEVELOPERS.md
+  ✓ src/auth/CLAUDE.md + DEVELOPERS.md
+  ✓ src/api/CLAUDE.md + DEVELOPERS.md
 
 검증 결과: 3/3 통과
 
@@ -111,7 +112,7 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 
 ## 결과 전달
 
-decompiler agent가 CLAUDE.md를 **대상 디렉토리에 직접 Write**.
+decompiler agent가 CLAUDE.md + DEVELOPERS.md를 **대상 디렉토리에 직접 Write**.
 ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방지).
 
 ### 흐름 (Foreground + 압축 응답)
@@ -141,6 +142,7 @@ Bash: git diff HEAD -- {dir}/CLAUDE.md
 status: success
 target_dir: {target_dir}
 validation: passed | failed_with_warnings
+developers_md: generated
 ---end-decompiler-result---
 ```
 
@@ -196,12 +198,12 @@ Agent가 tree.json에서 직접 jq로 `source_file_count`, `subdir_count` 등을
 <assistant_response>
 디렉토리 구조를 분석합니다...
 
-=== CLAUDE.md 추출 완료 ===
+=== CLAUDE.md + DEVELOPERS.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/auth/CLAUDE.md
-  ✓ src/utils/CLAUDE.md
-  ✓ src/CLAUDE.md
+  ✓ src/auth/CLAUDE.md + DEVELOPERS.md
+  ✓ src/utils/CLAUDE.md + DEVELOPERS.md
+  ✓ src/CLAUDE.md + DEVELOPERS.md
 
 검증 결과: 3/3 통과
 
