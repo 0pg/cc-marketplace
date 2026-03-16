@@ -243,7 +243,7 @@ status: cancelled_by_user
 
 ## 참조 문서
 
-- `references/scan-and-orchestration.md`: scan-claude-md 호출 패턴, impl agent 워크플로우 상세 (Phase 0~7), Planning Section 생성 로직
+- `references/scan-and-orchestration.md`: scan-claude-md 호출 패턴, impl agent 워크플로우 상세 (Phase 0~7), compile-context 생성 로직
 - `examples/sample-claude-md.md`: 생성된 CLAUDE.md 예시
 - `examples/sample-vague-requirement.md`: 모호한 요구사항 처리 시나리오 (low completeness)
 - `examples/sample-multi-module.md`: 멀티 모듈 요구사항 분해 시나리오

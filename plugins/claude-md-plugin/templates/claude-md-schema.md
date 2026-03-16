@@ -10,7 +10,7 @@
 **CLAUDE.md = WHAT (정형화된 PRD)**
 - CLAUDE.md는 "무엇을(WHAT)" 정의하는 문서입니다.
 - DEVELOPERS.md는 "왜(WHY)" 그렇게 결정했는지 맥락을 제공합니다.
-- 두 문서는 1:1로 매핑됩니다.
+- 두 문서는 1:1로 매핑됩니다 (DEVELOPERS.md는 향후 구현 예정).
 
 ## 문서 시스템
 
@@ -480,10 +480,11 @@ claude-md-core validate-convention --project-root /path/to/project
 
 ### 불변식
 
-**INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍**
+**INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍 (향후 활성화)**
 ```
 ∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
+현재: DEVELOPERS.md 부재를 에러로 보고하지 않음
 ```
 
 **INV-4: Section 업데이트 책임**

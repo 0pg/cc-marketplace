@@ -271,9 +271,9 @@ Task(debug-layer-analyzer):
   결과 저장: ${TMP_DIR}debug-l1-findings.md
 ```
 
-#### Phase 4: L2 탐색 (맥락 분석)
+#### Phase 4: L2 탐색 (맥락 분석, dormant — DEVELOPERS.md 부재 시 skip)
 
-DEVELOPERS.md가 "N/A"이면 이 Phase를 스킵 (2계층 fallback).
+DEVELOPERS.md가 "N/A"이면 이 Phase를 스킵 (2계층 fallback). 현재 DEVELOPERS.md는 향후 구현 예정이므로 대부분의 경우 skip됩니다.
 
 ```
 Task(debug-layer-analyzer):
@@ -386,7 +386,7 @@ AskUserQuestion: "다음 CLAUDE.md 수정을 적용하시겠습니까?"
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_EXPORT_MISMATCH | PLAN_ERROR_HANDLING_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_EXPORT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}

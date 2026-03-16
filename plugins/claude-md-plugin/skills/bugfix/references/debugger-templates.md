@@ -129,7 +129,7 @@ L3 finding은 코드 증상. 수정은 항상 L1/L2 문서에서 수행하고 `/
 **근본 원인:** {L1 또는 L2 어느 문서의 어느 섹션이 부족/불일치}
 
 **수정 대상:** {claude_md_path 또는 developers_md_path}
-**수정 섹션:** {Exports | Behavior | Contract | Algorithm | Error Handling}
+**수정 섹션:** {Exports | Behavior | Contract | Decision Log | Operations}
 
 **수정안:**
 {proposed_doc_content}

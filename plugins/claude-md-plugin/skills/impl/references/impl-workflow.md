@@ -340,7 +340,7 @@ dep-explorer 결과 JSON에서 의존성 정보를 포맷팅합니다:
 - **Internal**: `internal_deps` 배열에서 CLAUDE.md 경로와 symbols를 추출하여 내부 의존성 목록을 구성합니다.
 
 ```markdown
-# {module_name}/compile-context.md
+# .claude/tmp/compile-context-{dir-hash}.md
 <!-- /compile 시 참고할 구현 방향 (session temp) -->
 
 ## Dependencies Direction
