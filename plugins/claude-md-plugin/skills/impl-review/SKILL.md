@@ -5,8 +5,8 @@ aliases: [review-impl, impl-quality, rate-impl]
 description: |
   This skill should be used when the user asks to "review CLAUDE.md quality", "check impl result",
   "review spec", "check requirements coverage", or uses "/impl-review".
-  Reviews CLAUDE.md + IMPLEMENTS.md quality across 4 dimensions: requirements coverage,
-  document quality, planning quality, and cross-document consistency.
+  Reviews CLAUDE.md quality across 3 dimensions: requirements coverage,
+  document quality, and internal consistency.
   Unlike /validate (code-document drift detection), this reviews document quality itself.
   Trigger keywords: 리뷰, 스펙 리뷰, impl 리뷰, 구현 계획 검토
 user_invocable: true
@@ -15,8 +15,8 @@ allowed-tools: [Bash, Read, Write, Task, AskUserQuestion]
 
 # /impl-review
 
-/impl 결과물(CLAUDE.md + IMPLEMENTS.md)의 품질을 요구사항 커버리지와 계획 품질 관점에서 리뷰.
-4차원 분석(D1-D4)과 점수 산출, 대화형 수정 제안을 수행.
+/impl 결과물(CLAUDE.md)의 품질을 요구사항 커버리지와 문서 품질 관점에서 리뷰.
+3차원 분석(D1-D3)과 점수 산출, 대화형 수정 제안을 수행.
 
 ## Triggers
 
@@ -36,7 +36,7 @@ allowed-tools: [Bash, Read, Write, Task, AskUserQuestion]
 
 사용자가 직접 `/impl-review [path]`로 호출.
 
-- path에서 CLAUDE.md + IMPLEMENTS.md 존재 확인
+- path에서 CLAUDE.md 존재 확인
 - AskUserQuestion으로 원본 요구사항 텍스트 수집 (선택)
 - 요구사항 없으면 D1(요구사항 커버리지) 차원 스킵
 
@@ -44,7 +44,7 @@ allowed-tools: [Bash, Read, Write, Task, AskUserQuestion]
 
 `/impl` SKILL.md에서 자동 호출.
 
-- impl agent 결과의 `claude_md_file`, `implements_md_file` + 원본 `user_requirement` 전달
+- impl agent 결과의 `claude_md_file`, `compile_context_file` + 원본 `user_requirement` 전달
 - 스키마 검증 스킵 (impl agent가 이미 검증 완료)
 
 ## Workflow
@@ -66,7 +66,7 @@ if [ ! -f "{claude_md_path}" ]; then
 fi
 ```
 
-IMPLEMENTS.md: `{directory}/IMPLEMENTS.md` 존재 시 사용, 없으면 "N/A".
+CLAUDE.md만 사용 (IMPLEMENTS.md는 v3.0.0에서 제거됨).
 
 원본 요구사항 수집:
 ```
@@ -81,7 +81,7 @@ AskUserQuestion: "원본 요구사항이 있나요? (요구사항 커버리지 �
 **Mode B (Integrated):**
 
 호출자가 전달한 값을 그대로 사용:
-- `claude_md_path`, `implements_md_path`, `user_requirement` 직접 수신
+- `claude_md_path`, `user_requirement` 직접 수신
 - `schema_result` = "N/A" (impl agent가 이미 검증 완료)
 
 ### 2. 스키마 사전 검증 (CLI)
@@ -109,20 +109,19 @@ $CLI_PATH validate-schema --file {claude_md_path} 2>&1
 ```
 Task(impl-reviewer):
   CLAUDE.md: {claude_md_path}
-  IMPLEMENTS.md: {implements_md_path}
   원본 요구사항: {user_requirement | "N/A"}
   스키마 검증 결과: {schema_result 요약}
   결과 저장: ${TMP_DIR}impl-review-{dir-safe-name}.md
 ```
 
-description은 "Review CLAUDE.md + IMPLEMENTS.md quality"입니다.
+description은 "Review CLAUDE.md quality"입니다.
 
 ### 3.5. 수정 제안 Diff 표시
 
 impl-reviewer가 fix patch를 적용한 경우, 변경사항을 표시합니다:
 
 ```
-Bash: git diff HEAD -- {claude_md_path} {implements_md_path}
+Bash: git diff HEAD -- {claude_md_path}
 ```
 
 **변경 없음 (리뷰만 수행):** 스킵.
@@ -139,7 +138,6 @@ impl-reviewer agent의 결과 블록을 파싱하여 최종 보고:
 
 리뷰 대상:
   - CLAUDE.md: {claude_md_path}
-  - IMPLEMENTS.md: {implements_md_path}
   - 요구사항: {provided / N/A}
 
 결과:
@@ -165,7 +163,7 @@ fixes_applied: {fixes_applied}
 
 ## 관련 컴포넌트
 
-- `agents/impl-reviewer.md`: 4차원 품질 리뷰 및 대화형 수정 제안 agent
+- `agents/impl-reviewer.md`: 3차원 품질 리뷰 및 대화형 수정 제안 agent
 
 ## DO / DON'T
 
@@ -173,7 +171,7 @@ fixes_applied: {fixes_applied}
 - Validate schema before review (Mode A)
 - Collect original requirements when available
 - Skip D1 when requirements are N/A
-- Skip D3 when IMPLEMENTS.md is N/A
+- D3 Internal Consistency is always applicable (CLAUDE.md only)
 - Propose fixes interactively (only CRITICAL/WARNING)
 - Apply fixes only after user approval
 
@@ -188,7 +186,7 @@ fixes_applied: {fixes_applied}
 | 상황 | 대응 |
 |------|------|
 | CLAUDE.md 없음 | 에러 메시지 출력 후 종료 |
-| IMPLEMENTS.md 없음 | D3 스킵, 나머지 차원만 리뷰 |
+| D3 체크 항목 부족 | 사용 가능한 체크만 평가 |
 | CLI 빌드 실패 | 경고 출력, 스키마 검증 결과 "N/A"로 진행 |
 | impl-reviewer agent 실패 | status: failed 보고 |
 
@@ -200,13 +198,12 @@ fixes_applied: {fixes_applied}
 </context>
 <user_request>/impl-review src/auth</user_request>
 <assistant_response>
-src/auth의 CLAUDE.md + IMPLEMENTS.md를 리뷰합니다...
+src/auth의 CLAUDE.md를 리뷰합니다...
 
 === /impl-review 완료 ===
 
 리뷰 대상:
   - CLAUDE.md: src/auth/CLAUDE.md
-  - IMPLEMENTS.md: src/auth/IMPLEMENTS.md
   - 요구사항: N/A
 
 결과:

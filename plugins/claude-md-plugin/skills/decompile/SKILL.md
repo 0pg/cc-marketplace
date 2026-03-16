@@ -15,22 +15,20 @@ allowed-tools: [Bash, Read, Write, Glob, Task, Skill]
 
 ## Core Philosophy
 
-**Source Code(바이너리) → CLAUDE.md + IMPLEMENTS.md(소스) = Decompile**
+**Source Code(바이너리) → CLAUDE.md(소스) = Decompile**
 
 ```
-Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT) + IMPLEMENTS.md (HOW)
+Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)
 ```
 
 전통적 디컴파일러가 바이너리에서 소스코드를 추출하듯,
-`/decompile`은 기존 소스코드에서 CLAUDE.md + IMPLEMENTS.md 명세를 추출.
+`/decompile`은 기존 소스코드에서 CLAUDE.md 명세를 추출.
 
-## 듀얼 문서 시스템
+## 출력
 
 | 출력 | 역할 | 내용 |
 |------|------|------|
 | CLAUDE.md | WHAT (스펙) | Purpose, Exports, Behavior, Contract, Protocol, Domain Context |
-| IMPLEMENTS.md Planning | HOW 계획 | Dependencies Direction, Implementation Approach, Technology Choices |
-| IMPLEMENTS.md Implementation | HOW 상세 | Algorithm, Key Constants, Error Handling, State Management, Implementation Guide |
 
 ## 워크플로우
 
@@ -97,12 +95,12 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 ## 최종 보고 예시
 
 ```
-=== CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
+=== CLAUDE.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/auth/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/api/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/CLAUDE.md
+  ✓ src/auth/CLAUDE.md
+  ✓ src/api/CLAUDE.md
 
 검증 결과: 3/3 통과
 
@@ -113,7 +111,7 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 
 ## 결과 전달
 
-decompiler agent가 CLAUDE.md와 IMPLEMENTS.md를 **대상 디렉토리에 직접 Write**.
+decompiler agent가 CLAUDE.md를 **대상 디렉토리에 직접 Write**.
 ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방지).
 
 ### 흐름 (Foreground + 압축 응답)
@@ -124,11 +122,11 @@ ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방
 
 ### 2.5. 추출된 문서 Diff 표시
 
-decompiler가 CLAUDE.md + IMPLEMENTS.md를 생성한 후 변경사항을 표시합니다:
+decompiler가 CLAUDE.md를 생성한 후 변경사항을 표시합니다:
 
 **기존 파일 덮어쓰기인 경우 (tracked):**
 ```
-Bash: git diff HEAD -- {dir}/CLAUDE.md {dir}/IMPLEMENTS.md
+Bash: git diff HEAD -- {dir}/CLAUDE.md
 ```
 
 **새 파일인 경우 (untracked):**
@@ -198,12 +196,12 @@ Agent가 tree.json에서 직접 jq로 `source_file_count`, `subdir_count` 등을
 <assistant_response>
 디렉토리 구조를 분석합니다...
 
-=== CLAUDE.md + IMPLEMENTS.md 추출 완료 ===
+=== CLAUDE.md 추출 완료 ===
 
 생성된 파일:
-  ✓ src/auth/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/utils/CLAUDE.md + IMPLEMENTS.md
-  ✓ src/CLAUDE.md + IMPLEMENTS.md
+  ✓ src/auth/CLAUDE.md
+  ✓ src/utils/CLAUDE.md
+  ✓ src/CLAUDE.md
 
 검증 결과: 3/3 통과
 

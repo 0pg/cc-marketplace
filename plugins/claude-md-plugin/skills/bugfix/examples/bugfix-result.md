@@ -27,10 +27,10 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: MULTI - PLAN_ERROR_HANDLING_GAP + SPEC_BEHAVIOR_GAP
-요약: Token refresh on expiry not specified in CLAUDE.md Behavior, not handled in IMPLEMENTS.md
+Root Cause: MULTI - SPEC_BEHAVIOR_GAP
+요약: Token refresh on expiry not specified in CLAUDE.md Behavior
 
-수정된 문서: [CLAUDE.md, IMPLEMENTS.md]
+수정된 문서: [CLAUDE.md]
 재현: REPRODUCED
 Compile: PASS
 검증: FAIL (npx jest --testNamePattern "should refresh token on expiry")
@@ -48,10 +48,10 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: L2 - PLAN_ALGORITHM_ERROR
-요약: IMPLEMENTS.md recursive traversal has no base case for circular references
+Root Cause: L3 - CODE_LOGIC_ERROR
+요약: Recursive traversal has no base case for circular references
 
-수정된 문서: [IMPLEMENTS.md]
+수정된 문서: [CLAUDE.md]
 재현: REPRODUCED
 Compile: FAIL
 

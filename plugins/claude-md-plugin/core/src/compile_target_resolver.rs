@@ -27,8 +27,6 @@ pub struct DiffResult {
 pub struct CompileTarget {
     /// Path to CLAUDE.md relative to root
     pub claude_md_path: String,
-    /// Path to IMPLEMENTS.md relative to root
-    pub implements_md_path: String,
     /// Directory containing the spec files
     pub dir: String,
     /// Why this target needs recompilation
@@ -140,7 +138,7 @@ impl CompileTargetResolver {
             if staged_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
                     claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                    implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+
                     dir: dir_str,
                     reason: TargetReason::Staged,
                     details: "CLAUDE.md staged for commit".to_string(),
@@ -148,7 +146,7 @@ impl CompileTargetResolver {
             } else if modified_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
                     claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                    implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+
                     dir: dir_str,
                     reason: TargetReason::Modified,
                     details: "CLAUDE.md modified but not staged".to_string(),
@@ -156,7 +154,7 @@ impl CompileTargetResolver {
             } else if untracked_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
                     claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                    implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+
                     dir: dir_str,
                     reason: TargetReason::Untracked,
                     details: "CLAUDE.md not yet tracked by git".to_string(),
@@ -173,7 +171,7 @@ impl CompileTargetResolver {
                     (Some(_), None) if source_files.is_empty() => {
                         targets.push(CompileTarget {
                             claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                            implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+        
                             dir: dir_str,
                             reason: TargetReason::NoSourceCode,
                             details: "No source code files found (first compile)".to_string(),
@@ -183,7 +181,7 @@ impl CompileTargetResolver {
                         // Source files exist but none committed yet
                         targets.push(CompileTarget {
                             claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                            implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+        
                             dir: dir_str,
                             reason: TargetReason::SpecNewer,
                             details: format!("Spec committed at {}, source not yet committed", s),
@@ -192,7 +190,7 @@ impl CompileTargetResolver {
                     (Some(s), Some(c)) if s > c => {
                         targets.push(CompileTarget {
                             claude_md_path: format!("{}/CLAUDE.md", dir_str),
-                            implements_md_path: format!("{}/IMPLEMENTS.md", dir_str),
+        
                             dir: dir_str,
                             reason: TargetReason::SpecNewer,
                             details: format!("Spec updated at {} > source at {}", s, c),
@@ -287,7 +285,7 @@ impl CompileTargetResolver {
                     let name = entry.file_name();
                     let name_str = name.to_string_lossy();
                     // Skip spec files and non-source files
-                    if name_str == "CLAUDE.md" || name_str == "IMPLEMENTS.md" {
+                    if name_str == "CLAUDE.md" || name_str == "IMPLEMENTS.md" || name_str == "DEVELOPERS.md" {
                         continue;
                     }
                     if let Some(ext) = Path::new(&*name_str).extension() {
@@ -489,7 +487,7 @@ fn git_last_commit_ts(root: &Path, paths: &[String]) -> Option<u64> {
 
 // ============== Utility functions ==============
 
-/// Extract directory paths from file paths that contain CLAUDE.md or IMPLEMENTS.md
+/// Extract directory paths from file paths that contain CLAUDE.md
 fn extract_spec_dirs(files: &[String]) -> HashSet<String> {
     let mut dirs = HashSet::new();
     for file in files {
@@ -563,13 +561,14 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_spec_dirs_ignores_implements_md() {
+    fn test_extract_spec_dirs_ignores_non_claude_md() {
         let files = vec![
             "src/auth/IMPLEMENTS.md".to_string(),
             "IMPLEMENTS.md".to_string(),
+            "src/auth/DEVELOPERS.md".to_string(),
         ];
         let dirs = extract_spec_dirs(&files);
-        assert!(dirs.is_empty(), "IMPLEMENTS.md should not trigger compile targets");
+        assert!(dirs.is_empty(), "Non-CLAUDE.md spec files should not trigger compile targets");
     }
 
     #[test]

@@ -15,14 +15,15 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 
 ## Core Philosophy
 
-**CLAUDE.md + IMPLEMENTS.md → Source Code = Compile**
+**CLAUDE.md → Source Code = Compile**
 
 ```
-CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source Code (구현)
+CLAUDE.md (WHAT)  ─── /compile ──→  Source Code (구현)
 ```
 
 전통적 컴파일러가 소스코드를 바이너리로 변환하듯,
-`/compile`은 CLAUDE.md + IMPLEMENTS.md 명세를 실행 가능한 소스코드로 변환.
+`/compile`은 CLAUDE.md 명세를 실행 가능한 소스코드로 변환.
+compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 
 ## 2-Agent 아키텍처
 
@@ -41,13 +42,12 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 2. **Context 격리**: GREEN agent는 "테스트를 통과시키는 코드"만 생성
 3. **INV-EXPORT 자연 보장**: compiler에게 테스트 파일은 Read-only → 시그니처 변경 원천 차단
 
-## 듀얼 문서 시스템
+## 입력 문서
 
 | 입력 | 역할 | 업데이트 |
 |------|------|----------|
 | CLAUDE.md | 스펙 (WHAT) | 읽기 전용 |
-| IMPLEMENTS.md Planning Section | 구현 방향 (HOW 계획) | 읽기 전용 |
-| IMPLEMENTS.md Implementation Section | 구현 상세 | **업데이트** |
+| compile-context (optional) | 구현 방향 (session temp) | 읽기 전용 |
 
 ## 사용법
 
@@ -87,7 +87,7 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
               └─ targets > 0
                     │
                     ▼
-              IMPLEMENTS.md 존재 확인 (없으면 자동 생성)
+              compile-context 존재 확인 (optional)
                     │
                     ▼
               언어 자동 감지
@@ -155,26 +155,23 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 
 [1/2] src/auth/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
-✓ IMPLEMENTS.md Planning Section 로드
+✓ compile-context 로드 (optional)
 ✓ [RED] test-designer: 5 export tests + 3 behavior tests
 ✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
 ✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
-✓ IMPLEMENTS.md Implementation Section 업데이트
 
 [2/2] src/new/CLAUDE.md
 ✓ CLAUDE.md 파싱 완료 - 함수 1개
-✓ IMPLEMENTS.md Planning Section 로드
+✓ compile-context 로드 (optional)
 ✓ [RED] test-designer: 1 export test + 2 behavior tests
 ✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
 ✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
-✓ IMPLEMENTS.md Implementation Section 업데이트
 
 === 생성 완료 ===
 총 CLAUDE.md: 2개 (변경분)
 생성된 파일: 5개
 건너뛴 파일: 0개
 테스트: 11 passed, 0 failed
-업데이트된 IMPLEMENTS.md: 2개
 ```
 
 ### All up-to-date
@@ -192,8 +189,8 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 프로젝트에서 CLAUDE.md 파일을 검색합니다...
 
 발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md + IMPLEMENTS.md
-2. src/utils/CLAUDE.md + IMPLEMENTS.md
+1. src/auth/CLAUDE.md
+2. src/utils/CLAUDE.md
 
 코드 생성을 시작합니다...
 ...
@@ -226,7 +223,7 @@ CLAUDE.md (WHAT)  +  IMPLEMENTS.md (HOW)  ─── /compile ──→  Source C
 | 상황 | 대응 |
 |------|------|
 | CLAUDE.md 없음 | "CLAUDE.md 파일을 찾을 수 없음" 메시지 출력 |
-| IMPLEMENTS.md 없음 | 기본 템플릿으로 자동 생성 후 진행 |
+| compile-context 없음 | CLAUDE.md만으로 진행 (optional) |
 | 파싱 오류 | 해당 파일 건너뛰고 계속 진행, 오류 로그 |
 | 언어 감지 실패 | 사용자에게 언어 선택 질문 |
 | test-designer 실패 | 해당 대상 건너뛰고 오류 로그 |

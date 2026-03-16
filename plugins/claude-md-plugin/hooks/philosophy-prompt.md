@@ -2,7 +2,7 @@
 
 Every module's CLAUDE.md is the primary source of truth — read it first to understand any module:
 - **CLAUDE.md** — interfaces, behavior, dependencies (WHAT)
-- **IMPLEMENTS.md** — algorithm, constants, error handling (HOW)
+- **DEVELOPERS.md** — file relationships, decision rationale, operations (WHY) *(replaces removed IMPLEMENTS.md)*
 
 Source files (.ts, .py, .rs, .go, .java) are generated from these documents.
 To understand a module, read its CLAUDE.md first — not the source files.

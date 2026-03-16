@@ -81,7 +81,7 @@ Bash("jq -r '.needs_claude_md | sort_by(-.depth) | .[] | \"\\(.depth) \\(.path)\
 
 ## 결과 수집 및 검증
 
-decompiler agent가 CLAUDE.md + IMPLEMENTS.md를 **대상 디렉토리에 직접 Write**.
+decompiler agent가 CLAUDE.md를 **대상 디렉토리에 직접 Write**.
 ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방지).
 
 각 Agent 실행 완료 즉시 (순차 실행이므로):
@@ -114,9 +114,8 @@ ${TMP_DIR} 중간 저장 및 Read+Write 복사 과정 없음 (context 적재 방
 │ │ (Domain Context, Implementation 배경)   │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
-│ ┌─ CLAUDE.md + IMPLEMENTS.md 생성 ───────┐  │
+│ ┌─ CLAUDE.md 생성 ──────────────────────┐  │
 │ │ CLAUDE.md: WHAT 초안 생성               │  │
-│ │ IMPLEMENTS.md: HOW 전체 섹션 생성       │  │
 │ └──────────────────┬─────────────────────┘  │
 │                    ▼                        │
 │ ┌─ Bash(validate-schema CLI) ────────────┐  │

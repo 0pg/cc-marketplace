@@ -254,7 +254,7 @@ schema_revalidation: PASS | FAIL
 
 ## Tool 사용 제약
 
-- **Edit**: CLAUDE.md 수정에만 사용. 소스코드 수정 금지. IMPLEMENTS.md 수정 금지.
+- **Edit**: CLAUDE.md 수정에만 사용. 소스코드 수정 금지.
 - **Write**: 결과를 `${TMP_DIR}` 파일에 저장할 때만 사용.
 - **Grep**: 반드시 `head_limit: 50` 설정.
 - **Read**: 소스 파일 `limit: 200`. CLAUDE.md/검증 결과 파일은 전체 읽기 허용.
@@ -266,4 +266,4 @@ schema_revalidation: PASS | FAIL
 2. **코드 기준**: 코드가 진실의 원천. 코드에 맞게 문서를 수정 (validate의 목적은 문서-코드 동기화)
 3. **형식 유지**: 기존 CLAUDE.md의 마크다운 스타일, 들여쓰기, 언어(한/영) 유지
 4. **스키마 준수**: 수정 후 CLAUDE.md가 스키마를 준수하도록 보장
-5. **IMPLEMENTS.md 미수정**: issue-fixer는 CLAUDE.md만 수정. IMPLEMENTS.md 수정은 범위 밖
+5. **CLAUDE.md만 수정**: issue-fixer는 CLAUDE.md만 수정

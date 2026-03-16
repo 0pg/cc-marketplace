@@ -79,7 +79,6 @@ AskUserQuestion (3개):
 
 - Target path: `src/user` (create 모드)
 - CLAUDE.md 생성 (5 Exports, 7 Behaviors)
-- IMPLEMENTS.md Planning Section 생성
 
 ## Phase 6.5: Plan Preview
 
@@ -95,7 +94,7 @@ Behaviors: 7개 — 사용자 생성 성공, 중복 이메일 에러, 사용자 
 Dependencies: Internal 0개, External 1개 (bcrypt)
 ```
 
-AskUserQuestion: "이 계획으로 CLAUDE.md + IMPLEMENTS.md를 생성할까요?"
+AskUserQuestion: "이 계획으로 CLAUDE.md를 생성할까요?"
 → 사용자 선택: **승인**
 
 ## Phase 7: 최종 결과
@@ -103,7 +102,6 @@ AskUserQuestion: "이 계획으로 CLAUDE.md + IMPLEMENTS.md를 생성할까요?
 ```
 ---impl-result---
 claude_md_file: src/user/CLAUDE.md
-implements_md_file: src/user/IMPLEMENTS.md
 status: success
 action: created
 validation: passed

@@ -6,7 +6,7 @@ description: |
 
   <example>
   <context>
-  The impl skill needs dependency analysis before generating CLAUDE.md + IMPLEMENTS.md.
+  The impl skill needs dependency analysis before generating CLAUDE.md specifications.
   </context>
   <user_request>
   요구사항: "JWT 토큰을 검증하는 인증 모듈이 필요합니다"

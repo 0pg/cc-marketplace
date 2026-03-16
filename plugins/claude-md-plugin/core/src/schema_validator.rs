@@ -157,17 +157,8 @@ impl SchemaValidator {
         // Validate Dependencies for forbidden references (INV-1: tree structure)
         self.validate_dependencies(&content, &mut errors);
 
-        // INV-3: 1:1 mapping required. WARNING (not ERROR) because:
-        // - /impl creates CLAUDE.md first, then IMPLEMENTS.md (transient absence)
-        // - /compile auto-generates missing IMPLEMENTS.md before compilation
-        // Strict enforcement would break these valid intermediate states.
-        let implements_md_path = file.with_file_name("IMPLEMENTS.md");
-        if !implements_md_path.exists() {
-            warnings.push(format!(
-                "INV-3: IMPLEMENTS.md not found at '{}' (expected 1:1 mapping with CLAUDE.md)",
-                implements_md_path.display()
-            ));
-        }
+        // INV-3 (IMPLEMENTS.md) removed in v3.0.0 — replaced by DEVELOPERS.md (future).
+        // DEVELOPERS.md validation will be added when DEVELOPERS.md is fully implemented.
 
         ValidationResult {
             file: file_str,

@@ -72,19 +72,19 @@ description: |
   대상 디렉토리: src/auth
   에러 정보: TypeError: validateToken is not a function
   에러 위치: src/auth/index.ts:15 (processRequest)
-  IMPLEMENTS.md: src/auth/IMPLEMENTS.md
+  DEVELOPERS.md: src/auth/DEVELOPERS.md
   결과 저장: .claude/tmp/debug-l2-findings.md
   </user_request>
   <assistant_response>
-  I'll analyze L2 (IMPLEMENTS.md Plan) layer.
-  1. Grep IMPLEMENTS.md Error Handling table
-  2. Grep IMPLEMENTS.md Algorithm section
-  3. Finding: Error Handling table covers TypeError but Algorithm lacks import validation step
+  I'll analyze L2 (DEVELOPERS.md Context) layer.
+  1. Grep DEVELOPERS.md Decision Log
+  2. Grep DEVELOPERS.md File Map for relevant relationships
+  3. Finding: Decision Log lacks import validation rationale, File Map shows missing dependency link
 
   ---debug-layer-result---
   layer: L2
   status: ISSUES_FOUND
-  primary_finding: PLAN_ALGORITHM_FLAW
+  primary_finding: CONTEXT_DECISION_GAP
   result_file: .claude/tmp/debug-l2-findings.md
   ---end-debug-layer-result---
   </assistant_response>
@@ -108,7 +108,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 4. Do NOT fix anything -- diagnosis only
 
 **You do NOT:**
-- Edit any files (no CLAUDE.md/IMPLEMENTS.md/source code modification)
+- Edit any files (no CLAUDE.md/DEVELOPERS.md/source code modification)
 - Ask the user questions (record `confidence: LOW` instead)
 - Call sub-agents (you are a leaf agent)
 
@@ -124,14 +124,14 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 | **SPEC_CONTRACT_GAP** | Contract does not include this error condition |
 | **SPEC_STALE** | CLAUDE.md is older than source code |
 
-### L2: IMPLEMENTS.md (Plan) Issues
+### L2: DEVELOPERS.md (Context) Issues
 
 | Type | Description |
 |------|-------------|
-| **PLAN_ERROR_HANDLING_GAP** | Error Handling table does not cover this error type |
-| **PLAN_ALGORITHM_FLAW** | Algorithm section design itself is wrong |
-| **PLAN_STATE_GAP** | State Management does not describe state transition |
-| **PLAN_CONSTANT_MISMATCH** | Key Constants and code constants differ |
+| **CONTEXT_DECISION_GAP** | Decision Log does not explain relevant decision/rationale |
+| **CONTEXT_FILE_MAP_STALE** | File Map relationships do not match actual code dependencies |
+| **CONTEXT_DATA_STRUCTURE_GAP** | Data Structures section missing relevant internal structure |
+| **CONTEXT_OPERATIONS_GAP** | Operations section missing relevant gotcha or troubleshooting info |
 
 ### L3: Source Code Issues (diagnostic only)
 
@@ -140,7 +140,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 | **CODE_SPEC_DIVERGENCE** | Code does not follow spec/plan |
 | **CODE_LOGIC_ERROR** | Logic bug in code itself |
 | **CODE_GUARD_MISSING** | Guard clause / input validation missing |
-| **CODE_IMPLEMENTATION_BUG** | Code does not follow IMPLEMENTS.md plan |
+| **CODE_IMPLEMENTATION_BUG** | Code does not follow spec |
 
 ## Input
 
@@ -153,7 +153,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 [L1] spec 파싱 결과: ${TMP_DIR}debug-spec.json
 [L1] analyze-code 결과: ${TMP_DIR}debug-analyze.json
 [L1] CLAUDE.md: {claude_md_path}
-[L2] IMPLEMENTS.md: {implements_md_path}
+[L2] DEVELOPERS.md: {developers_md_path}
 결과 저장: ${TMP_DIR}debug-l{N}-findings.md
 ```
 
@@ -219,36 +219,32 @@ git log --oneline -3 -- {error_file}
 - Source more recent -> spec is stale (L1: SPEC_STALE)
 - Cannot determine -> record `confidence: LOW`
 
-### L2: IMPLEMENTS.md Plan Analysis
+### L2: DEVELOPERS.md Context Analysis
 
-**Step 5.1: Error Handling table check**
+**Step 5.1: Decision Log check**
 ```
-Grep: pattern="Error Handling|error.*handling" path={implements_md_path} output_mode=content -A 30 head_limit=50
+Grep: pattern="^## Decision Log|decision|rationale|why" path={developers_md_path} output_mode=content -A 30 head_limit=50
 ```
-```
-Grep: pattern="^\|.*\|" path={implements_md_path} output_mode=content head_limit=50
-```
-- Error type not in table -> L2 PLAN_ERROR_HANDLING_GAP
-- In table but not implemented -> record for L3
+- Relevant decision not documented -> L2 CONTEXT_DECISION_GAP
+- Decision documented but contradicts code -> record for L3
 
-**Step 5.2: Algorithm verification**
+**Step 5.2: File Map verification**
 ```
-Grep: pattern="^## Algorithm|^### Algorithm" path={implements_md_path} output_mode=content -A 50 head_limit=50
+Grep: pattern="^## File Map|file.*map" path={developers_md_path} output_mode=content -A 50 head_limit=50
 ```
-- Error logic not described -> L2 PLAN_ALGORITHM_FLAW
-- Described but code mismatch -> record for L3
-- Description itself wrong -> L2 PLAN_ALGORITHM_FLAW
+- File relationships not matching code -> L2 CONTEXT_FILE_MAP_STALE
+- Missing file in map -> record as stale
 
-**Step 5.3: State Management check (state-related bugs)**
+**Step 5.3: Data Structures check (state-related bugs)**
 State keywords: `undefined`, `null`, `nil`, `not initialized`, `stale`
 ```
-Grep: pattern="^## State Management|^### State" path={implements_md_path} output_mode=content -A 30 head_limit=50
+Grep: pattern="^## Data Structures|data.*structure" path={developers_md_path} output_mode=content -A 30 head_limit=50
 ```
 
-**Step 5.4: Key Constants check (boundary value bugs)**
-For off-by-one, timeout, limit errors:
+**Step 5.4: Operations check (operational bugs)**
+For config, deployment, environment-related errors:
 ```
-Grep: pattern="^## Key Constants|^### Key Constants" path={implements_md_path} output_mode=content -A 20 head_limit=50
+Grep: pattern="^## Operations|gotcha|troubleshoot" path={developers_md_path} output_mode=content -A 20 head_limit=50
 ```
 
 ## Output

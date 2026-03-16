@@ -343,7 +343,7 @@ src/legacy (개선 필요)
 - Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
 - Report both schema, drift issues and export coverage metrics
-- Include IMPLEMENTS.md presence check (INV-3)
+- Check CLAUDE.md schema validity
 - Use file-based progress accumulation for compact resilience
 - Skip issue-verifier/issue-fixer for directories with 0 issues
 - Run issue-verifier before issue-fixer (verify first, then fix)
@@ -353,7 +353,7 @@ src/legacy (개선 필요)
 - Skip any drift category
 - Launch all agent tasks in a single message (use batches of max 3)
 - Run issue-fixer without issue-verifier (always verify before fixing)
-- Modify files other than CLAUDE.md during fix phase (source code, IMPLEMENTS.md are out of scope)
+- Modify files other than CLAUDE.md during fix phase (source code is out of scope)
 
 ## 참조 자료
 

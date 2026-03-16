@@ -8,7 +8,7 @@
      - Phase 3: Target path determination
      - Phase 4: Merge strategy
      - Phase 5: CLAUDE.md generation templates
-     - Phase 5.5: IMPLEMENTS.md Planning Section generation
+     - Phase 5.5: compile-context generation
      - Phase 6: Schema validation
      - Phase 6.5: Plan Preview & User Approval
      - Phase 7: Final save & result
@@ -84,7 +84,7 @@ multi-module 감지 시 AskUserQuestion:
 - 최종 결과에 나머지 모듈용 /impl 명령어 가이드 포함
 
 "도메인 그룹 생성" 선택 시:
-- 상위 디렉토리에 CLAUDE.md + IMPLEMENTS.md 생성
+- 상위 디렉토리에 CLAUDE.md 생성
   - Purpose: 도메인 그룹 설명 (예: "결제 도메인 — 카드 결제, 정산, 환불을 관할")
   - Structure: 하위 모듈 디렉토리 참조 (예: `payment/`, `settlement/`, `refund/`)
   - Exports: None (개별 모듈이 각자 export)
@@ -292,21 +292,17 @@ Convention 섹션이 있으면 우선 참조합니다. Convention 섹션의 규�
 | error | `expired token → TokenExpiredError` |
 | edge | `empty token → InvalidTokenError` |
 
-### Phase 5.5: IMPLEMENTS.md Planning Section 생성 (HOW 계획)
+### Phase 5.5: compile-context 생성 (HOW 계획, optional)
 
-요구사항 분석 결과와 Phase 1.5의 dep-explorer 결과를 기반으로 IMPLEMENTS.md의 Planning Section을 생성합니다.
+요구사항 분석 결과와 Phase 1.5의 dep-explorer 결과를 기반으로 compile-context를 생성합니다. compile-context는 세션 임시 파일로 /compile 시 참고용입니다.
 
 dep-explorer 결과 JSON에서 의존성 정보를 포맷팅합니다:
 - **External**: `existing`과 `new` 배열을 합산하여 외부 의존성 목록을 구성합니다.
 - **Internal**: `internal_deps` 배열에서 CLAUDE.md 경로와 symbols를 추출하여 내부 의존성 목록을 구성합니다.
 
 ```markdown
-# {module_name}/IMPLEMENTS.md
-<!-- 소스코드에서 읽을 수 없는 "왜?"와 "어떤 맥락?"을 기술 -->
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- PLANNING SECTION - /impl 이 업데이트                     -->
-<!-- ═══════════════════════════════════════════════════════ -->
+# .claude/tmp/compile-context-{dir-hash}.md
+<!-- /compile 시 참고할 구현 방향 (session temp) -->
 
 ## Dependencies Direction
 
@@ -327,34 +323,9 @@ dep-explorer 결과 JSON에서 의존성 정보를 포맷팅합니다:
 ## Technology Choices
 
 {format_technology_choices(spec.tech_choices) or "None"}
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- IMPLEMENTATION SECTION - /compile 이 업데이트            -->
-<!-- (이 섹션은 /compile 시 자동 생성됨)                       -->
-<!-- ═══════════════════════════════════════════════════════ -->
-
-## Algorithm
-
-(To be filled by /compile)
-
-## Key Constants
-
-(To be filled by /compile)
-
-## Error Handling
-
-(To be filled by /compile)
-
-## State Management
-
-(To be filled by /compile)
-
-## Implementation Guide
-
-(To be filled by /compile)
 ```
 
-#### Dependencies Direction 형식
+#### Dependencies Direction 형식 (compile-context)
 
 ```markdown
 ### External
@@ -433,7 +404,7 @@ Dependencies: Internal {count}개, External {count}개
 
 #### AskUserQuestion
 
-질문: "이 계획으로 CLAUDE.md + IMPLEMENTS.md를 생성할까요?"
+질문: "이 계획으로 CLAUDE.md + compile-context를 생성할까요?"
 옵션:
 1. 승인 — 파일 생성 진행
 2. 범위 조정 — 추가/삭제할 항목 수집 후 Phase 5~6.5 재실행
@@ -454,12 +425,12 @@ Dependencies: Internal {count}개, External {count}개
 
 1. 대상 디렉토리를 생성합니다 (필요시).
 2. **CLAUDE.md 저장**: `{target_path}/CLAUDE.md`에 Write합니다.
-3. **IMPLEMENTS.md 저장**: `{target_path}/IMPLEMENTS.md`가 이미 존재하면 기존 내용을 읽어 Planning Section만 업데이트합니다. 존재하지 않으면 새로 생성합니다.
+3. **compile-context 저장**: `.claude/tmp/compile-context-{dir-hash}.md`에 Write합니다 (session temp, optional).
 
 ```
 ---impl-result---
 claude_md_file: {target_path}/CLAUDE.md
-implements_md_file: {target_path}/IMPLEMENTS.md
+compile_context_file: .claude/tmp/compile-context-{dir-hash}.md
 status: success
 action: {created|updated}
 validation: {passed|failed_with_warnings}

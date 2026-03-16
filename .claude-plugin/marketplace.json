@@ -49,8 +49,8 @@
     },
     {
       "name": "claude-md-plugin",
-      "description": "CLAUDE.md + IMPLEMENTS.md 듀얼 문서 시스템. /dev로 자연어 요청을 스킬에 라우팅, /decompile로 소스코드에서 CLAUDE.md(WHAT) + IMPLEMENTS.md(HOW) 추출, /compile로 코드 생성, /validate로 문서-코드 일치 검증, /impl으로 요구사항에서 듀얼 문서 생성, /impl-review로 품질 리뷰, /bugfix로 런타임 버그 3계층 추적 진단, /project-setup으로 빌드/테스트 커맨드 + 코드 컨벤션 자동 감지, /convention-update으로 코드 컨벤션 관리.",
-      "version": "2.33.0",
+      "description": "CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인. /dev로 자연어 요청을 스킬에 라우팅, /decompile로 소스코드에서 CLAUDE.md 추출, /compile로 코드 생성, /validate로 문서-코드 일치 검증, /impl으로 요구사항에서 CLAUDE.md 생성, /impl-review로 품질 리뷰, /bugfix로 런타임 버그 3계층 추적 진단, /project-setup으로 빌드/테스트 커맨드 + 코드 컨벤션 자동 감지, /convention-update으로 코드 컨벤션 관리.",
+      "version": "3.0.0",
       "author": {
         "name": "jhk"
       },

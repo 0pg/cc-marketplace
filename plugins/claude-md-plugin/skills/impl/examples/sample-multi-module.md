@@ -72,7 +72,7 @@ AskUserQuestion (3개):
 
 ### Phase 3~6
 - Target path: `src/payment`
-- CLAUDE.md + IMPLEMENTS.md 생성
+- CLAUDE.md 생성
 
 ## Phase 6.5: Plan Preview
 
@@ -95,7 +95,6 @@ Dependencies: Internal 0개, External 1개 (payments-sdk)
 ```
 ---impl-result---
 claude_md_file: src/payment/CLAUDE.md
-implements_md_file: src/payment/IMPLEMENTS.md
 status: success
 action: created
 validation: passed

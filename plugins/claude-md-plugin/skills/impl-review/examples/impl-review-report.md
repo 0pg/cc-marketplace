@@ -6,7 +6,6 @@
 |--------|-------|
 | Directory | src/auth |
 | CLAUDE.md | src/auth/CLAUDE.md |
-| IMPLEMENTS.md | src/auth/IMPLEMENTS.md |
 | Requirements | provided |
 | Overall Score | 82/100 (Good) |
 | Issues | 4 (CRITICAL: 1, WARNING: 2, INFO: 1) |
@@ -17,10 +16,9 @@
 | Dimension | Score | Weight | Weighted |
 |-----------|-------|--------|----------|
 | D1 Requirements Coverage | 85 | 30% | 25.5 |
-| D2 CLAUDE.md Quality | 77 | 35% | 26.95 |
-| D3 IMPLEMENTS.md Planning | 84 | 20% | 16.8 |
-| D4 Cross-Document Consistency | 85 | 15% | 12.75 |
-| **Overall** | | | **82** |
+| D2 CLAUDE.md Quality | 77 | 40% | 30.8 |
+| D3 Internal Consistency | 84 | 30% | 25.2 |
+| **Overall** | | | **81.5** |
 
 ## Findings
 
@@ -40,21 +38,21 @@
 - **Suggestion**: `validateToken(token: string): Claims` 로 수정
 - **Rationale**: 타입 누락은 compiler가 잘못된 시그니처를 생성하는 원인
 
-### [D3-6] 구현 누출 없음
+### [D3-1] Exports ↔ Behavior 정렬
 
 - **Severity**: WARNING
-- **Current**: Implementation Approach에 "jsonwebtoken의 verify() 함수로 HMAC-SHA256 검증" 기술
-- **Issue**: Planning Section에 라이브러리 함수명 수준의 구현 디테일이 포함됨
-- **Suggestion**: "서명 알고리즘 기반 토큰 무결성 검증" 수준으로 추상화
-- **Rationale**: Planning Section은 전략 수준이어야 하며, 알고리즘/API 디테일은 Implementation Section에 속함
+- **Current**: Exports에 `refreshToken` 함수가 있으나 Behavior에 대응 시나리오 없음
+- **Issue**: Export된 함수에 대한 동작 시나리오가 누락되면 compiler가 임의로 구현
+- **Suggestion**: Behavior에 `유효한 리프레시 토큰 → 새 액세스 토큰 반환` 시나리오 추가
+- **Rationale**: 각 Export에 최소 1개 Behavior 시나리오가 있어야 compiler가 정확히 구현
 
-### [D4-4] Behavior ↔ Error Handling 방향
+### [D3-3] Domain Context ↔ Contract 정렬
 
 - **Severity**: INFO
-- **Current**: Behavior에 에러 케이스 1개, Implementation Approach에 에러 언급 없음
-- **Issue**: Behavior의 에러 시나리오가 Implementation Approach에서 예견되지 않음
-- **Suggestion**: Implementation Approach에 "에러 처리: fail-fast 전략" 항목 추가
-- **Rationale**: 에러 처리 방향이 Planning에 없으면 compiler가 임의로 결정하게 됨
+- **Current**: Domain Context에 "PCI-DSS 토큰 만료 7일" 제약이 있으나 Contract에 미반영
+- **Issue**: Domain Context의 제약이 Contract에 반영되지 않으면 compiler가 제약을 무시할 수 있음
+- **Suggestion**: Contract에 `validateToken: token.expiry <= 7days (PCI-DSS)` precondition 추가
+- **Rationale**: Domain Context 제약은 Contract로 구체화되어야 compiler가 올바르게 구현
 
 ## Fixes Applied
 
