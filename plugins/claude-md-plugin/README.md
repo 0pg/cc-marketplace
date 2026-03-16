@@ -1,4 +1,4 @@
-# claude-md-plugin (v3.0.0)
+# claude-md-plugin (v3.1.0)
 
 > CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인
 

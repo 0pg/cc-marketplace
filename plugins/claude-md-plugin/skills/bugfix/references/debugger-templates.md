@@ -300,12 +300,12 @@ INV-1 위반이 버그 원인일 수 있음.
 - **Behavior 커버리지:** COVERED | GAP | PARTIAL
 - **Contract 검증:** VALID | VIOLATION | GAP
 
-### L2: DEVELOPERS.md (Plan)
+### L2: DEVELOPERS.md (Context)
 
-- **Error Handling:** COVERED | GAP
-- **Algorithm:** CORRECT | FLAW | DIVERGENCE
-- **State Management:** N/A | COVERED | GAP
-- **Key Constants:** N/A | MATCH | MISMATCH
+- **File Map:** MATCH | MISMATCH | NOT_FOUND
+- **Decision Log:** RELEVANT | OUTDATED | NOT_FOUND
+- **Data Structures:** MATCH | MISMATCH | N/A
+- **Operations:** RELEVANT | OUTDATED | N/A
 
 ## Root Cause
 

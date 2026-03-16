@@ -1506,7 +1506,7 @@ fn create_spec_file(world: &mut TestWorld, path: String) {
     let content = if path.ends_with("CLAUDE.md") {
         "# Module\n\n## Purpose\nTest module\n\n## Exports\nNone\n\n## Behavior\n| Input | Output |\n|-------|--------|\n| any | ok |\n\n## Dependencies\nNone\n\n## Contract\nNone\n\n## Protocol\nNone\n"
     } else {
-        "# IMPLEMENTS\n\n## Planning\nTBD\n"
+        "# DEVELOPERS\n\n## File Map\n\n| File | Role | Dependencies |\n|------|------|--------------|\n| N/A | N/A | N/A |\n\n## Data Structures\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n"
     };
     let mut f = File::create(&full_path).expect("create file failed");
     write!(f, "{}", content).expect("write failed");

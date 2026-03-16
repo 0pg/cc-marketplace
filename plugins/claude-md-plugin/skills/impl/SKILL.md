@@ -137,7 +137,7 @@ impl agent 결과의 status가 success인 경우에만:
 ```
 AskUserQuestion: "생성된 CLAUDE.md를 리뷰할까요?"
 옵션:
-  - "리뷰 실행 (Recommended)": 4차원 품질 리뷰 수행
+  - "리뷰 실행 (Recommended)": 3차원 품질 리뷰 수행
   - "건너뛰기": 리뷰 없이 결과 보고
 ```
 

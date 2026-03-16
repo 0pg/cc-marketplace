@@ -66,7 +66,7 @@ if [ ! -f "{claude_md_path}" ]; then
 fi
 ```
 
-CLAUDE.md만 사용 (IMPLEMENTS.md는 v3.0.0에서 제거됨).
+CLAUDE.md만 사용합니다.
 
 원본 요구사항 수집:
 ```
@@ -159,11 +159,11 @@ fixes_applied: {fixes_applied}
 
 ## 참조 자료
 
-- `references/impl-reviewer-templates.md`: 리뷰 차원(D1~D4), 점수 산출 공식, finding/fix 형식, 결과 템플릿, 품질 anti-pattern (impl-reviewer agent가 런타임에 로드)
+- `references/impl-reviewer-templates.md`: 리뷰 차원(D1~D3), 점수 산출 공식, finding/fix 형식, 결과 템플릿, 품질 anti-pattern (impl-reviewer agent가 런타임에 로드)
 
 ## 관련 컴포넌트
 
-- `agents/impl-reviewer.md`: 4차원 품질 리뷰 및 대화형 수정 제안 agent
+- `agents/impl-reviewer.md`: 3차원 품질 리뷰 및 대화형 수정 제안 agent
 
 ## DO / DON'T
 
@@ -178,7 +178,7 @@ fixes_applied: {fixes_applied}
 **DON'T:**
 - Read source code files (review is document-only)
 - Auto-apply fixes without user consent
-- Skip D2/D4 (always applicable)
+- Skip D2/D3 (always applicable)
 - Modify source code (use /compile after fixes)
 
 ## 오류 처리

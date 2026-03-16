@@ -60,7 +60,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Strict mode (reserved for future DEVELOPERS.md validation)
+        /// Strict mode: validate DEVELOPERS.md existence (INV-3) and schema
         #[arg(long, default_value_t = false)]
         strict: bool,
     },
