@@ -171,7 +171,7 @@ debugger agent가 구조화된 블록으로 결과 반환:
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_BEHAVIOR_GAP | PLAN_ERROR_HANDLING_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_BEHAVIOR_GAP | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}

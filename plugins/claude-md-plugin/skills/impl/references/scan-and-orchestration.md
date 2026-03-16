@@ -88,7 +88,7 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 ### 7. 최종 저장
 - 승인된 경우에만 CLAUDE.md + compile-context 파일 저장
 
-## Planning Section 생성 로직
+## compile-context 생성 로직
 
 ### Dependencies Direction
 ```markdown

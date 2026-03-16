@@ -163,7 +163,7 @@ fixes_applied: {fixes_applied}
 
 ## 관련 컴포넌트
 
-- `agents/impl-reviewer.md`: 4차원 품질 리뷰 및 대화형 수정 제안 agent
+- `agents/impl-reviewer.md`: 3차원 품질 리뷰 및 대화형 수정 제안 agent
 
 ## DO / DON'T
 

@@ -135,7 +135,7 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
    - State Management: 상태 관리 패턴
    - Implementation Guide: 변경 사항 기록
 
-2. `{target_dir}/compile-context.md`가 존재하면 Read하여 기존 내용을 로드합니다.
+2. `.claude/tmp/compile-context-{dir-hash}.md`가 존재하면 Read하여 기존 내용을 로드합니다.
 3. compile-context를 업데이트한 후 Write합니다.
 
 #### compile-context 업데이트 규칙
