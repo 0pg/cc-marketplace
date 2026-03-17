@@ -48,11 +48,7 @@ mkdir -p "$TMP_DIR"
 
 **각 CLAUDE.md에 대해 CLI 실행 (`--strict` 모드로 DEVELOPERS.md도 함께 검증):**
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    (cd "$CORE_DIR" && cargo build --release)
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 for claude_md in ${targets}; do
   dir_safe=$(echo "$claude_md" | sed 's/\//-/g' | sed 's/\.//g')

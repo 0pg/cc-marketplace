@@ -98,11 +98,7 @@ jq '.needs_claude_md[] | select(.path == "{path}")' {tree_file}
 
 CLI로 바운더리를 분석합니다:
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..." && cd "$CORE_DIR" && cargo build --release
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 mkdir -p .claude/extract-results
 
 $CLI_PATH resolve-boundary \
@@ -265,7 +261,7 @@ Purpose, Exports, Behavior, Contract, Protocol, Domain Context
 | 상황 | 대응 |
 |------|------|
 | CLI 실행 실패 | 에러 로그, Agent 실패 반환 |
-| CLI 빌드 필요 | `cargo build --release` 후 재실행 |
+| CLI 빌드 필요 | `install-cli.sh`가 자동 빌드/재빌드 수행 |
 | 소스 파일 읽기 실패 | 경고 로그, 해당 파일 스킵 |
 | 스키마 검증 실패 | 경고와 함께 진행 |
 | 사용자 응답 없음 | 합리적 기본값 사용, 명시적 표기 |

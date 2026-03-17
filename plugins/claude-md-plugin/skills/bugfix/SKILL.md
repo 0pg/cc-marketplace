@@ -58,11 +58,7 @@ AskUserQuestion: "버그 수정할 에러 정보를 알려주세요."
 
 **3.1. 전체 CLAUDE.md 인덱스 생성:**
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    (cd "$CORE_DIR" && cargo build --release)
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
@@ -110,11 +106,7 @@ CLAUDE.md가 존재할 때만 실행:
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    (cd "$CORE_DIR" && cargo build --release)
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 **5.1. 스키마 검증:**

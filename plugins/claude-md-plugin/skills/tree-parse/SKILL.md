@@ -53,12 +53,7 @@ root_path: 프로젝트 루트 경로 (기본: 현재 디렉토리)
 ### 1. CLI 빌드 확인
 
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..."
-    cd "$CORE_DIR" && cargo build --release
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 ### 2. 트리 파싱 실행

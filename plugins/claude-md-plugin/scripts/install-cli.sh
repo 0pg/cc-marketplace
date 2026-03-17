@@ -79,12 +79,28 @@ check_cargo() {
   return 1
 }
 
-# Check CLI binary
+# Check CLI binary exists
 check_cli() {
   if [[ -f "$CLI_PATH" ]]; then
     return 0
   fi
   return 1
+}
+
+# Check if source files are newer than the binary (stale detection)
+check_stale() {
+  if [[ ! -f "$CLI_PATH" ]]; then
+    return 1  # no binary = stale
+  fi
+  # Check if any source file is newer than the binary
+  local stale_files
+  stale_files=$(find "$CORE_DIR/src" "$CORE_DIR/Cargo.toml" "$CORE_DIR/Cargo.lock" "$CORE_DIR/build.rs" \
+    "$PLUGIN_ROOT/references/shared/schema-rules.yaml" \
+    -newer "$CLI_PATH" 2>/dev/null | head -1)
+  if [[ -n "$stale_files" ]]; then
+    return 0  # stale
+  fi
+  return 1  # up-to-date
 }
 
 # --check mode
@@ -100,21 +116,29 @@ if $CHECK_ONLY; then
   if check_cli; then
     echo -e "${GREEN}[OK] claude-md-core binary exists${NC}"
     echo "     $CLI_PATH"
+    if check_stale; then
+      echo -e "${YELLOW}[!!] binary is STALE (source files are newer)${NC}"
+    else
+      echo -e "${GREEN}[OK] binary is up-to-date${NC}"
+    fi
   else
     echo -e "${YELLOW}[--] claude-md-core binary not found${NC}"
   fi
   exit 0
 fi
 
-# Ensure mode: check and build
+# Ensure mode: check and build (or rebuild if stale)
 if check_cli; then
-  echo -e "${GREEN}claude-md-core is ready${NC}" >&2
-  echo "$CLI_PATH"
-  exit 0
+  if check_stale; then
+    echo -e "${YELLOW}claude-md-core binary is stale. Rebuilding...${NC}" >&2
+  else
+    echo -e "${GREEN}claude-md-core is ready${NC}" >&2
+    echo "$CLI_PATH"
+    exit 0
+  fi
+else
+  echo -e "${YELLOW}claude-md-core binary not found. Building...${NC}" >&2
 fi
-
-# CLI binary not found - need to build
-echo -e "${YELLOW}claude-md-core binary not found. Building...${NC}" >&2
 
 # Check core directory exists
 if [ ! -d "$CORE_DIR" ]; then
