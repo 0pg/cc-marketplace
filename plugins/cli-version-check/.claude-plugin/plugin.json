@@ -1,0 +1,9 @@
+{
+  "name": "cli-version-check",
+  "version": "1.0.0",
+  "description": "CLI 바이너리가 소스 대비 stale 상태인지 감지하여 리빌드 필요 여부를 알림",
+  "author": { "name": "jhk" },
+  "keywords": ["cli", "version", "build", "stale", "binary"],
+  "skills": ["./skills/cli-version-check"],
+  "hooks": ["./hooks/hooks.json"]
+}

@@ -56,6 +56,16 @@
       },
       "source": "./plugins/claude-md-plugin",
       "category": "documentation"
+    },
+    {
+      "name": "cli-version-check",
+      "description": "CLI 바이너리의 stale 여부를 자동 감지하여 리빌드 필요 시 알림. 세션 시작 시 자동 체크, /cli-version-check로 수동 점검.",
+      "version": "1.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/cli-version-check",
+      "category": "development"
     }
   ]
 }
