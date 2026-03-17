@@ -46,7 +46,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-**각 CLAUDE.md에 대해 CLI 실행:**
+**각 CLAUDE.md에 대해 CLI 실행 (`--strict` 모드로 DEVELOPERS.md도 함께 검증):**
 ```bash
 CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
 CLI_PATH="$CORE_DIR/target/release/claude-md-core"
@@ -61,6 +61,8 @@ for claude_md in ${targets}; do
     --output "${TMP_DIR}schema-${dir_safe}.json"
 done
 ```
+
+> **`--strict` 모드**: CLAUDE.md 스키마 검증과 함께 DEVELOPERS.md 존재(INV-3) 및 스키마 검증을 수행합니다.
 
 **결과 JSON (~500bytes/file):**
 ```json

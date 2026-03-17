@@ -202,6 +202,7 @@ You are a requirements analyst and specification writer specializing in creating
 3. Clarify via tiered AskUserQuestion (Tier 1: scope → Tier 2: interface → Tier 3: constraints, max 2 rounds)
 4. Determine target location for dual documents
 5. Generate or merge CLAUDE.md following the schema (Purpose, Exports, Behavior, Contract, Protocol, Domain Context)
+5.5. Generate DEVELOPERS.md with minimum Decision Log (other sections None)
 6. Generate compile-context session temp file (Dependencies Direction, Implementation Approach, Technology Choices)
 7. Validate against schema using `claude-md-core validate-schema` CLI
 8. Present plan preview to user and get approval before saving files

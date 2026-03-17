@@ -121,6 +121,17 @@ Exports Drift 검증 결과에서 커버리지를 계산합니다:
 **STALE/ORPHAN**: 의존성이 실제로 없음
 각 문서화된 의존성을 검증합니다. internal이면 해당 파일의 존재 여부를 확인하고, external이면 패키지 매니저 설정 파일(package.json, Cargo.toml, go.mod, requirements.txt)에서 선언 여부를 확인합니다.
 
+#### DEVELOPERS.md Drift (INV-3)
+
+DEVELOPERS.md의 존재와 File Map 일치 여부를 검증합니다.
+
+**INV-3 검증**: CLAUDE.md가 있는 디렉토리에 DEVELOPERS.md가 존재하는지 확인합니다.
+- DEVELOPERS.md 부재 → `MISSING_DEVELOPERS_MD` 이슈 생성
+
+**File Map Drift**: DEVELOPERS.md가 존재하면 File Map 섹션의 파일 목록과 실제 파일 구조를 비교합니다.
+- File Map에 있지만 실제로 없는 파일 → `ORPHAN` (File Map)
+- 실제에만 있는 소스 파일 → `UNCOVERED` (File Map)
+
 #### Boundary Violations (INV-1)
 
 CLAUDE.md 내 참조가 트리 구조 의존성(INV-1)을 위반하는지 검증합니다.

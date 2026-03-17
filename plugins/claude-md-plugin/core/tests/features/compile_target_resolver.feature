@@ -13,11 +13,11 @@ Feature: Compile Target Resolution (Incremental Diff)
     When I resolve compile targets
     Then "src/auth" should be a compile target with reason "staged"
 
-  Scenario: Staged IMPLEMENTS.md alone does not trigger compile
+  Scenario: Staged DEVELOPERS.md alone does not trigger compile
     Given a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/handler.ts" after the spec
-    And a spec file "src/auth/IMPLEMENTS.md" with basic content
-    And I stage "src/auth/IMPLEMENTS.md"
+    And a spec file "src/auth/DEVELOPERS.md" with basic content
+    And I stage "src/auth/DEVELOPERS.md"
     When I resolve compile targets
     Then "src/auth" should be skipped with reason "up-to-date"
 

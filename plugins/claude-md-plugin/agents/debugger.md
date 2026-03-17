@@ -273,7 +273,7 @@ Task(debug-layer-analyzer):
 
 #### Phase 4: L2 탐색 (맥락 분석, dormant — DEVELOPERS.md 부재 시 skip)
 
-DEVELOPERS.md가 "N/A"이면 이 Phase를 스킵 (2계층 fallback). 현재 DEVELOPERS.md는 향후 구현 예정이므로 대부분의 경우 skip됩니다.
+DEVELOPERS.md가 "N/A"이면 이 Phase를 스킵 (2계층 fallback). DEVELOPERS.md가 존재하지 않는 모듈에서는 skip됩니다.
 
 ```
 Task(debug-layer-analyzer):

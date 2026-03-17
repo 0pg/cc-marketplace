@@ -302,10 +302,10 @@ INV-1 위반이 버그 원인일 수 있음.
 
 ### L2: DEVELOPERS.md (Context)
 
-- **File Map:** COVERED | GAP
-- **Data Structures:** COVERED | GAP
-- **Decision Log:** COVERED | GAP
-- **Operations:** N/A | COVERED | GAP
+- **File Map:** MATCH | MISMATCH | NOT_FOUND
+- **Decision Log:** RELEVANT | OUTDATED | NOT_FOUND
+- **Data Structures:** MATCH | MISMATCH | N/A
+- **Operations:** RELEVANT | OUTDATED | N/A
 
 ## Root Cause
 
