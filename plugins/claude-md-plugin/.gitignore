@@ -2,3 +2,4 @@ core/target/
 .claude/settings.local.json
 .claude/
 .DS_Store
+.serena/

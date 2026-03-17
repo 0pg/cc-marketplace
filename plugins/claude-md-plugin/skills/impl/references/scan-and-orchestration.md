@@ -3,12 +3,7 @@
 ## scan-claude-md 호출 패턴
 
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..."
-    cd "$CORE_DIR" && cargo build --release
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 # CLI로 기존 CLAUDE.md 파일의 경량 인덱스 생성
 mkdir -p .claude/extract-results

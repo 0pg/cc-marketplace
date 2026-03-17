@@ -3,13 +3,8 @@
 ## Core Engine 빌드 확인
 
 ```bash
-# CLI가 빌드되어 있는지 확인
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..."
-    cd "$CORE_DIR" && cargo build --release
-fi
+# CLI 빌드 확인 (stale 시 자동 재빌드)
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 빌드된 CLI가 없으면 먼저 빌드합니다.

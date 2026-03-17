@@ -89,12 +89,7 @@ AskUserQuestion: "원본 요구사항이 있나요? (요구사항 커버리지 �
 Mode A에서만 실행 (Mode B는 스킵).
 
 ```bash
-CORE_DIR="${CLAUDE_PLUGIN_ROOT}/core"
-CLI_PATH="$CORE_DIR/target/release/claude-md-core"
-if [ ! -f "$CLI_PATH" ]; then
-    echo "Building claude-md-core..."
-    cd "$CORE_DIR" && cargo build --release
-fi
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
