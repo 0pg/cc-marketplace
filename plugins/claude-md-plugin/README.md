@@ -1,4 +1,4 @@
-# claude-md-plugin (v3.0.0)
+# claude-md-plugin (v3.1.1)
 
 > CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인
 
@@ -519,7 +519,7 @@ auth/
 │   ├── Exports: validateToken(token: string): Claims
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
-├── DEVELOPERS.md          ← WHY (파일 관계, 결정 근거, 운영 정보) [미래 구현]
+├── DEVELOPERS.md          ← WHY (파일 관계, 결정 근거, 운영 정보)
 │
 └── .claude/tmp/
     └── compile-context-{hash}.md  ← /impl → /compile 핸드오프용 세션 임시 파일 (optional)

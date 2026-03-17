@@ -80,6 +80,6 @@ CLAUDE.md와 동일한 생성/수정/삭제 주기를 따릅니다.
 
 | 명령어 | DEVELOPERS.md |
 |--------|---------------|
-| /decompile | (향후) 생성 |
+| /decompile | 생성 |
 | /bugfix | L2 진단 참조 (있으면 활용, 없으면 skip) |
-| /validate | (향후) drift 검증 |
+| /validate | drift 검증 (--strict) |
