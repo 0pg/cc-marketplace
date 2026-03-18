@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "Code-First + Spec-as-Contract 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 코드가 만족해야 할 계약. /impl로 계약 정의, /compile로 코드 생성, /validate로 계약 위반 보고, /decompile로 계약 추출, /bugfix로 3계층 버그 추적, /impl-review로 품질 리뷰, /impact로 변경 영향 분석, /diff-spec으로 버전 비교, /status로 건강도 대시보드, /refactor로 모듈 분할/병합",
   "author": {
     "name": "jhk"
@@ -44,7 +44,8 @@
   "commands": [
     "./commands/dev.md",
     "./commands/project-setup.md",
-    "./commands/convention-update.md"
+    "./commands/convention-update.md",
+    "./commands/migrate.md"
   ],
   "hooks": [
     "./hooks/hooks.json"

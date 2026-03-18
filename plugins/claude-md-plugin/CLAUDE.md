@@ -390,6 +390,7 @@ User: /dev "request"
 | `/dev` | 자연어 요청 분류 → 스킬 라우팅 |
 | `/project-setup` | CLAUDE.md에 Convention 섹션 생성 |
 | `/convention-update` | CLAUDE.md Convention 섹션 업데이트 |
+| `/migrate` | 버전 업그레이드 시 CLAUDE.md 스키마 마이그레이션 |
 
 > **Routing**: `/dev` 스킬로 자연어 요청을 적절한 skill에 라우팅합니다. SessionStart hook은 철학 프레이밍만 주입합니다.
 
