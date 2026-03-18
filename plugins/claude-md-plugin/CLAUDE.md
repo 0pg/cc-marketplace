@@ -2,39 +2,36 @@
 
 ## Purpose
 
-**CLAUDE.md를 Source of Truth로 사용하여 문서-코드 동기화를 구현하는 플러그인.**
+**Code-First + Spec-as-Contract 모델로 문서-코드 동기화를 구현하는 플러그인.**
 
-기존 접근법(소스코드 → 문서)을 역전시켜 CLAUDE.md가 명세가 되고, 소스코드가 산출물이 되는 패러다임을 제공합니다.
+소스코드가 유일한 Source of Truth이며, CLAUDE.md는 코드가 만족해야 할 계약(Contract)을 정의합니다.
 
-## Core Philosophy: Compile/Decompile 패러다임
+## Core Philosophy: Code-First + Spec-as-Contract
 
-**CLAUDE.md는 소스코드이고, 소스코드는 바이너리다.**
+**소스코드가 유일한 Source of Truth, CLAUDE.md는 코드가 만족해야 할 계약(Contract)이다.**
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    전통적 소프트웨어                          │
-│                                                             │
-│   .h (헤더)  ─── compile ──→  Binary (.exe)                 │
-│   Binary (.exe)  ─── decompile ──→  .h                      │
-└─────────────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin                          │
 │                                                             │
-│   CLAUDE.md (WHAT)                                          │
+│   CLAUDE.md (Contract)                                      │
 │         │                                                   │
-│         └──── /compile ──→  Source Code (구현)              │
-│                                                             │
-│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)  │
+│         ├──── /compile ──→  계약을 만족하는 코드 생성       │
+│         ├──── /validate ──→ 코드가 계약 위반? → 보고        │
+│         │                                                   │
+│   Source Code (Source of Truth)                              │
+│         │                                                   │
+│         └──── /decompile ──→  코드에서 계약 추출            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 전통적 개념 | claude-md-plugin | 역할 |
-|------------|------------------|------|
-| .h (헤더) | CLAUDE.md | WHAT - 인터페이스, 스펙 |
-| Binary | Source Code (.ts, .py, ...) | 실행물 |
-| **compile** | CLAUDE.md → Source Code | `/compile` |
-| **decompile** | Source Code → CLAUDE.md | `/decompile` |
+| 개념 | claude-md-plugin | 역할 |
+|------|------------------|------|
+| Contract | CLAUDE.md | 코드가 만족해야 할 계약 (WHAT) |
+| Source of Truth | Source Code (.ts, .py, ...) | 실제 구현, 유일한 진실 |
+| **compile** | 계약 → 코드 생성 | `/compile` |
+| **decompile** | 코드 → 계약 추출 | `/decompile` |
+| **validate** | 코드가 계약 위반? | `/validate` (계약 수정 안 함) |
 
 **보조 문서:**
 - **DEVELOPERS.md** (WHY) — 파일관계, 결정근거, 운영 맥락. CLAUDE.md와 1:1 매핑 (INV-3)
@@ -42,13 +39,13 @@
 
 ## 핵심 개념
 
-### CLAUDE.md = 소스코드의 스펙
+### CLAUDE.md = 코드가 만족해야 할 계약
 각 디렉토리의 CLAUDE.md만으로:
 - 어떤 파일들이 존재해야 하는지
 - 각 파일이 어떤 인터페이스를 제공하는지
 - 어떤 동작을 해야 하는지
 
-를 알 수 있어야 합니다.
+를 알 수 있어야 합니다. 코드가 이 계약과 다르면 코드가 수정되어야 합니다.
 
 ### 트리 구조 의존성
 - **부모 → 자식**: 참조 가능
@@ -80,7 +77,7 @@
 
 | 역할 | 설명 |
 |------|------|
-| **자체 compile 재현** | 해당 CLAUDE.md → 동일한 코드 |
+| **자체 compile 재현** | 해당 계약 → 동일한 코드 생성 |
 | **의존자 compile 영향** | 이 모듈을 참조하는 다른 모듈의 compile 결정에 필요한 맥락 |
 
 ### DEVELOPERS.md = 맥락 문서
@@ -210,10 +207,10 @@ User: /decompile
 └─────────────────────────────────────────────┘
 ```
 
-### /compile (CLAUDE.md → 소스코드)
+### /compile (계약 → 소스코드)
 
 ```
-User: /compile [--all]
+User: /compile [--all] [--integration] [--dry-run]
         │
         ▼
 ┌─────────────────────────────────────────────┐
@@ -272,7 +269,7 @@ User: /impl-review [path]
 └─────────────────────────────────────────────┘
 ```
 
-### /validate (문서-코드 일치 검증 + 자동 수정)
+### /validate (계약-코드 일치 검증 + 위반 보고)
 
 ```
 User: /validate
@@ -285,17 +282,17 @@ User: /validate
 │ 2. Task(validator) 배치 병렬 → Drift 검증   │
 │ 3. 중간 결과 확인 (이슈 있는 디렉토리 선별) │
 │ 4. Task(issue-verifier) 배치 병렬 → 재검증  │
-│ 5. Task(issue-fixer) 배치 병렬 → 수정       │
+│ 5. Task(violation-reporter) 배치 → 위반 보고│
 │ 6. 통합 보고서 생성                         │
 └────────────────────┬────────────────────────┘
           ┌──────────┼──────────┐
           ▼          ▼          ▼
-┌──────────────┐ ┌────────────────┐ ┌─────────────┐
-│ validator    │ │ issue-verifier │ │ issue-fixer  │
-│ (drift 검증) │ │ (이슈 재검증)  │ │ (CLAUDE.md   │
-│              │ │ CONFIRMED/     │ │  수정)       │
-│              │ │ FALSE_POSITIVE │ │              │
-└──────────────┘ └────────────────┘ └─────────────┘
+┌──────────────┐ ┌────────────────┐ ┌──────────────────┐
+│ validator    │ │ issue-verifier │ │ violation-reporter│
+│ (drift 검증) │ │ (이슈 재검증)  │ │ (위반 보고,       │
+│              │ │ CONFIRMED/     │ │  계약 수정 안 함) │
+│              │ │ FALSE_POSITIVE │ │                   │
+└──────────────┘ └────────────────┘ └──────────────────┘
 ```
 
 ### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
@@ -311,9 +308,12 @@ User: /bugfix [--error "..."] [--test "..."]
 │ 2. 입력 타입 분류 (기술적 에러/테스트/기능) │
 │ 3. CLAUDE.md + DEVELOPERS.md 존재 확인      │
 │ 4. 사전 검증 (스키마/미컴파일 변경)         │
-│ 5. Task(debugger) → 진단 + 수정            │
+│ 5. Task(debugger) → 진단                   │
+│    ├─ L3 root cause → /compile 재실행      │
+│    └─ L1 root cause → 사용자 승인 후 계약  │
+│       수정 → /compile 재실행               │
 │ 6.5. git diff → 수정사항 Diff 표시         │
-│ 7. Skill("claude-md-plugin:compile") → 소스코드 재생성 │
+│ 7. Skill("claude-md-plugin:compile") → 코드 재생성 │
 │ 8. 검증 (원본 테스트 재실행)                 │
 │ 9. 결과 보고                                │
 └────────────────────┬────────────────────────┘
@@ -328,6 +328,7 @@ User: /bugfix [--error "..."] [--test "..."]
 │ Phase 4: Task(debug-layer-analyzer, L2)     │
 │ Phase 5: Task(debug-layer-analyzer, L3)     │
 │ Phase 6: Findings Read → 교차 분석          │
+│ Phase 6.5: L1 root cause → 사용자 승인      │
 │ Phase 7: Fix 제안 + 사용자 승인 + Edit      │
 └────────────────────┬────────────────────────┘
                      │
@@ -335,7 +336,7 @@ User: /bugfix [--error "..."] [--test "..."]
           ▼          ▼          ▼
    ┌────────┐  ┌────────┐  ┌────────┐
    │ L1 분석 │  │ L2 분석 │  │ L3 분석 │
-   │ (spec)  │  │(context)│  │ (code)  │
+   │(contract)│ │(context)│  │ (code)  │
    └────────┘  └────────┘  └────────┘
    debug-layer-analyzer (context 격리)
 ```
@@ -371,16 +372,16 @@ User: /dev "request"
 | Agent | 역할 |
 |-------|------|
 | `impl` | 요구사항 분석 및 CLAUDE.md 생성 + compile-context 생성 |
-| `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
+| `dep-explorer` | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
-| `test-designer` | CLAUDE.md Exports/Behaviors → 불변 테스트 생성 (RED phase) |
-| `compiler` | test-designer 테스트 기반 소스코드 생성 (GREEN + REFACTOR) |
+| `test-designer` | CLAUDE.md Exports/Behaviors/Contracts → 계약 테스트 생성 (RED phase, Contract 테스트 강제) |
+| `compiler` | test-designer 테스트 기반 소스코드 생성 (GREEN + REFACTOR, DEVELOPERS.md 선택적 참조) |
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
 | `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
-| `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
+| `violation-reporter` | 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함) |
 
 ## Commands
 
@@ -389,6 +390,7 @@ User: /dev "request"
 | `/dev` | 자연어 요청 분류 → 스킬 라우팅 |
 | `/project-setup` | CLAUDE.md에 Convention 섹션 생성 |
 | `/convention-update` | CLAUDE.md Convention 섹션 업데이트 |
+| `/migrate` | 버전 업그레이드 시 CLAUDE.md 스키마 마이그레이션 |
 
 > **Routing**: `/dev` 스킬로 자연어 요청을 적절한 skill에 라우팅합니다. SessionStart hook은 철학 프레이밍만 주입합니다.
 
@@ -399,9 +401,13 @@ User: /dev "request"
 | `/impl` | Entry Point | 요구사항 → CLAUDE.md |
 | `/decompile` | Entry Point | 소스코드 → CLAUDE.md |
 | `/compile` | Entry Point | CLAUDE.md → 소스코드 |
-| `/validate` | Entry Point | 문서-코드 일치 검증 |
+| `/validate` | Entry Point | 계약-코드 일치 검증 (위반 보고, 계약 수정 안 함) |
 | `/bugfix` | Entry Point | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | Entry Point | CLAUDE.md 품질 리뷰 |
+| `/impact` | Entry Point | 계약 변경 → 영향받는 모듈 분석 |
+| `/diff-spec` | Entry Point | 계약 버전 간 시맨틱 diff |
+| `/status` | Entry Point | 프로젝트 건강도 대시보드 |
+| `/refactor` | Entry Point | 모듈 분할/병합 (계약 수준 리팩토링) |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
@@ -412,6 +418,7 @@ User: /dev "request"
 | `format-exports` | CLI Subcommand (not a plugin skill) | analyze-code JSON → deterministic Exports 마크다운 생성 (`Bash`에서 `claude-md-core format-exports`로 직접 호출) |
 | `validate-convention` | CLI Subcommand (not a plugin skill) | Convention 섹션 검증 (`Bash`에서 `claude-md-core validate-convention`으로 직접 호출) |
 | `fix-schema` | CLI Subcommand (not a plugin skill) | 누락된 allow-none 섹션 자동 추가 (`Bash`에서 `claude-md-core fix-schema`로 직접 호출) |
+| `compile-order` | CLI Subcommand (not a plugin skill) | 의존성 그래프 기반 compile 순서 결정 (`Bash`에서 `claude-md-core compile-order`로 직접 호출) |
 | `index-project` | CLI Subcommand (not a plugin skill) | 프로젝트 전체 인덱싱: tree-parse + code analysis (`Bash`에서 `claude-md-core index-project`로 직접 호출) |
 
 ## 불변식
@@ -433,14 +440,14 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 --strict 모드에서 DEVELOPERS.md 부재를 에러로 보고
 ```
 
-### INV-4: 업데이트 책임
+### INV-4: 업데이트 책임 (Code-First + Spec-as-Contract)
 ```
-/impl → CLAUDE.md + DEVELOPERS.md + compile-context (세션 한정)
-/compile → Source Code (CLAUDE.md + compile-context 읽기 전용)
-/decompile → CLAUDE.md + DEVELOPERS.md
-/bugfix → CLAUDE.md (L1 fix) → /compile 자동 실행 → Source Code 재생성 → 원본 테스트 검증
+/impl → CLAUDE.md + DEVELOPERS.md + compile-context (계약 정의)
+/compile → Source Code (계약 만족 코드 생성, CLAUDE.md 읽기 전용)
+/decompile → CLAUDE.md + DEVELOPERS.md (코드에서 계약 추출)
+/bugfix → Source Code 재생성 (기본, /compile) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)
 /impl-review → CLAUDE.md (사용자 승인 후 fix patch)
-/validate → CLAUDE.md + DEVELOPERS.md (drift fix, confirmed issues only via issue-fixer)
+/validate → 위반 보고 (계약 수정 안 함, violation-reporter)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙
@@ -452,10 +459,11 @@ module_root/CLAUDE.md MAY contain ## Project Convention (override; 없으면 pro
 싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 두 섹션 모두 배치
 ```
 
-### INV-EXPORT: Exports 불변식
+### INV-EXPORT: Exports 계약 불변식
 ```
-CLAUDE.md Exports 시그니처 = 불변 (정답)
-test-designer가 생성한 테스트 구조 = 불변
+CLAUDE.md Exports 시그니처 = 계약 (코드가 만족해야 할 인터페이스)
+계약 변경은 /decompile 또는 명시적 사용자 행위로만 가능
+test-designer가 생성한 테스트 구조 = 불변 (계약에서 파생)
 compiler(GREEN)는 테스트를 수정할 수 없음
 Export Interface Tests 실패 → 구현을 수정 (테스트 변경 금지)
 ```

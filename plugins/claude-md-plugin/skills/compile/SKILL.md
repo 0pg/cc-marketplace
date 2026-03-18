@@ -1,11 +1,12 @@
 ---
 name: compile
-version: 1.0.0
+version: 2.0.0
 aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement CLAUDE.md",
   "create source files", or uses "/compile". Processes changed CLAUDE.md files in the target path (or all with --all flag).
   Performs 2-agent TDD workflow: test-designer (RED) → compiler (GREEN+REFACTOR) to ensure compiled code passes tests.
+  Supports --integration for cross-module contract tests and --dry-run for preview.
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
@@ -15,15 +16,15 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 
 ## Core Philosophy
 
-**CLAUDE.md → Source Code = Compile**
+**계약(Contract) → 코드 생성 = Compile**
 
 ```
-CLAUDE.md (WHAT)  ─── /compile ──→  Source Code (구현)
+CLAUDE.md (Contract)  ─── /compile ──→  계약을 만족하는 코드
 ```
 
-전통적 컴파일러가 소스코드를 바이너리로 변환하듯,
-`/compile`은 CLAUDE.md 명세를 실행 가능한 소스코드로 변환.
+`/compile`은 CLAUDE.md 계약을 만족하는 소스코드를 생성합니다.
 compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
+DEVELOPERS.md가 있으면 맥락 정보(File Map, Decision Log)를 선택적으로 참조.
 
 ## 2-Agent 아키텍처
 
@@ -46,7 +47,8 @@ compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 
 | 입력 | 역할 | 업데이트 |
 |------|------|----------|
-| CLAUDE.md | 스펙 (WHAT) | 읽기 전용 |
+| CLAUDE.md | 계약 (Contract = WHAT) | 읽기 전용 |
+| DEVELOPERS.md (optional) | 맥락 (WHY — File Map, Decision Log) | 읽기 전용 |
 | compile-context (optional) | 구현 방향 (session temp) | 읽기 전용 |
 
 ## 사용법
@@ -63,6 +65,15 @@ compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 
 # 기존 파일 덮어쓰기
 /compile --conflict overwrite
+
+# 통합 테스트 포함 (단위 + 크로스 모듈 계약 검증)
+/compile --integration
+
+# 미리보기 (파일 생성 안 함)
+/compile --dry-run
+
+# 병렬 실행 수 조정 (기본 3, 대규모 프로젝트에서 조정)
+/compile --all --parallel 5
 ```
 
 ## 옵션
@@ -72,6 +83,9 @@ compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 | `--path` | `.` | 처리 대상 경로 |
 | `--conflict` | `skip` | 기존 파일과 충돌 시 처리 (`skip` \| `overwrite`) |
 | `--all` | `false` | 전체 CLAUDE.md compile (incremental 비활성화) |
+| `--integration` | `false` | 크로스 모듈 계약 검증 통합 테스트 포함 |
+| `--dry-run` | `false` | 생성될 코드를 미리 보여줌 (파일 생성 안 함) |
+| `--parallel` | `3` | 같은 depth 병렬 실행 최대 수 |
 
 ## 워크플로우
 
@@ -117,6 +131,110 @@ compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 ```
 
 상세 구현은 `references/workflow.md` 참조.
+
+### --integration 모드 (크로스 모듈 계약 검증)
+
+`--integration` 플래그가 있으면, 기본 2-Agent 실행 후 추가로 크로스 모듈 통합 테스트를 생성합니다.
+
+```
+/compile --integration
+    │
+    ├─ 기본 2-Agent 실행 (단위 테스트 + 구현)
+    │
+    └─ 추가: 크로스 모듈 계약 검증
+        │
+        ├─ 각 모듈의 Dependencies 섹션에서 의존 모듈 식별
+        │
+        ├─ 의존 모듈 CLAUDE.md Exports와 참조측 Dependencies의
+        │   symbol 목록을 교차 검증
+        │
+        └─ 통합 테스트 생성:
+            ├─ 시그니처 호환성 테스트 (의존 모듈의 실제 export가
+            │   참조측 기대 시그니처와 일치하는지)
+            └─ 계약 간 동작 검증 (모듈 A가 모듈 B의 계약대로
+                호출하는지)
+```
+
+**통합 테스트 생성 규칙:**
+1. 모듈 A의 Dependencies에 `B: hashPassword(password: string): string`이 있으면
+2. 모듈 B의 실제 Exports에서 `hashPassword` 시그니처를 확인
+3. 시그니처가 일치하면 → 통합 테스트 생성 (실제 모듈 간 호출 검증)
+4. 시그니처가 불일치하면 → `SIGNATURE_MISMATCH` 경고 출력 후 통합 테스트 스킵
+
+**통합 테스트 파일:** `{directory}/__integration__/{dep-module}.integration.test.{ext}`
+
+**통합 테스트 내용:**
+```typescript
+// src/auth/__integration__/crypto.integration.test.ts
+import { hashPassword } from '../../utils/crypto';
+
+describe('Cross-module Contract: auth → crypto', () => {
+  it('hashPassword satisfies auth contract signature', () => {
+    // auth expects: hashPassword(password: string): string
+    const fn: (password: string) => string = hashPassword;
+    expect(typeof fn).toBe('function');
+  });
+
+  it('hashPassword returns non-empty string for valid input', async () => {
+    const result = hashPassword('test-password');
+    expect(result).toBeTruthy();
+    expect(typeof result).toBe('string');
+  });
+});
+```
+
+### --dry-run 모드 (미리보기)
+
+`--dry-run` 플래그가 있으면, 생성될 코드를 미리 보여주되 파일을 실제로 생성하지 않습니다.
+
+```
+/compile --dry-run
+    │
+    ├─ 기본 워크플로우와 동일하게 진행:
+    │   ├─ 대상 감지
+    │   ├─ CLAUDE.md 파싱
+    │   └─ test-designer (RED) 실행 → 테스트 설계
+    │
+    └─ compiler (GREEN) 대신:
+        ├─ 생성될 파일 목록 출력
+        ├─ 각 파일의 예상 구조/시그니처 출력
+        └─ 파일 Write 안 함
+```
+
+**dry-run 출력 예시:**
+```
+/compile --dry-run --path src/auth
+
+=== Dry Run 결과 ===
+
+대상: src/auth/CLAUDE.md
+감지된 언어: typescript
+
+생성될 파일:
+  src/auth/index.ts (신규)
+    - export function validateToken(token: string): Promise<Claims>
+    - export function revokeToken(tokenId: string): Promise<void>
+  src/auth/types.ts (신규)
+    - export interface Claims { userId: string, exp: number }
+  src/auth/errors.ts (신규)
+    - export class TokenExpiredError extends Error
+
+테스트 파일:
+  src/auth/auth.test.ts
+    - Export Interface Tests: 4개
+    - Contract Tests: 3개
+    - Behavior Tests: 5개
+
+충돌 파일: 없음
+
+⚠ 실제 파일은 생성되지 않았습니다.
+   /compile --path src/auth 로 실제 생성하세요.
+```
+
+**dry-run 제약:**
+- test-designer는 실행하여 테스트 설계를 확인
+- compiler는 실행하지 않음 (파일 생성 안 함)
+- 테스트 파일도 Write하지 않음 (설계만 출력)
 
 ## 언어 및 테스트 프레임워크
 
@@ -194,6 +312,44 @@ compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
 
 코드 생성을 시작합니다...
 ...
+```
+
+### Integration 모드
+
+```
+/compile --integration --path src/auth
+
+...기본 compile 결과...
+
+=== 통합 테스트 ===
+크로스 모듈 계약 검증:
+  src/auth → src/utils/crypto
+    ✓ hashPassword 시그니처 호환
+    ✓ 통합 테스트 생성: src/auth/__integration__/crypto.integration.test.ts
+
+통합 테스트 실행: 2 passed, 0 failed
+```
+
+### Dry-run 모드
+
+```
+/compile --dry-run --path src/auth
+
+=== Dry Run 결과 ===
+
+대상: src/auth/CLAUDE.md
+감지된 언어: typescript
+
+생성될 파일:
+  src/auth/index.ts (신규)
+  src/auth/types.ts (신규)
+
+테스트 설계:
+  Export Interface Tests: 3개
+  Contract Tests: 2개
+  Behavior Tests: 4개
+
+⚠ 실제 파일은 생성되지 않았습니다.
 ```
 
 ## 참조 자료

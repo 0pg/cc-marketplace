@@ -29,7 +29,7 @@
 | **CLAUDE.md** | WHAT | 도메인맥락, PRD, 인터페이스 |
 | **DEVELOPERS.md** | WHY | 파일관계, 결정근거, 운영 |
 
-## 필수 섹션 요약 (6개)
+## 필수 섹션 요약 (9개)
 
 | 섹션 | 필수 | "None" 허용 | 설명 |
 |------|------|-------------|------|
@@ -38,6 +38,9 @@
 | Behavior | ✓ | ✓ | 동작 시나리오 |
 | Contract | ✓ | ✓ | 사전/사후조건 |
 | Protocol | ✓ | ✓ | 상태 전이/호출 순서 |
+| Async Contract | ✓ | ✓ | 비동기 패턴 계약 |
+| Error Taxonomy | ✓ | ✓ | 에러 계층 구조 |
+| Concurrency Model | ✓ | ✓ | 동시성 모델 |
 | Domain Context | ✓ | ✓ | compile 재현성 보장 맥락 |
 
 > 규칙 상세: `references/shared/schema-rules.yaml` 참조
@@ -261,7 +264,137 @@ Protocol 정보는 다음에서 자동 추출됩니다:
    - 예: `@lifecycle 1` → 첫 번째 호출
    - 예: `@lifecycle 2` → 두 번째 호출
 
-### 9. Domain Context (필수, "None" 허용)
+### 9. Async Contract (필수, "None" 허용)
+비동기 패턴 계약을 명시합니다. 코드가 이 비동기 패턴을 따라야 합니다.
+
+비동기 동작이 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Async Contract
+None
+```
+
+비동기 계약이 있는 경우:
+
+```markdown
+## Async Contract
+
+### Execution Order
+- `fetchUser` → `validatePermissions` → `executeAction` (순차 필수)
+- `logAudit`는 `executeAction`과 병렬 가능
+
+### Cancellation
+- 모든 async 작업은 AbortSignal을 지원해야 함
+- 취소 시 partial state를 롤백 (트랜잭션 보장)
+
+### Backpressure
+- 동시 요청 최대 10개 (초과 시 큐잉)
+- 큐 크기 최대 100 (초과 시 429 반환)
+
+### Timeout
+- API 호출: 5000ms
+- DB 쿼리: 3000ms
+- 전체 요청: 30000ms
+```
+
+#### 하위 섹션
+
+| 섹션 | 용도 | 예시 |
+|------|------|------|
+| **Execution Order** | 비동기 작업 간 순서 보장 | `A → B → C (순차 필수)` |
+| **Cancellation** | 취소 정책 및 정리 규칙 | `AbortSignal 지원, partial rollback` |
+| **Backpressure** | 배압 처리 정책 | `동시 10개, 큐 100개` |
+| **Timeout** | 작업별 타임아웃 | `API 5s, DB 3s` |
+
+### 10. Error Taxonomy (필수, "None" 허용)
+에러 계층 구조와 복구 전략을 명시합니다.
+
+에러 계층이 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Error Taxonomy
+None
+```
+
+에러 계층이 있는 경우:
+
+```markdown
+## Error Taxonomy
+
+### Error Hierarchy
+```
+AppError (base)
+├── AuthError
+│   ├── InvalidTokenError
+│   ├── TokenExpiredError
+│   └── PermissionDeniedError
+├── ValidationError
+│   ├── InvalidInputError
+│   └── SchemaError
+└── InfraError
+    ├── DatabaseError
+    └── NetworkError
+```
+
+### Recovery Strategy
+| 에러 타입 | 복구 | 재시도 |
+|-----------|------|--------|
+| InvalidTokenError | 재인증 요청 | No |
+| NetworkError | 자동 재시도 | 3회, exponential backoff |
+| DatabaseError | 커넥션 풀 재생성 | 1회 |
+
+### Propagation
+- AuthError → HTTP 401/403으로 변환
+- ValidationError → HTTP 400 + 상세 메시지
+- InfraError → HTTP 500 + 일반 메시지 (내부 정보 노출 금지)
+```
+
+#### 하위 섹션
+
+| 섹션 | 용도 | 예시 |
+|------|------|------|
+| **Error Hierarchy** | 에러 타입 상속 트리 | `AppError > AuthError > InvalidTokenError` |
+| **Recovery Strategy** | 에러별 복구/재시도 정책 | `NetworkError: 3회 재시도` |
+| **Propagation** | 에러 전파 및 변환 규칙 | `AuthError → HTTP 401` |
+
+### 11. Concurrency Model (필수, "None" 허용)
+동시성 모델을 명시합니다. 코드가 이 동시성 규칙을 따라야 합니다.
+
+동시성 요구가 없는 경우 `None`을 명시합니다.
+
+```markdown
+## Concurrency Model
+None
+```
+
+동시성 모델이 있는 경우:
+
+```markdown
+## Concurrency Model
+
+### Thread Safety
+- `TokenCache`는 thread-safe해야 함 (concurrent read/write)
+- `ConfigManager`는 read-only after init (immutable)
+
+### Shared State
+- `sessionStore`: Map<string, Session> — mutex 보호 필수
+- `rateLimiter`: 카운터 — atomic operation 사용
+
+### Synchronization
+- DB 트랜잭션: pessimistic locking (SELECT FOR UPDATE)
+- 캐시 업데이트: optimistic concurrency (version check)
+- 이벤트 처리: single-writer / multiple-reader 패턴
+```
+
+#### 하위 섹션
+
+| 섹션 | 용도 | 예시 |
+|------|------|------|
+| **Thread Safety** | 각 컴포넌트의 스레드 안전성 수준 | `TokenCache: thread-safe` |
+| **Shared State** | 공유 상태 목록 및 보호 전략 | `sessionStore: mutex 보호` |
+| **Synchronization** | 동기화 메커니즘 | `pessimistic locking` |
+
+### 12. Domain Context (필수, "None" 허용)
 compile 시 동일한 코드 재현을 보장하기 위한 맥락 정보입니다.
 이 정보가 없으면 compile 결과가 달라질 수 있습니다.
 
@@ -319,12 +452,15 @@ None
 
 > 규칙의 Single Source of Truth: `references/shared/schema-rules.yaml`
 
-### 필수 섹션 검증 (6개)
+### 필수 섹션 검증 (9개)
 - Purpose: 반드시 존재, "None" 불가
 - Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
 - Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
 - Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
 - Protocol: 반드시 존재, 프로토콜이 없는 경우 "None" 명시
+- Async Contract: 반드시 존재, 비동기 패턴이 없는 경우 "None" 명시
+- Error Taxonomy: 반드시 존재, 에러 계층이 없는 경우 "None" 명시
+- Concurrency Model: 반드시 존재, 동시성 모델이 없는 경우 "None" 명시
 - Domain Context: 반드시 존재, 도메인 맥락이 없는 경우 "None" 명시
 
 ### Exports 형식 검증
@@ -375,7 +511,7 @@ None
 - ../utils: (형제 참조 - 금지) ✗
 ```
 
-### 10. Project Convention (조건부 - project_root 또는 module_root)
+### 13. Project Convention (조건부 - project_root 또는 module_root)
 
 프로젝트 수준 아키텍처/구조 규칙입니다. project_root CLAUDE.md에 필수이며, module_root에서는 optional override로 사용됩니다.
 
@@ -404,7 +540,7 @@ src/ 하위에 기능별 디렉토리 구성.
 | Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
 | Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 
-### 11. Code Convention (project_root 필수, module_root 선택)
+### 14. Code Convention (project_root 필수, module_root 선택)
 
 소스코드 수준 코딩 규칙입니다. project_root CLAUDE.md에 필수 (canonical source).
 module_root에서는 project_root와 다른 부분만 override로 작성합니다.

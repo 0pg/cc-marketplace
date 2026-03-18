@@ -63,17 +63,17 @@
 | **CONTEXT_DATA_STRUCTURE_GAP** | Data Structures에 관련 내부 구조 미기술 | Data Structures 섹션에 구조 누락 |
 | **CONTEXT_OPERATIONS_GAP** | Operations에 관련 gotcha/트러블슈팅 미기술 | Operations 섹션에 정보 누락 |
 
-### L3: Source Code Issues (진단용 — 수정은 L1/L2에서)
+### L3: Source Code Issues (대부분의 버그 — 코드가 계약 위반)
 
-L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
-소스코드는 "바이너리"이므로 직접 패치하지 않고, L1/L2를 수정한 뒤 `/compile`로 재생성한다.
+Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상태를 의미한다.
+계약(CLAUDE.md)이 올바르면 `/compile`로 재생성하여 해결한다.
 
-| 타입 | 설명 | 증거 패턴 | L1/L2 수정 방향 |
-|------|------|----------|----------------|
-| **CODE_SPEC_DIVERGENCE** | 코드가 스펙/플랜을 따르지 않음 | 스펙 behavior 존재 + 코드 동작 불일치 | 스펙이 맞으면 `/compile`로 재생성 |
-| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 스펙/플랜 모두 올바르나 코드 잘못됨 | DEVELOPERS.md Decision Log 보강 후 `/compile` |
+| 타입 | 설명 | 증거 패턴 | 수정 방향 |
+|------|------|----------|----------|
+| **CODE_SPEC_DIVERGENCE** | 코드가 계약을 따르지 않음 | 계약 behavior 존재 + 코드 동작 불일치 | 계약이 맞으면 `/compile`로 재생성 |
+| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | 계약 올바르나 코드 잘못됨 | CLAUDE.md Behavior/Contract 보강 후 `/compile` |
 | **CODE_GUARD_MISSING** | guard clause/입력 검증 누락 | Contract precondition 존재 + 코드에 guard 없음 | Contract 명확화 후 `/compile` |
-| **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 맥락을 따르지 않음 | DEVELOPERS.md 기술 존재 + 코드가 맥락 불이행 | DEVELOPERS.md가 맞으면 `/compile`로 재생성 |
+| **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 맥락을 따르지 않음 | DEVELOPERS.md 기술 존재 + 코드가 맥락 불이행 | `/compile`로 재생성 |
 
 ## Fix Strategy Templates
 
@@ -116,9 +116,10 @@ L3 finding은 코드의 증상이며, 근본 원인은 항상 L1/L2에 있다.
 **후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
-### L3 Fix (소스코드 직접 수정 안 함 — L1/L2 수정 후 `/compile`)
+### L3 Fix (코드가 계약 위반 — `/compile`로 재생성)
 
-L3 finding은 코드 증상. 수정은 항상 L1/L2 문서에서 수행하고 `/compile`로 소스코드를 재생성한다.
+L3 finding은 코드가 계약을 위반하는 상태. 계약이 올바르면 `/compile`로 재생성한다.
+계약 보강이 필요한 경우(CODE_LOGIC_ERROR, CODE_GUARD_MISSING) CLAUDE.md 수정 후 `/compile`.
 
 ```markdown
 ## L3 Finding → L1/L2 Fix: {root_cause_type}
@@ -383,27 +384,28 @@ INV-1 위반이 버그 원인일 수 있음.
 ```
 Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     |
-    +-- CLAUDE.md 존재?
-    |   NO --> /decompile 먼저 실행하여 CLAUDE.md 생성 제안
+    +-- CLAUDE.md(계약) 존재?
+    |   NO --> /decompile 먼저 실행하여 계약 추출 제안
     |   YES |
-    |       +-- Behavior가 이 시나리오를 커버하는가?
-    |       |   NO --> L1: SPEC_BEHAVIOR_GAP
+    |       +-- 코드가 계약(Behavior/Exports)을 따르는가? [L3 우선 분석]
+    |       |   NO (코드가 계약 위반) --> L3 root cause
+    |       |       +-- 계약이 올바른가?
+    |       |       |   YES --> `/compile` 재실행 (CODE_SPEC_DIVERGENCE)
+    |       |       |   NO  --> L1 root cause (사용자 승인 필요, Phase 6.5)
     |       |   YES |
     |       +-- Exports 시그니처가 코드와 일치하는가?
-    |       |   NO --> L1: SPEC_EXPORT_MISMATCH
+    |       |   NO --> L1: SPEC_EXPORT_MISMATCH (사용자 승인 필요)
+    |       |   YES |
+    |       +-- Behavior가 이 시나리오를 커버하는가?
+    |       |   NO --> L1: SPEC_BEHAVIOR_GAP (사용자 승인 필요)
     |       |   YES |
     |       +-- DEVELOPERS.md 존재?
-    |       |   NO --> L1 분석 (L2 스킵, DEVELOPERS.md 생성 권장)
-    |       |   YES |
-    |       +-- Decision Log가 이 결정/에러를 다루는가?
-    |       |   NO --> L2: CONTEXT_DECISION_GAP
-    |       |   YES |
-    |       +-- File Map/Data Structures가 이 구조를 기술하는가?
-    |       |   NO --> L2: CONTEXT_FILE_MAP_STALE 또는 CONTEXT_DATA_STRUCTURE_GAP
+    |       |   NO --> L3 분석 (L2 스킵)
     |       |   YES |
     |       +-- 코드가 DEVELOPERS.md 맥락대로 구현되어 있는가?
-    |           NO --> DEVELOPERS.md 맞으면 `/compile`로 재생성
-    |           YES --> DEVELOPERS.md Decision Log 보강 후 `/compile`
+    |           NO --> `/compile`로 재생성 (CODE_IMPLEMENTATION_BUG)
+    |           YES --> CLAUDE.md Contract 보강 후 `/compile` (CODE_LOGIC_ERROR)
     |
-    +-- 모든 경우: Fix는 CLAUDE.md/DEVELOPERS.md → bugfix SKILL이 /compile 자동 실행 → 검증
+    +-- L3 root cause: bugfix SKILL이 /compile 자동 실행 → 검증
+    +-- L1 root cause: Phase 6.5에서 사용자 선택 → 계약 수정 또는 /compile 재실행
 ```

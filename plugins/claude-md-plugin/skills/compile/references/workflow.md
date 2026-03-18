@@ -68,7 +68,9 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-1. compile 대상 파일들을 디렉토리 depth 기준으로 그룹화한다 (깊은 것부터 처리하는 leaf-first 순서).
+1. compile 대상 파일들의 실행 순서를 결정한다:
+   - **CLI 사용 (우선)**: `claude-md-core compile-order --targets <targets-json>` — 의존성 그래프 기반 topological sort 실행. LLM 의존 없이 결정론적 순서 반환.
+   - **Fallback (CLI 미지원 시)**: 디렉토리 depth 기준으로 그룹화 (깊은 것부터 처리하는 leaf-first 순서).
 2. 가장 깊은 depth 그룹부터 순서대로 처리한다:
    1. 같은 depth 그룹 내의 각 CLAUDE.md에 대해:
       1. 해당 디렉토리의 compile-context 경로(있으면)와 감지된 언어를 준비한다.
@@ -89,6 +91,9 @@ mkdir -p "$TMP_DIR"
 **같은 depth 병렬 처리 시 주의:**
 - 각 모듈의 test-designer → compiler는 순차 (dependency)
 - 같은 depth의 독립 모듈은 병렬 가능 (각 모듈 내에서 순차)
+- `--parallel N` 옵션으로 같은 depth에서 동시 실행할 최대 모듈 수를 제어 (기본: 3)
+- 같은 depth에 N개 이상의 모듈이 있으면 N개씩 배치로 처리
+- 예: `--parallel 5`이면 같은 depth에서 최대 5개 모듈을 동시 실행
 
 ## 결과 수집 및 보고
 
