@@ -1,34 +1,33 @@
-# claude-md-plugin (v3.1.1)
+# claude-md-plugin (v4.1.0)
 
-> CLAUDE.md를 Source of Truth로 사용하는 문서-코드 동기화 플러그인
+> Code-First + Spec-as-Contract: 소스코드가 Source of Truth, CLAUDE.md는 코드가 만족해야 할 계약
 
 ## 개요
 
-기존의 "소스코드 → 문서" 접근법을 역전시켜 **CLAUDE.md가 소스코드**이고, **소스코드가 바이너리**가 되는 Compile/Decompile 패러다임을 제공합니다.
+**소스코드가 유일한 Source of Truth**이며, CLAUDE.md는 코드가 만족해야 할 **계약(Contract)**을 정의합니다. 계약 기반으로 코드를 생성하고, 코드가 계약을 위반하는지 검증합니다.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    전통적 소프트웨어                          │
-│                                                             │
-│   .h (헤더)  +  .c (소스)  ─── compile ──→  Binary (.exe)   │
-│   Binary (.exe)  ─── decompile ──→  .h + .c                 │
-└─────────────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin                          │
 │                                                             │
-│   CLAUDE.md (WHAT)  ─── /compile ──→  Source Code (구현)    │
-│                                                             │
-│   Source Code (구현)  ─── /decompile ──→  CLAUDE.md (WHAT)  │
+│   CLAUDE.md (Contract)                                      │
+│         │                                                   │
+│         ├──── /compile ──→  계약을 만족하는 코드 생성       │
+│         ├──── /validate ──→ 코드가 계약 위반? → 보고        │
+│         │                                                   │
+│   Source Code (Source of Truth)                              │
+│         │                                                   │
+│         └──── /decompile ──→  코드에서 계약 추출            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 전통적 개념 | claude-md-plugin | 역할 |
-|------------|------------------|------|
-| .h (헤더) | CLAUDE.md | **WHAT** - 인터페이스, 스펙 |
-| Binary | Source Code (.ts, .py, ...) | 실행물 |
-| **compile** | CLAUDE.md → Source Code | `/compile` |
-| **decompile** | Source Code → CLAUDE.md | `/decompile` |
+| 개념 | claude-md-plugin | 역할 |
+|------|------------------|------|
+| Contract | CLAUDE.md | 코드가 만족해야 할 계약 (**WHAT**) |
+| Source of Truth | Source Code (.ts, .py, ...) | 실제 구현 |
+| **compile** | 계약 → 코드 생성 | `/compile` |
+| **decompile** | 코드 → 계약 추출 | `/decompile` |
+| **validate** | 코드가 계약 위반? | `/validate` |
 
 ## Prerequisites
 
@@ -69,9 +68,13 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | 새 모듈 요구사항 정의 | `/impl "요구사항"` | CLAUDE.md + compile-context |
 | 기존 코드 문서화 | `/decompile` | CLAUDE.md |
 | 명세 기반 코드 생성 | `/compile` | 소스코드 + 테스트 |
-| 문서-코드 일치 확인 | `/validate` | 통합 검증 보고서 |
-| 런타임 버그 수정 | `/bugfix --error "에러"` | 3계층 추적 → 문서 수정 |
+| 계약-코드 일치 확인 | `/validate` | 위반 보고서 (계약 수정 안 함) |
+| 런타임 버그 수정 | `/bugfix --error "에러"` | 3계층 추적 → 코드 재생성 |
 | 명세 품질 리뷰 | `/impl-review` | 3차원 품질 보고서 |
+| 계약 변경 영향 분석 | `/impact src/auth` | 영향받는 모듈 보고서 |
+| 계약 버전 비교 | `/diff-spec src/auth` | 시맨틱 diff 보고서 |
+| 프로젝트 건강도 확인 | `/status` | 건강도 대시보드 |
+| 모듈 분할/병합 | `/refactor src/auth --mode split` | 계약 수준 리팩토링 |
 
 ### 커맨드 상세
 
@@ -210,6 +213,12 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 # 기존 파일 덮어쓰기
 /compile --conflict overwrite
+
+# 크로스 모듈 통합 테스트 포함
+/compile --integration
+
+# 미리보기 (파일 생성 안 함)
+/compile --dry-run
 ```
 
 **옵션:**
@@ -218,6 +227,9 @@ cd plugins/claude-md-plugin/core && cargo build --release
 |------|--------|------|
 | `--path` | `.` | 처리 대상 경로 |
 | `--conflict` | `skip` | 기존 파일과 충돌 시 처리 (`skip` \| `overwrite`) |
+| `--integration` | `false` | 크로스 모듈 계약 검증 통합 테스트 포함 |
+| `--dry-run` | `false` | 생성될 코드 미리보기 (파일 생성 안 함) |
+| `--parallel` | `3` | 같은 depth 병렬 실행 최대 수 |
 
 **실행 결과 예시:**
 ```
@@ -258,13 +270,13 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 ---
 
-#### `/validate` — 문서-코드 일치 검증
+#### `/validate` — 계약-코드 일치 검증
 
 > Aliases: `check`, `verify`, `lint`
 
 **언제 사용하나요?**
-- `/compile` 후 생성된 코드가 명세와 일치하는지 확인하고 싶을 때
-- `/decompile` 후 추출된 문서가 정확한지 검증하고 싶을 때
+- 코드가 계약(CLAUDE.md)을 만족하는지 확인하고 싶을 때
+- `/compile` 후 생성된 코드가 계약과 일치하는지 확인하고 싶을 때
 
 **사용법:**
 ```bash
@@ -279,42 +291,42 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 | 검증기 | 역할 |
 |--------|------|
-| **validator** | Structure, Exports, Dependencies, Behavior 일치 검증 + Export 커버리지 |
+| **validator** | Structure, Exports, Dependencies, Behavior 계약 위반 검증 + Export 커버리지 |
 
 **실행 결과 예시:**
 ```
-CLAUDE.md 검증 보고서
-=====================
+CLAUDE.md 계약 검증 보고서
+========================
 
 요약
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 개선 권장: 1개
-- 개선 필요: 1개
+- 위반 발견: 1개
 
 상세 결과
 ---------
 src/auth (양호)
-  Drift: 0개 이슈
+  위반: 0개
   Export 커버리지: 95% (18/19 예측 성공)
 
-src/utils (개선 권장)
-  Drift: 2개 이슈
-    - STALE: formatDate export가 코드에 없음
-    - MISSING: parseNumber export가 문서에 없음
-  Export 커버리지: 78% (14/18 예측 성공)
+src/utils (위반 발견)
+  위반: 2개
+    - HIGH Exports STALE: formatDate — 계약에 있으나 코드에 없음
+    - MEDIUM Structure UNCOVERED: helper.ts — 코드에 존재하나 계약에 미등록
+  추천: `/compile --path src/utils --conflict overwrite`
 ```
 
 **상태 기준:**
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | Drift 이슈 0개 AND Export 커버리지 90% 이상 |
-| **개선 권장** | Drift 1-2개 OR Export 커버리지 70-89% |
-| **개선 필요** | Drift 3개 이상 OR Export 커버리지 70% 미만 |
+| **양호** | 위반 0개 AND Export 커버리지 90% 이상 |
+| **위반 발견** | 확인된 위반이 1개 이상 |
+| **개선 권장** | Export 커버리지 70-89% AND 위반 없음 |
+| **개선 필요** | 스키마 FAIL OR Export 커버리지 70% 미만 |
 
-**다음 단계:** 이슈가 발견되면 CLAUDE.md 또는 소스코드를 수정 후 다시 `/validate`
+**다음 단계:** 위반이 발견되면 `/compile` 재실행으로 코드 재생성, 또는 계약 업데이트가 필요하면 수동 편집
 
 ---
 
@@ -344,26 +356,35 @@ src/utils (개선 권장)
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_EXPORT_MISMATCH
-요약: CLAUDE.md exports validateToken as standalone but code defines it as class method
+Root Cause: L3 - CODE_SPEC_DIVERGENCE
+요약: Code returns null instead of empty array as specified in CLAUDE.md Behavior
 
-수정된 문서: [CLAUDE.md]
+수정: 계약 기준 코드 재생성 (/compile 자동 실행)
+Compile: PASS
+검증: PASS
 
-⚠ `/compile --path src/auth --conflict overwrite`로 소스 코드를 재생성하세요.
+상세 결과: .claude/tmp/debug-src-utils.md
+```
 
-상세 결과: .claude/tmp/debug-src-auth.md
+**L1 root cause (계약 자체 오류) 시:**
+```
+Root cause가 L1 (계약 자체 오류)으로 진단되었습니다.
+선택지:
+A) 계약(CLAUDE.md) 수정 → /compile 재실행
+B) 코드 직접 재생성 — 현재 계약 기준으로 /compile 재실행
+C) 추가 분석 요청
 ```
 
 **에러 시 대응:**
 
 | 상황 | 대응 |
 |------|------|
-| CLAUDE.md 없음 | `/decompile` 먼저 실행하여 CLAUDE.md 생성 제안 |
+| CLAUDE.md 없음 | `/decompile` 먼저 실행하여 계약 추출 제안 |
 | CLAUDE.md 스키마 오류 | `/validate` 먼저 실행 안내 |
 | 미컴파일 변경 감지 | `/compile --path <path>` 먼저 실행 안내 |
 | 에러 정보 부족 | AskUserQuestion으로 에러 정보 수집 |
 
-**다음 단계:** `/compile --path <dir> --conflict overwrite` → 수정된 문서로 소스코드 재생성
+**다음 단계:** `/compile --path <dir> --conflict overwrite` → 계약 기반 코드 재생성
 
 ---
 
@@ -411,6 +432,158 @@ D3. 문서 간 일관성: 95/100 (INFO 1건)
 | 스키마 검증 실패 | 스키마 오류 수정 후 재실행 |
 
 **다음 단계:** 수정 제안 적용 후 `/compile`로 코드 생성
+
+---
+
+#### `/impact` — 계약 변경 영향 분석
+
+> Aliases: `impact-analysis`, `affected`
+
+**언제 사용하나요?**
+- CLAUDE.md를 수정한 후, 어떤 모듈이 영향을 받는지 확인하고 싶을 때
+- Exports 시그니처를 변경/삭제하기 전에 영향 범위를 파악하고 싶을 때
+
+**사용법:**
+```bash
+# 특정 모듈의 계약 변경 영향 분석
+/impact src/auth
+```
+
+**실행 결과 예시:**
+```
+계약 변경 영향 분석: src/auth
+==============================
+
+변경 요약
+---------
+| Export          | 변경 유형          | 영향 수준   |
+|-----------------|-------------------|------------|
+| validateToken   | SIGNATURE_CHANGED | BREAKING   |
+| revokeToken     | ADDED             | COMPATIBLE |
+
+영향받는 모듈
+-----------
+BREAKING (1개 모듈):
+  src/api
+    - validateToken 시그니처 변경 → 호출 코드 수정 필요
+    - 추천: /compile --path src/api --conflict overwrite
+
+추천 액션:
+  /compile --path src/api --conflict overwrite
+  /validate
+```
+
+**다음 단계:** 영향받는 모듈에 대해 `/compile` 재실행
+
+---
+
+#### `/diff-spec` — 계약 버전 비교
+
+> Aliases: `spec-diff`, `contract-diff`
+
+**언제 사용하나요?**
+- CLAUDE.md를 수정한 후, 어떤 계약 조항이 변경되었는지 구조적으로 확인하고 싶을 때
+- 특정 버전과 현재 계약의 차이를 파악하고 싶을 때
+
+**사용법:**
+```bash
+# HEAD와 현재 비교
+/diff-spec src/auth
+
+# 특정 ref와 비교
+/diff-spec src/auth --ref v2.0.0
+```
+
+**실행 결과 예시:**
+```
+계약 시맨틱 Diff: src/auth
+===========================
+비교: HEAD → 현재
+
+요약
+----
+| 섹션    | 추가 | 제거 | 변경 | 상태     |
+|---------|------|------|------|----------|
+| Exports | 1    | 0    | 1    | BREAKING |
+
+Exports 변경
+-----------
++ revokeToken(tokenId: string): Promise<void>
+~ validateToken: 시그니처 변경 [BREAKING]
+
+다음 단계:
+  /impact src/auth — 영향받는 모듈 분석
+```
+
+**다음 단계:** `/impact` → 영향받는 모듈 분석
+
+---
+
+#### `/status` — 프로젝트 건강도 대시보드
+
+> Aliases: `health`, `dashboard`, `overview`
+
+**언제 사용하나요?**
+- 프로젝트 전체의 계약 상태를 빠르게 파악하고 싶을 때
+- `/validate`보다 가볍고 빠른 전체 현황 확인이 필요할 때
+
+**사용법:**
+```bash
+/status
+```
+
+**실행 결과 예시:**
+```
+프로젝트 계약 건강도: GOOD
+
+| 지표 | 값 | 상태 |
+|------|-----|------|
+| CLAUDE.md 수 | 5 | - |
+| 스키마 유효 | 4/5 (80%) | WARNING |
+| Compile 신선도 | 3/5 FRESH | WARNING |
+| DEVELOPERS.md 쌍 | 5/5 (100%) | OK |
+
+추천: /compile 으로 stale 모듈 재컴파일
+```
+
+---
+
+#### `/refactor` — 모듈 분할/병합
+
+> Aliases: `split`, `merge`, `restructure`
+
+**언제 사용하나요?**
+- 모듈이 너무 커져서 분할하고 싶을 때
+- 여러 작은 모듈을 하나로 병합하고 싶을 때
+- 코드가 아닌 계약(CLAUDE.md) 수준에서 구조를 변경하고 싶을 때
+
+**사용법:**
+```bash
+# 모듈 분할
+/refactor src/auth --mode split
+
+# 모듈 병합
+/refactor src/auth/token --mode merge
+```
+
+**실행 결과 예시:**
+```
+src/auth/CLAUDE.md를 분석합니다...
+Exports: 6개
+
+분할 제안:
+  src/auth/token/CLAUDE.md: validateToken, revokeToken, Claims
+  src/auth/session/CLAUDE.md: createSession, destroySession, SessionConfig
+
+영향 분석: src/api — 경로 변경 필요
+
+리팩토링 완료. 다음 단계:
+  1. 영향 모듈 Dependencies 업데이트
+  2. /compile --all --conflict overwrite
+  3. /validate
+```
+
+**다음 단계:** `/compile --all --conflict overwrite` → 전체 재컴파일
 
 ---
 
@@ -469,12 +642,12 @@ D3. 문서 간 일관성: 95/100 (INFO 1건)
 #### B. 레거시 코드 문서화
 
 ```
-/decompile → /validate → (드리프트 수정) → /validate
+/decompile → /validate → (위반 수정) → /validate
 ```
 
-1. `/decompile` — 기존 코드에서 CLAUDE.md 추출
-2. `/validate` — 추출된 문서와 코드 일치 확인
-3. 이슈가 있으면 CLAUDE.md 또는 코드 수정
+1. `/decompile` — 기존 코드에서 계약(CLAUDE.md) 추출
+2. `/validate` — 코드가 추출된 계약을 만족하는지 확인
+3. 위반이 있으면 `/compile` 재실행 또는 계약 수동 수정
 4. `/validate` — 수정 후 재검증
 
 #### C. 명세 변경 후 재구현
@@ -490,14 +663,27 @@ D3. 문서 간 일관성: 95/100 (INFO 1건)
 #### D. 런타임 버그 수정
 
 ```
-/bugfix --error "에러" → /compile --conflict overwrite → /validate
+/bugfix --error "에러" → (자동 /compile) → /validate
 ```
 
-1. `/bugfix --error "TypeError: ..."` — 3계층 추적으로 근본 원인 진단 및 문서 수정
-2. `/compile --conflict overwrite` — 수정된 문서로 소스코드 재생성
-3. `/validate` — 수정 후 문서-코드 일치 확인
+1. `/bugfix --error "TypeError: ..."` — 3계층 추적으로 근본 원인 진단
+   - L3 root cause (대부분) → 자동으로 `/compile` 재실행하여 코드 재생성
+   - L1 root cause → 사용자 승인 후 계약 수정 → `/compile` 재실행
+2. `/validate` — 수정 후 계약-코드 일치 확인
 
-#### E. 명세 품질 리뷰
+#### E. 계약 변경 영향 분석
+
+```
+(CLAUDE.md 수정) → /diff-spec → /impact → /compile (영향 모듈) → /validate
+```
+
+1. CLAUDE.md를 직접 수정하거나 `/impl`로 업데이트
+2. `/diff-spec src/auth` — 어떤 계약 조항이 변경되었는지 확인
+3. `/impact src/auth` — 영향받는 모듈 식별
+4. `/compile --path src/api --conflict overwrite` — 영향받는 모듈 재컴파일
+5. `/validate` — 전체 검증
+
+#### F. 명세 품질 리뷰
 
 ```
 /impl-review → (수정 적용) → /compile
@@ -511,11 +697,11 @@ D3. 문서 간 일관성: 95/100 (INFO 1건)
 
 ### 문서 체계
 
-CLAUDE.md가 유일한 Source of Truth이며, 보조 문서가 이를 보완합니다.
+소스코드가 유일한 Source of Truth이며, CLAUDE.md는 코드가 만족해야 할 계약입니다.
 
 ```
 auth/
-├── CLAUDE.md              ← WHAT (스펙, Source of Truth)
+├── CLAUDE.md              ← Contract (코드가 만족해야 할 계약)
 │   ├── Exports: validateToken(token: string): Claims
 │   └── Domain Context: 토큰 만료 7일 (PCI-DSS)
 │
@@ -527,12 +713,13 @@ auth/
 
 **명령어별 업데이트 범위:**
 
-| 명령어 | CLAUDE.md | compile-context |
-|--------|-----------|-----------------|
-| `/impl` | 생성/업데이트 | 생성 (세션 스코프) |
-| `/compile` | 읽기 전용 | 읽기 전용 (있으면 참조) |
-| `/decompile` | 생성 (전체) | - |
-| `/bugfix` | 수정 | - |
+| 명령어 | CLAUDE.md | Source Code | compile-context |
+|--------|-----------|-------------|-----------------|
+| `/impl` | 생성/업데이트 | - | 생성 (세션 스코프) |
+| `/compile` | 읽기 전용 | 생성 | 읽기 전용 (있으면 참조) |
+| `/decompile` | 생성 (전체) | 읽기 전용 | - |
+| `/validate` | 읽기 전용 | 읽기 전용 | - |
+| `/bugfix` | 사용자 승인 후 수정 | 재생성 (/compile) | - |
 
 ### Exports = Interface Catalog
 
@@ -613,6 +800,18 @@ project/CLAUDE.md
 - 정상 케이스: input → expected output
 - 에러 케이스: invalid input → specific error
 
+## Contract
+- Preconditions, Postconditions, Throws, Invariants
+
+## Async Contract
+- Execution Order, Cancellation, Backpressure, Timeout
+
+## Error Taxonomy
+- Error Hierarchy, Recovery Strategy, Propagation
+
+## Concurrency Model
+- Thread Safety, Shared State, Synchronization
+
 ## Constraints
 - 제약사항
 
@@ -634,7 +833,7 @@ project/CLAUDE.md
 | Agent | 역할 |
 |-------|------|
 | `impl` | 요구사항 분석 및 CLAUDE.md 생성 |
-| `dep-explorer` | 요구사항 의존성 탐색 (internal + external) |
+| `dep-explorer` | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
 | `decompiler` | 소스코드에서 CLAUDE.md 추출 |
 | `compiler` | CLAUDE.md에서 소스코드 생성 (TDD) |
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
@@ -642,7 +841,7 @@ project/CLAUDE.md
 | `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |
 | `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
-| `issue-fixer` | 확인된 이슈 기반 CLAUDE.md 자동 수정 |
+| `violation-reporter` | 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함) |
 
 ### Skills
 
@@ -656,6 +855,10 @@ project/CLAUDE.md
 | `/validate` | 문서-코드 일치 검증 |
 | `/bugfix` | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | CLAUDE.md 품질 리뷰 |
+| `/impact` | 계약 변경 → 영향받는 모듈 분석 |
+| `/diff-spec` | 계약 버전 간 시맨틱 diff |
+| `/status` | 프로젝트 건강도 대시보드 |
+| `/refactor` | 모듈 분할/병합 (계약 수준 리팩토링) |
 
 **Internal (Agent가 호출):**
 

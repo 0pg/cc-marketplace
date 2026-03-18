@@ -5,7 +5,7 @@ Export Interface Test 방법론, 언어별 시그니처 검증 패턴, Spec→Te
 
 ## 1. INV-EXPORT 불변식
 
-**Exports = 불변식**: CLAUDE.md Exports의 시그니처는 불변이다.
+**Exports = 계약**: CLAUDE.md Exports의 시그니처는 코드가 만족해야 할 계약이다.
 
 - test-designer가 생성한 Export Interface Tests의 assertion은 **불변 구조**
 - compiler agent(GREEN phase)는 이 테스트를 수정할 수 없음
@@ -138,7 +138,229 @@ fun `validateToken has correct signature`() {
 }
 ```
 
-## 4. Spec→Test 변환 규칙
+## 4. Contract Test 강제 생성 규칙
+
+Contract 섹션이 `None`이 아닌 경우, Contract 위반 테스트를 **반드시** 생성합니다.
+
+### Contract 테스트 구조
+
+```
+describe('Contract Tests', () => {
+  describe('Preconditions', () => {
+    // 각 precondition 위반 시나리오
+  });
+  describe('Postconditions', () => {
+    // 각 postcondition 검증 시나리오
+  });
+  describe('Error Contracts', () => {
+    // 각 throws 조항 검증
+  });
+});
+```
+
+### Precondition → Test 변환
+
+```
+CLAUDE.md Contract: preconditions: ["token must be non-empty string"]
+```
+
+```typescript
+describe('Preconditions', () => {
+  it('should reject empty token (precondition: token must be non-empty)', async () => {
+    await expect(validateToken('')).rejects.toThrow();
+  });
+  it('should reject null token (precondition: token must be non-empty)', async () => {
+    await expect(validateToken(null as any)).rejects.toThrow();
+  });
+});
+```
+
+### Postcondition → Test 변환
+
+```
+CLAUDE.md Contract: postconditions: ["returns Claims with valid userId"]
+```
+
+```typescript
+describe('Postconditions', () => {
+  it('should return Claims with valid userId (postcondition)', async () => {
+    const result = await validateToken(validToken);
+    expect(result.userId).toBeTruthy();
+    expect(typeof result.userId).toBe('string');
+  });
+});
+```
+
+### Throws → Test 변환
+
+```
+CLAUDE.md Contract: throws: ["InvalidTokenError on malformed token"]
+```
+
+```typescript
+describe('Error Contracts', () => {
+  it('should throw InvalidTokenError on malformed token', async () => {
+    await expect(validateToken('malformed'))
+      .rejects.toThrow(InvalidTokenError);
+  });
+});
+```
+
+### Invariant → Test 변환
+
+```
+CLAUDE.md Contract: invariants: ["cache size <= maxSize"]
+```
+
+```typescript
+describe('Invariants', () => {
+  it('should maintain cache size <= maxSize after operations', () => {
+    const cache = new Cache(10);
+    for (let i = 0; i < 20; i++) cache.add(i);
+    expect(cache.size).toBeLessThanOrEqual(10);
+  });
+});
+```
+
+### 강제 생성 조건
+
+| 조건 | 동작 |
+|------|------|
+| Contract 섹션 없음 | Contract Tests 생략 |
+| Contract: None | Contract Tests 생략 |
+| Contract에 preconditions 있음 | precondition 위반 테스트 필수 |
+| Contract에 postconditions 있음 | postcondition 검증 테스트 필수 |
+| Contract에 throws 있음 | 에러 계약 테스트 필수 |
+| Contract에 invariants 있음 | 불변식 검증 테스트 필수 |
+
+## 5. Async Contract Test 생성 규칙
+
+Async Contract 섹션이 `None`이 아닌 경우 비동기 패턴 테스트를 생성합니다.
+
+### Execution Order → Test 변환
+
+```
+CLAUDE.md Async Contract: execution_order: ["fetchUser → validatePermissions → executeAction (순차)"]
+```
+
+```typescript
+describe('Async Contract Tests', () => {
+  it('should execute in order: fetchUser → validatePermissions → executeAction', async () => {
+    const callOrder: string[] = [];
+    // spy on each function to record call order
+    vi.spyOn(module, 'fetchUser').mockImplementation(async () => { callOrder.push('fetchUser'); });
+    vi.spyOn(module, 'validatePermissions').mockImplementation(async () => { callOrder.push('validatePermissions'); });
+    vi.spyOn(module, 'executeAction').mockImplementation(async () => { callOrder.push('executeAction'); });
+
+    await module.process(request);
+    expect(callOrder).toEqual(['fetchUser', 'validatePermissions', 'executeAction']);
+  });
+});
+```
+
+### Cancellation → Test 변환
+
+```typescript
+it('should support cancellation via AbortSignal', async () => {
+  const controller = new AbortController();
+  const promise = module.longRunningOperation({ signal: controller.signal });
+  controller.abort();
+  await expect(promise).rejects.toThrow(/abort/i);
+});
+```
+
+### Timeout → Test 변환
+
+```typescript
+it('should timeout API calls after 5000ms', async () => {
+  vi.useFakeTimers();
+  const promise = module.callExternalApi();
+  vi.advanceTimersByTime(5001);
+  await expect(promise).rejects.toThrow(/timeout/i);
+  vi.useRealTimers();
+});
+```
+
+## 5.5. Error Taxonomy Test 생성 규칙
+
+Error Taxonomy 섹션이 `None`이 아닌 경우 에러 계층 테스트를 생성합니다.
+
+### Error Hierarchy → instanceof 체인 테스트
+
+```
+CLAUDE.md Error Taxonomy: error_hierarchy: "AppError > AuthError > InvalidTokenError"
+```
+
+```typescript
+describe('Error Taxonomy Tests', () => {
+  it('InvalidTokenError should be instanceof AuthError', () => {
+    const error = new InvalidTokenError('bad token');
+    expect(error).toBeInstanceOf(AuthError);
+    expect(error).toBeInstanceOf(AppError);
+  });
+
+  it('AuthError should be instanceof AppError', () => {
+    const error = new AuthError('auth failed');
+    expect(error).toBeInstanceOf(AppError);
+  });
+});
+```
+
+### Recovery Strategy → 재시도 테스트
+
+```typescript
+it('should retry NetworkError 3 times with exponential backoff', async () => {
+  const spy = vi.fn().mockRejectedValue(new NetworkError('connection failed'));
+  await expect(module.callWithRetry(spy)).rejects.toThrow(NetworkError);
+  expect(spy).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+});
+```
+
+### Propagation → 에러 변환 테스트
+
+```typescript
+it('should convert AuthError to HTTP 401', () => {
+  const error = new InvalidTokenError('bad token');
+  const httpError = module.toHttpError(error);
+  expect(httpError.status).toBe(401);
+});
+```
+
+## 5.6. Concurrency Model Test 생성 규칙
+
+Concurrency Model 섹션이 `None`이 아닌 경우 동시성 테스트를 생성합니다.
+
+### Thread Safety → 동시 접근 테스트
+
+```typescript
+describe('Concurrency Model Tests', () => {
+  it('TokenCache should be safe under concurrent access', async () => {
+    const cache = new TokenCache();
+    const operations = Array.from({ length: 100 }, (_, i) =>
+      i % 2 === 0
+        ? cache.set(`key-${i}`, `value-${i}`)
+        : cache.get(`key-${i - 1}`)
+    );
+    // Should not throw or corrupt data
+    await Promise.all(operations);
+    expect(cache.size).toBeLessThanOrEqual(100);
+  });
+});
+```
+
+### Race Condition Prevention → 정합성 테스트
+
+```typescript
+it('should maintain data integrity under concurrent writes', async () => {
+  const counter = new AtomicCounter(0);
+  await Promise.all(
+    Array.from({ length: 50 }, () => counter.increment())
+  );
+  expect(counter.value).toBe(50);
+});
+```
+
+## 6. Spec→Test 변환 규칙
 
 ### Function Export
 
@@ -171,7 +393,7 @@ fun `validateToken has correct signature`() {
 | `CONST_NAME = value` | import 가능 + 값 또는 타입 일치 |
 | `CONST_NAME: Type` | import 가능 + 타입 일치 |
 
-## 5. Behavior→Test 변환
+## 6. Behavior→Test 변환
 
 ### Success 시나리오
 
@@ -225,7 +447,7 @@ it('should return Claims with valid userId (postcondition)', async () => {
 });
 ```
 
-## 6. Mock 전략
+## 7. Mock 전략
 
 ### Dependency Mock 생성
 
@@ -259,7 +481,7 @@ def test_validate(self, mock_verify, mock_hash):
 - Mock 반환값은 테스트 시나리오에 맞게 설정
 - Mock이 불필요한 경우 (순수 함수) mock 생략
 
-## 7. Incremental 모드
+## 8. Incremental 모드
 
 ### Delta 계산 (compile skill이 제공)
 
@@ -283,7 +505,7 @@ def test_validate(self, mock_verify, mock_hash):
 - delta에 포함되지 않은 export의 테스트는 절대 수정하지 않음
 - 테스트 파일의 구조 (import, describe 블록)는 유지하면서 delta만 Edit
 
-## 8. 피드백 루프 (에러 컨텍스트)
+## 9. 피드백 루프 (에러 컨텍스트)
 
 compiler가 3회 재시도 후 실패하면, compile skill이 에러 컨텍스트와 함께 test-designer를 재호출합니다.
 

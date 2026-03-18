@@ -41,7 +41,27 @@ CLAUDE.md의 Dependencies 섹션과 실제 의존성의 불일치.
 | **STALE** | 문서의 의존성이 실제로 없음 | internal → 파일 존재 확인, external → 패키지 매니저 확인 |
 | **ORPHAN** | 코드에서 사용하지만 문서에 없음 | import문 분석 vs 문서 비교 |
 
-### 4. Behavior Drift
+### 4. Cross-Module Signature Drift
+
+모듈 간 시그니처 호환성 불일치.
+
+| 유형 | 설명 | 검증 방법 |
+|------|------|----------|
+| **SIGNATURE_MISMATCH** | Dependencies 시그니처와 의존 모듈 Exports 시그니처 불일치 | CLAUDE.md 간 비교 |
+| **SYMBOL_NOT_FOUND** | Dependencies 선언 symbol이 의존 모듈 Exports에 없음 | 이름 매칭 |
+| **MODULE_NOT_FOUND** | Dependencies 선언 모듈의 CLAUDE.md 부재 | 파일 존재 확인 |
+
+### 5. Convention Drift
+
+CLAUDE.md의 Convention 섹션(계약의 일부)과 실제 코드 스타일의 불일치.
+
+| 유형 | 설명 | 검증 방법 |
+|------|------|----------|
+| **MISSING_CONVENTION** | project_root에 필수 Convention 섹션 없음 | CLI validate-convention 또는 수동 확인 |
+| **MISSING_SUBSECTION** | Convention에 필수 서브섹션 없음 | 섹션 구조 확인 |
+| **CODE_VIOLATION** | 코드가 Convention 규칙 위반 | 샘플 기반 Grep 검증 (신뢰도: MEDIUM) |
+
+### 6. Behavior Drift
 
 CLAUDE.md의 Behavior 섹션과 실제 동작의 불일치.
 
@@ -102,7 +122,9 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 - Structure: {n1}개
 - Exports: {n2}개
 - Dependencies: {n3}개
-- Behavior: {n4}개
+- Cross-Module: {n4}개
+- Convention: {n5}개
+- Behavior: {n6}개
 
 ## Export 커버리지
 
@@ -143,6 +165,22 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 
 #### STALE (없는 의존성)
 - `lodash`: package.json에 없음
+
+### Cross-Module Signature Drift
+
+#### SIGNATURE_MISMATCH
+- `hashPassword`: 참조측 `(password: string): string` vs 실제 `(password: string, salt: string): HashedResult`
+
+#### SYMBOL_NOT_FOUND
+- `verifyHash`: Dependencies에 선언되어 있으나 src/utils/crypto/CLAUDE.md Exports에 없음
+
+### Convention Drift
+
+#### MISSING_CONVENTION
+- project_root에 `## Code Convention` 섹션 없음
+
+#### CODE_VIOLATION
+- Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)
 
 ### Behavior Drift
 

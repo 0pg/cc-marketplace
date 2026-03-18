@@ -28,13 +28,17 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | BUGFIX | fix, bug, error, fail, broken, crash, debug, trace | 수정, 버그, 에러, 실패, 오류, 크래시, 진단, 추적 | `/bugfix` |
 | COMPILE | compile, generate, build, code generation | 컴파일, 코드 생성, 빌드 | `/compile` |
 | VALIDATE | validate, check, verify, drift, lint, coverage | 검증, 확인, 드리프트, 린트, 커버리지 | `/validate` |
+| IMPACT | impact, affected, breaking, depends, dependency, influence | 영향, 영향 분석, 의존, 의존 모듈, breaking change | `/impact` |
+| DIFF | diff, compare, changes, what changed, spec diff | 비교, 변경사항, 뭐가 바뀌었, 스펙 변경, 계약 비교 | `/diff-spec` |
+| STATUS | status, health, dashboard, overview, coverage | 상태, 건강도, 대시보드, 현황, 커버리지 | `/status` |
+| REFACTOR | refactor, split, merge, restructure, reorganize | 리팩토링, 분할, 병합, 재구성, 구조 변경 | `/refactor` |
 
 **분류 규칙:**
 1. 키워드 매칭은 대소문자 무시
-2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > VALIDATE)
+2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > VALIDATE > IMPACT > DIFF > STATUS > REFACTOR)
 3. 어느 카테고리에도 해당하지 않으면 **AMBIGUOUS** → AskUserQuestion으로 명확화:
    - "요청을 다음 중 어느 작업으로 분류해야 할까요?"
-   - 선택지: 기능 추가(/impl), 버그 수정(/bugfix), 코드 생성(/compile), 검증(/validate)
+   - 선택지: 기능 추가(/impl), 버그 수정(/bugfix), 코드 생성(/compile), 검증(/validate), 영향 분석(/impact), 스펙 비교(/diff-spec), 상태 확인(/status), 리팩토링(/refactor)
 
 ## Step 3: CLAUDE.md 존재 확인
 
@@ -56,6 +60,10 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | BUGFIX | `Skill("claude-md-plugin:bugfix", args: "--error \"{request}\" [--path]")` |
 | COMPILE | `Skill("claude-md-plugin:compile", args: "[--path]")` |
 | VALIDATE | `Skill("claude-md-plugin:validate", args: "[path]")` |
+| IMPACT | `Skill("claude-md-plugin:impact", args: "[path]")` |
+| DIFF | `Skill("claude-md-plugin:diff-spec", args: "{path}")` |
+| STATUS | `Skill("claude-md-plugin:status", args: "[path]")` |
+| REFACTOR | `Skill("claude-md-plugin:refactor", args: "{path}")` |
 
 ## DO / DON'T
 

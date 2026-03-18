@@ -251,8 +251,8 @@ $CLI_PATH parse-claude-md --file {claude_md_path} > ${TMP_DIR}debug-spec.json 2>
 Phase 3-5는 상호 독립적이므로, Phase 2.5에서 모든 입력 파일이 준비되면 병렬 Task 호출이 가능합니다 (3개 debug-layer-analyzer 동시 실행).
 단, CLAUDE.md 또는 DEVELOPERS.md가 "N/A"인 경우 해당 Phase를 스킵합니다.
 
-> **문서 우선 원칙**: Phase 번호가 L1→L2→L3 순서를 따릅니다.
-> CLAUDE.md(스펙)가 Source of Truth이므로, 순차 실행 시에도 문서를 먼저 분석합니다.
+> **계약 우선 분석**: Phase 번호가 L1→L2→L3 순서를 따릅니다.
+> CLAUDE.md(계약)를 먼저 분석하여 코드가 계약을 위반하는지 판단합니다.
 > Decision Tree(debugger-templates.md)의 탐색 순서와 일치합니다.
 
 #### Phase 3: L1 탐색 (스펙 분석)
@@ -325,24 +325,50 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 - AskUserQuestion으로 사용자에게 확인 (코드 vs 스펙 어느 쪽이 의도된 동작인지)
 - 결과를 root cause 판정에 반영
 
-**Step 6.4: Fix 대상 결정**
+**Step 6.4: Fix 대상 결정 (Code-First + Spec-as-Contract)**
 
-모든 finding의 수정은 CLAUDE.md에서 수행한다.
-소스코드는 "바이너리"이므로 직접 패치하지 않고 `/compile`로 재생성한다.
+소스코드가 유일한 Source of Truth이며, CLAUDE.md는 코드가 만족해야 할 계약이다.
 
-- L1 finding → CLAUDE.md 수정 → `compile_required: true`
-- L2 finding → DEVELOPERS.md 참고하여 CLAUDE.md 보강 → `compile_required: true`
-- L3 finding → 근본 원인이 되는 L1 문서 수정 (스펙이 맞으면 재컴파일만으로 해결)
+**L3 finding (코드 문제 — 대부분의 버그):**
+- L3 CODE_SPEC_DIVERGENCE (계약이 맞음) → `compile_required: true` (재컴파일로 코드 재생성)
+- L3 CODE_LOGIC_ERROR → CLAUDE.md Behavior/Contract 보강 후 → `compile_required: true`
+- L3 CODE_GUARD_MISSING → CLAUDE.md Contract 명확화 후 → `compile_required: true`
 
-**L3 finding 세부 처리:**
-- L3 CODE_LOGIC_ERROR → CLAUDE.md Behavior/Contract 보강 필수 → `compile_required: true`
-- L3 CODE_SPEC_DIVERGENCE (spec 정확) → 문서 변경 불필요 → `compile_required: true` (재컴파일 트리거)
-- L3 CODE_GUARD_MISSING → CLAUDE.md Contract 명확화 필수 → `compile_required: true`
+**L1 finding (계약 자체 오류 — 사용자 승인 필수):**
+- L1 finding → **AskUserQuestion으로 사용자 선택 요청** (Phase 6.5)
+- 계약 변경은 의도적이고 명시적이어야 함
+
+**L2 finding → DEVELOPERS.md 참고하여 진단 맥락 보충 (DEVELOPERS.md는 직접 수정하지 않음)
 
 **Fix 우선순위 (Multi-layer 시):**
-1. L1 먼저 — spec이 source of truth
-2. L2는 진단 참고용 (DEVELOPERS.md는 직접 수정하지 않음)
-3. bugfix SKILL이 `/compile` 자동 실행
+1. L3 먼저 — 대부분의 버그는 코드가 계약을 위반
+2. L1은 계약 자체 오류인 경우만 — 사용자 승인 필수
+3. L2는 진단 참고용 (직접 수정하지 않음)
+4. bugfix SKILL이 `/compile` 자동 실행
+
+### Phase 6.5: L1 Root Cause 사용자 승인 (계약 변경 게이트)
+
+Root cause가 L1 (계약 자체 오류)으로 진단된 경우에만 실행합니다.
+
+**Code-First 원칙:** 계약(CLAUDE.md) 변경은 의도적이고 명시적이어야 합니다. L1 root cause는 계약 수정을 의미하므로 사용자 승인이 필수입니다.
+
+```
+AskUserQuestion: "Root cause가 L1 (계약 자체 오류)으로 진단되었습니다.
+
+진단 결과: {root_cause_type} — {summary}
+
+선택지:
+A) 계약(CLAUDE.md) 수정 → /compile 재실행 (계약이 잘못된 경우)
+B) 코드 직접 재생성 — 현재 계약 기준으로 /compile 재실행 (계약은 맞지만 구현이 다른 방식이어야 하는 경우)
+C) 추가 분석 요청 (진단이 불확실한 경우)"
+```
+
+**선택별 처리:**
+- **A (계약 수정):** Phase 7로 진행 — CLAUDE.md 수정안 생성 및 적용
+- **B (코드 재생성):** Phase 7 스킵, `fix_targets: []`, `compile_required: true` — bugfix SKILL이 `/compile`만 실행
+- **C (추가 분석):** AskUserQuestion으로 추가 정보 요청 후 Phase 6 재실행
+
+L3 root cause인 경우 이 Phase를 스킵하고 바로 Phase 7로 진행합니다 (코드가 계약을 위반한 경우이므로 사용자 승인 불필요).
 
 ### Phase 7: Fix 제안 & 적용
 

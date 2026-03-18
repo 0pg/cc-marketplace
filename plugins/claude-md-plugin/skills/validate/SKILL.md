@@ -1,18 +1,21 @@
 ---
 name: validate
-version: 1.2.0
+version: 2.0.0
 aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
-  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation, then verifies and fixes confirmed issues via multi-agent pipeline.
-  Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트, export 커버리지
+  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation, then verifies confirmed issues via multi-agent pipeline and reports contract violations.
+  Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트, export 커버리지, 계약 위반
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task]
 ---
 
 # /validate
 
-CLAUDE.md 문서의 품질과 코드 일치 여부를 검증.
+CLAUDE.md 계약(Contract)과 코드 간의 일치 여부를 검증하고 위반을 보고.
+
+**Code-First + Spec-as-Contract 모델**: CLAUDE.md는 코드가 만족해야 할 계약입니다.
+코드가 계약과 다르면 **코드가 수정되어야** 하며, 계약(CLAUDE.md) 자동 수정은 하지 않습니다.
 
 ## Triggers
 
@@ -173,70 +176,80 @@ printf '{"directory":"%s","phase":"verify","confirmed_issues":%d,"false_positive
 
 **스킵 조건:** 이슈가 0개인 디렉토리는 재검증을 스킵합니다.
 
-### 6. 이슈 수정 (issue-fixer)
+### 6. 위반 보고 (violation-reporter)
 
-재검증에서 CONFIRMED된 이슈가 있는 디렉토리를 대상으로, issue-fixer agent를 통해 CLAUDE.md를 수정합니다.
+재검증에서 CONFIRMED된 이슈가 있는 디렉토리를 대상으로, violation-reporter agent를 통해 계약 위반 보고서를 생성합니다.
 
-**수정 대상 선별:**
+**Contract 모델 원칙:** CLAUDE.md(계약)를 코드에 맞게 수정하지 않습니다. 대신 코드가 계약을 위반하고 있음을 보고하고, 수정 방향을 추천합니다.
+
+**보고 대상 선별:**
 - Step 5에서 `confirmed_issues > 0`인 디렉토리만 추출
 
 **배치 처리 규칙:**
 - **최대 3개씩 배치 처리**
-- 각 배치 내의 issue-fixer agent Task를 **단일 메시지에서 병렬로 호출**
+- 각 배치 내의 violation-reporter agent Task를 **단일 메시지에서 병렬로 호출**
 
-**각 배치에서 issue-fixer agent 호출:**
+**각 배치에서 violation-reporter agent 호출:**
 ```
-Task(issue-fixer):
-  수정 대상: {directory}
+Task(violation-reporter):
+  보고 대상: {directory}
   재검증 결과 파일: ${TMP_DIR}verified-{dir-safe-name}.md
   CLAUDE.md: {directory}/CLAUDE.md
 ```
 
 **결과 수집:**
 
-issue-fixer agent는 구조화된 블록으로 결과를 반환:
+violation-reporter agent는 구조화된 블록으로 결과를 반환:
 ```
----issue-fixer-result---
+---violation-reporter-result---
 status: success | failed
-result_file: ${TMP_DIR}fixed-{dir-safe-name}.md
+result_file: ${TMP_DIR}violations-{dir-safe-name}.md
 directory: {directory}
-fixed_count: {N}
-skipped_count: {N}
-schema_revalidation: PASS | FAIL
----end-issue-fixer-result---
+violation_count: {N}
+critical: {N}
+high: {N}
+medium: {N}
+low: {N}
+---end-violation-reporter-result---
 ```
 
 **진행 파일 업데이트:**
 ```bash
-printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"schema_revalidation":"%s","result_file":"%s"}\n' \
-  "$directory" "$fixed" "$skipped" "$schema_result" "${TMP_DIR}fixed-${dir_safe}.md" \
+printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"high":%d,"medium":%d,"low":%d,"result_file":"%s"}\n' \
+  "$directory" "$violations" "$critical" "$high" "$medium" "$low" "${TMP_DIR}violations-${dir_safe}.md" \
   >> "${TMP_DIR}validate-progress.jsonl"
 ```
 
-**스킵 조건:** CONFIRMED 이슈가 0개인 디렉토리는 수정을 스킵합니다.
+**스킵 조건:** CONFIRMED 이슈가 0개인 디렉토리는 보고를 스킵합니다.
 
 ### 7. 통합 보고서 생성
 
-`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증, 재검증, 수정 결과를 병합한 통합 보고서를 생성합니다.
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증, 재검증, 위반 보고 결과를 병합한 통합 보고서를 생성합니다.
 
 **JSONL 파싱 방법:** 같은 파일에 phase별 라인이 혼재합니다. `directory` 필드 기준으로 그룹화:
 - `phase` 필드 없음 → validate 결과 (`issues_count`, `export_coverage`)
 - `"phase":"verify"` → verifier 결과 (`confirmed_issues`, `false_positives`)
-- `"phase":"fix"` → fixer 결과 (`fixed_count`, `skipped_count`, `schema_revalidation`)
+- `"phase":"report"` → reporter 결과 (`violation_count`, `critical`, `high`, `medium`, `low`)
 
-이슈가 없어 verify/fix 단계를 스킵한 디렉토리는 phase 라인이 없으므로 `-` 로 표시.
+이슈가 없어 verify/report 단계를 스킵한 디렉토리는 phase 라인이 없으므로 `-` 로 표시.
 
 **보고서 형식:**
 ```markdown
-# CLAUDE.md 검증 보고서
+# CLAUDE.md 계약 검증 보고서
 
 ## 요약
 
-| 디렉토리 | 스키마 | Drift 이슈 | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태 |
-|----------|--------|-----------|--------|------|--------|---------------|------|
-| src/auth | PASS | 0 | - | - | - | 95% | 양호 |
-| src/utils | PASS | 3 | 2 | 1 | 2 | 78%→85% | 수정 완료 |
-| src/legacy | FAIL (1) | 5 | 4 | 1 | 3 | 45%→60% | 개선 필요 |
+| 디렉토리 | 스키마 | 위반 수 | 심각도 | Export 커버리지 | 상태 |
+|----------|--------|---------|--------|---------------|------|
+| src/auth | PASS | 0 | - | 95% | 양호 |
+| src/utils | PASS | 2 | HIGH:1 MED:1 | 78% | 위반 발견 |
+| src/legacy | FAIL (1) | 4 | CRIT:1 HIGH:2 MED:1 | 45% | 위반 발견 |
+
+## 추천 액션
+
+위반이 발견된 디렉토리별 추천 액션:
+- `src/utils`: `/compile --path src/utils --conflict overwrite` (계약 기반 코드 재생성)
+- `src/legacy`: 위반 보고서 검토 후 `/compile` 또는 수동 수정
 
 ## 상세 결과
 
@@ -245,27 +258,29 @@ printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"sch
 #### 스키마 검증
 - PASS
 
-#### Drift 검증
-- 이슈 없음
+#### 계약 위반
+- 없음
 
 ### src/utils
 
 #### 스키마 검증
 - PASS
 
-#### Drift 검증 (원본)
-- STALE: formatDate export가 코드에 없음
-- MISSING: parseNumber export가 문서에 없음
-- MISSING: _internalHelper export가 문서에 없음
+#### 계약 위반 (2건)
+- **HIGH** Exports STALE: `formatDate` — 계약에 정의되어 있으나 코드에 없음
+  - 추천: `/compile` 재실행
+- **MEDIUM** Structure UNCOVERED: `helper.ts` — 코드에 존재하나 계약에 미등록
+  - 추천: 계약 Structure 섹션 업데이트 필요
 
-#### 재검증 결과
-- STALE formatDate → **CONFIRMED** (코드에서 삭제 확인)
-- MISSING parseNumber → **CONFIRMED** (public API)
-- MISSING _internalHelper → **FALSE_POSITIVE** (private 헬퍼)
+### src/legacy
 
-#### 수정 결과
-- formatDate: Exports 섹션에서 제거 ✓
-- parseNumber: Exports 섹션에 추가 ✓
+#### 스키마 검증
+- FAIL (1): Missing required section: Behavior
+
+#### 계약 위반 (4건)
+- **CRITICAL** Exports MISMATCH: `validateToken` 시그니처 불일치
+  - 추천: 코드를 계약에 맞게 수정 또는 계약 업데이트 (사용자 결정)
+- ...
 ```
 
 **중요:** context에 남아있는 결과가 아닌, 파일에 누적된 결과를 사용합니다.
@@ -273,7 +288,7 @@ printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"sch
 - `${TMP_DIR}schema-*.json`: 스키마 검증 결과
 - `${TMP_DIR}validate-*.md`: Drift 검증 상세 결과
 - `${TMP_DIR}verified-*.md`: 재검증 상세 결과
-- `${TMP_DIR}fixed-*.md`: 수정 상세 결과
+- `${TMP_DIR}violations-*.md`: 위반 보고 상세 결과
 
 ### 8. 임시 파일 정리
 
@@ -283,75 +298,81 @@ printf '{"directory":"%s","phase":"fix","fixed_count":%d,"skipped_count":%d,"sch
 
 | 상태 | 조건 |
 |------|------|
-| **양호** | 스키마 PASS AND Drift 이슈 0개 AND Export 커버리지 점수 90% 이상 |
-| **수정 완료** | 이슈가 있었으나 issue-fixer가 모두 수정 완료 |
-| **개선 권장** | 스키마 PASS AND (확인된 Drift 1-2개 OR Export 커버리지 점수 70-89%) AND 미수정 이슈 있음 |
-| **개선 필요** | 스키마 FAIL OR 확인된 Drift 3개 이상 OR Export 커버리지 점수 70% 미만 AND 미수정 이슈 있음 |
+| **양호** | 스키마 PASS AND 위반 0개 AND Export 커버리지 점수 90% 이상 |
+| **위반 발견** | 확인된 위반이 1개 이상 — 추천 액션 참조 |
+| **개선 권장** | 스키마 PASS AND Export 커버리지 점수 70-89% AND 위반 없음 |
+| **개선 필요** | 스키마 FAIL OR Export 커버리지 점수 70% 미만 |
 
 ## 출력 예시
 
 ```
 /validate src/
 
-CLAUDE.md 검증 보고서
-=====================
+CLAUDE.md 계약 검증 보고서
+========================
 
 요약
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 수정 완료: 1개
-- 개선 필요: 1개 (일부 수정 실패)
+- 위반 발견: 2개
 
-| 디렉토리   | 스키마 | Drift | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태      |
-|------------|--------|-------|--------|------|--------|---------------|-----------|
-| src/auth   | PASS   | 0     | -      | -    | -      | 95%           | 양호      |
-| src/utils  | PASS   | 3     | 2      | 1    | 2      | 78%→85%       | 수정 완료 |
-| src/legacy | FAIL(1)| 5     | 4      | 1    | 3      | 45%→60%       | 개선 필요 |
+| 디렉토리   | 스키마 | 위반 수 | 심각도        | Export 커버리지 | 상태      |
+|------------|--------|---------|---------------|---------------|-----------|
+| src/auth   | PASS   | 0       | -             | 95%           | 양호      |
+| src/utils  | PASS   | 2       | HIGH:1 MED:1  | 78%           | 위반 발견 |
+| src/legacy | FAIL(1)| 4       | CRIT:1 HIGH:2 MED:1 | 45%      | 위반 발견 |
+
+추천 액션
+---------
+- src/utils: `/compile --path src/utils --conflict overwrite`
+- src/legacy: 위반 보고서 검토 후 결정
+  - CRITICAL 위반 있음 — 시그니처 불일치 수동 확인 필요
 
 상세 결과
 ---------
 
 src/auth (양호)
   스키마: PASS
-  Drift: 0개 이슈
+  위반: 0개
   Export 커버리지: 95% (18/19 예측 성공)
 
-src/utils (수정 완료)
+src/utils (위반 발견)
   스키마: PASS
-  Drift: 3개 이슈 → 재검증: 2개 확인, 1개 오탐 → 2개 수정 완료
-    - STALE: formatDate → 확인됨 → Exports에서 제거 ✓
-    - MISSING: parseNumber → 확인됨 → Exports에 추가 ✓
-    - MISSING: _internalHelper → 오탐 (private 헬퍼)
-  Export 커버리지: 78%→85%
+  위반: 2개 (확인됨 2, 오탐 1 제외)
+    - HIGH Exports STALE: formatDate → 계약에 있으나 코드에 없음 → /compile 재실행
+    - MEDIUM Structure UNCOVERED: helper.ts → 계약 Structure 업데이트 필요
+  Export 커버리지: 78%
 
-src/legacy (개선 필요)
+src/legacy (위반 발견)
   스키마: FAIL (1)
-    - [MissingSection] Missing required section: Behavior → fix-schema로 수정 ✓
-  Drift: 5개 이슈 → 재검증: 4개 확인, 1개 오탐 → 3개 수정 완료
-    - UNCOVERED: 3개 파일 → 2개 확인, 1개 오탐 → 2개 Structure에 추가 ✓
-    - MISMATCH: 2개 시그니처 → 모두 확인 → 1개 수정 ✓, 1개 수정 실패 ✗
-  Export 커버리지: 45%→60%
+    - [MissingSection] Missing required section: Behavior → fix-schema로 수정 완료
+  위반: 4개 (확인됨 4, 오탐 1 제외)
+    - CRITICAL Exports MISMATCH: validateToken 시그니처 불일치
+    - HIGH Exports STALE: 2개
+    - MEDIUM Structure UNCOVERED: 1개
+  Export 커버리지: 45%
 ```
 
 ## DO / DON'T
 
 **DO:**
-- Run validator/issue-verifier/issue-fixer agent tasks in batches of max 3 parallel tasks
+- Run validator/issue-verifier/violation-reporter agent tasks in batches of max 3 parallel tasks
 - Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
-- Report both schema, drift issues and export coverage metrics
+- Report violations with severity, actionable recommendations, and /compile vs manual guidance
+- Include Convention drift in validation (Convention is part of the contract)
 - Check CLAUDE.md schema validity
 - Use file-based progress accumulation for compact resilience
-- Skip issue-verifier/issue-fixer for directories with 0 issues
-- Run issue-verifier before issue-fixer (verify first, then fix)
+- Skip issue-verifier/violation-reporter for directories with 0 issues
+- Run issue-verifier before violation-reporter (verify first, then report)
 
 **DON'T:**
+- **Modify CLAUDE.md** (contract is read-only during validation)
 - Ask user questions (validate runs non-interactively)
 - Skip any drift category
 - Launch all agent tasks in a single message (use batches of max 3)
-- Run issue-fixer without issue-verifier (always verify before fixing)
-- Modify files other than CLAUDE.md during fix phase (source code is out of scope)
+- Run violation-reporter without issue-verifier (always verify before reporting)
 
 ## 참조 자료
 
@@ -361,42 +382,46 @@ src/legacy (개선 필요)
 
 - `agents/validator.md`: 코드-문서 일치 검증 및 Export 커버리지 (drift 검증만 담당)
 - `agents/issue-verifier.md`: 검증 이슈 재검증 (false positive 필터링)
-- `agents/issue-fixer.md`: 확인된 이슈 기반 CLAUDE.md 수정
+- `agents/violation-reporter.md`: 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함)
 
 ## Examples
 
 <example>
 <user_request>/validate</user_request>
 <assistant_response>
-CLAUDE.md 검증 보고서
-=====================
+CLAUDE.md 계약 검증 보고서
+========================
 
 요약
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 수정 완료: 1개
-- 개선 필요: 1개
+- 위반 발견: 2개
 
-| 디렉토리   | 스키마 | Drift | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태      |
-|------------|--------|-------|--------|------|--------|---------------|-----------|
-| src/auth   | PASS   | 0     | -      | -    | -      | 95%           | 양호      |
-| src/utils  | PASS   | 2     | 2      | 0    | 2      | 78%→90%       | 수정 완료 |
-| src/legacy | FAIL(1)| 5     | 4      | 1    | 3      | 45%→60%       | 개선 필요 |
+| 디렉토리   | 스키마 | 위반 수 | 심각도        | Export 커버리지 | 상태      |
+|------------|--------|---------|---------------|---------------|-----------|
+| src/auth   | PASS   | 0       | -             | 95%           | 양호      |
+| src/utils  | PASS   | 2       | HIGH:1 MED:1  | 78%           | 위반 발견 |
+| src/legacy | FAIL(1)| 4       | CRIT:1 HIGH:2 MED:1 | 45%      | 위반 발견 |
+
+추천 액션
+---------
+- src/utils: `/compile --path src/utils --conflict overwrite`
+- src/legacy: 위반 보고서 검토 후 결정
 </assistant_response>
 </example>
 
 <example>
 <user_request>/validate src/</user_request>
 <assistant_response>
-CLAUDE.md 검증 보고서
-=====================
+CLAUDE.md 계약 검증 보고서
+========================
 
 상세 결과
 ---------
 src/auth (양호)
   스키마: PASS
-  Drift: 0개 이슈
+  위반: 0개
   Export 커버리지: 95% (18/19 예측 성공)
 </assistant_response>
 </example>

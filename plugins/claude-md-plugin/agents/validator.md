@@ -55,9 +55,9 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
 
 **Your Core Responsibilities:**
 1. Parse CLAUDE.md using CLI to extract structured sections
-2. Detect drift across 4 categories: Structure, Exports, Dependencies, Behavior
-4. Calculate export coverage metrics from drift analysis
-5. Save validation results to `${TMP_DIR}` and return structured result block
+2. Detect drift across 5 categories: Structure, Exports, Dependencies, Behavior, Convention
+3. Calculate export coverage metrics from drift analysis
+4. Save validation results to `${TMP_DIR}` and return structured result block
 
 **임시 디렉토리 경로:**
 ```bash
@@ -145,6 +145,61 @@ claude-md-core resolve-boundary --path {directory} --claude-md {directory}/CLAUD
 - **Sibling**: 형제 디렉토리 참조 (형제 참조 금지)
 
 violations이 있으면 Dependencies Drift 결과에 포함합니다.
+
+#### Cross-Module Signature Compatibility
+
+모듈 간 시그니처 호환성을 검증합니다. 모듈 A의 Dependencies에 선언된 시그니처가 의존 모듈 B의 실제 Exports 시그니처와 일치하는지 확인합니다.
+
+**검증 방법:**
+1. 대상 CLAUDE.md의 Dependencies 섹션에서 internal dependency를 추출
+2. 각 internal dependency의 CLAUDE.md를 Read하여 Exports 확인
+3. Dependencies에 명시된 symbol 시그니처와 의존 모듈 Exports의 시그니처를 비교
+
+**Cross-Module Drift 유형:**
+
+| 유형 | 설명 |
+|------|------|
+| **SIGNATURE_MISMATCH** | Dependencies 시그니처와 의존 모듈 Exports 시그니처 불일치 |
+| **SYMBOL_NOT_FOUND** | Dependencies에 선언된 symbol이 의존 모듈 Exports에 없음 |
+| **MODULE_NOT_FOUND** | Dependencies에 선언된 모듈의 CLAUDE.md가 없음 |
+
+**예시:**
+```
+Dependencies 선언: crypto: hashPassword(password: string): string
+의존 모듈 Exports: hashPassword(password: string, salt: string): HashedResult
+→ SIGNATURE_MISMATCH: hashPassword
+  - 참조측: (password: string): string
+  - 실제: (password: string, salt: string): HashedResult
+```
+
+**검증 스킵 조건:**
+- Dependencies 섹션이 없거나 None이면 스킵
+- internal dependency가 없으면 (external만) 스킵
+- 의존 모듈 CLAUDE.md가 없으면 MODULE_NOT_FOUND 기록 후 해당 dependency 스킵
+
+#### Convention Drift
+
+Convention도 계약의 일부입니다. 코딩 규칙 위반도 "계약 위반"으로 보고합니다.
+
+**검증 방법:** CLI로 Convention 섹션을 검증합니다:
+```bash
+claude-md-core validate-convention --project-root {project_root}
+```
+
+CLI 실행이 실패하면 수동으로 검증합니다:
+1. project_root CLAUDE.md에 `## Project Convention` 섹션 존재 확인
+2. project_root CLAUDE.md에 `## Code Convention` 섹션 존재 확인
+3. module_root CLAUDE.md에 Convention override가 있으면 필수 서브섹션 확인
+
+**Convention Drift 유형:**
+
+| 유형 | 설명 |
+|------|------|
+| **MISSING_CONVENTION** | project_root에 필수 Convention 섹션 없음 |
+| **MISSING_SUBSECTION** | Convention 섹션에 필수 서브섹션 없음 |
+| **CODE_VIOLATION** | 코드가 Convention 규칙을 위반 (샘플 기반 검증) |
+
+**CODE_VIOLATION 샘플 검증:** Convention의 Naming Rules/Coding Rules에서 핵심 규칙을 추출하여 코드 샘플(최대 3개 파일)에서 위반 여부를 Grep으로 검증합니다. 전수 검사가 아닌 샘플 기반이므로 신뢰도는 `MEDIUM`입니다.
 
 #### Behavior Drift
 

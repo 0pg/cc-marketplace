@@ -58,6 +58,40 @@ sections:
       - state_machine
       - lifecycle
 
+  async_contract:
+    name: "Async Contract"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "비동기 패턴 계약: 실행 순서, 취소 정책, 배압(backpressure), 타임아웃"
+    subsections:
+      - execution_order
+      - cancellation
+      - backpressure
+      - timeout
+
+  error_taxonomy:
+    name: "Error Taxonomy"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "에러 계층 구조: 에러 타입 트리, 복구 전략, 전파 규칙"
+    subsections:
+      - error_hierarchy
+      - recovery_strategy
+      - propagation
+
+  concurrency_model:
+    name: "Concurrency Model"
+    required: true
+    condition: "always"
+    allow_none: true
+    description: "동시성 모델: 스레드 안전성, 공유 상태, 락 전략, 레이스 컨디션 방지"
+    subsections:
+      - thread_safety
+      - shared_state
+      - synchronization
+
   domain_context:
     name: "Domain Context"
     required: true

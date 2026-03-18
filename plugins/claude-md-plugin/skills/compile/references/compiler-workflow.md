@@ -18,20 +18,33 @@
 4. **대상 CLAUDE.md 파싱**: `claude-md-core parse-claude-md` CLI를 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
 5. **compile-context 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "compile-context.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `compile_context`에 저장합니다. 존재하지 않으면 이 단계를 건너뜁니다 (compile-context는 optional).
 
-**CLAUDE.md (WHAT)**에서 추출:
-- `exports`: 함수, 타입, 클래스 정의
+**CLAUDE.md (WHAT = Contract)**에서 추출:
+- `exports`: 함수, 타입, 클래스 정의 (계약 인터페이스)
 - `behaviors`: 동작 시나리오 (테스트는 test-designer가 이미 생성)
 - `contracts`: 사전/사후조건 (검증 로직으로 변환)
+- `async_contract`: 비동기 패턴 계약 (실행 순서, 취소, 배압, 타임아웃)
+- `error_taxonomy`: 에러 계층 구조 (상속 트리, 복구 전략, 전파 규칙)
+- `concurrency_model`: 동시성 모델 (스레드 안전성, 공유 상태, 동기화)
 - `dependencies`: 필요한 import문 생성
 - `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
+
+**DEVELOPERS.md (WHY, optional)**에서 선택적 참조:
+- `file_map`: 파일별 역할 및 의존관계 → 파일 구조 결정에 참고
+- `data_structures`: 내부 자료구조 관계 → 구현 세부사항 참고
+- `decision_log`: ADR 스타일 결정 근거 → 구현 방식 결정에 참고
+- **참조 조건**: DEVELOPERS.md가 존재하고, 해당 섹션이 `None`이 아닌 경우에만 참조
+- **우선순위**: CLAUDE.md (계약) > DEVELOPERS.md (맥락) — 충돌 시 계약이 우선
 
 **compile-context (HOW, optional)**에서 추출:
 - `dependencies_direction`: 의존성 위치와 사용 목적
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
+6. **DEVELOPERS.md 선택적 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "DEVELOPERS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 `File Map`, `Data Structures`, `Decision Log` 섹션을 `developers_context`에 저장합니다. 존재하지 않거나 섹션이 `None`이면 이 단계를 건너뜁니다 (DEVELOPERS.md는 optional).
+
 **중요**: `project_root` CLAUDE.md의 Code Convention이 canonical source입니다. `module_root`에 Code Convention이 있으면 override로 사용합니다. Convention 섹션이 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
 `compile_context`의 구현 방향도 함께 참조합니다 (존재하는 경우).
+`developers_context`의 맥락 정보도 함께 참조합니다 (존재하는 경우, CLAUDE.md와 충돌 시 CLAUDE.md 우선).
 
 **컨벤션 참조 우선순위**:
 1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코딩 규칙, 네이밍 규칙
