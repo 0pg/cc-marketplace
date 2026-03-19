@@ -88,7 +88,7 @@ $CLI_PATH validate-schema --file "$claude_md" --strict --output "${TMP_DIR}schem
 
 validator agent를 **최대 3개씩 배치 처리**하여 context 폭발을 방지합니다.
 
-**변경점 (v3.0):** validator가 drift 검출과 동시에 inline verification (CONFIRMED/FALSE_POSITIVE 판정) 및 severity 분류를 수행합니다. 별도의 issue-verifier agent가 필요 없습니다.
+**변경점 (v3.0):** validator가 drift 검출과 동시에 inline verification (CONFIRMED/FALSE_POSITIVE 판정) 및 severity 분류를 수행합니다. 별도의 재검증 agent 없이 단일 agent에서 처리합니다.
 
 **배치 처리 규칙:**
 - 대상 CLAUDE.md 목록을 최대 3개씩 나누어 배치 생성
@@ -192,7 +192,21 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
 - `phase` 필드 없음 → validate 결과 (`issues_count`, `confirmed_issues`, `false_positives`, `severity`, `export_coverage`)
 - `"phase":"report"` → reporter 결과 (`violation_count`, `critical`, `high`, `medium`, `low`)
 
-reporter 단계를 스킵한 디렉토리(MEDIUM/LOW만)는 report phase 라인이 없으므로 validator 결과에서 직접 요약합니다.
+reporter 단계를 스킵한 디렉토리(MEDIUM/LOW만)는 report phase 라인이 없으므로 SKILL이 validator 결과에서 직접 요약합니다.
+
+**MEDIUM/LOW 전용 디렉토리 요약 형식:**
+```markdown
+### src/config (위반 발견 — MEDIUM/LOW)
+
+#### 스키마 검증
+- PASS
+
+#### 계약 위반 (2건 확인, 0건 오탐 제외)
+- **MEDIUM** Structure UNCOVERED: `cache.ts` — 코드에 존재하나 계약에 미등록
+- **LOW** DEVELOPERS.md File Map ORPHAN: `old-helper.ts` — File Map에 있으나 실제 없음
+
+> violation-reporter 스킵 (CRITICAL/HIGH 없음). 추천: 계약 업데이트 또는 `/compile` 재실행.
+```
 
 **보고서 형식:**
 ```markdown
@@ -241,7 +255,7 @@ reporter 단계를 스킵한 디렉토리(MEDIUM/LOW만)는 report phase 라인�
 #### 계약 위반 (5건 확인, 2건 오탐 제외)
 - **CRITICAL** Exports MISMATCH: `validateToken` 시그니처 불일치
   - 영향 범위: src/api, src/middleware
-  - 추천: 코드를 계약에 맞게 수정 또는 계약 업데이트 (사용자 결정)
+  - 추천: `/compile --path src/legacy --conflict overwrite` (계약 기반 코드 재생성)
 - ...
 ```
 

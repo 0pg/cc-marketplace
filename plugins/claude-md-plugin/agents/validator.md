@@ -163,6 +163,8 @@ Exports Drift 검증 결과에서 커버리지를 계산합니다:
 **Inline Verification:**
 - peer dependency, dev dependency 구분 (devDependencies에 있으면 FALSE_POSITIVE가 아님, 문맥에 따라 판단)
 - internal dependency의 경우 실제 파일 경로 재확인
+- re-export를 통한 간접 의존 (A→B→C에서 A가 C를 직접 의존으로 선언했으나 B를 통해 접근) → **FALSE_POSITIVE**
+- 버전 범위 표기 차이 (계약: `^1.0.0`, 실제: `1.2.3`) → **FALSE_POSITIVE**
 - 확인됨 → **CONFIRMED** (severity: MEDIUM)
 
 #### DEVELOPERS.md Drift (INV-3)

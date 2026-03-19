@@ -857,9 +857,8 @@ project/CLAUDE.md
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
-| `validator` | CLAUDE.md-코드 일치 검증 (Structure, Exports, Dependencies, Behavior) + Export 커버리지 |
-| `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
-| `violation-reporter` | 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함) |
+| `validator` | CLAUDE.md-코드 일치 검증 + Inline Verification + Severity 분류 + Export 커버리지 |
+| `violation-reporter` | CRITICAL/HIGH 이슈의 영향 범위 분석 및 계약 위반 보고 (CLAUDE.md 수정 안 함) |
 
 ### Skills
 

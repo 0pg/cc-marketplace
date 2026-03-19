@@ -6,7 +6,7 @@ description: |
   a violation report with impact analysis and actionable recommendations —
   without modifying CLAUDE.md (contract).
 
-  Only invoked when CRITICAL or HIGH severity issues exist.
+  Only invoked for directories containing at least one CRITICAL or HIGH severity issue.
 
   <example>
   <user_request>
