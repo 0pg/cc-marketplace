@@ -408,6 +408,7 @@ User: /dev "request"
 | `/diff-spec` | Entry Point | 계약 버전 간 시맨틱 diff |
 | `/status` | Entry Point | 프로젝트 건강도 대시보드 |
 | `/refactor` | Entry Point | 모듈 분할/병합 (계약 수준 리팩토링) |
+| `/resolve` | Entry Point | /validate 위반 해소 (Fix Code / Fix Contract / Acknowledge) |
 | `tree-parse` | Internal | 디렉토리 구조 분석 |
 | `scan-claude-md` | CLI Subcommand (not a plugin skill) | 기존 CLAUDE.md 인덱스 생성 (`Bash`에서 `claude-md-core scan-claude-md`로 직접 호출) |
 | `diff-compile-targets` | CLI Subcommand (not a plugin skill) | 변경된 CLAUDE.md 감지 (incremental compile용, `Bash`에서 `claude-md-core diff-compile-targets`로 직접 호출) |
@@ -420,6 +421,7 @@ User: /dev "request"
 | `fix-schema` | CLI Subcommand (not a plugin skill) | 누락된 allow-none 섹션 자동 추가 (`Bash`에서 `claude-md-core fix-schema`로 직접 호출) |
 | `compile-order` | CLI Subcommand (not a plugin skill) | 의존성 그래프 기반 compile 순서 결정 (`Bash`에서 `claude-md-core compile-order`로 직접 호출) |
 | `index-project` | CLI Subcommand (not a plugin skill) | 프로젝트 전체 인덱싱: tree-parse + code analysis (`Bash`에서 `claude-md-core index-project`로 직접 호출) |
+| `contract-hash` | CLI Subcommand (not a plugin skill) | Exports+Behavior+Contract의 SHA-256 해시 계산 (`Bash`에서 `claude-md-core contract-hash`로 직접 호출) |
 
 ## 불변식
 
@@ -448,6 +450,7 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 /bugfix → Source Code 재생성 (기본, /compile) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)
 /impl-review → CLAUDE.md (사용자 승인 후 fix patch)
 /validate → 위반 보고 (계약 수정 안 함, violation-reporter)
+/resolve → 위반 해소 (Fix Code→/compile, Fix Contract→/decompile, Acknowledge→편차 인정)
 ```
 
 ### INV-5: Convention 섹션 배치 규칙

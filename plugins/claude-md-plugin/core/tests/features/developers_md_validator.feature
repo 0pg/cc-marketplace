@@ -27,7 +27,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema with strict mode
@@ -54,7 +54,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -99,7 +99,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -139,7 +139,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -183,7 +183,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -228,7 +228,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -273,7 +273,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -318,7 +318,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -344,7 +344,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:

@@ -31,7 +31,7 @@ CLAUDE.md의 내재적 품질을 평가.
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D2-1 | 스키마 준수 | CRITICAL | 6개 필수 섹션 존재 (CLI 결과 반영) |
+| D2-1 | 스키마 준수 | CRITICAL | 6개 always-required + 3개 conditional 섹션 존재 (CLI 결과 반영) |
 | D2-2 | Export 구체성 | CRITICAL | 각 export에 파라미터 타입 + 반환 타입 명시 |
 | D2-3 | Export 설명 | WARNING | 각 export에 역할/목적 설명 포함 |
 | D2-4 | Behavior 완성도 | WARNING | success + error 케이스 모두 존재 |
@@ -39,7 +39,8 @@ CLAUDE.md의 내재적 품질을 평가.
 | D2-6 | Purpose 명확성 | WARNING | 1-2 문장, 구체적 (generic이 아닌) |
 | D2-7 | Contract 구체성 | INFO | 함수별 precondition/postcondition 명시 |
 | D2-8 | Domain Context | INFO | 비자명한 결정에 대한 근거 문서화 |
-| D2-9 | "None" 섹션 감사 | INFO | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
+| D2-9 | "None" 섹션 감사 | WARNING | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
+| D2-10 | Contract Completeness | WARNING | Exports와 Behavior 중 하나라도 "None"이면 경고 — completeness 부족 |
 
 ### D3: Internal Consistency
 
@@ -47,8 +48,9 @@ CLAUDE.md의 내재적 품질을 평가.
 |----|-------|----------|----------|
 | D3-1 | Exports ↔ Dependencies 정렬 | CRITICAL | 의존성에서 import하는 심볼이 실제 Exports에 존재 |
 | D3-2 | Purpose ↔ Exports 정렬 | WARNING | Exports가 Purpose에서 논리적으로 도출되는가 |
-| D3-3 | Behavior ↔ Contract 정합성 | WARNING | 에러 Behavior에 대응하는 Contract/throws 존재 |
+| D3-3 | Behavior-Contract Derivation | WARNING | error behavior마다 Contract throws 매핑 확인. 모든 Contract.throws는 대응하는 error Behavior가 있어야 함 |
 | D3-4 | Domain Context 활용 | INFO | Domain Context 제약이 Contract 또는 Behavior에 반영 |
+| D3-5 | Domain Context / Decision Log 중복 | INFO | 같은 정보가 CLAUDE.md Domain Context와 DEVELOPERS.md Decision Log 양쪽에 있으면 플래그 |
 
 ## Scoring Formula
 

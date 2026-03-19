@@ -14,7 +14,7 @@ Feature: Schema Rules SSOT
       | Behavior       |
       | Domain Context |
       | Contract       |
-      | Protocol       |
+      | Error Taxonomy |
 
   Scenario: Valid CLAUDE.md with all required sections passes validation
     Given a CLAUDE.md file with content:
@@ -37,7 +37,7 @@ Feature: Schema Rules SSOT
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the file
@@ -60,7 +60,7 @@ Feature: Schema Rules SSOT
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the file
@@ -84,14 +84,14 @@ Feature: Schema Rules SSOT
       ## Domain Context
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
     And the error should mention "Contract"
 
-  Scenario: Missing Protocol section fails validation
+  Scenario: Missing Error Taxonomy section fails validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -113,7 +113,7 @@ Feature: Schema Rules SSOT
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
-    And the error should mention "Protocol"
+    And the error should mention "Error Taxonomy"
 
   Scenario: Contract section with "None" passes validation
     Given a CLAUDE.md file with content:
@@ -135,13 +135,13 @@ Feature: Schema Rules SSOT
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should pass
 
-  Scenario: Protocol section with "N/A" passes validation
+  Scenario: Error Taxonomy section with "N/A" passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -161,7 +161,7 @@ Feature: Schema Rules SSOT
       ## Contract
       N/A
 
-      ## Protocol
+      ## Error Taxonomy
       N/A
       """
     When I validate the file
@@ -190,7 +190,7 @@ Feature: Schema Rules SSOT
       - **Preconditions**: token must be non-empty string
       - **Postconditions**: returns boolean
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the file
@@ -214,6 +214,9 @@ Feature: Schema Rules SSOT
       None
 
       ## Contract
+      None
+
+      ## Error Taxonomy
       None
 
       ## Protocol

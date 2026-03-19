@@ -67,6 +67,7 @@ pub mod claude_md_scanner;
 pub mod compile_target_resolver;
 pub mod exports_formatter;
 pub mod analysis_formatter;
+pub mod contract_hasher;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;

@@ -5,7 +5,7 @@
 #   - Documentation (templates/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "1.0.0"
+version: "2.0.0"
 description: "CLAUDE.md 스키마 검증 규칙 - Single Source of Truth"
 
 sections:
@@ -13,6 +13,7 @@ sections:
     name: "Purpose"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: false
     description: "디렉토리의 책임을 1-2문장으로 명시"
 
@@ -20,6 +21,7 @@ sections:
     name: "Exports"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: true
     description: "모듈의 public interface를 시그니처 레벨로"
     validation:
@@ -30,16 +32,23 @@ sections:
     name: "Behavior"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: true
     description: "동작을 시나리오 레벨 (input → output)로 명시"
     validation:
       pattern: ".+\\s*[→->].+"
       description: "시나리오 형식: input → output"
+      alternative_patterns:
+        - pattern: "Given .+ When .+ Then .+"
+          description: "Gherkin format"
+        - pattern: "\\w+ (returns|throws|produces) .+ when .+"
+          description: "동사형 format"
 
   contract:
     name: "Contract"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: true
     description: "함수별 사전조건, 사후조건, 불변식"
     subsections:
@@ -51,7 +60,8 @@ sections:
   protocol:
     name: "Protocol"
     required: true
-    condition: "always"
+    condition: "has_stateful_patterns"
+    condition_type: "dynamic"
     allow_none: true
     description: "상태 전이나 호출 순서"
     subsections:
@@ -61,7 +71,8 @@ sections:
   async_contract:
     name: "Async Contract"
     required: true
-    condition: "always"
+    condition: "has_async_patterns"
+    condition_type: "dynamic"
     allow_none: true
     description: "비동기 패턴 계약: 실행 순서, 취소 정책, 배압(backpressure), 타임아웃"
     subsections:
@@ -74,6 +85,7 @@ sections:
     name: "Error Taxonomy"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: true
     description: "에러 계층 구조: 에러 타입 트리, 복구 전략, 전파 규칙"
     subsections:
@@ -84,7 +96,8 @@ sections:
   concurrency_model:
     name: "Concurrency Model"
     required: true
-    condition: "always"
+    condition: "has_concurrency_patterns"
+    condition_type: "dynamic"
     allow_none: true
     description: "동시성 모델: 스레드 안전성, 공유 상태, 락 전략, 레이스 컨디션 방지"
     subsections:
@@ -96,6 +109,7 @@ sections:
     name: "Domain Context"
     required: true
     condition: "always"
+    condition_type: "static"
     allow_none: true
     description: "compile 시 동일한 코드 재현을 보장하기 위한 맥락 (결정 근거, 제약 조건, 호환성 요구)"
     subsections:
@@ -107,6 +121,7 @@ sections:
     name: "Structure"
     required: false
     condition: "has_subdirs_or_files"
+    condition_type: "dynamic"
     allow_none: false
     description: "하위 디렉토리나 파일이 있는 경우 구조 설명"
 
@@ -114,6 +129,7 @@ sections:
     name: "Dependencies"
     required: false
     condition: "has_external_or_internal_deps"
+    condition_type: "dynamic"
     allow_none: false
     description: "외부/내부 의존성 목록"
 
@@ -121,6 +137,7 @@ sections:
     name: "Constraints"
     required: false
     condition: "has_constraints"
+    condition_type: "dynamic"
     allow_none: false
     description: "지켜야 할 규칙이나 제약사항"
 
@@ -128,6 +145,7 @@ sections:
     name: "Project Convention"
     required: false
     condition: "is_project_or_module_root"
+    condition_type: "dynamic"
     allow_none: false
     description: "프로젝트 수준 아키텍처/구조 규칙"
     required_subsections:
@@ -139,6 +157,7 @@ sections:
     name: "Code Convention"
     required: false
     condition: "is_project_or_module_root"
+    condition_type: "dynamic"
     allow_none: false
     description: "소스코드 수준 코딩 규칙"
     required_subsections:
@@ -174,6 +193,7 @@ developers_sections:
     name: "File Map"
     required: true
     allow_none: false
+    condition: "has_multiple_files"
     description: "파일별 역할 및 의존관계 테이블"
   data_structures:
     name: "Data Structures"
@@ -184,11 +204,11 @@ developers_sections:
     name: "Decision Log"
     required: true
     allow_none: true
-    description: "ADR 스타일 결정 기록. 각 결정을 소제목으로, 맥락/결정/근거 고정 스키마"
+    description: "ADR 스타일 결정 기록. 각 결정을 소제목으로, Context/Decision/Rationale 또는 맥락/결정/근거 고정 스키마"
     required_entry_fields:
-      - "맥락"
-      - "결정"
-      - "근거"
+      - "Context|맥락"
+      - "Decision|결정"
+      - "Rationale|근거"
   operations:
     name: "Operations"
     required: true
@@ -196,8 +216,8 @@ developers_sections:
     description: "배포, 모니터링, 트러블슈팅"
     subsections:
       - "Gotchas"
-      - "배포"
-      - "모니터링"
+      - "Deployment|배포"
+      - "Monitoring|모니터링"
 
 none_marker:
   values:

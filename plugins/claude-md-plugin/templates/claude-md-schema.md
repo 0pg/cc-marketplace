@@ -29,19 +29,22 @@
 | **CLAUDE.md** | WHAT | 도메인맥락, PRD, 인터페이스 |
 | **DEVELOPERS.md** | WHY | 파일관계, 결정근거, 운영 |
 
-## 필수 섹션 요약 (9개)
+## 필수 섹션 요약 (6 always-required + 3 conditional)
 
-| 섹션 | 필수 | "None" 허용 | 설명 |
-|------|------|-------------|------|
-| Purpose | ✓ | ✗ | 디렉토리의 책임 |
-| Exports | ✓ | ✓ | public interface |
-| Behavior | ✓ | ✓ | 동작 시나리오 |
-| Contract | ✓ | ✓ | 사전/사후조건 |
-| Protocol | ✓ | ✓ | 상태 전이/호출 순서 |
-| Async Contract | ✓ | ✓ | 비동기 패턴 계약 |
-| Error Taxonomy | ✓ | ✓ | 에러 계층 구조 |
-| Concurrency Model | ✓ | ✓ | 동시성 모델 |
-| Domain Context | ✓ | ✓ | compile 재현성 보장 맥락 |
+| 섹션 | 필수 | 조건 | "None" 허용 | 설명 |
+|------|------|------|-------------|------|
+| Purpose | always | — | ✗ | 디렉토리의 책임 |
+| Exports | always | — | ✓ | public interface |
+| Behavior | always | — | ✓ | 동작 시나리오 |
+| Contract | always | — | ✓ | 사전/사후조건 |
+| Error Taxonomy | always | — | ✓ | 에러 계층 구조 |
+| Domain Context | always | — | ✓ | compile 재현성 보장 맥락 |
+| Protocol | conditional | has_stateful_patterns | ✓ | 상태 전이/호출 순서 |
+| Async Contract | conditional | has_async_patterns | ✓ | 비동기 패턴 계약 |
+| Concurrency Model | conditional | has_concurrency_patterns | ✓ | 동시성 모델 |
+
+> **conditional 섹션**: 해당 패턴이 코드에 존재하지 않으면 섹션 자체를 생략할 수 있습니다.
+> 존재하는데 "None"으로 표기하는 것은 허용되지만, 불필요한 "None" 섹션은 `/migrate`의 CONDITIONAL_CLEANUP으로 제거할 수 있습니다.
 
 > 규칙 상세: `references/shared/schema-rules.yaml` 참조
 
@@ -156,20 +159,58 @@ JWT 토큰을 검증하고 Claims를 추출합니다.
 - tree-parse 결과의 디렉토리 목록과 1:1 대응
 
 ### 5. Behavior (필수)
-동작을 **시나리오 레벨** (input → output)로 명시합니다.
+동작을 **시나리오 레벨**로 명시합니다. 3가지 형식을 허용합니다:
+
+#### 허용 형식
+
+| 형식 | 패턴 | 예시 |
+|------|------|------|
+| **arrow** | input → output | `유효한 토큰 → Claims 객체 반환` |
+| **Gherkin** | Given/When/Then | `Given 유효한 토큰, When validateToken 호출, Then Claims 반환` |
+| **verb** | returns/throws/produces | `유효한 토큰이면 Claims를 returns` |
+
+하나의 CLAUDE.md 내에서 형식을 혼용할 수 있지만, 일관성을 권장합니다.
 
 ```markdown
 ## Behavior
 
-### 정상 케이스
+### 정상 케이스 (arrow 형식)
 - 유효한 토큰 → Claims 객체 반환
 - 만료된 토큰 + refresh 옵션 → 새 토큰 쌍 반환
 
-### 에러 케이스
+### 에러 케이스 (arrow 형식)
 - 잘못된 형식의 토큰 → InvalidTokenError
 - 만료된 토큰 (refresh 없음) → TokenExpiredError
 - 위조된 토큰 → SignatureVerificationError
 ```
+
+```markdown
+## Behavior (Gherkin 형식 예시)
+
+### 정상 케이스
+- Given 유효한 JWT 토큰, When validateToken 호출, Then Claims 객체 반환
+- Given 만료된 토큰 + refresh 옵션, When validateToken 호출, Then 새 토큰 쌍 반환
+
+### 에러 케이스
+- Given 잘못된 형식의 토큰, When validateToken 호출, Then InvalidTokenError throws
+```
+
+```markdown
+## Behavior (verb 형식 예시)
+
+### 정상 케이스
+- 유효한 토큰이면 Claims 객체를 returns
+- 만료된 토큰 + refresh 옵션이면 새 토큰 쌍을 produces
+
+### 에러 케이스
+- 잘못된 형식의 토큰이면 InvalidTokenError를 throws
+```
+
+#### Behavior와 Contract의 관계
+
+> **Behavior = 사용자 관점 시나리오 (Given/When/Then), Contract = 개발자 관점 형식 보증 (Pre/Post/Throws).**
+> 모든 Contract.throws는 대응하는 error Behavior가 있어야 합니다.
+> Behavior는 Contract의 관찰 가능한 표현(projection)입니다.
 
 ### 6. Constraints (선택)
 지켜야 할 규칙이나 제약사항입니다.
@@ -222,8 +263,8 @@ Contract 정보는 다음에서 자동 추출됩니다:
    - Length 검증: `if (arr.length === 0) throw` → `arr not empty`
    - Type guards: `asserts x is T` → `x must be T`
 
-### 8. Protocol (필수, "None" 허용)
-상태 전이나 호출 순서를 명시합니다.
+### 8. Protocol (conditional: has_stateful_patterns, "None" 허용)
+상태 전이나 호출 순서를 명시합니다. 상태 머신이나 라이프사이클 패턴이 없으면 섹션 생략 가능.
 
 특별한 프로토콜이 없는 경우 `None`을 명시합니다.
 
@@ -264,10 +305,9 @@ Protocol 정보는 다음에서 자동 추출됩니다:
    - 예: `@lifecycle 1` → 첫 번째 호출
    - 예: `@lifecycle 2` → 두 번째 호출
 
-### 9. Async Contract (필수, "None" 허용)
+### 9. Async Contract (conditional: has_async_patterns, "None" 허용)
 비동기 패턴 계약을 명시합니다. 코드가 이 비동기 패턴을 따라야 합니다.
-
-비동기 동작이 없는 경우 `None`을 명시합니다.
+비동기 동작이 없으면 섹션 생략 가능. 존재하는 경우 `None`도 허용됩니다.
 
 ```markdown
 ## Async Contract
@@ -357,10 +397,9 @@ AppError (base)
 | **Recovery Strategy** | 에러별 복구/재시도 정책 | `NetworkError: 3회 재시도` |
 | **Propagation** | 에러 전파 및 변환 규칙 | `AuthError → HTTP 401` |
 
-### 11. Concurrency Model (필수, "None" 허용)
+### 11. Concurrency Model (conditional: has_concurrency_patterns, "None" 허용)
 동시성 모델을 명시합니다. 코드가 이 동시성 규칙을 따라야 합니다.
-
-동시성 요구가 없는 경우 `None`을 명시합니다.
+동시성 요구가 없으면 섹션 생략 가능. 존재하는 경우 `None`도 허용됩니다.
 
 ```markdown
 ## Concurrency Model
@@ -401,6 +440,11 @@ compile 시 동일한 코드 재현을 보장하기 위한 맥락 정보입니�
 **두 가지 역할:**
 1. **자체 compile 재현성**: 해당 CLAUDE.md를 compile할 때 동일한 코드 생성
 2. **의존자 compile 영향**: 이 모듈을 의존하는 다른 CLAUDE.md compile 시 필요한 맥락
+
+> **Domain Context vs Decision Log 구분:**
+> - **Domain Context** = "이 값이 아니면 compile 결과가 달라지는 정보" (코드 생성에 영향)
+> - **Decision Log** (DEVELOPERS.md) = "이 결정을 내린 배경 스토리" (인간 이해용)
+> - 예: `TOKEN_EXPIRY: 7일 (PCI-DSS)` → Domain Context. "PCI-DSS 인증 심사에서 요구, 보안팀과 협의 후 결정" → Decision Log
 
 > **금지**: 변경 이력(changelog, version history)은 Domain Context에 포함하지 않습니다.
 > CLAUDE.md는 현재 스펙이며, 이력은 git history에서 관리합니다.
@@ -452,16 +496,23 @@ None
 
 > 규칙의 Single Source of Truth: `references/shared/schema-rules.yaml`
 
-### 필수 섹션 검증 (9개)
+### 필수 섹션 검증 (6 always-required + 3 conditional)
+
+**Always-required (6개):**
 - Purpose: 반드시 존재, "None" 불가
 - Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
 - Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
 - Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
-- Protocol: 반드시 존재, 프로토콜이 없는 경우 "None" 명시
-- Async Contract: 반드시 존재, 비동기 패턴이 없는 경우 "None" 명시
 - Error Taxonomy: 반드시 존재, 에러 계층이 없는 경우 "None" 명시
-- Concurrency Model: 반드시 존재, 동시성 모델이 없는 경우 "None" 명시
 - Domain Context: 반드시 존재, 도메인 맥락이 없는 경우 "None" 명시
+
+**Conditional (3개):**
+- Protocol: has_stateful_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
+- Async Contract: has_async_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
+- Concurrency Model: has_concurrency_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
+
+> **Completeness Score**: `--min-completeness` 플래그로 최소 완성도 점수를 설정할 수 있습니다.
+> Exports와 Behavior가 모두 "None"이면 completeness가 낮다고 판정됩니다.
 
 ### Exports 형식 검증
 ```regex
@@ -479,14 +530,25 @@ None
 - `validate token` (공백 포함) ✗
 
 ### Behavior 형식 검증
+
+3가지 형식 중 하나에 매칭되어야 합니다:
+
 ```regex
-# 시나리오 패턴: input → output 형태
+# arrow 형식: input → output
 .+\s*[→\->]\s*.+
+
+# Gherkin 형식: Given/When/Then
+(Given|When|Then)\s+.+
+
+# verb 형식: returns/throws/produces
+.+\s+(returns|throws|produces)\s*.+
 ```
 
 유효 예시:
-- `유효한 토큰 → Claims 객체` ✓
-- `invalid input -> specific error` ✓
+- `유효한 토큰 → Claims 객체` (arrow) ✓
+- `invalid input -> specific error` (arrow) ✓
+- `Given 유효한 토큰, When validateToken 호출, Then Claims 반환` (Gherkin) ✓
+- `유효한 토큰이면 Claims를 returns` (verb) ✓
 
 무효 예시:
 - `토큰을 검증합니다` (시나리오가 아님) ✗

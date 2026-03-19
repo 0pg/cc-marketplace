@@ -11,9 +11,10 @@ allowed-tools: [Bash, Read, Glob, Grep, Skill, AskUserQuestion]
 
 기존 프로젝트를 현재 플러그인 버전에 맞게 마이그레이션합니다.
 
-두 가지 마이그레이션을 자동 감지하여 처리합니다:
+세 가지 마이그레이션을 자동 감지하여 처리합니다:
 1. **레거시 정리**: IMPLEMENTS.md 삭제 (v2.x → v3.0+)
 2. **스키마 업그레이드**: CLAUDE.md 누락 필수 섹션 추가 (v3.x → v4.0+)
+3. **조건부 정리**: 불필요한 conditional "None" 섹션 제거 + Decision Log 언어 정규화 (v4.x → v5.0+)
 
 ## Triggers
 
@@ -53,6 +54,8 @@ CLAUDE.md가 없으면:
 |-----------|-----------------|------|
 | IMPLEMENTS.md 존재 | **LEGACY_CLEANUP** | 폐기된 IMPLEMENTS.md 삭제 |
 | CLAUDE.md 스키마 검증 FAIL | **SCHEMA_UPGRADE** | 누락 필수 섹션 추가 |
+| Protocol/Async Contract/Concurrency Model이 "None"이고 해당 패턴 미감지 | **CONDITIONAL_CLEANUP** | 불필요한 conditional "None" 섹션 제거 |
+| Decision Log에 Korean 필드명(맥락/결정/근거) 사용 | **CONDITIONAL_CLEANUP** | 언어 정규화 (Context/Decision/Rationale alias 지원 추가) |
 | 위 해당 없음 | **UP_TO_DATE** | 마이그레이션 불필요 |
 
 스키마 검증:
@@ -87,6 +90,12 @@ done
 | 파일 | 누락 섹션 |
 |------|----------|
 | src/auth/CLAUDE.md | Async Contract, Error Taxonomy, Concurrency Model |
+
+[3] 조건부 정리 (v4→v5): {K}개 파일
+| 파일 | 작업 |
+|------|------|
+| src/utils/CLAUDE.md | Protocol(None) 제거, Concurrency Model(None) 제거 |
+| src/utils/DEVELOPERS.md | Decision Log 필드명 alias 정규화 |
 ```
 
 ```
@@ -119,6 +128,33 @@ for claude_md in ${failed_targets}; do
   $CLI_PATH fix-schema --file "$claude_md"
 done
 ```
+
+### 5.5. 조건부 정리 (CONDITIONAL_CLEANUP)
+
+CONDITIONAL_CLEANUP이 감지된 경우 실행합니다.
+
+**5.5a. 불필요한 conditional "None" 섹션 제거:**
+
+Protocol, Async Contract, Concurrency Model 섹션이 "None"이고 코드에 해당 패턴이 없는 경우 섹션을 제거합니다:
+
+```bash
+for claude_md in ${conditional_cleanup_targets}; do
+  # 코드 패턴 감지 (analyze-code 또는 --dir 기반)
+  # has_stateful_patterns == false && Protocol == "None" → 섹션 제거
+  # has_async_patterns == false && Async Contract == "None" → 섹션 제거
+  # has_concurrency_patterns == false && Concurrency Model == "None" → 섹션 제거
+done
+```
+
+**5.5b. Decision Log 언어 정규화:**
+
+DEVELOPERS.md의 Decision Log에서 Korean 필드명을 감지하고 alias 지원을 확인합니다:
+- `맥락` → `Context|맥락` (양쪽 허용)
+- `결정` → `Decision|결정` (양쪽 허용)
+- `근거` → `Rationale|근거` (양쪽 허용)
+
+> 기존 Korean 필드명은 유효한 alias로 인정되므로 강제 변환하지 않습니다.
+> 단, 검증 시 양쪽 모두 인식하도록 정규화합니다.
 
 ### 6. 재검증 + Diff 표시
 
@@ -154,6 +190,7 @@ git status -- "**/IMPLEMENTS.md"
 
 레거시 정리: {deleted}개 IMPLEMENTS.md 삭제
 스키마 업그레이드: {fixed}개 CLAUDE.md 섹션 추가
+조건부 정리: {cleaned}개 파일 정리 (conditional None 제거 + 언어 정규화)
 스키마 검증: {pass}/{total} PASS
 
 다음 단계:

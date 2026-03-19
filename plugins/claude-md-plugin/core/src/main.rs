@@ -63,6 +63,19 @@ enum Commands {
         /// Strict mode: validate DEVELOPERS.md existence (INV-3) and schema
         #[arg(long, default_value_t = false)]
         strict: bool,
+
+        /// Directory path to analyze for conditional section evaluation.
+        /// When provided, source files are scanned to determine which
+        /// conditional sections (Async Contract, Concurrency Model, Protocol)
+        /// are required.
+        #[arg(short, long)]
+        dir: Option<PathBuf>,
+
+        /// Minimum completeness score (0-100). Validation fails if the
+        /// CLAUDE.md completeness score is below this threshold.
+        /// Default: 0 (backward compatible, no minimum enforced).
+        #[arg(long, default_value_t = 0)]
+        min_completeness: u32,
     },
 
     /// Parse CLAUDE.md into structured JSON spec
@@ -166,6 +179,13 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Calculate contract hash (SHA-256) of compilable sections (Exports + Behavior + Contract)
+    ContractHash {
+        /// CLAUDE.md file to hash
+        #[arg(short, long)]
+        file: PathBuf,
+    },
+
     /// Fix missing allow-none sections in CLAUDE.md by appending "## Section\nNone\n"
     FixSchema {
         /// CLAUDE.md file to fix
@@ -206,12 +226,19 @@ fn main() {
             let boundary_result = resolver.resolve(path, claude_md.as_ref());
             output_result(&boundary_result, output.as_ref(), "resolve-boundary")
         }
-        Commands::ValidateSchema { file, output, strict } => {
+        Commands::ValidateSchema { file, output, strict, dir, min_completeness } => {
             let validator = SchemaValidator::new();
-            let mut validation_result = if *strict {
-                validator.validate_strict(file)
-            } else {
-                validator.validate(file)
+
+            // Build validation context from directory scan if --dir is provided
+            let ctx = dir.as_ref().map(|d| {
+                claude_md_core::schema_validator::SchemaValidator::evaluate_conditions(d)
+            });
+
+            let mut validation_result = match (*strict, &ctx) {
+                (true, Some(c)) => validator.validate_strict_with_context(file, Some(c)),
+                (true, None) => validator.validate_strict(file),
+                (false, Some(c)) => validator.validate_with_context(file, c),
+                (false, None) => validator.validate(file),
             };
 
             if *strict {
@@ -230,6 +257,24 @@ fn main() {
                 }
                 validation_result.warnings = remaining;
                 validation_result.valid = validation_result.errors.is_empty();
+            }
+
+            // Check minimum completeness threshold
+            if *min_completeness > 0 {
+                if let Some(score) = validation_result.completeness_score {
+                    if score < *min_completeness {
+                        validation_result.errors.push(claude_md_core::schema_validator::ValidationError {
+                            error_type: "InsufficientCompleteness".to_string(),
+                            message: format!(
+                                "Completeness score {} is below minimum threshold {}",
+                                score, min_completeness
+                            ),
+                            line_number: None,
+                            section: None,
+                        });
+                        validation_result.valid = false;
+                    }
+                }
             }
 
             output_result(&validation_result, output.as_ref(), "validate-schema")
@@ -321,6 +366,18 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::ContractHash { file } => {
+            match claude_md_core::contract_hasher::contract_hash(file) {
+                Ok(hash) => {
+                    println!("{}", hash);
+                    Ok(())
+                }
+                Err(e) => Err(format!(
+                    "Failed to calculate contract hash for '{}': {}",
+                    file.display(), e
+                ).into()),
+            }
+        }
         Commands::FixSchema { file, output } => {
             match std::fs::read_to_string(&file) {
                 Ok(content) => {
@@ -395,6 +452,7 @@ fn main() {
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
             Commands::IndexProject { .. } => "index-project",
+            Commands::ContractHash { .. } => "contract-hash",
             Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",
             Commands::FormatAnalysis { .. } => "format-analysis",

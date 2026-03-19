@@ -162,8 +162,9 @@ D1-1 ~ D1-5 체크를 수행하고 finding 생성.
 ### Phase 3: D2 — CLAUDE.md Quality
 
 **Step 3.1: 구조 검증**
-- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인
-- D2-9: "None"으로 표시된 섹션 확인
+- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인 (6 always-required + 3 conditional)
+- D2-9: "None"으로 표시된 섹션 확인 (WARNING severity)
+- D2-10: Contract Completeness — Exports와 Behavior 중 하나라도 "None"이면 경고
 
 **Step 3.2: Exports 품질**
 - D2-2: 각 export의 파라미터 타입 + 반환 타입 존재 확인

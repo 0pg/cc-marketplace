@@ -188,9 +188,25 @@ impl CompileTargetResolver {
                         });
                     }
                     (Some(s), Some(c)) if s > c => {
+                        // Contract hash optimization: if the compilable sections
+                        // haven't changed (only Domain Context, Protocol, etc.), skip recompile.
+                        let claude_md_path_full = root.join(dir).join("CLAUDE.md");
+                        if let Some(stamped_hash) = extract_contract_hash_stamp(&claude_md_path_full) {
+                            if let Ok(current_hash) = crate::contract_hasher::contract_hash(&claude_md_path_full) {
+                                if stamped_hash == current_hash {
+                                    skipped.push(SkippedEntry {
+                                        dir: dir_str,
+                                        reason: "contract-unchanged".to_string(),
+                                        details: format!("Spec updated at {} > source at {}, but contract hash unchanged", s, c),
+                                    });
+                                    continue;
+                                }
+                            }
+                        }
+
                         targets.push(CompileTarget {
                             claude_md_path: format!("{}/CLAUDE.md", dir_str),
-        
+
                             dir: dir_str,
                             reason: TargetReason::SpecNewer,
                             details: format!("Spec updated at {} > source at {}", s, c),
@@ -376,6 +392,23 @@ impl Default for CompileTargetResolver {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// ============== Contract hash helpers ==============
+
+/// Extract the contract hash stamp from a CLAUDE.md file's HTML comment.
+/// Looks for `<!-- contract-hash: sha256:... -->` at the top of the file.
+fn extract_contract_hash_stamp(claude_md_path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(claude_md_path).ok()?;
+    for line in content.lines().take(5) {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("<!-- contract-hash: ") {
+            if let Some(hash) = rest.strip_suffix(" -->") {
+                return Some(hash.to_string());
+            }
+        }
+    }
+    None
 }
 
 // ============== Git helper functions ==============

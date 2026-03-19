@@ -214,6 +214,16 @@ dependency CLAUDE.md 경로 목록: [<paths>]
 - 각 throws → 최소 1개 에러 테스트
 - Contract Tests는 `describe('Contract Tests', ...)` 블록으로 별도 그룹화
 
+### Phase 2.5b: Contract-Behavior Test 중복 제거
+
+Contract Test와 Behavior Test 간 동일한 assertion을 감지합니다.
+동일 assertion이 발견되면 Contract Test에 `// covered by Behavior Test: <name>` 주석을 추가하고 skip 처리합니다.
+
+**규칙:**
+- Behavior Test가 이미 동일한 에러/결과를 검증하고 있으면 Contract Test는 중복
+- Contract Test의 assertion 로직이 Behavior Test에 완전히 포함되는 경우에만 skip
+- 부분 중복은 skip하지 않음 (Contract Test 유지)
+
 ### Phase 2.6: Async Contract Tests 생성 (해당 시)
 
 **Async Contract 섹션이 `None`이 아닌 경우, 비동기 패턴 테스트를 생성합니다.**
