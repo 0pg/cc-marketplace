@@ -40,8 +40,8 @@ CLAUDE.md (WHAT) + DEVELOPERS.md (WHY) → Source Code
 
 테이블 형식. 파일별 역할과 내부 의존관계.
 
-> **None 허용 조건**: 단일 파일 디렉토리(has_multiple_files == false)인 경우 "None" 허용.
-> 복수 파일이 있는 디렉토리에서는 None 불가.
+> 단일 파일 디렉토리(소스 파일 1개 이하)에서는 File Map 섹션 자체가 필수가 아닙니다.
+> 2개 이상 소스 파일이 있는 디렉토리에서는 File Map이 필수이며 "None"은 허용되지 않습니다.
 
 ```markdown
 ## File Map

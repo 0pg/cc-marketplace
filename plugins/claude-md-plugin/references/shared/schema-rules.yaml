@@ -105,6 +105,14 @@ sections:
       - shared_state
       - synchronization
 
+  acknowledged_deviations:
+    name: "Acknowledged Deviations"
+    required: false
+    condition: "has_deviations"
+    condition_type: "dynamic"
+    allow_none: false
+    description: "/resolve에서 Acknowledge된 계약-코드 편차 목록"
+
   domain_context:
     name: "Domain Context"
     required: true

@@ -83,7 +83,6 @@ CLAUDE.md에 `## Acknowledged Deviations` 섹션을 추가 (또는 기존 섹션
 
 - **{violation_id}**: {violation_summary}
   - Reason: {user가 입력한 사유}
-  - Date: {YYYY-MM-DD}
 ```
 
 사유를 AskUserQuestion으로 수집:
@@ -125,7 +124,7 @@ Skill("claude-md-plugin:validate")
 **DO:**
 - 각 위반에 대해 3가지 선택지 제공
 - Fix Contract 전 사용자 확인 (계약 변경은 의도적이어야 함)
-- Acknowledged Deviations에 날짜와 사유 기록
+- Acknowledged Deviations에 사유 기록 (날짜는 git blame으로 추적)
 - 해소 후 재검증 제안
 
 **DON'T:**

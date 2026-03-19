@@ -492,6 +492,24 @@ None
 | `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
 | `UUID v1 지원 필요` | UUID v1 파싱 함수 포함 |
 
+### 15. Acknowledged Deviations (거버넌스, 조건부)
+
+`/resolve`에서 Acknowledge 선택 시 자동 추가되는 거버넌스 섹션입니다.
+의도적으로 인정한 계약-코드 편차를 기록합니다.
+
+```markdown
+## Acknowledged Deviations
+
+- **DRIFT-001**: Export `validateToken` 시그니처 불일치
+  - Reason: 다음 스프린트에서 계약 업데이트 예정
+```
+
+**규칙:**
+- `/resolve` Acknowledge 시에만 추가 (수동 작성 불가)
+- 사유(Reason) 필수
+- 날짜는 기록하지 않음 (git blame으로 추적)
+- `validate-schema`는 이 섹션을 인식하며 검증 에러로 보고하지 않음
+
 ## 검증 규칙
 
 > 규칙의 Single Source of Truth: `references/shared/schema-rules.yaml`
