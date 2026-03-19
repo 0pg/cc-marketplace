@@ -246,10 +246,28 @@ developers_md: generated
 
 ## 분석 가이드라인
 
-### 필수 섹션 (6개)
+### 필수 섹션 (6 always-required + 3 conditional)
 
-Purpose, Exports, Behavior, Contract, Protocol, Domain Context
-- Contract/Protocol/Domain Context는 "None" 명시적 표기 허용
+**Always-required**: Purpose, Exports, Behavior, Contract, Error Taxonomy, Domain Context
+- Contract/Error Taxonomy/Domain Context는 "None" 명시적 표기 허용
+
+**Conditional** (코드 패턴 존재 시): Protocol, Async Contract, Concurrency Model
+- 해당 패턴이 없으면 섹션 생략 가능, 있으면 "None" 허용
+
+### Domain Context / Decision Log 추출 규칙
+
+코드에서 맥락 정보를 추출할 때 배치 기준:
+- **코드의 상수값 + 주석** → Domain Context (compile 재현에 필요한 값)
+- **주석의 배경 설명** → Decision Log (DEVELOPERS.md, 인간 이해용)
+- **짧은 이유** (e.g., `// PCI-DSS`) → Domain Context에만 배치
+- 같은 정보를 Domain Context와 Decision Log 양쪽에 중복 기록하지 않음
+
+예시:
+```
+const TOKEN_EXPIRY_DAYS = 7; // PCI-DSS
+```
+→ Domain Context: `TOKEN_EXPIRY: 7일 (PCI-DSS)`
+→ Decision Log: 배경 스토리가 주석에 없으면 None (추론하지 않음)
 
 ### 참조 규칙 준수
 

@@ -234,8 +234,12 @@ claude_md_index_file: {claude_md_index_file}
 cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
 ```
 
-**CLAUDE.md 필수 섹션 6개**: Purpose, Exports, Behavior, Contract, Protocol, Domain Context
-- Contract/Protocol/Domain Context는 "None" 명시 허용
+**CLAUDE.md 필수 섹션**: 6개 always-required (Purpose, Exports, Behavior, Contract, Error Taxonomy, Domain Context) + 3개 conditional (Protocol, Async Contract, Concurrency Model)
+- Contract/Error Taxonomy/Domain Context는 "None" 명시 허용
+- Protocol/Async Contract/Concurrency Model은 해당 패턴이 없으면 섹션 생략 가능
+
+**Contract-Behavior 연동 규칙**: Contract에 throws를 작성하면, 해당 에러의 Behavior도 반드시 작성해야 합니다.
+- 예: `Throws: InvalidTokenError` → Behavior 에러 케이스에 `잘못된 형식의 토큰 → InvalidTokenError` 필수
 
 **compile-context (session temp)**: Dependencies Direction, Implementation Approach, Technology Choices
 - /impl → /compile 파이프라인 핸드오프용, `.claude/tmp/compile-context-{dir-hash}.md`에 저장

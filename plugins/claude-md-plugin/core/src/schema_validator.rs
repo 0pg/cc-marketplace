@@ -13,6 +13,9 @@ pub struct ValidationResult {
     pub errors: Vec<ValidationError>,
     /// List of warnings
     pub warnings: Vec<String>,
+    /// Completeness score (0-100): percentage of non-None required sections
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completeness_score: Option<u32>,
 }
 
 /// Validation error details
@@ -30,6 +33,18 @@ pub struct ValidationError {
     pub section: Option<String>,
 }
 
+/// Context for conditional section evaluation.
+/// When provided, the validator can skip sections whose conditions are not met.
+#[derive(Debug, Default)]
+pub struct ValidationContext {
+    pub has_async_patterns: bool,
+    pub has_concurrency_patterns: bool,
+    pub has_stateful_patterns: bool,
+    pub has_subdirs_or_files: bool,
+    pub has_multiple_files: bool,
+    pub source_file_count: usize,
+}
+
 // Include generated constants from schema-rules.yaml (SSOT)
 include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
 
@@ -41,11 +56,34 @@ const GO_BUILTIN_TYPES: &[&str] = &[
     "complex64", "complex128",
 ];
 
+/// Async pattern keywords for condition evaluation
+const ASYNC_KEYWORDS: &[&str] = &[
+    "async", "await", "Promise", "Future", "tokio::", "Channel",
+    "async_trait", "asyncio", "aiohttp", "goroutine",
+];
+
+/// Concurrency pattern keywords for condition evaluation
+const CONCURRENCY_KEYWORDS: &[&str] = &[
+    "Mutex", "RwLock", "Arc", "thread::", "goroutine", "sync.",
+    "Semaphore", "AtomicBool", "AtomicUsize", "threading",
+    "concurrent", "Lock", "synchronized",
+];
+
+/// Stateful pattern keywords for condition evaluation
+const STATEFUL_KEYWORDS: &[&str] = &[
+    "State", "FSM", "lifecycle", "transition",
+    "StateMachine", "state_machine",
+];
+
 pub struct SchemaValidator {
     /// Pattern to match section headers
     section_pattern: Regex,
-    /// Pattern to match behavior scenarios
+    /// Pattern to match behavior scenarios (arrow format)
     behavior_pattern: Regex,
+    /// Pattern to match Gherkin-style behavior
+    gherkin_pattern: Regex,
+    /// Pattern to match verb-style behavior
+    verb_pattern: Regex,
     /// Pre-compiled: Java/Kotlin signature pattern
     java_kotlin_sig_re: Regex,
     /// Pre-compiled: incomplete signature pattern
@@ -64,6 +102,12 @@ impl SchemaValidator {
         // Match behavior scenarios: input → output
         let behavior_pattern = Regex::new(r"→|->").unwrap();
 
+        // Match Gherkin-style: Given X, When Y, Then Z (case-insensitive)
+        let gherkin_pattern = Regex::new(r"(?i)\b(given|when|then)\b").unwrap();
+
+        // Match verb-style: functionName returns/throws/produces X when Y
+        let verb_pattern = Regex::new(r"(?i)\b(returns|throws|produces)\b").unwrap();
+
         // Pre-compiled hot path regexes
         let java_kotlin_sig_re = Regex::new(r"^\s*[-*]?\s*`?[A-Za-z_<>\[\]]+\s+[A-Za-z_][A-Za-z0-9_]*\s*\(").unwrap();
         let incomplete_sig_re = Regex::new(r"`?[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)`?$").unwrap();
@@ -80,6 +124,8 @@ impl SchemaValidator {
         Self {
             section_pattern,
             behavior_pattern,
+            gherkin_pattern,
+            verb_pattern,
             java_kotlin_sig_re,
             incomplete_sig_re,
             backtick_name_re,
@@ -87,7 +133,78 @@ impl SchemaValidator {
         }
     }
 
-    /// Validate a CLAUDE.md file
+    /// Evaluate conditions by scanning source files in the given directory.
+    pub fn evaluate_conditions(dir: &Path) -> ValidationContext {
+        let mut ctx = ValidationContext::default();
+
+        let mut file_count = 0u32;
+        let mut has_subdirs = false;
+
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return ctx,
+        };
+
+        let mut source_contents = Vec::new();
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().unwrap_or_default().to_string_lossy();
+                if !crate::EXCLUDED_DIRS.contains(&name.as_ref()) {
+                    has_subdirs = true;
+                }
+            } else if let Some(ext) = path.extension() {
+                let ext_str = ext.to_string_lossy();
+                if crate::SOURCE_EXTENSIONS.contains(&ext_str.as_ref()) {
+                    file_count += 1;
+                    // Read file content for keyword scanning (limit to first 10KB)
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        let truncated = if content.len() > 10240 {
+                            content[..10240].to_string()
+                        } else {
+                            content
+                        };
+                        source_contents.push(truncated);
+                    }
+                }
+            }
+        }
+
+        ctx.source_file_count = file_count as usize;
+        ctx.has_multiple_files = file_count >= 2;
+        ctx.has_subdirs_or_files = has_subdirs || file_count > 0;
+
+        // Scan source contents for pattern keywords
+        for content in &source_contents {
+            if !ctx.has_async_patterns {
+                ctx.has_async_patterns = ASYNC_KEYWORDS.iter().any(|kw| content.contains(kw));
+            }
+            if !ctx.has_concurrency_patterns {
+                ctx.has_concurrency_patterns = CONCURRENCY_KEYWORDS.iter().any(|kw| content.contains(kw));
+            }
+            if !ctx.has_stateful_patterns {
+                ctx.has_stateful_patterns = STATEFUL_KEYWORDS.iter().any(|kw| content.contains(kw));
+            }
+        }
+
+        ctx
+    }
+
+    /// Check if a condition is met by the given context
+    fn condition_met(condition: &str, ctx: &ValidationContext) -> bool {
+        match condition {
+            "always" => true,
+            "has_async_patterns" => ctx.has_async_patterns,
+            "has_concurrency_patterns" => ctx.has_concurrency_patterns,
+            "has_stateful_patterns" => ctx.has_stateful_patterns,
+            "has_subdirs_or_files" => ctx.has_subdirs_or_files,
+            "has_multiple_files" => ctx.has_multiple_files,
+            _ => true, // Unknown conditions default to required
+        }
+    }
+
+    /// Validate a CLAUDE.md file (always-required sections only, backward compatible)
     pub fn validate(&self, file: &Path) -> ValidationResult {
         let file_str = file.to_string_lossy().to_string();
 
@@ -104,17 +221,50 @@ impl SchemaValidator {
                         section: None,
                     }],
                     warnings: vec![],
+                    completeness_score: None,
                 };
             }
         };
 
+        self.validate_content(&content, &file_str, None)
+    }
+
+    /// Validate a CLAUDE.md file with context for conditional section evaluation.
+    /// When context is provided, conditionally required sections are also checked
+    /// if their condition is met.
+    pub fn validate_with_context(&self, file: &Path, ctx: &ValidationContext) -> ValidationResult {
+        let file_str = file.to_string_lossy().to_string();
+
+        let content = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(e) => {
+                return ValidationResult {
+                    file: file_str,
+                    valid: false,
+                    errors: vec![ValidationError {
+                        error_type: "FileError".to_string(),
+                        message: format!("Cannot read file: {}", e),
+                        line_number: None,
+                        section: None,
+                    }],
+                    warnings: vec![],
+                    completeness_score: None,
+                };
+            }
+        };
+
+        self.validate_content(&content, &file_str, Some(ctx))
+    }
+
+    /// Core validation logic shared between validate() and validate_with_context()
+    fn validate_content(&self, content: &str, file_str: &str, ctx: Option<&ValidationContext>) -> ValidationResult {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
 
         // Parse sections
-        let sections = self.parse_sections(&content);
+        let sections = self.parse_sections(content);
 
-        // Check required sections
+        // Check always-required sections
         for required in REQUIRED_SECTIONS {
             let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
 
@@ -144,6 +294,39 @@ impl SchemaValidator {
             }
         }
 
+        // Check conditionally-required sections when context is provided
+        if let Some(ctx) = ctx {
+            for (name, condition) in CONDITIONALLY_REQUIRED_SECTIONS {
+                if Self::condition_met(condition, ctx) {
+                    let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(name));
+
+                    match section_found {
+                        None => {
+                            errors.push(ValidationError {
+                                error_type: "MissingSection".to_string(),
+                                message: format!("Missing conditionally required section: {} (condition: {})", name, condition),
+                                line_number: None,
+                                section: Some(name.to_string()),
+                            });
+                        }
+                        Some(section) => {
+                            let allows_none = ALLOW_NONE_SECTIONS.iter().any(|s| s.eq_ignore_ascii_case(name));
+                            let is_none_marker = self.is_none_marker(section);
+
+                            if !allows_none && is_none_marker {
+                                errors.push(ValidationError {
+                                    error_type: "InvalidSectionContent".to_string(),
+                                    message: format!("Section '{}' does not allow 'None' as value", name),
+                                    line_number: Some(section.start_line),
+                                    section: Some(name.to_string()),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Validate Exports section format
         if let Some(exports) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Exports")) {
             self.validate_exports(exports, &mut errors, &mut warnings);
@@ -155,18 +338,28 @@ impl SchemaValidator {
         }
 
         // Validate Dependencies for forbidden references (INV-1: tree structure)
-        self.validate_dependencies(&content, &mut errors);
+        self.validate_dependencies(content, &mut errors);
+
+        // Calculate completeness score
+        let completeness = self.completeness_score(&sections);
 
         ValidationResult {
-            file: file_str,
+            file: file_str.to_string(),
             valid: errors.is_empty(),
             errors,
             warnings,
+            completeness_score: Some(completeness),
         }
     }
 
     /// Validate DEVELOPERS.md schema (called in strict mode)
     pub fn validate_developers(&self, developers_path: &Path) -> ValidationResult {
+        self.validate_developers_with_context(developers_path, None)
+    }
+
+    /// Validate DEVELOPERS.md schema with optional directory context.
+    /// When dir_path is provided, File Map "None" is allowed for single-file directories.
+    pub fn validate_developers_with_context(&self, developers_path: &Path, dir_path: Option<&Path>) -> ValidationResult {
         let file_str = developers_path.to_string_lossy().to_string();
 
         let content = match std::fs::read_to_string(developers_path) {
@@ -182,6 +375,7 @@ impl SchemaValidator {
                         section: None,
                     }],
                     warnings: vec![],
+                    completeness_score: None,
                 };
             }
         };
@@ -191,8 +385,26 @@ impl SchemaValidator {
 
         let sections = self.parse_sections(&content);
 
+        // Determine if the directory has multiple files (for File Map condition)
+        let has_multiple_files = dir_path.map_or(true, |dir| {
+            Self::count_source_files(dir) >= 2
+        });
+
         // Check required sections for DEVELOPERS.md
         for required in DEVELOPERS_REQUIRED_SECTIONS {
+            // Check if this section has a condition
+            let condition = DEVELOPERS_CONDITIONAL_SECTIONS
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case(required))
+                .map(|(_, cond)| *cond);
+
+            // If there's a condition and it's not met, skip this section
+            if let Some(cond) = condition {
+                if cond == "has_multiple_files" && !has_multiple_files {
+                    continue;
+                }
+            }
+
             let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
 
             match section_found {
@@ -210,7 +422,11 @@ impl SchemaValidator {
                         .any(|s| s.eq_ignore_ascii_case(required));
                     let is_none = self.is_none_marker(section);
 
-                    if !allows_none && is_none {
+                    // File Map: allow None for single-file directories
+                    let file_map_single_file_exemption =
+                        required.eq_ignore_ascii_case("File Map") && !has_multiple_files;
+
+                    if !allows_none && is_none && !file_map_single_file_exemption {
                         errors.push(ValidationError {
                             error_type: "InvalidSectionContent".to_string(),
                             message: format!(
@@ -230,13 +446,40 @@ impl SchemaValidator {
             valid: errors.is_empty(),
             errors,
             warnings,
+            completeness_score: None,
+        }
+    }
+
+    /// Count source files in a directory
+    fn count_source_files(dir: &Path) -> usize {
+        match std::fs::read_dir(dir) {
+            Ok(entries) => entries
+                .flatten()
+                .filter(|e| {
+                    e.path().is_file()
+                        && e.path()
+                            .extension()
+                            .map_or(false, |ext| {
+                                crate::SOURCE_EXTENSIONS.contains(&ext.to_string_lossy().as_ref())
+                            })
+                })
+                .count(),
+            Err(_) => 0,
         }
     }
 
     /// Validate CLAUDE.md with strict mode: also checks DEVELOPERS.md presence and schema (INV-3)
     pub fn validate_strict(&self, claude_md_path: &Path) -> ValidationResult {
+        self.validate_strict_with_context(claude_md_path, None)
+    }
+
+    /// Validate CLAUDE.md with strict mode and optional context
+    pub fn validate_strict_with_context(&self, claude_md_path: &Path, ctx: Option<&ValidationContext>) -> ValidationResult {
         // First validate CLAUDE.md itself
-        let mut result = self.validate(claude_md_path);
+        let mut result = match ctx {
+            Some(c) => self.validate_with_context(claude_md_path, c),
+            None => self.validate(claude_md_path),
+        };
 
         // Check DEVELOPERS.md existence (INV-3)
         let developers_path = claude_md_path
@@ -244,14 +487,16 @@ impl SchemaValidator {
             .map(|p| p.join("DEVELOPERS.md"))
             .unwrap_or_else(|| std::path::PathBuf::from("DEVELOPERS.md"));
 
+        let dir_path = claude_md_path.parent();
+
         if !developers_path.exists() {
             result.warnings.push(format!(
                 "INV-3: DEVELOPERS.md not found at {}",
                 developers_path.display()
             ));
         } else {
-            // Validate DEVELOPERS.md schema
-            let dev_result = self.validate_developers(&developers_path);
+            // Validate DEVELOPERS.md schema with directory context
+            let dev_result = self.validate_developers_with_context(&developers_path, dir_path);
             if !dev_result.valid {
                 for err in dev_result.errors {
                     result.errors.push(ValidationError {
@@ -266,6 +511,29 @@ impl SchemaValidator {
         }
 
         result
+    }
+
+    /// Calculate completeness score: percentage of non-None required sections (0-100)
+    pub fn completeness_score(&self, sections: &[ValidatorSection]) -> u32 {
+        let all_required: Vec<&str> = REQUIRED_SECTIONS.to_vec();
+        if all_required.is_empty() {
+            return 100;
+        }
+
+        let mut total = 0u32;
+        let mut non_none = 0u32;
+
+        for required in &all_required {
+            total += 1;
+            if let Some(section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required)) {
+                if !self.is_none_marker(section) {
+                    non_none += 1;
+                }
+            }
+            // Missing sections count as None (they don't contribute to non_none)
+        }
+
+        if total == 0 { 100 } else { (non_none * 100) / total }
     }
 
     fn parse_sections(&self, content: &str) -> Vec<ValidatorSection> {
@@ -425,16 +693,29 @@ impl SchemaValidator {
                 continue;
             }
 
-            // Check for scenario pattern: input → output
+            // Check for scenario pattern: input → output (original format)
             if self.behavior_pattern.is_match(trimmed) {
                 found_valid_behavior = true;
+                continue;
+            }
+
+            // Check for Gherkin-style: Given/When/Then keywords
+            if self.gherkin_pattern.is_match(trimmed) {
+                found_valid_behavior = true;
+                continue;
+            }
+
+            // Check for verb-style: returns/throws/produces
+            if self.verb_pattern.is_match(trimmed) {
+                found_valid_behavior = true;
+                continue;
             }
         }
 
         if !found_valid_behavior && !section.content.is_empty() {
             errors.push(ValidationError {
                 error_type: "InvalidBehavior".to_string(),
-                message: "Behavior section must contain scenarios in 'input → output' format or 'None'".to_string(),
+                message: "Behavior section must contain scenarios in 'input → output', Gherkin (Given/When/Then), or verb (returns/throws/produces) format, or 'None'".to_string(),
                 line_number: Some(section.start_line),
                 section: Some("Behavior".to_string()),
             });
@@ -621,10 +902,10 @@ impl Default for SchemaValidator {
 }
 
 /// Section representation for schema validation, tracking line numbers for error reporting.
-struct ValidatorSection {
-    name: String,
-    start_line: usize,
-    content: Vec<(usize, String)>,
+pub struct ValidatorSection {
+    pub name: String,
+    pub start_line: usize,
+    pub content: Vec<(usize, String)>,
 }
 
 #[cfg(test)]
@@ -642,7 +923,7 @@ mod tests {
         (temp, file_path)
     }
 
-    /// Helper: Appends Contract and Protocol sections with None if missing
+    /// Helper: Appends always-required allow-none sections if missing
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
         if !content.contains("## Domain Context") {
@@ -651,8 +932,8 @@ mod tests {
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
-        if !content.contains("## Protocol") {
-            content.push_str("\n## Protocol\nNone\n");
+        if !content.contains("## Error Taxonomy") {
+            content.push_str("\n## Error Taxonomy\nNone\n");
         }
         content
     }
@@ -768,7 +1049,10 @@ Validates tokens.
 ## Behavior
 - valid token → Claims object
 
-## Protocol
+## Error Taxonomy
+None
+
+## Domain Context
 None
 "#;
         let (_temp, path) = create_test_file(content);
@@ -781,34 +1065,6 @@ None
             .errors
             .iter()
             .any(|e| e.message.contains("Contract")));
-    }
-
-    #[test]
-    fn test_missing_protocol_fails() {
-        let content = r#"# Test Module
-
-## Purpose
-Validates tokens.
-
-## Exports
-- `validateToken(token: string): Promise<Claims>`
-
-## Behavior
-- valid token → Claims object
-
-## Contract
-None
-"#;
-        let (_temp, path) = create_test_file(content);
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate(&path);
-
-        assert!(!result.valid);
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| e.message.contains("Protocol")));
     }
 
     #[test]
@@ -833,6 +1089,125 @@ Validates tokens.
 
         // Contract with None should pass
         assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    // Protocol and Async Contract are now conditionally required (dynamic)
+    // Without context, they are not required by validate()
+    #[test]
+    fn test_protocol_not_required_without_context() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        // Protocol is now conditional — should pass without it
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_protocol_required_with_stateful_context() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- valid token → Claims object
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let ctx = ValidationContext {
+            has_stateful_patterns: true,
+            ..Default::default()
+        };
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_with_context(&path, &ctx);
+
+        // Protocol is required when has_stateful_patterns is true
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e|
+            e.message.contains("Protocol") && e.message.contains("conditionally required")
+        ));
+    }
+
+    #[test]
+    fn test_async_contract_not_required_without_async() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Simple utility.
+
+## Exports
+- `add(a: number, b: number): number`
+
+## Behavior
+- two numbers → sum
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let ctx = ValidationContext {
+            has_async_patterns: false,
+            ..Default::default()
+        };
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_with_context(&path, &ctx);
+
+        // Async Contract should not be required
+        assert!(result.valid, "Validation failed: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_async_contract_required_with_async_context() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Async data fetcher.
+
+## Exports
+- `fetchData(url: string): Promise<Data>`
+
+## Behavior
+- valid url → Data object
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let ctx = ValidationContext {
+            has_async_patterns: true,
+            ..Default::default()
+        };
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_with_context(&path, &ctx);
+
+        // Async Contract is required when has_async_patterns is true
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e|
+            e.message.contains("Async Contract")
+        ));
     }
 
     // C-1: Forbidden reference tests
@@ -1043,13 +1418,13 @@ Test module.
         let validator = SchemaValidator::new();
         let (fixed, added) = validator.fix_missing_sections(content);
 
-        // Should add Contract, Protocol, Domain Context (all allow_none)
+        // Should add Contract, Domain Context, Error Taxonomy (always-required allow_none sections)
+        // Protocol, Async Contract, Concurrency Model are now conditional — not added by fix
         assert!(added.contains(&"Contract".to_string()));
-        assert!(added.contains(&"Protocol".to_string()));
         assert!(added.contains(&"Domain Context".to_string()));
-        assert_eq!(added.len(), 3);
+        assert!(added.contains(&"Error Taxonomy".to_string()));
 
-        // Fixed content should pass validation
+        // Fixed content should pass validation (without context)
         let (_temp, path) = create_test_file(&fixed);
         let result = validator.validate(&path);
         assert!(result.valid, "Fixed content should pass: {:?}", result.errors);
@@ -1185,6 +1560,36 @@ None
     }
 
     #[test]
+    fn test_developers_file_map_none_allowed_single_file() {
+        let content = r#"# Test Module
+
+## File Map
+None
+
+## Data Structures
+None
+
+## Decision Log
+None
+
+## Operations
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        // Create a single source file to simulate single-file directory
+        let source_file = temp.path().join("index.ts");
+        File::create(&source_file).unwrap();
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers_with_context(&path, Some(temp.path()));
+
+        // File Map None should be allowed for single-file directory
+        assert!(result.valid, "Single-file dir should allow File Map None: {:?}", result.errors);
+    }
+
+    #[test]
     fn test_developers_data_structures_allows_none() {
         let content = r#"# Test Module
 
@@ -1302,6 +1707,10 @@ Test module.
         let mut f = File::create(&claude_path).unwrap();
         write!(f, "{}", claude_content).unwrap();
 
+        // Create 2 source files so File Map is required (has_multiple_files condition)
+        File::create(temp.path().join("index.ts")).unwrap();
+        File::create(temp.path().join("utils.ts")).unwrap();
+
         // DEVELOPERS.md missing File Map
         let dev_content = r#"# Test Module
 
@@ -1346,5 +1755,154 @@ Provides server management.
         let result = validator.validate(&path);
 
         assert!(result.valid, "*Server pointer return type should be valid: {:?}", result.errors);
+    }
+
+    // Behavior format extension tests
+    #[test]
+    fn test_behavior_gherkin_format_passes() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- Given a valid JWT token, When validateToken is called, Then it returns Claims
+- Given an expired token, When validateToken is called, Then it throws TokenExpiredError
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Gherkin behavior format should pass: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_behavior_verb_format_passes() {
+        let content = with_required_sections(
+            r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Exports
+- `validateToken(token: string): Promise<Claims>`
+
+## Behavior
+- validateToken returns Claims when given a valid JWT token
+- validateToken throws TokenExpiredError when given an expired token
+"#,
+        );
+        let (_temp, path) = create_test_file(&content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate(&path);
+
+        assert!(result.valid, "Verb behavior format should pass: {:?}", result.errors);
+    }
+
+    // Completeness score tests
+    #[test]
+    fn test_completeness_score_all_populated() {
+        let content = r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+- `foo(x: int): string`
+
+## Behavior
+- input → output
+
+## Contract
+### foo
+- Preconditions: x must be positive
+
+## Error Taxonomy
+### Error Hierarchy
+AppError > ValidationError
+
+## Domain Context
+### Decision Rationale
+- X: value Y (reason Z)
+"#;
+        let validator = SchemaValidator::new();
+        let sections = validator.parse_sections(content);
+        let score = validator.completeness_score(&sections);
+        // All 6 always-required sections are populated (non-None)
+        assert_eq!(score, 100);
+    }
+
+    #[test]
+    fn test_completeness_score_with_none_sections() {
+        let content = r#"# Test Module
+
+## Purpose
+Test module.
+
+## Exports
+None
+
+## Behavior
+None
+
+## Contract
+None
+
+## Error Taxonomy
+None
+
+## Domain Context
+None
+"#;
+        let validator = SchemaValidator::new();
+        let sections = validator.parse_sections(content);
+        let score = validator.completeness_score(&sections);
+        // Only Purpose is non-None out of 6 always-required sections
+        // Score = 1/6 * 100 = 16
+        assert_eq!(score, 16);
+    }
+
+    // Condition evaluation tests
+    #[test]
+    fn test_evaluate_conditions_empty_dir() {
+        let temp = TempDir::new().unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(!ctx.has_async_patterns);
+        assert!(!ctx.has_concurrency_patterns);
+        assert!(!ctx.has_stateful_patterns);
+        assert!(!ctx.has_multiple_files);
+        assert_eq!(ctx.source_file_count, 0);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_async_file() {
+        let temp = TempDir::new().unwrap();
+        let file_path = temp.path().join("service.ts");
+        let mut f = File::create(&file_path).unwrap();
+        write!(f, "export async function fetchData() {{ return await fetch('url'); }}").unwrap();
+
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.has_async_patterns);
+        assert!(!ctx.has_concurrency_patterns);
+        assert_eq!(ctx.source_file_count, 1);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_concurrent_file() {
+        let temp = TempDir::new().unwrap();
+        let file_path = temp.path().join("cache.rs");
+        let mut f = File::create(&file_path).unwrap();
+        write!(f, "use std::sync::{{Arc, Mutex}};\nstruct Cache {{ data: Arc<Mutex<Vec<u8>>> }}").unwrap();
+
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.has_concurrency_patterns);
+        assert!(!ctx.has_async_patterns);
     }
 }

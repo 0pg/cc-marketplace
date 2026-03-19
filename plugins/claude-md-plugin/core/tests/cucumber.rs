@@ -1415,6 +1415,7 @@ fn check_required_sections(world: &mut TestWorld) {
         valid: true,
         errors: vec![],
         warnings: vec![],
+        completeness_score: None,
     });
 }
 

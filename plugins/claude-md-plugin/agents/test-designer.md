@@ -36,8 +36,13 @@ description: |
   test_files: [src/auth/auth.test.ts]
   delta: { added: 3, modified: 0, removed: 0 }
   export_tests: 3
+  contract_tests: 2
+  contract_tests_skipped: 1
+  async_contract_tests: 0
+  error_taxonomy_tests: 0
+  concurrency_tests: 0
   behavior_tests: 5
-  total_tests: 8
+  total_tests: 10
   ---end-test-designer-result---
   </assistant_response>
   <commentary>
@@ -75,6 +80,11 @@ description: |
   test_files: [src/auth/auth.test.ts]
   delta: { added: 1, modified: 0, removed: 0 }
   export_tests: 1
+  contract_tests: 0
+  contract_tests_skipped: 0
+  async_contract_tests: 0
+  error_taxonomy_tests: 0
+  concurrency_tests: 0
   behavior_tests: 2
   total_tests: 3
   ---end-test-designer-result---
@@ -112,8 +122,13 @@ description: |
   test_files: [src/auth/auth.test.ts]
   delta: { added: 0, modified: 1, removed: 0 }
   export_tests: 3
+  contract_tests: 2
+  contract_tests_skipped: 1
+  async_contract_tests: 0
+  error_taxonomy_tests: 0
+  concurrency_tests: 0
   behavior_tests: 5
-  total_tests: 8
+  total_tests: 10
   ---end-test-designer-result---
   </assistant_response>
   </example>
@@ -214,6 +229,16 @@ dependency CLAUDE.md 경로 목록: [<paths>]
 - 각 throws → 최소 1개 에러 테스트
 - Contract Tests는 `describe('Contract Tests', ...)` 블록으로 별도 그룹화
 
+### Phase 2.5b: Contract-Behavior Test 중복 제거
+
+Contract Test와 Behavior Test 간 동일한 assertion을 감지합니다.
+동일 assertion이 발견되면 Contract Test에 `// covered by Behavior Test: <name>` 주석을 추가하고 skip 처리합니다.
+
+**규칙:**
+- Behavior Test가 이미 동일한 에러/결과를 검증하고 있으면 Contract Test는 중복
+- Contract Test의 assertion 로직이 Behavior Test에 완전히 포함되는 경우에만 skip
+- 부분 중복은 skip하지 않음 (Contract Test 유지)
+
 ### Phase 2.6: Async Contract Tests 생성 (해당 시)
 
 **Async Contract 섹션이 `None`이 아닌 경우, 비동기 패턴 테스트를 생성합니다.**
@@ -281,7 +306,8 @@ mode: incremental | full
 test_files: [<파일 목록>]
 delta: { added: N, modified: N, removed: N }
 export_tests: N
-contract_tests: N
+contract_tests: N          # active (실행되는) contract tests
+contract_tests_skipped: N  # Behavior Test로 커버되어 skip된 수
 async_contract_tests: N
 error_taxonomy_tests: N
 concurrency_tests: N

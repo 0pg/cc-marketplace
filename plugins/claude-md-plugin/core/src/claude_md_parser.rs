@@ -1430,7 +1430,7 @@ struct ParserSection {
 mod tests {
     use super::*;
 
-    /// Helper: Returns minimal required sections with Contract/Protocol as None
+    /// Helper: Returns minimal always-required sections with allow-none as None
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
         if !content.contains("## Domain Context") {
@@ -1439,8 +1439,8 @@ mod tests {
         if !content.contains("## Contract") {
             content.push_str("\n## Contract\nNone\n");
         }
-        if !content.contains("## Protocol") {
-            content.push_str("\n## Protocol\nNone\n");
+        if !content.contains("## Error Taxonomy") {
+            content.push_str("\n## Error Taxonomy\nNone\n");
         }
         content
     }
@@ -1544,6 +1544,9 @@ Test module.
 None
 
 ## Protocol
+None
+
+## Error Taxonomy
 None
 
 ## Domain Context
@@ -1674,9 +1677,9 @@ None
     }
 
     #[test]
-    fn test_fail_fast_missing_protocol() {
+    fn test_protocol_optional_without_context() {
         let parser = ClaudeMdParser::new();
-        // Missing Protocol section (only Contract + Domain Context)
+        // Protocol is now conditional (has_stateful_patterns) — should pass without it
         let content = r#"# test
 
 ## Purpose
@@ -1693,11 +1696,12 @@ None
 
 ## Contract
 None
+
+## Error Taxonomy
+None
 "#;
         let result = parser.parse_content(content);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Protocol"));
+        assert!(result.is_ok(), "Missing Protocol should not fail: {:?}", result.err());
     }
 
     #[test]
@@ -1769,6 +1773,9 @@ None
 ## Protocol
 None
 
+## Error Taxonomy
+None
+
 ## Domain Context
 
 ### Decision Rationale
@@ -1830,6 +1837,9 @@ Test module.
 None
 
 ## Protocol
+None
+
+## Error Taxonomy
 None
 
 ## Domain Context

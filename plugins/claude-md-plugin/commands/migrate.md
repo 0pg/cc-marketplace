@@ -2,7 +2,7 @@
 name: migrate
 description: |
   claude-md-plugin 버전 업그레이드 시 기존 프로젝트를 새 버전에 맞게 마이그레이션합니다.
-  레거시 IMPLEMENTS.md 정리, CLAUDE.md 스키마 누락 섹션 추가, 검증 연계.
+  레거시 IMPLEMENTS.md 정리, CLAUDE.md 스키마 누락 섹션 추가, 불필요한 conditional "None" 섹션 제거, 검증 연계.
 argument-hint: "[project_root_path]"
 allowed-tools: [Bash, Read, Glob, Grep, Skill, AskUserQuestion]
 ---
@@ -11,9 +11,10 @@ allowed-tools: [Bash, Read, Glob, Grep, Skill, AskUserQuestion]
 
 기존 프로젝트를 현재 플러그인 버전에 맞게 마이그레이션합니다.
 
-두 가지 마이그레이션을 자동 감지하여 처리합니다:
+세 가지 마이그레이션을 자동 감지하여 처리합니다:
 1. **레거시 정리**: IMPLEMENTS.md 삭제 (v2.x → v3.0+)
 2. **스키마 업그레이드**: CLAUDE.md 누락 필수 섹션 추가 (v3.x → v4.0+)
+3. **조건부 정리**: 불필요한 conditional "None" 섹션 제거 + Decision Log 언어 정규화 (v4.x → v5.0+)
 
 ## Triggers
 
@@ -53,6 +54,8 @@ CLAUDE.md가 없으면:
 |-----------|-----------------|------|
 | IMPLEMENTS.md 존재 | **LEGACY_CLEANUP** | 폐기된 IMPLEMENTS.md 삭제 |
 | CLAUDE.md 스키마 검증 FAIL | **SCHEMA_UPGRADE** | 누락 필수 섹션 추가 |
+| Protocol/Async Contract/Concurrency Model이 "None"이고 해당 패턴 미감지 | **CONDITIONAL_CLEANUP** | 불필요한 conditional "None" 섹션 제거 |
+| Decision Log에 Korean 필드명(맥락/결정/근거) 사용 | **CONDITIONAL_CLEANUP** | 언어 정규화 (Context/Decision/Rationale alias 지원 추가) |
 | 위 해당 없음 | **UP_TO_DATE** | 마이그레이션 불필요 |
 
 스키마 검증:
@@ -87,6 +90,12 @@ done
 | 파일 | 누락 섹션 |
 |------|----------|
 | src/auth/CLAUDE.md | Async Contract, Error Taxonomy, Concurrency Model |
+
+[3] 조건부 정리 (v4→v5): {K}개 파일
+| 파일 | 작업 |
+|------|------|
+| src/utils/CLAUDE.md | Protocol(None) 제거, Concurrency Model(None) 제거 |
+| src/utils/DEVELOPERS.md | Decision Log 필드명 alias 정규화 |
 ```
 
 ```
@@ -119,6 +128,40 @@ for claude_md in ${failed_targets}; do
   $CLI_PATH fix-schema --file "$claude_md"
 done
 ```
+
+### 5.5. 조건부 정리 (CONDITIONAL_CLEANUP)
+
+CONDITIONAL_CLEANUP이 감지된 경우 실행합니다.
+
+**5.5a. 불필요한 conditional "None" 섹션 제거:**
+
+Protocol, Async Contract, Concurrency Model 섹션이 "None"이고 코드에 해당 패턴이 없는 경우 섹션을 제거합니다:
+
+```bash
+for claude_md in ${conditional_cleanup_targets}; do
+  dir=$(dirname "$claude_md")
+  analysis=$($CLI_PATH analyze-code --dir "$dir" --format json 2>&1)
+
+  # JSON에서 패턴 감지 결과 추출
+  has_stateful=$(echo "$analysis" | grep -o '"has_stateful_patterns":[a-z]*' | cut -d: -f2)
+  has_async=$(echo "$analysis" | grep -o '"has_async_patterns":[a-z]*' | cut -d: -f2)
+  has_concurrency=$(echo "$analysis" | grep -o '"has_concurrency_patterns":[a-z]*' | cut -d: -f2)
+done
+```
+
+각 conditional 섹션에 대해:
+- 패턴 미감지 + 섹션 내용이 "None" → `Edit`으로 섹션 제거 (## 헤더 + None 행)
+- 패턴 감지 또는 내용이 "None"이 아님 → 유지
+
+**5.5b. Decision Log 언어 정규화:**
+
+DEVELOPERS.md의 Decision Log에서 Korean 필드명을 감지하고 alias 지원을 확인합니다:
+- `맥락` → `Context|맥락` (양쪽 허용)
+- `결정` → `Decision|결정` (양쪽 허용)
+- `근거` → `Rationale|근거` (양쪽 허용)
+
+> 기존 Korean 필드명은 유효한 alias로 인정되므로 강제 변환하지 않습니다.
+> 단, 검증 시 양쪽 모두 인식하도록 정규화합니다.
 
 ### 6. 재검증 + Diff 표시
 
@@ -154,6 +197,7 @@ git status -- "**/IMPLEMENTS.md"
 
 레거시 정리: {deleted}개 IMPLEMENTS.md 삭제
 스키마 업그레이드: {fixed}개 CLAUDE.md 섹션 추가
+조건부 정리: {cleaned}개 파일 정리 (conditional None 제거 + 언어 정규화)
 스키마 검증: {pass}/{total} PASS
 
 다음 단계:
@@ -202,7 +246,7 @@ Skill("claude-md-plugin:compile", args: "--all --conflict overwrite")
 - 마이그레이션 유형을 자동 감지
 - 계획 표시 후 1회 승인으로 전체 진행
 - IMPLEMENTS.md는 삭제만 (DEVELOPERS.md 생성은 /decompile 책임)
-- fix-schema CLI로 결정론적 섹션 추가
+- fix-schema CLI로 결정론적 섹션 추가 (Error Taxonomy를 포함한 모든 always-required allow-none 섹션을 자동 추가)
 - /validate, /compile은 선택적 실행
 
 **DON'T:**
@@ -298,6 +342,50 @@ CLI 빌드 확인... OK
   ✓ 5개 파일 — 각 3개 섹션 추가
 
 스키마 검증: 5/5 PASS
+
+마이그레이션 완료.
+</assistant_response>
+</example>
+
+<example>
+<context>
+v4.1에서 v5.0으로 업그레이드하는 프로젝트 (conditional "None" 섹션 존재)
+</context>
+<user_request>/migrate</user_request>
+<assistant_response>
+CLI 빌드 확인... OK
+
+문서 파일 수집:
+  CLAUDE.md: 3개
+  IMPLEMENTS.md: 0개
+
+마이그레이션 유형 감지:
+  [1] 레거시 정리: 해당 없음
+  [2] 스키마 업그레이드: 해당 없음
+  [3] 조건부 정리: 2개 파일
+
+마이그레이션 계획
+================
+
+[3] 조건부 정리 (v4→v5): 2개 파일
+| 파일 | 작업 |
+|------|------|
+| src/auth/CLAUDE.md | Protocol(None) 제거, Concurrency Model(None) 제거 |
+| src/utils/CLAUDE.md | Async Contract(None) 제거 |
+
+진행하시겠습니까? [진행/취소]
+→ 진행
+
+=== 조건부 정리 ===
+  ✓ src/auth/CLAUDE.md — 2개 섹션 제거 (Protocol, Concurrency Model)
+  ✓ src/utils/CLAUDE.md — 1개 섹션 제거 (Async Contract)
+
+스키마 검증: 3/3 PASS
+
+마이그레이션 결과
+================
+조건부 정리: 2개 파일 정리 (3개 conditional None 섹션 제거)
+스키마 검증: 3/3 PASS
 
 마이그레이션 완료.
 </assistant_response>

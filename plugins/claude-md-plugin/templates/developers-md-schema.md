@@ -36,9 +36,12 @@ CLAUDE.md (WHAT) + DEVELOPERS.md (WHY) → Source Code
 
 ## 필수 섹션 (4개)
 
-### ## File Map (필수, None 불가)
+### ## File Map (필수, 조건부 None 허용)
 
 테이블 형식. 파일별 역할과 내부 의존관계.
+
+> 단일 파일 디렉토리(소스 파일 1개 이하)에서는 File Map 섹션 자체가 필수가 아닙니다.
+> 2개 이상 소스 파일이 있는 디렉토리에서는 File Map이 필수이며 "None"은 허용되지 않습니다.
 
 ```markdown
 ## File Map
@@ -70,6 +73,14 @@ RawToken → DecodedPayload → Claims (export)
 ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고정 스키마(맥락/결정/근거) 준수.
 날짜 필드 없음 — 현재 유효한 결정만 기록. 철회된 결정은 삭제 (git에 이력 남음).
 
+> **Bilingual support**: 필드명은 English 권장, Korean alias 허용.
+> - `Context` | `맥락`
+> - `Decision` | `결정`
+> - `Rationale` | `근거`
+
+> **Domain Context 중복 금지**: CLAUDE.md Domain Context에 이미 있는 값은 Decision Log에서 반복하지 않고 참조만 합니다.
+> 예: "TOKEN_EXPIRY: 7일" 이 Domain Context에 있으면, Decision Log에서는 "배경 스토리"만 기록.
+
 ```markdown
 ## Decision Log
 
@@ -86,7 +97,7 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 
 ### ## Operations (필수, None 허용)
 
-3개 서브섹션: Gotchas, 배포, 모니터링.
+3개 서브섹션 (bilingual 허용): Gotchas, Deployment|배포, Monitoring|모니터링.
 
 ```markdown
 ## Operations

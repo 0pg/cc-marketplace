@@ -74,7 +74,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -102,7 +102,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -130,7 +130,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -158,7 +158,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -186,7 +186,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -212,7 +212,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -240,7 +240,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -273,7 +273,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -299,7 +299,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -326,7 +326,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -354,7 +354,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -380,7 +380,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -410,7 +410,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -445,7 +445,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -475,7 +475,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -497,7 +497,7 @@ Feature: Schema Validation
       - input → output
       """
     When I fix the schema
-    Then fix should add sections "Contract, Protocol, Domain Context"
+    Then fix should add sections "Contract, Domain Context, Error Taxonomy"
     And the fixed file should pass validation
 
   Scenario: Fix schema does not modify complete files
@@ -517,10 +517,10 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Domain Context
       None
 
-      ## Domain Context
+      ## Error Taxonomy
       None
       """
     When I fix the schema
@@ -550,7 +550,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -580,7 +580,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -613,7 +613,7 @@ Feature: Schema Validation
       ## Contract
       None
 
-      ## Protocol
+      ## Error Taxonomy
       None
       """
     When I validate the schema
