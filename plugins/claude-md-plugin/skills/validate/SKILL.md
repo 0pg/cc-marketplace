@@ -1,10 +1,10 @@
 ---
 name: validate
-version: 2.0.0
+version: 3.0.0
 aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
-  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation, then verifies confirmed issues via multi-agent pipeline and reports contract violations.
+  "verify specification matches implementation", "check for drift", "check export coverage", "lint documentation", or uses "/validate". Runs validator agent for comprehensive validation (drift detection + inline verification + severity classification), then reports contract violations for critical issues via violation-reporter agent.
   Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트, export 커버리지, 계약 위반
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task]
@@ -39,7 +39,7 @@ Glob으로 대상 경로의 모든 CLAUDE.md 수집:
 Glob("**/CLAUDE.md", path={path})
 ```
 
-### 1.5. 스키마 검증 (CLI)
+### 2. 스키마 검증 (CLI)
 
 validate SKILL이 직접 Bash로 CLI를 실행하여 각 CLAUDE.md의 스키마를 검증합니다.
 
@@ -84,9 +84,11 @@ $CLI_PATH fix-schema --file "$claude_md"
 $CLI_PATH validate-schema --file "$claude_md" --strict --output "${TMP_DIR}schema-${dir_safe}.json"
 ```
 
-### 2. 배치 Drift 검증
+### 3. 배치 Drift 검증 + Inline Verification
 
 validator agent를 **최대 3개씩 배치 처리**하여 context 폭발을 방지합니다.
+
+**변경점 (v3.0):** validator가 drift 검출과 동시에 inline verification (CONFIRMED/FALSE_POSITIVE 판정) 및 severity 분류를 수행합니다. 별도의 issue-verifier agent가 필요 없습니다.
 
 **배치 처리 규칙:**
 - 대상 CLAUDE.md 목록을 최대 3개씩 나누어 배치 생성
@@ -102,8 +104,8 @@ validator agent를 **최대 3개씩 배치 처리**하여 context 폭발을 방�
 
 validator agent의 결과 블록을 파싱하여 아래 형식으로 append합니다:
 ```bash
-printf '{"directory":"src/auth","status":"success","issues_count":0,"export_coverage":95,"result_file":"%svalidate-src-auth.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
-printf '{"directory":"src/utils","status":"success","issues_count":2,"export_coverage":72,"result_file":"%svalidate-src-utils.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
+printf '{"directory":"src/auth","status":"success","issues_count":0,"confirmed_issues":0,"false_positives":0,"severity":"","export_coverage":95,"result_file":"%svalidate-src-auth.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
+printf '{"directory":"src/utils","status":"success","issues_count":3,"confirmed_issues":2,"false_positives":1,"severity":"HIGH:1 MEDIUM:1","export_coverage":72,"result_file":"%svalidate-src-utils.md"}\n' "$TMP_DIR" >> "${TMP_DIR}validate-progress.jsonl"
 ```
 
 **compact 대비:**
@@ -112,7 +114,7 @@ printf '{"directory":"src/utils","status":"success","issues_count":2,"export_cov
 - validator agent의 상세 결과도 개별 `${TMP_DIR}validate-*.md` 파일에 저장되어 있음
 - **compact 후 재개:** `${TMP_DIR}validate-progress.jsonl`을 Read하여 이미 완료된 directory 목록을 확인하고, 나머지 대상만 다음 배치로 처리. 중복 실행 방지를 위해 JSONL의 `directory` 필드와 대상 목록을 대조.
 
-### 3. 결과 수집
+### 4. 결과 수집
 
 validator agent는 구조화된 블록으로 결과를 반환:
 
@@ -122,68 +124,28 @@ status: success | failed
 result_file: ${TMP_DIR}validate-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
+confirmed_issues: {N}
+false_positives: {N}
+severity: CRITICAL:{N} HIGH:{N} MEDIUM:{N} LOW:{N}
 export_coverage: {0-100}
 ---end-validate-result---
 ```
 
-### 4. 중간 결과 확인
+### 5. 중간 결과 확인
 
-`${TMP_DIR}validate-progress.jsonl`을 Read하여 이슈가 있는 디렉토리를 파악합니다. 이슈가 있는 디렉토리는 Step 5 재검증 대상이 됩니다.
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 CONFIRMED 이슈가 있는 디렉토리를 파악합니다.
 
-**이슈 없는 경우:** 모든 디렉토리가 이슈 0개이고 스키마도 모두 PASS이면, Step 5-6을 스킵하고 Step 7로 직행합니다.
+**스킵 조건:** 모든 디렉토리가 confirmed_issues 0개이고 스키마도 모두 PASS이면, Step 6을 스킵하고 Step 7로 직행합니다.
 
-### 5. 이슈 재검증 (issue-verifier)
-
-검증 보고서에서 이슈가 있는 디렉토리만 대상으로, issue-verifier agent를 통해 각 이슈가 진짜 문제인지 재검증합니다.
-
-**재검증 대상 선별:**
-- `${TMP_DIR}validate-progress.jsonl`에서 `issues_count > 0`인 디렉토리만 추출
-- 스키마 검증에서도 `valid: false`인 디렉토리 포함
-
-**배치 처리 규칙:**
-- validator agent와 동일하게 **최대 3개씩 배치 처리**
-- 각 배치 내의 issue-verifier agent Task를 **단일 메시지에서 병렬로 호출**
-
-**각 배치에서 issue-verifier agent 호출:**
-```
-Task(issue-verifier):
-  검증 대상: {directory}
-  검증 결과 파일: ${TMP_DIR}validate-{dir-safe-name}.md
-  CLAUDE.md: {directory}/CLAUDE.md
-  스키마 결과: ${TMP_DIR}schema-{dir-safe-name}.json
-```
-
-**결과 수집:**
-
-issue-verifier agent는 구조화된 블록으로 결과를 반환:
-```
----issue-verifier-result---
-status: success | failed
-result_file: ${TMP_DIR}verified-{dir-safe-name}.md
-directory: {directory}
-total_issues: {N}
-confirmed_issues: {N}
-false_positives: {N}
----end-issue-verifier-result---
-```
-
-**진행 파일 업데이트:**
-```bash
-printf '{"directory":"%s","phase":"verify","confirmed_issues":%d,"false_positives":%d,"result_file":"%s"}\n' \
-  "$directory" "$confirmed" "$false_positives" "${TMP_DIR}verified-${dir_safe}.md" \
-  >> "${TMP_DIR}validate-progress.jsonl"
-```
-
-**스킵 조건:** 이슈가 0개인 디렉토리는 재검증을 스킵합니다.
+**violation-reporter 호출 조건:**
+- `severity`에 **CRITICAL 또는 HIGH**가 포함된 디렉토리만 violation-reporter 대상
+- MEDIUM/LOW만 있는 디렉토리는 SKILL이 직접 요약 (reporter 스킵)
 
 ### 6. 위반 보고 (violation-reporter)
 
-재검증에서 CONFIRMED된 이슈가 있는 디렉토리를 대상으로, violation-reporter agent를 통해 계약 위반 보고서를 생성합니다.
+CRITICAL/HIGH 이슈가 있는 디렉토리를 대상으로, violation-reporter agent를 통해 영향 범위 분석 및 계약 위반 보고서를 생성합니다.
 
 **Contract 모델 원칙:** CLAUDE.md(계약)를 코드에 맞게 수정하지 않습니다. 대신 코드가 계약을 위반하고 있음을 보고하고, 수정 방향을 추천합니다.
-
-**보고 대상 선별:**
-- Step 5에서 `confirmed_issues > 0`인 디렉토리만 추출
 
 **배치 처리 규칙:**
 - **최대 3개씩 배치 처리**
@@ -193,7 +155,7 @@ printf '{"directory":"%s","phase":"verify","confirmed_issues":%d,"false_positive
 ```
 Task(violation-reporter):
   보고 대상: {directory}
-  재검증 결과 파일: ${TMP_DIR}verified-{dir-safe-name}.md
+  검증 결과 파일: ${TMP_DIR}validate-{dir-safe-name}.md
   CLAUDE.md: {directory}/CLAUDE.md
 ```
 
@@ -220,18 +182,17 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
   >> "${TMP_DIR}validate-progress.jsonl"
 ```
 
-**스킵 조건:** CONFIRMED 이슈가 0개인 디렉토리는 보고를 스킵합니다.
+**스킵 조건:** CRITICAL/HIGH 이슈가 없는 디렉토리는 보고를 스킵합니다.
 
 ### 7. 통합 보고서 생성
 
-`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증, 재검증, 위반 보고 결과를 병합한 통합 보고서를 생성합니다.
+`${TMP_DIR}validate-progress.jsonl`을 Read하여 스키마 검증, Drift 검증(+inline verification), 위반 보고 결과를 병합한 통합 보고서를 생성합니다.
 
 **JSONL 파싱 방법:** 같은 파일에 phase별 라인이 혼재합니다. `directory` 필드 기준으로 그룹화:
-- `phase` 필드 없음 → validate 결과 (`issues_count`, `export_coverage`)
-- `"phase":"verify"` → verifier 결과 (`confirmed_issues`, `false_positives`)
+- `phase` 필드 없음 → validate 결과 (`issues_count`, `confirmed_issues`, `false_positives`, `severity`, `export_coverage`)
 - `"phase":"report"` → reporter 결과 (`violation_count`, `critical`, `high`, `medium`, `low`)
 
-이슈가 없어 verify/report 단계를 스킵한 디렉토리는 phase 라인이 없으므로 `-` 로 표시.
+reporter 단계를 스킵한 디렉토리(MEDIUM/LOW만)는 report phase 라인이 없으므로 validator 결과에서 직접 요약합니다.
 
 **보고서 형식:**
 ```markdown
@@ -239,11 +200,11 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
 
 ## 요약
 
-| 디렉토리 | 스키마 | 위반 수 | 심각도 | Export 커버리지 | 상태 |
-|----------|--------|---------|--------|---------------|------|
-| src/auth | PASS | 0 | - | 95% | 양호 |
-| src/utils | PASS | 2 | HIGH:1 MED:1 | 78% | 위반 발견 |
-| src/legacy | FAIL (1) | 4 | CRIT:1 HIGH:2 MED:1 | 45% | 위반 발견 |
+| 디렉토리 | 스키마 | 위반 수 (확인/오탐) | 심각도 | Export 커버리지 | 상태 |
+|----------|--------|---------------------|--------|---------------|------|
+| src/auth | PASS | 0 (0/0) | - | 95% | 양호 |
+| src/utils | PASS | 3 (2/1) | HIGH:1 MED:1 | 78% | 위반 발견 |
+| src/legacy | FAIL (1) | 7 (5/2) | CRIT:1 HIGH:2 MED:2 | 45% | 위반 발견 |
 
 ## 추천 액션
 
@@ -266,7 +227,7 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
 #### 스키마 검증
 - PASS
 
-#### 계약 위반 (2건)
+#### 계약 위반 (2건 확인, 1건 오탐 제외)
 - **HIGH** Exports STALE: `formatDate` — 계약에 정의되어 있으나 코드에 없음
   - 추천: `/compile` 재실행
 - **MEDIUM** Structure UNCOVERED: `helper.ts` — 코드에 존재하나 계약에 미등록
@@ -277,8 +238,9 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
 #### 스키마 검증
 - FAIL (1): Missing required section: Behavior
 
-#### 계약 위반 (4건)
+#### 계약 위반 (5건 확인, 2건 오탐 제외)
 - **CRITICAL** Exports MISMATCH: `validateToken` 시그니처 불일치
+  - 영향 범위: src/api, src/middleware
   - 추천: 코드를 계약에 맞게 수정 또는 계약 업데이트 (사용자 결정)
 - ...
 ```
@@ -286,9 +248,8 @@ printf '{"directory":"%s","phase":"report","violation_count":%d,"critical":%d,"h
 **중요:** context에 남아있는 결과가 아닌, 파일에 누적된 결과를 사용합니다.
 - `${TMP_DIR}validate-progress.jsonl`: 요약 정보 (모든 phase)
 - `${TMP_DIR}schema-*.json`: 스키마 검증 결과
-- `${TMP_DIR}validate-*.md`: Drift 검증 상세 결과
-- `${TMP_DIR}verified-*.md`: 재검증 상세 결과
-- `${TMP_DIR}violations-*.md`: 위반 보고 상세 결과
+- `${TMP_DIR}validate-*.md`: Drift 검증 + Inline Verification 상세 결과
+- `${TMP_DIR}violations-*.md`: 위반 보고 상세 결과 (CRITICAL/HIGH가 있는 디렉토리만)
 
 ### 8. 임시 파일 정리
 
@@ -317,11 +278,11 @@ CLAUDE.md 계약 검증 보고서
 - 양호: 1개
 - 위반 발견: 2개
 
-| 디렉토리   | 스키마 | 위반 수 | 심각도        | Export 커버리지 | 상태      |
-|------------|--------|---------|---------------|---------------|-----------|
-| src/auth   | PASS   | 0       | -             | 95%           | 양호      |
-| src/utils  | PASS   | 2       | HIGH:1 MED:1  | 78%           | 위반 발견 |
-| src/legacy | FAIL(1)| 4       | CRIT:1 HIGH:2 MED:1 | 45%      | 위반 발견 |
+| 디렉토리   | 스키마 | 위반 수 (확인/오탐) | 심각도             | Export 커버리지 | 상태      |
+|------------|--------|---------------------|--------------------|---------------|-----------|
+| src/auth   | PASS   | 0 (0/0)             | -                  | 95%           | 양호      |
+| src/utils  | PASS   | 3 (2/1)             | HIGH:1 MED:1       | 78%           | 위반 발견 |
+| src/legacy | FAIL(1)| 7 (5/2)             | CRIT:1 HIGH:2 MED:2| 45%           | 위반 발견 |
 
 추천 액션
 ---------
@@ -339,7 +300,7 @@ src/auth (양호)
 
 src/utils (위반 발견)
   스키마: PASS
-  위반: 2개 (확인됨 2, 오탐 1 제외)
+  위반: 2개 확인 (오탐 1개 제외)
     - HIGH Exports STALE: formatDate → 계약에 있으나 코드에 없음 → /compile 재실행
     - MEDIUM Structure UNCOVERED: helper.ts → 계약 Structure 업데이트 필요
   Export 커버리지: 78%
@@ -347,32 +308,34 @@ src/utils (위반 발견)
 src/legacy (위반 발견)
   스키마: FAIL (1)
     - [MissingSection] Missing required section: Behavior → fix-schema로 수정 완료
-  위반: 4개 (확인됨 4, 오탐 1 제외)
+  위반: 5개 확인 (오탐 2개 제외)
     - CRITICAL Exports MISMATCH: validateToken 시그니처 불일치
+      - 영향: src/api, src/middleware
     - HIGH Exports STALE: 2개
     - MEDIUM Structure UNCOVERED: 1개
+    - MEDIUM Convention CODE_VIOLATION: 1개
   Export 커버리지: 45%
 ```
 
 ## DO / DON'T
 
 **DO:**
-- Run validator/issue-verifier/violation-reporter agent tasks in batches of max 3 parallel tasks
+- Run validator/violation-reporter agent tasks in batches of max 3 parallel tasks
 - Append each batch result to `${TMP_DIR}validate-progress.jsonl` before proceeding to next batch
 - Run schema validation via CLI before drift validation
 - Report violations with severity, actionable recommendations, and /compile vs manual guidance
 - Include Convention drift in validation (Convention is part of the contract)
 - Check CLAUDE.md schema validity
 - Use file-based progress accumulation for compact resilience
-- Skip issue-verifier/violation-reporter for directories with 0 issues
-- Run issue-verifier before violation-reporter (verify first, then report)
+- Skip violation-reporter for directories with only MEDIUM/LOW issues
+- Let SKILL directly summarize MEDIUM/LOW-only directories in the final report
 
 **DON'T:**
 - **Modify CLAUDE.md** (contract is read-only during validation)
 - Ask user questions (validate runs non-interactively)
 - Skip any drift category
 - Launch all agent tasks in a single message (use batches of max 3)
-- Run violation-reporter without issue-verifier (always verify before reporting)
+- Run violation-reporter for directories without CRITICAL/HIGH issues
 
 ## 참조 자료
 
@@ -380,9 +343,8 @@ src/legacy (위반 발견)
 
 ## 관련 컴포넌트
 
-- `agents/validator.md`: 코드-문서 일치 검증 및 Export 커버리지 (drift 검증만 담당)
-- `agents/issue-verifier.md`: 검증 이슈 재검증 (false positive 필터링)
-- `agents/violation-reporter.md`: 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함)
+- `agents/validator.md`: 코드-문서 일치 검증, Inline Verification, Severity 분류, Export 커버리지
+- `agents/violation-reporter.md`: CRITICAL/HIGH 이슈의 영향 범위 분석 및 계약 위반 보고 (CLAUDE.md 수정 안 함)
 
 ## Examples
 
@@ -398,11 +360,11 @@ CLAUDE.md 계약 검증 보고서
 - 양호: 1개
 - 위반 발견: 2개
 
-| 디렉토리   | 스키마 | 위반 수 | 심각도        | Export 커버리지 | 상태      |
-|------------|--------|---------|---------------|---------------|-----------|
-| src/auth   | PASS   | 0       | -             | 95%           | 양호      |
-| src/utils  | PASS   | 2       | HIGH:1 MED:1  | 78%           | 위반 발견 |
-| src/legacy | FAIL(1)| 4       | CRIT:1 HIGH:2 MED:1 | 45%      | 위반 발견 |
+| 디렉토리   | 스키마 | 위반 수 (확인/오탐) | 심각도             | Export 커버리지 | 상태      |
+|------------|--------|---------------------|--------------------|---------------|-----------|
+| src/auth   | PASS   | 0 (0/0)             | -                  | 95%           | 양호      |
+| src/utils  | PASS   | 3 (2/1)             | HIGH:1 MED:1       | 78%           | 위반 발견 |
+| src/legacy | FAIL(1)| 7 (5/2)             | CRIT:1 HIGH:2 MED:2| 45%           | 위반 발견 |
 
 추천 액션
 ---------

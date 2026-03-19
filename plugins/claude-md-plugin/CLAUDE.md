@@ -279,20 +279,22 @@ User: /validate
 │ validate SKILL (Entry Point)                │
 │                                             │
 │ 1. Bash(validate-schema) → 스키마 검증      │
-│ 2. Task(validator) 배치 병렬 → Drift 검증   │
-│ 3. 중간 결과 확인 (이슈 있는 디렉토리 선별) │
-│ 4. Task(issue-verifier) 배치 병렬 → 재검증  │
-│ 5. Task(violation-reporter) 배치 → 위반 보고│
-│ 6. 통합 보고서 생성                         │
+│ 2. Task(validator) 배치 병렬                │
+│    → Drift 검증 + Inline Verification       │
+│    + Severity 분류                          │
+│ 3. 중간 결과 확인 (CRITICAL/HIGH 선별)      │
+│ 4. Task(violation-reporter) 배치            │
+│    → 영향 분석 + 위반 보고                  │
+│ 5. 통합 보고서 생성                         │
 └────────────────────┬────────────────────────┘
-          ┌──────────┼──────────┐
-          ▼          ▼          ▼
-┌──────────────┐ ┌────────────────┐ ┌──────────────────┐
-│ validator    │ │ issue-verifier │ │ violation-reporter│
-│ (drift 검증) │ │ (이슈 재검증)  │ │ (위반 보고,       │
-│              │ │ CONFIRMED/     │ │  계약 수정 안 함) │
-│              │ │ FALSE_POSITIVE │ │                   │
-└──────────────┘ └────────────────┘ └──────────────────┘
+          ┌──────────┴──────────┐
+          ▼                     ▼
+┌───────────────────┐ ┌──────────────────────┐
+│ validator         │ │ violation-reporter   │
+│ (drift 검증 +     │ │ (CRITICAL/HIGH       │
+│  inline verify +  │ │  영향 범위 분석 +    │
+│  severity 분류)   │ │  위반 보고)          │
+└───────────────────┘ └──────────────────────┘
 ```
 
 ### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
@@ -379,9 +381,8 @@ User: /dev "request"
 | `debug-layer-analyzer` | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
-| `validator` | CLAUDE.md-코드 일치 검증 및 Export 커버리지 |
-| `issue-verifier` | 검증 이슈 재검증 (false positive 필터링) |
-| `violation-reporter` | 확인된 이슈 기반 계약 위반 보고 (CLAUDE.md 수정 안 함) |
+| `validator` | CLAUDE.md-코드 일치 검증, Inline Verification, Severity 분류, Export 커버리지 |
+| `violation-reporter` | CRITICAL/HIGH 이슈의 영향 범위 분석 및 계약 위반 보고 (CLAUDE.md 수정 안 함) |
 
 ## Commands
 

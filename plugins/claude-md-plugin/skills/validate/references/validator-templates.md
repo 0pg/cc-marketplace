@@ -118,7 +118,8 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 
 ## 요약
 
-- 전체 이슈: {N}개
+- 전체 이슈: {N}개 (CONFIRMED: {C}개, FALSE_POSITIVE: {F}개)
+- Severity: CRITICAL:{c} HIGH:{h} MEDIUM:{m} LOW:{l}
 - Structure: {n1}개
 - Exports: {n2}개
 - Dependencies: {n3}개
@@ -138,54 +139,62 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 | 50-69% | 보통 - 주요 export 누락 |
 | 0-49% | 미흡 - CLAUDE.md 재작성 권장 |
 
-## 상세
+## CONFIRMED 이슈
 
 ### Structure Drift
 
 #### UNCOVERED (문서에 없는 파일)
-- `helper.ts`: 디렉토리에 존재하나 Structure에 없음
+- `helper.ts`: 디렉토리에 존재하나 Structure에 없음 → **CONFIRMED** (MEDIUM) — 신규 소스 파일
 
 #### ORPHAN (실제 없는 파일)
-- `legacy.ts`: Structure에 있으나 실제로 존재하지 않음
+- `legacy.ts`: Structure에 있으나 실제로 존재하지 않음 → **CONFIRMED** (MEDIUM) — 유사 파일 없음
 
 ### Exports Drift
 
 #### STALE (코드에 없는 export)
-- `formatDate(date: Date): string`: 문서에 있으나 코드에 없음
+- `formatDate(date: Date): string`: 문서에 있으나 코드에 없음 → **CONFIRMED** (HIGH) — Grep 검색 결과 없음
 
 #### MISSING (문서에 없는 export)
-- `parseNumber`: 코드에 있으나 문서에 없음
+- `parseNumber`: 코드에 있으나 문서에 없음 → **CONFIRMED** (HIGH) — public API
 
 #### MISMATCH (시그니처 불일치)
-- `validateToken`:
+- `validateToken`: → **CONFIRMED** (CRITICAL) — 실질적 시그니처 차이
   - 문서: `validateToken(token: string): boolean`
   - 실제: `validateToken(token: string, options?: ValidateOptions): Promise<boolean>`
 
 ### Dependencies Drift
 
 #### STALE (없는 의존성)
-- `lodash`: package.json에 없음
+- `lodash`: package.json에 없음 → **CONFIRMED** (MEDIUM)
 
 ### Cross-Module Signature Drift
 
 #### SIGNATURE_MISMATCH
-- `hashPassword`: 참조측 `(password: string): string` vs 실제 `(password: string, salt: string): HashedResult`
+- `hashPassword`: 참조측 `(password: string): string` vs 실제 `(password: string, salt: string): HashedResult` → **CONFIRMED** (CRITICAL)
 
 #### SYMBOL_NOT_FOUND
-- `verifyHash`: Dependencies에 선언되어 있으나 src/utils/crypto/CLAUDE.md Exports에 없음
+- `verifyHash`: Dependencies에 선언되어 있으나 src/utils/crypto/CLAUDE.md Exports에 없음 → **CONFIRMED** (HIGH)
 
 ### Convention Drift
 
 #### MISSING_CONVENTION
-- project_root에 `## Code Convention` 섹션 없음
+- project_root에 `## Code Convention` 섹션 없음 → **CONFIRMED** (MEDIUM)
 
 #### CODE_VIOLATION
-- Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)
+- Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`) → **CONFIRMED** (MEDIUM)
 
 ### Behavior Drift
 
 #### MISMATCH (동작 불일치)
-- "빈 입력 시 빈 배열 반환": 실제로는 null 반환
+- "빈 입력 시 빈 배열 반환": 실제로는 null 반환 → **CONFIRMED** (HIGH)
+
+## FALSE_POSITIVE 이슈
+
+### Structure Drift
+- `helper.test.ts`: 테스트 파일이므로 Structure에 불필요 → **FALSE_POSITIVE**
+
+### Exports Drift
+- `_internalHelper`: private 헬퍼 함수, 문서화 불필요 → **FALSE_POSITIVE**
 ```
 
 ## CLI Output JSON Structures
