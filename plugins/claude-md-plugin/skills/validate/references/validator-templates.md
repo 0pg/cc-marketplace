@@ -177,7 +177,7 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 ### Convention Drift
 
 #### MISSING_CONVENTION
-- project_root에 `## Code Convention` 섹션 없음
+- project_root에 `## Conventions` 섹션 없음
 
 #### CODE_VIOLATION
 - Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)

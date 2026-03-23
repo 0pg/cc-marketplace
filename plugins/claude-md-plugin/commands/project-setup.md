@@ -44,7 +44,7 @@ find_project_root()
 
 project_root CLAUDE.md와 각 module_root CLAUDE.md에서 Convention 섹션 존재 여부를 확인합니다:
 
-`{project_root}/CLAUDE.md`를 Read하고, `## Project Convention` 섹션과 `## Code Convention` 섹션이 존재하는지 확인합니다.
+`{project_root}/CLAUDE.md`를 Read하고, `## Conventions` 섹션이 존재하는지 확인합니다.
 
 기존 섹션이 존재하면 AskUserQuestion으로 처리 방법을 질문합니다:
 - **덮어쓰기**: 기존 섹션을 새로 생성된 내용으로 대체
@@ -112,18 +112,16 @@ CLAUDE.md가 없는 디렉토리는 소스코드로 직접 작업합니다.
 
 CLAUDE.md가 아직 없는 경우, Step 6에서 파일을 생성할 때 `## Source of Truth` 섹션을 맨 위에 포함합니다.
 
-### 6. project_root CLAUDE.md에 `## Project Convention` + `## Code Convention` 섹션 추가
+### 6. project_root CLAUDE.md에 `## Conventions` 섹션 추가
 
 CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니다.
 
-project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
+project_root에 통합 Conventions 섹션을 작성합니다 (DRY canonical source).
 
-#### 6-A. `## Project Convention`
-
-필수 3개 서브섹션은 반드시 포함합니다:
+필수 6개 서브섹션은 반드시 포함합니다:
 
 ```markdown
-## Project Convention
+## Conventions
 
 ### Project Structure
 (필수) 디렉토리 구조 규칙, 레이어링 패턴
@@ -133,25 +131,6 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 
 ### Naming Conventions
 (필수) 모듈/디렉토리/패키지 네이밍 규칙
-```
-
-선택 서브섹션 (분석/수집 결과에 따라 추가):
-
-| 서브섹션 | 필수 | 설명 |
-|----------|------|------|
-| Project Structure | Yes | 디렉토리 구조 규칙, 레이어링 패턴 |
-| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
-| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
-| API Design | No | REST/RPC 컨벤션 |
-| Error Strategy | No | 글로벌 에러 핸들링 전략 |
-| Testing Strategy | No | 테스트 조직, 커버리지 기대 |
-
-#### 6-B. `## Code Convention`
-
-필수 3개 서브섹션은 반드시 포함합니다:
-
-```markdown
-## Code Convention
 
 ### Language & Runtime
 (필수) 주요 언어, 버전, 런타임
@@ -163,13 +142,19 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 (필수) 변수/함수/클래스/상수 네이밍 규칙
 ```
 
-선택 서브섹션:
+서브섹션 목록:
 
 | 서브섹션 | 필수 | 설명 |
 |----------|------|------|
+| Project Structure | Yes | 디렉토리 구조 규칙, 레이어링 패턴 |
+| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
+| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 | Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
 | Coding Rules | Yes | 린터 검증 불가 기본 코딩 규칙 |
 | Naming Rules | Yes | 변수/함수/클래스/상수 네이밍 |
+| API Design | No | REST/RPC 컨벤션 |
+| Error Strategy | No | 글로벌 에러 핸들링 전략 |
+| Testing Strategy | No | 테스트 조직, 커버리지 기대 |
 | Test Convention | No | 테스트 프레임워크, 파일 패턴, Mock 전략 |
 | Type System | No | 타입 어노테이션 규칙 |
 | Error Handling | No | try/catch 패턴, 에러 타입 |
@@ -202,11 +187,9 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 
 1. 해당 모듈의 Convention이 project_root와 동일한지 비교합니다.
 2. **동일한 경우**: 작성하지 않음. 안내 메시지 출력:
-   "ℹ {module_root}: Convention이 project_root와 동일 → 상속 (별도 작성 불필요)"
-3. **다른 경우**: AskUserQuestion으로 확인 후, 차이나는 섹션 전체를 module_root에 작성:
-   "ℹ {module_root}: Code Convention이 project_root와 다름 → module_root에 override 작성"
-
-`## Project Convention` override도 동일 원칙: 다를 때만 module_root에 작성.
+   "ℹ {module_root}: Conventions가 project_root와 동일 → 상속 (별도 작성 불필요)"
+3. **다른 경우**: AskUserQuestion으로 확인 후, Conventions 섹션 전체를 module_root에 작성:
+   "ℹ {module_root}: Conventions가 project_root와 다름 → module_root에 override 작성"
 
 ### 8. CLI 빌드 확인
 

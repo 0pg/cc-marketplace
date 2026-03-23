@@ -19,7 +19,7 @@ DEVELOPERS.md는 CLAUDE.md와 1:1로 매핑되는 "왜(WHY)" 문서입니다.
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 ```
 
-DEVELOPERS.md 부재 시 에러로 보고 (`--strict` 모드).
+DEVELOPERS.md 부재 시 경고로 보고 (`--strict` 모드).
 
 ## SOT 구조
 
@@ -29,43 +29,31 @@ CLAUDE.md (WHAT) + DEVELOPERS.md (WHY) → Source Code
 
 | 문서 | 역할 | 대상 |
 |------|------|------|
-| CLAUDE.md | WHAT (스펙) | 외부 소비자 (다른 모듈, /compile) |
-| CLAUDE.md Domain Context | 간략 맥락 | 외부 소비자용 인터페이스 카탈로그의 일부 |
-| DEVELOPERS.md | WHY (맥락) | 내부 개발자용 상세 근거 |
-| compile-context | HOW (구현 방향) | 세션 임시, /impl→/compile 핸드오프 |
+| CLAUDE.md | WHAT (사전학습 인덱스) | AI 에이전트, 외부 소비자 |
+| DEVELOPERS.md | WHY (인간 지식 저장소) | 내부 개발자용 상세 근거 |
 
-## 필수 섹션 (4개)
+## 필수 섹션 (5개, 모두 None 허용)
 
-### ## File Map (필수, 조건부 None 허용)
+### ## Domain Context (필수, None 허용)
 
-테이블 형식. 파일별 역할과 내부 의존관계.
-
-> 단일 파일 디렉토리(소스 파일 1개 이하)에서는 File Map 섹션 자체가 필수가 아닙니다.
-> 2개 이상 소스 파일이 있는 디렉토리에서는 File Map이 필수이며 "None"은 허용되지 않습니다.
+CLAUDE.md Domain Context의 확장. 모듈 도메인 맥락을 상세하게 기술합니다.
 
 ```markdown
-## File Map
-
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| index.ts | 진입점, 라우팅 | validator.ts, types.ts |
-| validator.ts | 토큰 검증 로직 | types.ts |
-| types.ts | 타입 정의 | - |
+## Domain Context
+JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책을 적용합니다.
+Redis 캐시를 사용하여 인증 지연을 최소화합니다.
+내부 서비스 간 통신은 mTLS로 보호됩니다.
 ```
 
-### ## Data Structures (필수, None 허용)
+### ## Invariants (필수, None 허용)
 
-내부 자료구조 관계도. Exports에 노출되지 않는 내부 타입과 변환 흐름.
+모듈 내부 불변식. 코드가 항상 만족해야 할 조건입니다.
 
 ```markdown
-## Data Structures
-
-### 내부 타입
-- `RawToken`: 파싱 전 원시 토큰 문자열
-- `DecodedPayload`: JWT 디코딩 후 중간 객체
-
-### 변환 흐름
-RawToken → DecodedPayload → Claims (export)
+## Invariants
+- 토큰 생성 시 expiry는 반드시 7일 이내
+- refresh token은 1회 사용 후 즉시 무효화
+- 캐시 TTL은 토큰 만료 시간보다 항상 짧아야 함
 ```
 
 ### ## Decision Log (필수, None 허용)
@@ -79,7 +67,6 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 > - `Rationale` | `근거`
 
 > **Domain Context 중복 금지**: CLAUDE.md Domain Context에 이미 있는 값은 Decision Log에서 반복하지 않고 참조만 합니다.
-> 예: "TOKEN_EXPIRY: 7일" 이 Domain Context에 있으면, Decision Log에서는 "배경 스토리"만 기록.
 
 ```markdown
 ## Decision Log
@@ -114,12 +101,26 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 - 에러율 > 5% 시 알람
 ```
 
+### ## File Map (필수, None 허용)
+
+테이블 형식. 파일별 역할과 내부 의존관계.
+
+```markdown
+## File Map
+
+| 파일 | 역할 | 의존 |
+|------|------|------|
+| index.ts | 진입점, 라우팅 | validator.ts, types.ts |
+| validator.ts | 토큰 검증 로직 | types.ts |
+| types.ts | 타입 정의 | - |
+```
+
 ## 스킬별 활용
 
 | 스킬 | DEVELOPERS.md 활용 | 상세 |
 |------|-------------------|------|
 | `/impl` | Decision Log 생성 | CLAUDE.md와 함께 DEVELOPERS.md(최소 Decision Log) 생성 |
-| `/decompile` | 전체 생성 | 소스코드에서 4섹션 모두 추출 |
+| `/decompile` | 전체 생성 | 소스코드에서 5섹션 모두 추출 |
 | `/validate` | drift 검증 확장 | File Map ↔ 실제 파일구조, INV-3 검증 |
 | `/bugfix` | L2 진단 | 3-layer 분석의 L2 계층 |
 | `/compile` | 참조 안 함 | — |
@@ -131,6 +132,6 @@ CLAUDE.md와 동일한 생성/수정/삭제 주기를 따릅니다.
 | 명령어 | DEVELOPERS.md |
 |--------|---------------|
 | /impl | 생성 (최소 Decision Log, 나머지 None) |
-| /decompile | 전체 생성 (4섹션) |
+| /decompile | 전체 생성 (5섹션) |
 | /bugfix | L2 진단 참조 |
 | /validate | drift 검증 (INV-3 + File Map drift) |

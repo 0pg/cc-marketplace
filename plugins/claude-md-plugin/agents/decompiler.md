@@ -159,6 +159,7 @@ CLAUDE.md 생성 후, 같은 디렉토리에 DEVELOPERS.md를 생성합니다.
 - **Data Structures** (None 허용): export가 아닌 내부 타입/변환 흐름. 없으면 "None"
 - **Decision Log** (None 허용): 매직넘버, 주석에서 ADR 추론. 없으면 "None". 각 결정은 소제목으로, 맥락/결정/근거 고정 스키마
 - **Operations** (None 허용): 환경변수 참조, 설정 파일에서 추론. 없으면 "None"
+- **File Map** (None 허용): 파일별 역할과 의존관계 테이블. 없으면 "None"
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
@@ -169,15 +170,13 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ```markdown
 # {module_name}
 
-## File Map
+## Domain Context
 
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| {file} | {role} | {deps or "-"} |
+{도메인 맥락 상세 or "None"}
 
-## Data Structures
+## Invariants
 
-{내부 타입 관계 or "None"}
+{내부 불변식 or "None"}
 
 ## Decision Log
 
@@ -186,7 +185,17 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ## Operations
 
 {운영 정보 or "None"}
+
+## File Map
+
+| 파일 | 역할 | 의존 |
+|------|------|------|
+| {file} | {role} | {deps or "-"} |
 ```
+
+> **진화 예정**: /decompile은 향후 /sync로 진화할 예정입니다.
+> /sync는 코드 변경을 감지하여 CLAUDE.md + DEVELOPERS.md를 자동 동기화하는
+> 양방향 동기화 워크플로우입니다.
 
 ### Phase 5: 스키마 검증 (1회)
 

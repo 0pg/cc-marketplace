@@ -5,8 +5,8 @@
 #   - Documentation (templates/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "3.0.0"
-description: "CLAUDE.md 스키마 검증 규칙 - v3 (Code-First + Pre-learning Index)"
+version: "3.1.0"
+description: "CLAUDE.md 스키마 검증 규칙 - v3.1 (Pre-learning Index + Human Knowledge Store)"
 
 sections:
   purpose:
@@ -41,26 +41,17 @@ sections:
     allow_none: false
     description: "AI 행동 지시. project root에만."
 
-  project_convention:
-    name: "Project Convention"
+  conventions:
+    name: "Conventions"
     required: false
     condition: "is_project_or_module_root"
     condition_type: "dynamic"
     allow_none: false
-    description: "프로젝트 수준 아키텍처/구조 규칙"
+    description: "프로젝트/코드 수준 통합 규칙"
     required_subsections:
       - "Project Structure"
       - "Module Boundaries"
       - "Naming Conventions"
-
-  code_convention:
-    name: "Code Convention"
-    required: false
-    condition: "is_project_or_module_root"
-    condition_type: "dynamic"
-    allow_none: false
-    description: "소스코드 수준 코딩 규칙"
-    required_subsections:
       - "Language & Runtime"
       - "Coding Rules"
       - "Naming Rules"
@@ -89,17 +80,16 @@ reference_rules:
       description: "자식 디렉토리 참조 허용"
 
 developers_sections:
-  file_map:
-    name: "File Map"
-    required: true
-    allow_none: false
-    condition: "has_multiple_files"
-    description: "파일별 역할 및 의존관계 테이블"
-  data_structures:
-    name: "Data Structures"
+  domain_context:
+    name: "Domain Context"
     required: true
     allow_none: true
-    description: "내부 자료구조 관계 및 변환 흐름"
+    description: "모듈 도메인 맥락 상세. CLAUDE.md Domain Context의 확장."
+  invariants:
+    name: "Invariants"
+    required: true
+    allow_none: true
+    description: "모듈 내부 불변식. 코드가 항상 만족해야 할 조건."
   decision_log:
     name: "Decision Log"
     required: true
@@ -118,6 +108,11 @@ developers_sections:
       - "Gotchas"
       - "Deployment|배포"
       - "Monitoring|모니터링"
+  file_map:
+    name: "File Map"
+    required: true
+    allow_none: true
+    description: "파일별 역할 및 의존관계 테이블"
 
 none_marker:
   values:

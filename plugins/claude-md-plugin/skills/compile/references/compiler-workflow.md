@@ -13,8 +13,8 @@
 #### 1.1 프로젝트 컨텍스트 로드
 
 1. **프로젝트 root CLAUDE.md 읽기**: `.git` 또는 `package.json` 등으로 `project_root`를 탐지하고, build marker 기반으로 `module_root`를 탐색합니다. `{project_root}/CLAUDE.md`를 Read합니다.
-2. **Convention 섹션 추출**: project CLAUDE.md에서 `## Project Convention` 섹션과 `## Code Convention` 섹션을 추출합니다 (project 기본값).
-3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Code Convention`이 있으면 project_root의 canonical source를 override합니다 (없으면 project_root에서 상속). `## Project Convention`이 있으면 이것으로도 override합니다.
+2. **Convention 섹션 추출**: project CLAUDE.md에서 `## Conventions` 섹션을 추출합니다 (project 기본값).
+3. **Module override**: `module_root`가 `project_root`와 다르면 `{module_root}/CLAUDE.md`를 Read합니다. module CLAUDE.md에 `## Conventions`이 있으면 project_root의 canonical source를 override합니다 (없으면 project_root에서 상속).
 4. **대상 CLAUDE.md 파싱**: `claude-md-core parse-claude-md` CLI를 호출합니다. 입력은 `claude_md_path`이며, 출력은 ClaudeMdSpec JSON (stdout)입니다. 파싱 결과를 `spec`에 저장합니다.
 5. **compile-context 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "compile-context.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 파싱하여 `compile_context`에 저장합니다. 존재하지 않으면 이 단계를 건너뜁니다 (compile-context는 optional).
 
@@ -29,8 +29,9 @@
 - `domain_context`: 코드 생성 결정에 반영할 맥락 (결정 근거, 제약, 호환성)
 
 **DEVELOPERS.md (WHY, optional)**에서 선택적 참조:
+- `domain_context`: 도메인 맥락 상세 → 구현 결정에 참고
+- `invariants`: 내부 불변식 → 구현 세부사항 참고
 - `file_map`: 파일별 역할 및 의존관계 → 파일 구조 결정에 참고
-- `data_structures`: 내부 자료구조 관계 → 구현 세부사항 참고
 - `decision_log`: ADR 스타일 결정 근거 → 구현 방식 결정에 참고
 - **참조 조건**: DEVELOPERS.md가 존재하고, 해당 섹션이 `None`이 아닌 경우에만 참조
 - **우선순위**: CLAUDE.md (계약) > DEVELOPERS.md (맥락) — 충돌 시 계약이 우선
@@ -40,18 +41,16 @@
 - `implementation_approach`: 구현 전략과 대안
 - `technology_choices`: 기술 선택 근거
 
-6. **DEVELOPERS.md 선택적 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "DEVELOPERS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 `File Map`, `Data Structures`, `Decision Log` 섹션을 `developers_context`에 저장합니다. 존재하지 않거나 섹션이 `None`이면 이 단계를 건너뜁니다 (DEVELOPERS.md는 optional).
+6. **DEVELOPERS.md 선택적 읽기**: 대상 CLAUDE.md 경로에서 "CLAUDE.md"를 "DEVELOPERS.md"로 치환한 경로의 파일을 읽습니다. 파일이 존재하면 `Domain Context`, `Invariants`, `File Map`, `Decision Log` 섹션을 `developers_context`에 저장합니다. 존재하지 않거나 섹션이 `None`이면 이 단계를 건너뜁니다 (DEVELOPERS.md는 optional).
 
-**중요**: `project_root` CLAUDE.md의 Code Convention이 canonical source입니다. `module_root`에 Code Convention이 있으면 override로 사용합니다. Convention 섹션이 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
+**중요**: `project_root` CLAUDE.md의 Conventions가 canonical source입니다. `module_root`에 Conventions가 있으면 override로 사용합니다. Convention 섹션이 없으면 `project_claude_md` 일반 내용을 fallback으로 참조합니다.
 `compile_context`의 구현 방향도 함께 참조합니다 (존재하는 경우).
 `developers_context`의 맥락 정보도 함께 참조합니다 (존재하는 경우, CLAUDE.md와 충돌 시 CLAUDE.md 우선).
 
 **컨벤션 참조 우선순위**:
-1. `module_root` CLAUDE.md `## Code Convention` (override, project_root와 다를 때만 존재) → 코딩 규칙, 네이밍 규칙
-2. `project_root` CLAUDE.md `## Code Convention` (canonical source) → 코딩 규칙 기본값
-3. `module_root` CLAUDE.md `## Project Convention` (optional override) → 구조 규칙
-4. `project_root` CLAUDE.md `## Project Convention` → 구조 규칙
-5. `project_root` CLAUDE.md 일반 내용 → 최종 fallback
+1. `module_root` CLAUDE.md `## Conventions` (override, project_root와 다를 때만 존재)
+2. `project_root` CLAUDE.md `## Conventions` (canonical source)
+3. `project_root` CLAUDE.md 일반 내용 → 최종 fallback
 
 #### 1.2 의존성 인터페이스 탐색
 
@@ -123,9 +122,8 @@ Exports와 contracts를 기반으로 구현 파일을 생성하고, 테스트가
 
 ### Phase 4: REFACTOR Phase - 코드 개선
 
-테스트가 모두 통과하면 CLAUDE.md Convention 섹션의 규칙에 맞게 리팩토링합니다. Convention 섹션이 없으면 project CLAUDE.md를 fallback으로 참조합니다:
-- `## Code Convention`: 코딩 규칙, 네이밍 규칙 (PRIMARY)
-- `## Project Convention`: 구조 규칙, 모듈 경계 (PRIMARY)
+테스트가 모두 통과하면 CLAUDE.md Conventions 섹션의 규칙에 맞게 리팩토링합니다. Conventions 섹션이 없으면 project CLAUDE.md를 fallback으로 참조합니다:
+- `## Conventions`: 코딩 규칙, 구조 규칙, 네이밍 규칙 (PRIMARY)
 - `project_claude_md` 일반 내용: FALLBACK
 
 리팩토링 후 테스트를 재실행하여 회귀를 확인합니다. 리팩토링으로 테스트가 실패하면 롤백합니다.
@@ -200,7 +198,7 @@ compile_context_updated: true
 
 ## 파일 구조 결정
 
-**CLAUDE.md `## Project Convention > ### Project Structure` 섹션을 우선 따르고, 없으면 프로젝트 root CLAUDE.md의 Structure 섹션을 따릅니다.**
+**CLAUDE.md `## Conventions > ### Project Structure` 섹션을 우선 따르고, 없으면 프로젝트 root CLAUDE.md의 Structure 섹션을 따릅니다.**
 
 프로젝트 CLAUDE.md에 Structure가 명시되지 않은 경우:
 1. 기존 프로젝트 파일 구조를 분석하여 패턴 추론
@@ -214,8 +212,7 @@ compile_context_updated: true
 │                                                             │
 │  ┌─ Read(project_root/CLAUDE.md) ────────────────────────┐ │
 │  │ 프로젝트 코딩 컨벤션, 구조 규칙 수집                   │ │
-│  │  - ## Project Convention (구조 규칙)                   │ │
-│  │  - ## Code Convention (코딩 규칙)                      │ │
+│  │  - ## Conventions (구조 + 코딩 규칙)                   │ │
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │

@@ -3,7 +3,7 @@
   규칙의 Single Source of Truth: references/shared/schema-rules.yaml
 -->
 
-# CLAUDE.md Schema Template (v3.0.0)
+# CLAUDE.md Schema Template (v3.1.0)
 
 이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
 
@@ -22,7 +22,8 @@
 │     → Purpose, Constraints, Domain Context                 │
 │                                                             │
 │   DEVELOPERS.md (on-demand, detailed)                      │
-│     → File Map, Decision Log, Operations                   │
+│     → Domain Context, Invariants, Decision Log,            │
+│       Operations, File Map                                 │
 │                                                             │
 │   .claude/index.md (auto-generated, gitignored)            │
 │     → Exports, Behavior, Dependencies, Structure           │
@@ -35,7 +36,7 @@
 | **DEVELOPERS.md** | 인간 지식 저장소 | on-demand |
 | **.claude/index.md** | 코드 분석 결과 | auto-generated |
 
-## 필수 섹션 요약 (3 always-required + 3 conditional)
+## 필수 섹션 요약 (3 always-required + 2 conditional)
 
 | 섹션 | 필수 | 조건 | "None" 허용 | 설명 |
 |------|------|------|-------------|------|
@@ -43,8 +44,7 @@
 | Constraints | always | — | ✓ | 코드가 지켜야 할 규칙 |
 | Domain Context | always | — | ✓ | 핵심 맥락 요약 (2-3문장) |
 | Instructions | conditional | is_project_root | ✗ | AI 행동 지시 (project root에만) |
-| Project Convention | conditional | is_project_or_module_root | — | 아키텍처/모듈 구조 규칙 |
-| Code Convention | conditional | is_project_or_module_root | — | 소스코드 수준 규칙 |
+| Conventions | conditional | is_project_or_module_root | — | 프로젝트/코드 수준 통합 규칙 |
 
 > 규칙 상세: `references/shared/schema-rules.yaml` 참조
 
@@ -106,12 +106,12 @@ Always use TypeScript strict mode.
 Follow the team's code review process.
 ```
 
-### 5. Project Convention (조건부 - project_root 또는 module_root)
+### 5. Conventions (조건부 - project_root 또는 module_root)
 
-프로젝트 수준 아키텍처/구조 규칙입니다. project_root CLAUDE.md에 필수이며, module_root에서는 optional override로 사용됩니다.
+프로젝트/코드 수준 통합 규칙입니다. project_root CLAUDE.md에 필수이며, module_root에서는 optional override로 사용됩니다.
 
 ```markdown
-## Project Convention
+## Conventions
 
 ### Project Structure
 src/ 하위에 기능별 디렉토리 구성.
@@ -121,23 +121,6 @@ src/ 하위에 기능별 디렉토리 구성.
 
 ### Naming Conventions
 디렉토리: kebab-case, 파일: camelCase
-```
-
-**필수 서브섹션:**
-
-| 서브섹션 | 필수 | 설명 |
-|----------|------|------|
-| Project Structure | Yes | 디렉토리 구조 규칙 |
-| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
-| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
-
-### 6. Code Convention (project_root 필수, module_root 선택)
-
-소스코드 수준 코딩 규칙입니다. project_root CLAUDE.md에 필수 (canonical source).
-module_root에서는 project_root와 다른 부분만 override로 작성합니다.
-
-```markdown
-## Code Convention
 
 ### Language & Runtime
 TypeScript 5.0, Node.js 20 LTS
@@ -151,13 +134,16 @@ TypeScript 5.0, Node.js 20 LTS
 - 클래스/타입: PascalCase
 ```
 
-**필수 서브섹션:**
+**필수 서브섹션 (6개):**
 
 | 서브섹션 | 필수 | 설명 |
 |----------|------|------|
+| Project Structure | Yes | 디렉토리 구조 규칙 |
+| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
+| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 | Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
 | Coding Rules | Yes | 기본 코딩 규칙 |
-| Naming Rules | Yes | 네이밍 규칙 |
+| Naming Rules | Yes | 코드 수준 네이밍 규칙 |
 
 ## 참조 규칙
 
@@ -179,14 +165,12 @@ TypeScript 5.0, Node.js 20 LTS
 ```
 ∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
---strict 모드에서 DEVELOPERS.md 부재를 에러로 보고
+--strict 모드에서 DEVELOPERS.md 부재를 경고로 보고
 ```
 
 **INV-5: Convention 섹션 배치 규칙**
 ```
-project_root/CLAUDE.md MUST contain ## Project Convention
-project_root/CLAUDE.md MUST contain ## Code Convention (canonical source)
-module_root/CLAUDE.md MAY contain ## Code Convention (override; 없으면 project_root에서 상속)
-module_root/CLAUDE.md MAY contain ## Project Convention (override; 없으면 project_root에서 상속)
-싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 두 섹션 모두 배치
+project_root/CLAUDE.md MUST contain ## Conventions
+module_root/CLAUDE.md MAY contain ## Conventions (override; 없으면 project_root에서 상속)
+싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 배치
 ```

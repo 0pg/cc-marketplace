@@ -122,18 +122,10 @@ fn main() {
 
     allow_none_sections.sort();
 
-    // Extract required subsections for Project Convention
-    let project_convention_subsections: Vec<&str> = rules
+    // Extract required subsections for Conventions (unified section)
+    let conventions_subsections: Vec<&str> = rules
         .sections
-        .get("project_convention")
-        .and_then(|s| s.required_subsections.as_ref())
-        .map(|subs| subs.iter().map(|s| s.as_str()).collect())
-        .unwrap_or_default();
-
-    // Extract required subsections for Code Convention
-    let code_convention_subsections: Vec<&str> = rules
-        .sections
-        .get("code_convention")
+        .get("conventions")
         .and_then(|s| s.required_subsections.as_ref())
         .map(|subs| subs.iter().map(|s| s.as_str()).collect())
         .unwrap_or_default();
@@ -206,13 +198,9 @@ pub const CONDITIONALLY_REQUIRED_SECTIONS: &[(&str, &str)] = &{:?};
 #[allow(dead_code)]
 pub const ALLOW_NONE_SECTIONS: &[&str] = &{:?};
 
-/// Required subsections for Project Convention section
+/// Required subsections for Conventions section (unified)
 #[allow(dead_code)]
-pub const PROJECT_CONVENTION_REQUIRED_SUBSECTIONS: &[&str] = &{:?};
-
-/// Required subsections for Code Convention section
-#[allow(dead_code)]
-pub const CODE_CONVENTION_REQUIRED_SUBSECTIONS: &[&str] = &{:?};
+pub const CONVENTIONS_REQUIRED_SUBSECTIONS: &[&str] = &{:?};
 
 /// File markers that identify a module root directory
 #[allow(dead_code)]
@@ -238,8 +226,7 @@ pub const DEVELOPERS_CONDITIONAL_SECTIONS: &[(&str, &str)] = &{:?};
         always_required_sections,
         conditionally_required_sections,
         allow_none_sections,
-        project_convention_subsections,
-        code_convention_subsections,
+        conventions_subsections,
         module_root_markers,
         forbidden_ref_patterns,
         developers_required_sections,

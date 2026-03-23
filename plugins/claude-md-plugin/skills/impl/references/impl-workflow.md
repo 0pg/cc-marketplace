@@ -302,10 +302,11 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ```
 
 **생성 규칙:**
-- **File Map**: 아직 소스 파일이 없으므로 CLAUDE.md의 Exports에서 예상 파일 구조를 추론. 또는 compile-context의 Implementation Approach에서 파일 구조 결정
-- **Data Structures**: None (구현 전이므로 내부 타입 미확정)
+- **Domain Context**: CLAUDE.md Domain Context의 확장. 없으면 None
+- **Invariants**: None (구현 전이므로 내부 불변식 미확정)
 - **Decision Log**: compile-context의 Technology Choices에서 시드. 각 선택을 ADR 형식(맥락/결정/근거)으로 변환
 - **Operations**: None (구현 전이므로 운영 정보 미확정)
+- **File Map**: 아직 소스 파일이 없으므로 CLAUDE.md의 Exports에서 예상 파일 구조를 추론. 없으면 None
 
 **Decision Log 변환 예시:**
 
@@ -320,15 +321,6 @@ compile-context Technology Choices:
 - **맥락**: JWT 토큰 검증 라이브러리 선택 필요
 - **결정**: jsonwebtoken 사용
 - **근거**: 기존 코드베이스 호환성 (jose 대비)
-```
-
-**File Map이 비어있을 수 없으므로** (None 불가), 최소한 "구현 시 생성 예정" 등의 예상 파일 구조를 작성합니다:
-```markdown
-## File Map
-
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| index.ts | 진입점, 모듈 export | - |
 ```
 
 ### Phase 5.5: compile-context 생성 (HOW 계획, optional)

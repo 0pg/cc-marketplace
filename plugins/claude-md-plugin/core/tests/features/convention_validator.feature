@@ -6,45 +6,25 @@ Feature: Convention Validator
   Background:
     Given a clean test directory
 
-  # ---- Project Convention ----
+  # ---- Conventions (unified section) ----
 
-  Scenario: Project root with valid Project Convention section
-    Given a project root with CLAUDE.md containing valid Project Convention
+  Scenario: Project root with valid Conventions section
+    Given a project root with CLAUDE.md containing valid Conventions
     When I validate conventions
     Then convention validation should pass
-    And project convention should be found
+    And conventions should be found
 
-  Scenario: Project root missing Project Convention section
-    Given a project root with CLAUDE.md without Project Convention
+  Scenario: Project root missing Conventions section
+    Given a project root with CLAUDE.md without Conventions
     When I validate conventions
     Then convention validation should fail
-    And convention error should mention "Project Convention"
+    And convention error should mention "Conventions"
 
-  Scenario: Project Convention missing required subsections
-    Given a project root with CLAUDE.md containing incomplete Project Convention
+  Scenario: Conventions missing required subsections
+    Given a project root with CLAUDE.md containing incomplete Conventions
     When I validate conventions
     Then convention validation should fail
     And convention error should mention "Module Boundaries"
-
-  # ---- Code Convention ----
-
-  Scenario: Module root with valid Code Convention section
-    Given a project root with CLAUDE.md containing valid conventions
-    When I validate conventions
-    Then convention validation should pass
-    And code convention should be found
-
-  Scenario: Module root missing Code Convention section
-    Given a project root with CLAUDE.md containing only Project Convention
-    When I validate conventions
-    Then convention validation should fail
-    And convention error should mention "Code Convention"
-
-  Scenario: Code Convention missing required subsections
-    Given a project root with CLAUDE.md containing incomplete Code Convention
-    When I validate conventions
-    Then convention validation should fail
-    And convention error should mention "Naming Rules"
 
   # ---- Module Detection ----
 
@@ -60,27 +40,27 @@ Feature: Convention Validator
 
   # ---- Module Override ----
 
-  Scenario: Module root with Project Convention override
-    Given a multi module project with module-level Project Convention override
+  Scenario: Module root with Conventions override
+    Given a multi module project with module-level Conventions override
     When I validate conventions
     Then convention validation should pass
-    And module should have project convention override
+    And module should have conventions override
 
   # ---- DRY: Convention Inheritance ----
 
-  Scenario: Multi-module module without Code Convention inherits from project root
-    Given a multi module project where module has no Code Convention
+  Scenario: Multi-module module without Conventions inherits from project root
+    Given a multi module project where module has no Conventions
     When I validate conventions
     Then convention validation should pass
 
-  Scenario: Multi-module module with malformed Code Convention still fails
-    Given a multi module project where module has incomplete Code Convention
+  Scenario: Multi-module module with malformed Conventions still fails
+    Given a multi module project where module has incomplete Conventions
     When I validate conventions
     Then convention validation should fail
     And convention error should mention "Naming Rules"
 
-  Scenario: Project root must have Code Convention as canonical source
-    Given a multi module project where project root has no Code Convention
+  Scenario: Project root must have Conventions as canonical source
+    Given a multi module project where project root has no Conventions
     When I validate conventions
     Then convention validation should fail
-    And convention error should mention "Code Convention"
+    And convention error should mention "Conventions"

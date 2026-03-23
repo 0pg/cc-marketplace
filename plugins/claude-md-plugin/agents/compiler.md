@@ -137,11 +137,9 @@ compile-context: <path> (optional, session temp)
 ## 코드 생성 원칙
 
 **Convention 참조 우선순위 (INV-5):**
-1. module_root CLAUDE.md `## Code Convention`
-2. module_root CLAUDE.md `## Project Convention` (override)
-3. project_root CLAUDE.md `## Code Convention` (default)
-4. project_root CLAUDE.md `## Project Convention`
-5. project_root CLAUDE.md 일반 내용 (최종 fallback)
+1. module_root CLAUDE.md `## Conventions` (override)
+2. project_root CLAUDE.md `## Conventions` (default)
+3. project_root CLAUDE.md 일반 내용 (최종 fallback)
 
 ### CLAUDE.md 계약 → 코드 변환 규칙
 

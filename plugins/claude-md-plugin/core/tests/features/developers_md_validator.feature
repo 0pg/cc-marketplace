@@ -7,7 +7,7 @@ Feature: DEVELOPERS.md Schema Validation
     Given a clean test directory
 
   # INV-3: DEVELOPERS.md must exist alongside CLAUDE.md in strict mode
-  Scenario: Missing DEVELOPERS.md fails strict validation
+  Scenario: Missing DEVELOPERS.md warns in strict validation
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -22,8 +22,9 @@ Feature: DEVELOPERS.md Schema Validation
       None
       """
     When I validate the schema with strict mode
-    Then validation should fail
-    And error should mention "INV-3"
+    Then validation should pass
+    And validation should have warnings
+    And warning should mention "INV-3"
 
   Scenario: DEVELOPERS.md with all required sections passes strict validation
     Given CLAUDE.md with content:
@@ -43,19 +44,19 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
+      None
 
-      | 파일 | 역할 | 의존 |
-      |------|------|------|
-      | index.ts | 진입점 | - |
-
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
       None
 
       ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -79,7 +80,10 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Data Structures
+      ## Domain Context
+      None
+
+      ## Invariants
       None
 
       ## Decision Log
@@ -92,7 +96,7 @@ Feature: DEVELOPERS.md Schema Validation
     Then validation should fail
     And error should mention "Missing required section: File Map"
 
-  Scenario: File Map does not allow None
+  Scenario: File Map allows None
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -110,24 +114,25 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
       None
 
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
       None
 
       ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode
-    Then validation should fail
-    And error should mention "File Map"
-    And error should mention "does not allow 'None'"
+    Then validation should pass
 
-  Scenario: Data Structures allows None
+  Scenario: Domain Context allows None
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -145,19 +150,55 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
+      None
 
-      | 파일 | 역할 | 의존 |
-      |------|------|------|
-      | index.ts | 진입점 | - |
-
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
       None
 
       ## Operations
+      None
+
+      ## File Map
+      None
+      """
+    When I validate the schema with strict mode
+    Then validation should pass
+
+  Scenario: Invariants allows None
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Constraints
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Domain Context
+      None
+
+      ## Invariants
+      None
+
+      ## Decision Log
+      None
+
+      ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -181,19 +222,19 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
+      None
 
-      | 파일 | 역할 | 의존 |
-      |------|------|------|
-      | index.ts | 진입점 | - |
-
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
       None
 
       ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -217,19 +258,19 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
+      None
 
-      | 파일 | 역할 | 의존 |
-      |------|------|------|
-      | index.ts | 진입점 | - |
-
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
       None
 
       ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -252,6 +293,40 @@ Feature: DEVELOPERS.md Schema Validation
     When I validate the schema
     Then validation should pass
 
+  Scenario: DEVELOPERS.md missing Invariants fails validation
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Constraints
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Domain Context
+      None
+
+      ## Decision Log
+      None
+
+      ## Operations
+      None
+
+      ## File Map
+      None
+      """
+    When I validate the schema with strict mode
+    Then validation should fail
+    And error should mention "Missing required section: Invariants"
+
   Scenario: Decision Log with valid ADR entries passes
     Given CLAUDE.md with content:
       """
@@ -270,13 +345,10 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## File Map
+      ## Domain Context
+      None
 
-      | 파일 | 역할 | 의존 |
-      |------|------|------|
-      | index.ts | 진입점 | - |
-
-      ## Data Structures
+      ## Invariants
       None
 
       ## Decision Log
@@ -287,6 +359,9 @@ Feature: DEVELOPERS.md Schema Validation
       - **근거**: 내부 서비스라 RSA 키 관리 복잡성 불필요
 
       ## Operations
+      None
+
+      ## File Map
       None
       """
     When I validate the schema with strict mode

@@ -228,10 +228,10 @@ Grep: pattern="^## File Map|file.*map" path={developers_md_path} output_mode=con
 - File relationships not matching code -> L2 CONTEXT_FILE_MAP_STALE
 - Missing file in map -> record as stale
 
-**Step 5.3: Data Structures check (state-related bugs)**
+**Step 5.3: Invariants check (state-related bugs)**
 State keywords: `undefined`, `null`, `nil`, `not initialized`, `stale`
 ```
-Grep: pattern="^## Data Structures|data.*structure" path={developers_md_path} output_mode=content -A 30 head_limit=50
+Grep: pattern="^## Invariants|invariant" path={developers_md_path} output_mode=content -A 30 head_limit=50
 ```
 
 **Step 5.4: Operations check (operational bugs)**

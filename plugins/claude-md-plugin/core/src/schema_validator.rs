@@ -225,7 +225,7 @@ impl SchemaValidator {
         // Warn about unrecognized sections (v3: only known sections expected)
         let known_sections = [
             "purpose", "constraints", "domain context", "instructions",
-            "project convention", "code convention",
+            "conventions",
         ];
         for section in &sections {
             // Only check H2 sections, skip H1 (title) and H3+ (subsections)
@@ -260,8 +260,8 @@ impl SchemaValidator {
     }
 
     /// Validate DEVELOPERS.md schema with optional directory context.
-    /// When dir_path is provided, File Map "None" is allowed for single-file directories.
-    pub fn validate_developers_with_context(&self, developers_path: &Path, dir_path: Option<&Path>) -> ValidationResult {
+    /// v3.1: All 5 sections are always required, all allow None.
+    pub fn validate_developers_with_context(&self, developers_path: &Path, _dir_path: Option<&Path>) -> ValidationResult {
         let file_str = developers_path.to_string_lossy().to_string();
 
         let content = match std::fs::read_to_string(developers_path) {
@@ -287,26 +287,8 @@ impl SchemaValidator {
 
         let sections = self.parse_sections(&content);
 
-        // Determine if the directory has multiple files (for File Map condition)
-        let has_multiple_files = dir_path.map_or(true, |dir| {
-            Self::count_source_files(dir) >= 2
-        });
-
         // Check required sections for DEVELOPERS.md
         for required in DEVELOPERS_REQUIRED_SECTIONS {
-            // Check if this section has a condition
-            let condition = DEVELOPERS_CONDITIONAL_SECTIONS
-                .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case(required))
-                .map(|(_, cond)| *cond);
-
-            // If there's a condition and it's not met, skip this section
-            if let Some(cond) = condition {
-                if cond == "has_multiple_files" && !has_multiple_files {
-                    continue;
-                }
-            }
-
             let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(required));
 
             match section_found {
@@ -324,11 +306,7 @@ impl SchemaValidator {
                         .any(|s| s.eq_ignore_ascii_case(required));
                     let is_none = self.is_none_marker(section);
 
-                    // File Map: allow None for single-file directories
-                    let file_map_single_file_exemption =
-                        required.eq_ignore_ascii_case("File Map") && !has_multiple_files;
-
-                    if !allows_none && is_none && !file_map_single_file_exemption {
+                    if !allows_none && is_none {
                         errors.push(ValidationError {
                             error_type: "InvalidSectionContent".to_string(),
                             message: format!(
@@ -349,24 +327,6 @@ impl SchemaValidator {
             errors,
             warnings,
             completeness_score: None,
-        }
-    }
-
-    /// Count source files in a directory
-    fn count_source_files(dir: &Path) -> usize {
-        match std::fs::read_dir(dir) {
-            Ok(entries) => entries
-                .flatten()
-                .filter(|e| {
-                    e.path().is_file()
-                        && e.path()
-                            .extension()
-                            .map_or(false, |ext| {
-                                crate::SOURCE_EXTENSIONS.contains(&ext.to_string_lossy().as_ref())
-                            })
-                })
-                .count(),
-            Err(_) => 0,
         }
     }
 
@@ -718,7 +678,7 @@ None
 ## Instructions
 Always use TypeScript strict mode.
 
-## Project Convention
+## Conventions
 
 ### Project Structure
 Layered architecture.
@@ -728,8 +688,6 @@ Each module is self-contained.
 
 ### Naming Conventions
 camelCase for files.
-
-## Code Convention
 
 ### Language & Runtime
 TypeScript 5.0
@@ -819,19 +777,19 @@ None
     fn test_developers_valid_all_sections() {
         let content = r#"# Test Module
 
-## File Map
+## Domain Context
+None
 
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| index.ts | 진입점 | - |
-
-## Data Structures
+## Invariants
 None
 
 ## Decision Log
 None
 
 ## Operations
+None
+
+## File Map
 None
 "#;
         let temp = TempDir::new().unwrap();
@@ -847,7 +805,10 @@ None
     fn test_developers_missing_file_map_fails() {
         let content = r#"# Test Module
 
-## Data Structures
+## Domain Context
+None
+
+## Invariants
 None
 
 ## Decision Log
@@ -867,19 +828,47 @@ None
     }
 
     #[test]
-    fn test_developers_file_map_none_not_allowed() {
+    fn test_developers_file_map_none_allowed() {
         let content = r#"# Test Module
 
-## File Map
+## Domain Context
 None
 
-## Data Structures
+## Invariants
 None
 
 ## Decision Log
 None
 
 ## Operations
+None
+
+## File Map
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(result.valid, "File Map should allow None: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_developers_missing_invariants_fails() {
+        let content = r#"# Test Module
+
+## Domain Context
+None
+
+## Decision Log
+None
+
+## Operations
+None
+
+## File Map
 None
 "#;
         let temp = TempDir::new().unwrap();
@@ -889,38 +878,7 @@ None
         let result = validator.validate_developers(&path);
 
         assert!(!result.valid);
-        assert!(result.errors.iter().any(|e|
-            e.error_type == "InvalidSectionContent" && e.message.contains("File Map")
-        ));
-    }
-
-    #[test]
-    fn test_developers_file_map_none_allowed_single_file() {
-        let content = r#"# Test Module
-
-## File Map
-None
-
-## Data Structures
-None
-
-## Decision Log
-None
-
-## Operations
-None
-"#;
-        let temp = TempDir::new().unwrap();
-        let path = create_developers_file(temp.path(), content);
-
-        // Create a single source file to simulate single-file directory
-        let source_file = temp.path().join("index.ts");
-        File::create(&source_file).unwrap();
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate_developers_with_context(&path, Some(temp.path()));
-
-        assert!(result.valid, "Single-file dir should allow File Map None: {:?}", result.errors);
+        assert!(result.errors.iter().any(|e| e.message.contains("Invariants")));
     }
 
     #[test]
@@ -965,19 +923,19 @@ None
 
         let dev_content = r#"# Test Module
 
-## File Map
+## Domain Context
+None
 
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| index.ts | 진입점 | - |
-
-## Data Structures
+## Invariants
 None
 
 ## Decision Log
 None
 
 ## Operations
+None
+
+## File Map
 None
 "#;
         create_developers_file(temp.path(), dev_content);

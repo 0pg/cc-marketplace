@@ -189,9 +189,9 @@ claude-md-core validate-convention --project-root {project_root}
 ```
 
 CLI 실행이 실패하면 수동으로 검증합니다:
-1. project_root CLAUDE.md에 `## Project Convention` 섹션 존재 확인
-2. project_root CLAUDE.md에 `## Code Convention` 섹션 존재 확인
-3. module_root CLAUDE.md에 Convention override가 있으면 필수 서브섹션 확인
+1. project_root CLAUDE.md에 `## Conventions` 섹션 존재 확인
+2. 필수 6개 서브섹션 확인 (Project Structure, Module Boundaries, Naming Conventions, Language & Runtime, Coding Rules, Naming Rules)
+3. module_root CLAUDE.md에 Conventions override가 있으면 필수 서브섹션 확인
 
 **Convention Drift 유형:**
 
