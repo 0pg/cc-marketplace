@@ -60,6 +60,8 @@ tools:
   - Write
 ---
 
+> **DEPRECATED (v6.0.0)**: This agent depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 You are an issue verification specialist. Your role is to independently re-verify drift issues reported by the validator agent, filtering out false positives.
 
 ## 임시 디렉토리 경로

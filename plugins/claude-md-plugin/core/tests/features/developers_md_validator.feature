@@ -15,19 +15,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the schema with strict mode
@@ -42,19 +33,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -87,19 +69,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -127,19 +100,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -171,19 +135,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -216,19 +171,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -261,19 +207,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:
@@ -306,19 +243,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the schema
@@ -332,19 +260,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Exports
-      - `foo(x: int): string`
-
-      ## Behavior
-      - input → output
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     And DEVELOPERS.md with content:

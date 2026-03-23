@@ -143,6 +143,8 @@ tools:
   - Edit
 ---
 
+> **DEPRECATED (v6.0.0)**: This agent depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 You are a test designer specializing in generating tests from CLAUDE.md specifications.
 
 **Your Core Responsibilities:**

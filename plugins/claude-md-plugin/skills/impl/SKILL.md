@@ -17,8 +17,7 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash]
 ## 목적
 
 요구사항(자연어 또는 User Story)을 분석하여 **CLAUDE.md**를 생성/업데이트.
-**코드 구현 없이** behavior 정의만 수행하여 ATDD/TDD의 "명세 먼저" 원칙을 따름.
-compile-context (session temp)도 생성하여 /compile 핸드오프에 활용.
+**코드 구현 없이** 계약 정의만 수행하여 "명세 먼저" 원칙을 따름.
 
 ## 출력 구조
 
@@ -31,14 +30,9 @@ Bash(claude-md-core scan-claude-md) → 기존 CLAUDE.md 인덱스
     ▼
 Task(impl agent) + claude_md_index_file
     │
-    ├─→ CLAUDE.md 생성/업데이트 (WHAT)
-    │   - Purpose, Domain Context, Exports, Behavior, Contract, Protocol
-    │
-    └─→ compile-context (session temp, HOW 계획)
-        - Dependencies Direction (CLAUDE.md 경로로 resolve)
-        - Implementation Approach
-        - Technology Choices
-        - 경로: .claude/tmp/compile-context-{dir-hash}.md
+    └─→ CLAUDE.md 생성/업데이트 (WHAT)
+        - Purpose, Constraints, Domain Context
+        - (project root only) Instructions, Project Convention, Code Convention
 ```
 
 ## 아키텍처
@@ -68,11 +62,11 @@ User: /impl "요구사항"
 │ 3. 대상 위치 결정                           │
 │ 4. 기존 CLAUDE.md 존재시 병합               │
 │ 5. CLAUDE.md 생성                           │
-│ 5.5. compile-context (session temp) 생성   │
+│ 5.5. DEVELOPERS.md 생성                    │
 │ 6. Bash(claude-md-core validate-schema) → 검증│
 │ 6.5 ⭐ Plan Preview → AskUserQuestion       │
 │    (approve/modify/cancel)                  │
-│ 7. 승인 시에만 CLAUDE.md + compile-context 저장│
+│ 7. 승인 시에만 CLAUDE.md 저장               │
 └─────────────────────────────────────────────┘
 ```
 
@@ -96,7 +90,7 @@ mkdir -p .claude/extract-results
 $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/claude-md-index.json
 ```
 
-### 3. CLAUDE.md + compile-context 생성 (impl agent)
+### 3. CLAUDE.md 생성 (impl agent)
 
 `claude_md_index_file`은 `.claude/extract-results/claude-md-index.json`입니다.
 
@@ -104,18 +98,13 @@ impl agent를 Task로 호출합니다. 프롬프트에 사용자 요구사항(`u
 
 **impl agent 워크플로우:**
 0. **⭐ Scope Assessment** — 완성도 분류 (high/medium/low) + 멀티 모듈 감지
-1. 요구사항에서 Purpose, Exports, Behaviors, Contracts 추출
+1. 요구사항에서 Purpose, Constraints, Domain Context 추출
 1.5. **Task(dep-explorer)** — 의존성 탐색 위임 (internal CLAUDE.md + external packages)
-2. **⭐ Tiered Clarification** — Tier 1(범위) → Tier 2(인터페이스) → Tier 3(제약), 최대 2라운드
+2. **⭐ Tiered Clarification** — Tier 1(범위) → Tier 2(제약) → Tier 3(맥락), 최대 2라운드
    - completeness=high이면 Phase 2 건너뛰기 (경로 미지정 시 LOCATION만 질문)
 3. 대상 경로 결정 (명시적 경로, 모듈명 추론, 사용자 선택)
 4. 기존 CLAUDE.md 존재시 smart merge
 5. 템플릿 기반 CLAUDE.md 생성
-5.5. **compile-context (session temp) 생성**
-   - Dependencies Direction: dep-explorer 결과에서 CLAUDE.md 경로로 resolve된 의존성
-   - Implementation Approach: 구현 전략과 대안
-   - Technology Choices: 기술 선택 근거
-   - 경로: `.claude/tmp/compile-context-{dir-hash}.md`
 6. 스키마 검증 (1회)
 6.5. **⭐ Plan Preview** — 생성 계획 요약 제시 → 사용자 승인 (approve/modify/cancel)
 7. 최종 저장 (승인된 경우만)
@@ -157,7 +146,7 @@ Bash: git diff HEAD -- {target_path}/CLAUDE.md
 ```
 
 **새 파일 생성인 경우 (untracked):**
-- 생성된 CLAUDE.md의 주요 섹션 헤더와 Exports 목록을 요약 표시
+- 생성된 CLAUDE.md의 주요 섹션 헤더를 요약 표시
 
 **변경 없음:** 스킵.
 
@@ -170,14 +159,12 @@ Bash: git diff HEAD -- {target_path}/CLAUDE.md
 === /impl 완료 ===
 
 생성/업데이트된 파일:
-  ✓ {target_path}/CLAUDE.md (WHAT - 스펙)
-  ✓ .claude/tmp/compile-context-{dir-hash}.md (session temp)
+  ✓ {target_path}/CLAUDE.md (WHAT - 계약)
 
-스펙 요약:
+계약 요약:
   - Purpose: {purpose}
-  - Exports: {export_count}개
-  - Behaviors: {behavior_count}개
-  - Contracts: {contract_count}개
+  - Constraints: {constraints_count}개
+  - Domain Context: {domain_context_count}개
 
 검증 결과: 스키마 검증 통과
 
@@ -212,7 +199,7 @@ status: cancelled_by_user
 - Show plan preview before file creation (Phase 6.5)
 - Provide /impl commands for remaining modules (multi-module decomposition)
 - Clarify ambiguous requirements via AskUserQuestion
-- Generate CLAUDE.md + compile-context as outputs
+- Generate CLAUDE.md as output
 - Merge with existing CLAUDE.md when updating
 - Delegate dependency discovery to dep-explorer agent
 
@@ -220,7 +207,7 @@ status: cancelled_by_user
 - Generate source code (use /compile)
 - Modify source code (use /compile)
 - Skip schema validation
-- Read source code for dependency discovery (use CLAUDE.md Exports)
+- Read source code for dependency discovery (use CLAUDE.md Purpose/Constraints)
 - Save files without user approval (Phase 6.5)
 
 ## 오류 처리
@@ -230,7 +217,6 @@ status: cancelled_by_user
 | 요구사항 불명확 | impl agent가 AskUserQuestion으로 명확화 |
 | 대상 경로 모호 | 후보 목록 제시 후 선택 요청 |
 | 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
-| 기존 compile-context 존재 | 덮어쓰기 (세션 한정 파일) |
 | 멀티 모듈 감지 | AskUserQuestion으로 분해/도메인 그룹/단일 선택 |
 | 스키마 검증 실패 | 경고와 함께 이슈 보고 |
 | Plan Preview 거절 | 범위 조정 또는 취소 (최대 1회 루프백) |
@@ -238,7 +224,7 @@ status: cancelled_by_user
 
 ## 참조 문서
 
-- `references/scan-and-orchestration.md`: scan-claude-md 호출 패턴, impl agent 워크플로우 상세 (Phase 0~7), compile-context 생성 로직
+- `references/scan-and-orchestration.md`: scan-claude-md 호출 패턴, impl agent 워크플로우 상세 (Phase 0~7)
 - `examples/sample-claude-md.md`: 생성된 CLAUDE.md 예시
 - `examples/sample-vague-requirement.md`: 모호한 요구사항 처리 시나리오 (low completeness)
 - `examples/sample-multi-module.md`: 멀티 모듈 요구사항 분해 시나리오
@@ -273,12 +259,12 @@ status: cancelled_by_user
 === /impl 완료 ===
 
 생성/업데이트된 파일:
-  ✓ src/auth/CLAUDE.md (WHAT - 스펙)
+  ✓ src/auth/CLAUDE.md (WHAT - 계약)
 
-스펙 요약:
+계약 요약:
   - Purpose: JWT 토큰 검증 인증 모듈
-  - Exports: 2개
-  - Behaviors: 3개
+  - Constraints: 2개
+  - Domain Context: 1개
 
 다음 단계:
   - /compile로 코드 구현 가능

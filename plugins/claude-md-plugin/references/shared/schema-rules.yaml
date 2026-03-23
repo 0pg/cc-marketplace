@@ -5,8 +5,8 @@
 #   - Documentation (templates/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "2.0.0"
-description: "CLAUDE.md 스키마 검증 규칙 - Single Source of Truth"
+version: "3.0.0"
+description: "CLAUDE.md 스키마 검증 규칙 - v3 (Code-First + Pre-learning Index)"
 
 sections:
   purpose:
@@ -15,103 +15,15 @@ sections:
     condition: "always"
     condition_type: "static"
     allow_none: false
-    description: "디렉토리의 책임을 1-2문장으로 명시"
+    description: "모듈의 책임을 1-2문장으로 명시"
 
-  exports:
-    name: "Exports"
+  constraints:
+    name: "Constraints"
     required: true
     condition: "always"
     condition_type: "static"
     allow_none: true
-    description: "모듈의 public interface를 시그니처 레벨로"
-    validation:
-      pattern: "^[A-Za-z_][A-Za-z0-9_]*\\s*\\([^)]*\\).*"
-      description: "함수 시그니처 형식: Name(params): ReturnType"
-
-  behavior:
-    name: "Behavior"
-    required: true
-    condition: "always"
-    condition_type: "static"
-    allow_none: true
-    description: "동작을 시나리오 레벨 (input → output)로 명시"
-    validation:
-      pattern: ".+\\s*[→->].+"
-      description: "시나리오 형식: input → output"
-      alternative_patterns:
-        - pattern: "Given .+ When .+ Then .+"
-          description: "Gherkin format"
-        - pattern: "\\w+ (returns|throws|produces) .+ when .+"
-          description: "동사형 format"
-
-  contract:
-    name: "Contract"
-    required: true
-    condition: "always"
-    condition_type: "static"
-    allow_none: true
-    description: "함수별 사전조건, 사후조건, 불변식"
-    subsections:
-      - preconditions
-      - postconditions
-      - throws
-      - invariants
-
-  protocol:
-    name: "Protocol"
-    required: true
-    condition: "has_stateful_patterns"
-    condition_type: "dynamic"
-    allow_none: true
-    description: "상태 전이나 호출 순서"
-    subsections:
-      - state_machine
-      - lifecycle
-
-  async_contract:
-    name: "Async Contract"
-    required: true
-    condition: "has_async_patterns"
-    condition_type: "dynamic"
-    allow_none: true
-    description: "비동기 패턴 계약: 실행 순서, 취소 정책, 배압(backpressure), 타임아웃"
-    subsections:
-      - execution_order
-      - cancellation
-      - backpressure
-      - timeout
-
-  error_taxonomy:
-    name: "Error Taxonomy"
-    required: true
-    condition: "always"
-    condition_type: "static"
-    allow_none: true
-    description: "에러 계층 구조: 에러 타입 트리, 복구 전략, 전파 규칙"
-    subsections:
-      - error_hierarchy
-      - recovery_strategy
-      - propagation
-
-  concurrency_model:
-    name: "Concurrency Model"
-    required: true
-    condition: "has_concurrency_patterns"
-    condition_type: "dynamic"
-    allow_none: true
-    description: "동시성 모델: 스레드 안전성, 공유 상태, 락 전략, 레이스 컨디션 방지"
-    subsections:
-      - thread_safety
-      - shared_state
-      - synchronization
-
-  acknowledged_deviations:
-    name: "Acknowledged Deviations"
-    required: false
-    condition: "has_deviations"
-    condition_type: "dynamic"
-    allow_none: false
-    description: "/resolve에서 Acknowledge된 계약-코드 편차 목록"
+    description: "코드가 지켜야 할 규칙. 자기완결(상위 제약 포함 반복)."
 
   domain_context:
     name: "Domain Context"
@@ -119,35 +31,15 @@ sections:
     condition: "always"
     condition_type: "static"
     allow_none: true
-    description: "compile 시 동일한 코드 재현을 보장하기 위한 맥락 (결정 근거, 제약 조건, 호환성 요구)"
-    subsections:
-      - decision_rationale
-      - constraints
-      - compatibility
+    description: "핵심 맥락 요약. 2-3문장."
 
-  structure:
-    name: "Structure"
+  instructions:
+    name: "Instructions"
     required: false
-    condition: "has_subdirs_or_files"
+    condition: "is_project_root"
     condition_type: "dynamic"
     allow_none: false
-    description: "하위 디렉토리나 파일이 있는 경우 구조 설명"
-
-  dependencies:
-    name: "Dependencies"
-    required: false
-    condition: "has_external_or_internal_deps"
-    condition_type: "dynamic"
-    allow_none: false
-    description: "외부/내부 의존성 목록"
-
-  constraints:
-    name: "Constraints"
-    required: false
-    condition: "has_constraints"
-    condition_type: "dynamic"
-    allow_none: false
-    description: "지켜야 할 규칙이나 제약사항"
+    description: "AI 행동 지시. project root에만."
 
   project_convention:
     name: "Project Convention"

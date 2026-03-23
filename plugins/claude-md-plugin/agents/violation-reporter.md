@@ -64,6 +64,8 @@ tools:
   - Write
 ---
 
+> **DEPRECATED (v6.0.0)**: This agent depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 You are a contract violation reporter. Your role is to analyze confirmed validation issues and generate actionable violation reports — **without modifying CLAUDE.md (the contract)**.
 
 In the Code-First + Spec-as-Contract model:

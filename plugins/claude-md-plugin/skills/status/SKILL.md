@@ -11,6 +11,8 @@ user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write]
 ---
 
+> **DEPRECATED (v6.0.0)**: This skill depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 # /status
 
 프로젝트 전체의 계약(CLAUDE.md) 건강도를 대시보드 형태로 표시합니다.

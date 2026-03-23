@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 // Import the modules we're testing
-use claude_md_core::{TreeParser, BoundaryResolver, SchemaValidator, CodeAnalyzer, ConventionValidator};
+use claude_md_core::{TreeParser, BoundaryResolver, SchemaValidator, CodeAnalyzer, ClaudeMdParser, ConventionValidator};
 use claude_md_core::tree_parser::TreeResult;
 use claude_md_core::boundary_resolver::BoundaryResult;
 use claude_md_core::schema_validator::ValidationResult;
+use claude_md_core::claude_md_parser::{ClaudeMdSpec, ParseError};
 use claude_md_core::code_analyzer::AnalysisResult;
 use claude_md_core::convention_validator::ConventionValidationResult;
 use claude_md_core::compile_target_resolver::{CompileTargetResolver, DiffResult};
@@ -45,6 +46,8 @@ pub struct TestWorld {
     format_exports_output2: Option<String>,
     // Fix schema fields
     fix_schema_added: Option<Vec<String>>,
+    // Parser fields
+    parser_result: Option<Result<ClaudeMdSpec, ParseError>>,
 }
 
 // ============== Common Steps ==============
@@ -1473,6 +1476,87 @@ fn parser_produces_json(_world: &mut TestWorld) {
     // Documentation step - no implementation needed
 }
 
+// ============== CLAUDE.md Parser Steps ==============
+
+#[when("I parse the CLAUDE.md file")]
+fn parse_claude_md_file(world: &mut TestWorld) {
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let content = fs::read_to_string(claude_md_path).expect("Failed to read CLAUDE.md");
+
+    let parser = ClaudeMdParser::new();
+    world.parser_result = Some(parser.parse_content(&content));
+}
+
+#[then(expr = "the spec should have purpose {string}")]
+fn spec_should_have_purpose(world: &mut TestWorld, expected: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert_eq!(spec.purpose, expected, "Purpose mismatch");
+}
+
+#[then(expr = "the spec should have constraints count {int}")]
+fn spec_should_have_constraints_count(world: &mut TestWorld, count: usize) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let constraints = spec.constraints.as_ref().expect("No constraints");
+    assert_eq!(constraints.len(), count, "Constraints count mismatch");
+}
+
+#[then("the spec should have no constraints")]
+fn spec_should_have_no_constraints(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.constraints.is_none(), "Expected no constraints, got: {:?}", spec.constraints);
+}
+
+#[then(expr = "the spec should have domain context containing {string}")]
+fn spec_should_have_domain_context(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let dc = spec.domain_context.as_ref().expect("No domain context");
+    assert!(dc.contains(&text), "Expected domain context to contain '{}', got: {}", text, dc);
+}
+
+#[then("the spec should have no domain context")]
+fn spec_should_have_no_domain_context(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.domain_context.is_none(), "Expected no domain context, got: {:?}", spec.domain_context);
+}
+
+#[then(expr = "the spec should have instructions containing {string}")]
+fn spec_should_have_instructions(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let instructions = spec.instructions.as_ref().expect("No instructions");
+    assert!(instructions.contains(&text), "Expected instructions to contain '{}', got: {}", text, instructions);
+}
+
+#[then("the spec should have no instructions")]
+fn spec_should_have_no_instructions(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.instructions.is_none(), "Expected no instructions, got: {:?}", spec.instructions);
+}
+
+#[then(expr = "parsing should fail with error {string}")]
+fn parsing_should_fail(world: &mut TestWorld, expected_error: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    assert!(result.is_err(), "Expected parsing to fail, but it succeeded");
+    let err = result.as_ref().unwrap_err();
+    let err_msg = err.to_string();
+    assert!(err_msg.contains(&expected_error),
+        "Expected error containing '{}', got: {}", expected_error, err_msg);
+}
+
+#[then(expr = "the spec should have warnings containing {string}")]
+fn spec_should_have_warnings(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let found = spec.warnings.iter().any(|w| w.contains(&text));
+    assert!(found, "Expected warning containing '{}', got: {:?}", text, spec.warnings);
+}
+
 // ============== Compile Target Resolver Steps ==============
 
 fn git_init(dir: &Path) {
@@ -1505,7 +1589,7 @@ fn create_spec_file(world: &mut TestWorld, path: String) {
     let full_path = get_temp_path(world).join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = if path.ends_with("CLAUDE.md") {
-        "# Module\n\n## Purpose\nTest module\n\n## Exports\nNone\n\n## Behavior\n| Input | Output |\n|-------|--------|\n| any | ok |\n\n## Dependencies\nNone\n\n## Contract\nNone\n\n## Protocol\nNone\n"
+        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nNone\n"
     } else {
         "# DEVELOPERS\n\n## File Map\n\n| File | Role | Dependencies |\n|------|------|--------------|\n| N/A | N/A | N/A |\n\n## Data Structures\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n"
     };
@@ -1641,7 +1725,7 @@ fn create_committed_spec_with_dep(world: &mut TestWorld, path: String, dep: Stri
     let full_path = root.join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = format!(
-        "# Module\n\n## Purpose\nTest module\n\n## Exports\nNone\n\n## Behavior\n| Input | Output |\n|-------|--------|\n| any | ok |\n\n## Dependencies\n### Internal\n- `{}` — dependency\n\n### External\nNone\n\n## Contract\nNone\n\n## Protocol\nNone\n",
+        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nDepends on `{}`.\n",
         dep
     );
     let mut f = File::create(&full_path).expect("create file failed");

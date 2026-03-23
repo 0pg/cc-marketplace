@@ -20,18 +20,18 @@ description: |
   I'll diagnose the runtime error through 3-layer analysis.
   1. Templates loaded
   2. Error parsed: TypeError at src/auth/index.ts:15 (validateToken)
-  3. L1 Spec Analysis: CLAUDE.md Exports lists validateToken as standalone function
-  4. L2 Plan Analysis: N/A (no relevant plan issue)
+  3. L1 Spec Analysis: CLAUDE.md Constraints lists validateToken as standalone function
+  4. L2 Context Analysis: N/A (no relevant context issue)
   5. L3 Code Analysis: validateToken is a class method, not standalone function
-  6. Root Cause: L1 SPEC_EXPORT_MISMATCH
-  7. Fix proposed: Update CLAUDE.md Exports
+  6. Root Cause: L1 SPEC_CONSTRAINT_MISMATCH
+  7. Fix proposed: Update CLAUDE.md Constraints
 
   ---debugger-result---
   result_file: ${TMP_DIR}debug-src-auth.md
   status: success
   root_cause_layer: L1
-  root_cause_type: SPEC_EXPORT_MISMATCH
-  summary: CLAUDE.md exports validateToken as standalone but code defines it as class method
+  root_cause_type: SPEC_CONSTRAINT_MISMATCH
+  summary: CLAUDE.md constraints specify validateToken as standalone but code defines it as class method
   fix_targets: [CLAUDE.md]
   compile_path: src/auth
   compile_required: true
@@ -56,7 +56,7 @@ description: |
   I'll diagnose the test failure through 3-layer analysis.
   1. Templates loaded
   2. Test executed: FAIL - Expected [] Received null
-  3. L1 Spec Analysis: Behavior says "no results -> empty collection" (correct)
+  3. L1 Spec Analysis: Constraints say "no results -> empty collection" (correct)
   4. L2 Context Analysis: DEVELOPERS.md Decision Log notes empty array convention (correct)
   5. L3 Code Analysis: searchItems returns null when no results
   6. Root Cause: L3 CODE_SPEC_DIVERGENCE — spec is correct, code diverged
@@ -67,7 +67,7 @@ description: |
   status: success
   root_cause_layer: L3
   root_cause_type: CODE_SPEC_DIVERGENCE
-  summary: Code returns null instead of empty array as specified in CLAUDE.md Behavior
+  summary: Code returns null instead of empty array as specified in CLAUDE.md Constraints
   fix_targets: [CLAUDE.md]
   compile_path: src/utils
   compile_required: true
@@ -331,8 +331,8 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 
 **L3 finding (코드 문제 — 대부분의 버그):**
 - L3 CODE_SPEC_DIVERGENCE (계약이 맞음) → `compile_required: true` (재컴파일로 코드 재생성)
-- L3 CODE_LOGIC_ERROR → CLAUDE.md Behavior/Contract 보강 후 → `compile_required: true`
-- L3 CODE_GUARD_MISSING → CLAUDE.md Contract 명확화 후 → `compile_required: true`
+- L3 CODE_LOGIC_ERROR → CLAUDE.md Constraints 보강 후 → `compile_required: true`
+- L3 CODE_GUARD_MISSING → CLAUDE.md Constraints 명확화 후 → `compile_required: true`
 
 **L1 finding (계약 자체 오류 — 사용자 승인 필수):**
 - L1 finding → **AskUserQuestion으로 사용자 선택 요청** (Phase 6.5)
@@ -412,7 +412,7 @@ AskUserQuestion: "다음 CLAUDE.md 수정을 적용하시겠습니까?"
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_EXPORT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}

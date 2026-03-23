@@ -7,6 +7,8 @@ argument-hint: "[path]"
 allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, Skill, AskUserQuestion]
 ---
 
+> **DEPRECATED (v6.0.0)**: This skill depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 # /resolve
 
 `/validate` 결과를 기반으로 계약-코드 불일치(drift)를 대화형으로 해소합니다.

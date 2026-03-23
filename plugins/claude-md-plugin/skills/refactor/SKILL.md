@@ -12,6 +12,8 @@ user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, Skill, AskUserQuestion]
 ---
 
+> **DEPRECATED (v6.0.0)**: This skill depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 # /refactor
 
 계약(CLAUDE.md) 수준의 모듈 분할/병합 리팩토링을 수행합니다.

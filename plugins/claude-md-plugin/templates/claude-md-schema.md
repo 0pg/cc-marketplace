@@ -3,48 +3,48 @@
   규칙의 Single Source of Truth: references/shared/schema-rules.yaml
 -->
 
-# CLAUDE.md Schema Template
+# CLAUDE.md Schema Template (v3.0.0)
 
 이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
 
-**CLAUDE.md = WHAT (정형화된 PRD)**
-- CLAUDE.md는 "무엇을(WHAT)" 정의하는 문서입니다.
-- DEVELOPERS.md는 "왜(WHY)" 그렇게 결정했는지 맥락을 제공합니다.
-- 두 문서는 1:1로 매핑됩니다.
+**CLAUDE.md = 사전학습 인덱스 + 인간 지식 저장소**
+- 소스코드가 유일한 Source of Truth
+- CLAUDE.md는 AI가 모듈을 빠르게 이해하기 위한 compact index
+- DEVELOPERS.md는 "왜(WHY)" 그렇게 결정했는지 맥락을 제공합니다
 
-## 문서 시스템
+## 3-문서 체계
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin                         │
 │                                                             │
-│   CLAUDE.md (WHAT) + DEVELOPERS.md (WHY)                   │
-│         │                                                   │
-│         └──── /compile ──→  Source Code (구현)              │
+│   CLAUDE.md (auto-loaded, compact)                         │
+│     → Purpose, Constraints, Domain Context                 │
+│                                                             │
+│   DEVELOPERS.md (on-demand, detailed)                      │
+│     → File Map, Decision Log, Operations                   │
+│                                                             │
+│   .claude/index.md (auto-generated, gitignored)            │
+│     → Exports, Behavior, Dependencies, Structure           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 문서 | 역할 | 주요 내용 |
+| 문서 | 역할 | 로드 방식 |
 |------|------|----------|
-| **CLAUDE.md** | WHAT | 도메인맥락, PRD, 인터페이스 |
-| **DEVELOPERS.md** | WHY | 파일관계, 결정근거, 운영 |
+| **CLAUDE.md** | 사전학습 인덱스 | auto-loaded |
+| **DEVELOPERS.md** | 인간 지식 저장소 | on-demand |
+| **.claude/index.md** | 코드 분석 결과 | auto-generated |
 
-## 필수 섹션 요약 (6 always-required + 3 conditional)
+## 필수 섹션 요약 (3 always-required + 3 conditional)
 
 | 섹션 | 필수 | 조건 | "None" 허용 | 설명 |
 |------|------|------|-------------|------|
-| Purpose | always | — | ✗ | 디렉토리의 책임 |
-| Exports | always | — | ✓ | public interface |
-| Behavior | always | — | ✓ | 동작 시나리오 |
-| Contract | always | — | ✓ | 사전/사후조건 |
-| Error Taxonomy | always | — | ✓ | 에러 계층 구조 |
-| Domain Context | always | — | ✓ | compile 재현성 보장 맥락 |
-| Protocol | conditional | has_stateful_patterns | ✓ | 상태 전이/호출 순서 |
-| Async Contract | conditional | has_async_patterns | ✓ | 비동기 패턴 계약 |
-| Concurrency Model | conditional | has_concurrency_patterns | ✓ | 동시성 모델 |
-
-> **conditional 섹션**: 해당 패턴이 코드에 존재하지 않으면 섹션 자체를 생략할 수 있습니다.
-> 존재하는데 "None"으로 표기하는 것은 허용되지만, 불필요한 "None" 섹션은 `/migrate`의 CONDITIONAL_CLEANUP으로 제거할 수 있습니다.
+| Purpose | always | — | ✗ | 모듈의 책임을 1-2문장으로 |
+| Constraints | always | — | ✓ | 코드가 지켜야 할 규칙 |
+| Domain Context | always | — | ✓ | 핵심 맥락 요약 (2-3문장) |
+| Instructions | conditional | is_project_root | ✗ | AI 행동 지시 (project root에만) |
+| Project Convention | conditional | is_project_or_module_root | — | 아키텍처/모듈 구조 규칙 |
+| Code Convention | conditional | is_project_or_module_root | — | 소스코드 수준 규칙 |
 
 > 규칙 상세: `references/shared/schema-rules.yaml` 참조
 
@@ -52,402 +52,35 @@
 
 ## 상세 설명
 
-### 1. Purpose (필수)
-디렉토리의 책임을 1-2문장으로 명시합니다.
+### 1. Purpose (필수, None 불가)
+모듈의 책임을 1-2문장으로 명시합니다.
 
 ```markdown
 ## Purpose
 이 모듈은 사용자 인증을 담당합니다.
 ```
 
-### 2. Structure (조건부 필수)
-하위 디렉토리나 파일이 있는 경우 필수입니다.
+### 2. Constraints (필수, None 허용)
+코드가 지켜야 할 규칙입니다. 자기완결적으로 작성합니다 (상위 제약도 필요시 반복).
 
-```markdown
-## Structure
-- jwt/: JWT 토큰 처리 (상세는 jwt/CLAUDE.md 참조)
-- session.ts: 세션 관리 로직
-- types.ts: 인증 관련 타입 정의
-```
-
-### 3. Exports (필수)
-모듈의 public interface를 **시그니처 레벨 + 도메인 맥락**으로 명시합니다.
-
-**Exports = Interface Catalog**: 다른 모듈이 코드를 탐색하지 않고도 이 모듈의 인터페이스를 파악할 수 있어야 합니다.
-
-#### Discovery Use Case
-```
-다른 모듈에서 이 모듈을 참조할 때:
-1. 이 CLAUDE.md의 Exports 섹션 읽기 ← 인터페이스 카탈로그
-2. 필요한 함수/타입 시그니처 확인
-3. (선택) Behavior 섹션으로 동작 이해
-4. (최후) 실제 소스코드 ← Exports로 불충분할 때만
-```
-
-#### 형식 규칙
-- 함수/메서드: `Name(params) ReturnType` 형태
-- 파라미터 타입과 반환 타입 필수
-- **도메인 맥락**: 각 함수/타입에 역할과 용도 설명 포함
-- 언어별 관용 표현 허용
-
-#### Functions 상세 형식 (권장)
-
-각 함수는 시그니처와 함께 도메인 맥락을 포함해야 합니다:
-
-```markdown
-### Functions
-
-#### validateToken
-`validateToken(token: string) -> Claims`
-
-JWT 토큰을 검증하고 Claims를 추출합니다.
-- **입력**: Bearer 토큰 (Authorization 헤더에서 추출된 문자열)
-- **출력**: 사용자 식별 정보와 권한 목록을 포함하는 Claims
-- **역할**: API 요청의 인증 게이트키퍼. 모든 보호된 엔드포인트에서 호출됨
-- **도메인 맥락**: PCI-DSS 준수를 위해 7일 만료 정책 적용
-```
-
-#### Types 상세 형식 (권장)
-
-```markdown
-### Types
-
-#### Claims
-`Claims { userId: string, exp: number, permissions: Permission[] }`
-
-인증된 사용자의 신원과 권한을 나타내는 타입
-- **userId**: UUID v4 형식, 사용자 테이블의 PK
-- **exp**: Unix timestamp (초), 토큰 만료 시점
-- **permissions**: 해당 사용자가 수행 가능한 작업 목록
-```
-
-#### 간략 형식 (단순한 경우)
-
-```markdown
-### Functions
-- `functionName(param: Type, param2: Type) -> ReturnType`
-- `anotherFunction(param: Type) -> ReturnType`
-
-### Types
-- `TypeName { field: Type, field2: Type }`
-
-### Classes
-- `ClassName(param: Type)`
-```
-
-**참고**: 시그니처 형식은 프로젝트에서 사용하는 언어의 관용적 표현을 따릅니다.
-프로젝트 root CLAUDE.md에 명시된 코딩 컨벤션을 참조하세요.
-
-### 4. Dependencies (조건부)
-외부 의존성이 있는 경우 명시합니다.
-
-```markdown
-## Dependencies
-
-- external:
-  - `jsonwebtoken@9.0.0`: sign, verify
-  - `@aws-sdk/client-s3`: S3Client
-
-- internal:
-  - `utils/crypto/CLAUDE.md`: hashPassword, verifySignature
-  - `core/domain/transaction/CLAUDE.md`: WithdrawalResultSynchronizer
-```
-
-**규칙:**
-- internal 경로는 project-root-relative CLAUDE.md 파일 경로
-- colon 뒤에 import하는 심볼 나열
-- tree-parse 결과의 디렉토리 목록과 1:1 대응
-
-### 5. Behavior (필수)
-동작을 **시나리오 레벨**로 명시합니다. 3가지 형식을 허용합니다:
-
-#### 허용 형식
-
-| 형식 | 패턴 | 예시 |
-|------|------|------|
-| **arrow** | input → output | `유효한 토큰 → Claims 객체 반환` |
-| **Gherkin** | Given/When/Then | `Given 유효한 토큰, When validateToken 호출, Then Claims 반환` |
-| **verb** | returns/throws/produces | `유효한 토큰이면 Claims를 returns` |
-
-하나의 CLAUDE.md 내에서 형식을 혼용할 수 있지만, 일관성을 권장합니다.
-
-```markdown
-## Behavior
-
-### 정상 케이스 (arrow 형식)
-- 유효한 토큰 → Claims 객체 반환
-- 만료된 토큰 + refresh 옵션 → 새 토큰 쌍 반환
-
-### 에러 케이스 (arrow 형식)
-- 잘못된 형식의 토큰 → InvalidTokenError
-- 만료된 토큰 (refresh 없음) → TokenExpiredError
-- 위조된 토큰 → SignatureVerificationError
-```
-
-```markdown
-## Behavior (Gherkin 형식 예시)
-
-### 정상 케이스
-- Given 유효한 JWT 토큰, When validateToken 호출, Then Claims 객체 반환
-- Given 만료된 토큰 + refresh 옵션, When validateToken 호출, Then 새 토큰 쌍 반환
-
-### 에러 케이스
-- Given 잘못된 형식의 토큰, When validateToken 호출, Then InvalidTokenError throws
-```
-
-```markdown
-## Behavior (verb 형식 예시)
-
-### 정상 케이스
-- 유효한 토큰이면 Claims 객체를 returns
-- 만료된 토큰 + refresh 옵션이면 새 토큰 쌍을 produces
-
-### 에러 케이스
-- 잘못된 형식의 토큰이면 InvalidTokenError를 throws
-```
-
-#### Behavior와 Contract의 관계
-
-> **Behavior = 사용자 관점 시나리오 (Given/When/Then), Contract = 개발자 관점 형식 보증 (Pre/Post/Throws).**
-> 모든 Contract.throws는 대응하는 error Behavior가 있어야 합니다.
-> Behavior는 Contract의 관찰 가능한 표현(projection)입니다.
-
-### 6. Constraints (선택)
-지켜야 할 규칙이나 제약사항입니다.
+규칙이 없는 경우 `None`을 명시합니다.
 
 ```markdown
 ## Constraints
-- 토큰 만료 시간은 최대 24시간
+None
+```
+
+규칙이 있는 경우:
+
+```markdown
+## Constraints
+- 토큰 만료 시간은 최대 7일 (PCI-DSS)
 - refresh token은 secure storage에만 저장
 - 동시 세션은 최대 5개
 ```
 
-### 7. Contract (필수, "None" 허용)
-함수별 사전조건(preconditions), 사후조건(postconditions), 불변식(invariants) 정보입니다.
-
-특별한 계약 조건이 없는 경우 `None`을 명시합니다.
-
-```markdown
-## Contract
-None
-```
-
-계약 조건이 있는 경우:
-
-```markdown
-## Contract
-
-### validateToken
-- **Preconditions**: token must be non-empty string
-- **Postconditions**: returns Claims with valid userId
-- **Throws**: InvalidTokenError if token is malformed
-
-### processOrder
-- **Preconditions**:
-  - order.id is required
-  - order.items not empty
-- **Postconditions**: returns Receipt with orderId matching input
-```
-
-#### 추출 소스
-Contract 정보는 다음에서 자동 추출됩니다:
-
-1. **JSDoc 태그** (명시적)
-   - `@precondition <condition>` - 사전조건
-   - `@postcondition <condition>` - 사후조건
-   - `@invariant <condition>` - 불변식
-   - `@throws <ErrorType>` - 예외
-
-2. **코드 패턴 추론** (암시적)
-   - Validation 로직: `if (!x.prop) throw new Error` → `x.prop is required`
-   - Length 검증: `if (arr.length === 0) throw` → `arr not empty`
-   - Type guards: `asserts x is T` → `x must be T`
-
-### 8. Protocol (conditional: has_stateful_patterns, "None" 허용)
-상태 전이나 호출 순서를 명시합니다. 상태 머신이나 라이프사이클 패턴이 없으면 섹션 생략 가능.
-
-특별한 프로토콜이 없는 경우 `None`을 명시합니다.
-
-```markdown
-## Protocol
-None
-```
-
-프로토콜이 있는 경우:
-
-```markdown
-## Protocol
-
-### State Machine
-States: `Idle` | `Loading` | `Loaded` | `Error`
-
-Transitions:
-- `Idle` + `load()` → `Loading`
-- `Loading` + `success` → `Loaded`
-- `Loading` + `failure` → `Error`
-
-### Lifecycle
-1. `init()` - 초기화
-2. `start()` - 시작
-3. `stop()` - 정지
-4. `destroy()` - 정리
-```
-
-#### 추출 소스
-Protocol 정보는 다음에서 자동 추출됩니다:
-
-1. **상태 머신** (State enum)
-   - `enum State { Idle, Loading, Loaded, Error }` 패턴 인식
-   - 상태 전이 로직에서 transitions 추론
-
-2. **라이프사이클** (JSDoc 태그)
-   - `@lifecycle N` 태그로 순서 명시
-   - 예: `@lifecycle 1` → 첫 번째 호출
-   - 예: `@lifecycle 2` → 두 번째 호출
-
-### 9. Async Contract (conditional: has_async_patterns, "None" 허용)
-비동기 패턴 계약을 명시합니다. 코드가 이 비동기 패턴을 따라야 합니다.
-비동기 동작이 없으면 섹션 생략 가능. 존재하는 경우 `None`도 허용됩니다.
-
-```markdown
-## Async Contract
-None
-```
-
-비동기 계약이 있는 경우:
-
-```markdown
-## Async Contract
-
-### Execution Order
-- `fetchUser` → `validatePermissions` → `executeAction` (순차 필수)
-- `logAudit`는 `executeAction`과 병렬 가능
-
-### Cancellation
-- 모든 async 작업은 AbortSignal을 지원해야 함
-- 취소 시 partial state를 롤백 (트랜잭션 보장)
-
-### Backpressure
-- 동시 요청 최대 10개 (초과 시 큐잉)
-- 큐 크기 최대 100 (초과 시 429 반환)
-
-### Timeout
-- API 호출: 5000ms
-- DB 쿼리: 3000ms
-- 전체 요청: 30000ms
-```
-
-#### 하위 섹션
-
-| 섹션 | 용도 | 예시 |
-|------|------|------|
-| **Execution Order** | 비동기 작업 간 순서 보장 | `A → B → C (순차 필수)` |
-| **Cancellation** | 취소 정책 및 정리 규칙 | `AbortSignal 지원, partial rollback` |
-| **Backpressure** | 배압 처리 정책 | `동시 10개, 큐 100개` |
-| **Timeout** | 작업별 타임아웃 | `API 5s, DB 3s` |
-
-### 10. Error Taxonomy (필수, "None" 허용)
-에러 계층 구조와 복구 전략을 명시합니다.
-
-에러 계층이 없는 경우 `None`을 명시합니다.
-
-```markdown
-## Error Taxonomy
-None
-```
-
-에러 계층이 있는 경우:
-
-```markdown
-## Error Taxonomy
-
-### Error Hierarchy
-```
-AppError (base)
-├── AuthError
-│   ├── InvalidTokenError
-│   ├── TokenExpiredError
-│   └── PermissionDeniedError
-├── ValidationError
-│   ├── InvalidInputError
-│   └── SchemaError
-└── InfraError
-    ├── DatabaseError
-    └── NetworkError
-```
-
-### Recovery Strategy
-| 에러 타입 | 복구 | 재시도 |
-|-----------|------|--------|
-| InvalidTokenError | 재인증 요청 | No |
-| NetworkError | 자동 재시도 | 3회, exponential backoff |
-| DatabaseError | 커넥션 풀 재생성 | 1회 |
-
-### Propagation
-- AuthError → HTTP 401/403으로 변환
-- ValidationError → HTTP 400 + 상세 메시지
-- InfraError → HTTP 500 + 일반 메시지 (내부 정보 노출 금지)
-```
-
-#### 하위 섹션
-
-| 섹션 | 용도 | 예시 |
-|------|------|------|
-| **Error Hierarchy** | 에러 타입 상속 트리 | `AppError > AuthError > InvalidTokenError` |
-| **Recovery Strategy** | 에러별 복구/재시도 정책 | `NetworkError: 3회 재시도` |
-| **Propagation** | 에러 전파 및 변환 규칙 | `AuthError → HTTP 401` |
-
-### 11. Concurrency Model (conditional: has_concurrency_patterns, "None" 허용)
-동시성 모델을 명시합니다. 코드가 이 동시성 규칙을 따라야 합니다.
-동시성 요구가 없으면 섹션 생략 가능. 존재하는 경우 `None`도 허용됩니다.
-
-```markdown
-## Concurrency Model
-None
-```
-
-동시성 모델이 있는 경우:
-
-```markdown
-## Concurrency Model
-
-### Thread Safety
-- `TokenCache`는 thread-safe해야 함 (concurrent read/write)
-- `ConfigManager`는 read-only after init (immutable)
-
-### Shared State
-- `sessionStore`: Map<string, Session> — mutex 보호 필수
-- `rateLimiter`: 카운터 — atomic operation 사용
-
-### Synchronization
-- DB 트랜잭션: pessimistic locking (SELECT FOR UPDATE)
-- 캐시 업데이트: optimistic concurrency (version check)
-- 이벤트 처리: single-writer / multiple-reader 패턴
-```
-
-#### 하위 섹션
-
-| 섹션 | 용도 | 예시 |
-|------|------|------|
-| **Thread Safety** | 각 컴포넌트의 스레드 안전성 수준 | `TokenCache: thread-safe` |
-| **Shared State** | 공유 상태 목록 및 보호 전략 | `sessionStore: mutex 보호` |
-| **Synchronization** | 동기화 메커니즘 | `pessimistic locking` |
-
-### 12. Domain Context (필수, "None" 허용)
-compile 시 동일한 코드 재현을 보장하기 위한 맥락 정보입니다.
-이 정보가 없으면 compile 결과가 달라질 수 있습니다.
-
-**두 가지 역할:**
-1. **자체 compile 재현성**: 해당 CLAUDE.md를 compile할 때 동일한 코드 생성
-2. **의존자 compile 영향**: 이 모듈을 의존하는 다른 CLAUDE.md compile 시 필요한 맥락
-
-> **Domain Context vs Decision Log 구분:**
-> - **Domain Context** = "이 값이 아니면 compile 결과가 달라지는 정보" (코드 생성에 영향)
-> - **Decision Log** (DEVELOPERS.md) = "이 결정을 내린 배경 스토리" (인간 이해용)
-> - 예: `TOKEN_EXPIRY: 7일 (PCI-DSS)` → Domain Context. "PCI-DSS 인증 심사에서 요구, 보안팀과 협의 후 결정" → Decision Log
-
-> **금지**: 변경 이력(changelog, version history)은 Domain Context에 포함하지 않습니다.
-> CLAUDE.md는 현재 스펙이며, 이력은 git history에서 관리합니다.
+### 3. Domain Context (필수, None 허용)
+핵심 맥락을 2-3문장으로 요약합니다.
 
 도메인 맥락이 없는 경우 `None`을 명시합니다.
 
@@ -460,138 +93,20 @@ None
 
 ```markdown
 ## Domain Context
-
-### Decision Rationale
-- TOKEN_EXPIRY: 7일 (PCI-DSS 컴플라이언스 요구사항)
-- MAX_RETRY: 3회 (외부 API SLA 기준)
-- TIMEOUT: 2000ms (IdP 평균 응답 500ms × 4)
-
-### Constraints
-- 금융감독원 가이드라인: 비밀번호 재설정 주기 90일
-- 라이선스 계약: 동시 세션 최대 5개
-- 내부 정책: 민감 데이터 로깅 금지
-
-### Compatibility
-- 레거시 UUID v1 형식 지원 필요 (2023 마이그레이션)
-- Node.js 18+ 필수 (native fetch 사용)
+JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책을 적용합니다.
+Redis 캐시를 사용하여 인증 지연을 최소화합니다.
 ```
 
-#### 하위 섹션
-
-| 섹션 | 용도 | 예시 |
-|------|------|------|
-| **Decision Rationale** | 특정 값/설계를 선택한 이유 | `TOKEN_EXPIRY: 7일 (PCI-DSS)` |
-| **Constraints** | 반드시 지켜야 할 외부 제약 | `비밀번호 재설정 90일 (금융감독원)` |
-| **Compatibility** | 레거시/환경 호환성 요구 | `UUID v1 지원 (2023 마이그레이션)` |
-
-#### compile 시 반영 방식
-
-| Domain Context | compile 결과 |
-|----------------|-------------|
-| `TOKEN_EXPIRY: 7일 (PCI-DSS)` | `const TOKEN_EXPIRY_DAYS = 7; // PCI-DSS` |
-| `동시 세션 최대 5개` | 세션 수 검증 로직 포함 |
-| `UUID v1 지원 필요` | UUID v1 파싱 함수 포함 |
-
-### 15. Acknowledged Deviations (거버넌스, 조건부)
-
-`/resolve`에서 Acknowledge 선택 시 자동 추가되는 거버넌스 섹션입니다.
-의도적으로 인정한 계약-코드 편차를 기록합니다.
+### 4. Instructions (조건부 - project root에만)
+AI 행동 지시를 명시합니다. project root CLAUDE.md에만 작성합니다.
 
 ```markdown
-## Acknowledged Deviations
-
-- **DRIFT-001**: Export `validateToken` 시그니처 불일치
-  - Reason: 다음 스프린트에서 계약 업데이트 예정
+## Instructions
+Always use TypeScript strict mode.
+Follow the team's code review process.
 ```
 
-**규칙:**
-- `/resolve` Acknowledge 시에만 추가 (수동 작성 불가)
-- 사유(Reason) 필수
-- 날짜는 기록하지 않음 (git blame으로 추적)
-- `validate-schema`는 이 섹션을 인식하며 검증 에러로 보고하지 않음
-
-## 검증 규칙
-
-> 규칙의 Single Source of Truth: `references/shared/schema-rules.yaml`
-
-### 필수 섹션 검증 (6 always-required + 3 conditional)
-
-**Always-required (6개):**
-- Purpose: 반드시 존재, "None" 불가
-- Exports: 반드시 존재, public interface가 없는 경우 "None" 명시
-- Behavior: 반드시 존재, 동작이 없는 경우 "None" 명시
-- Contract: 반드시 존재, 계약 조건이 없는 경우 "None" 명시
-- Error Taxonomy: 반드시 존재, 에러 계층이 없는 경우 "None" 명시
-- Domain Context: 반드시 존재, 도메인 맥락이 없는 경우 "None" 명시
-
-**Conditional (3개):**
-- Protocol: has_stateful_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
-- Async Contract: has_async_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
-- Concurrency Model: has_concurrency_patterns일 때 필수. 해당 패턴 없으면 섹션 생략 가능
-
-> **Completeness Score**: `--min-completeness` 플래그로 최소 완성도 점수를 설정할 수 있습니다.
-> Exports와 Behavior가 모두 "None"이면 completeness가 낮다고 판정됩니다.
-
-### Exports 형식 검증
-```regex
-# 함수 패턴: Name(params) ReturnType 형태
-^[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*[:→\->]?\s*.+$
-```
-
-유효 예시:
-- `validateToken(token: string): Promise<Claims>` ✓
-- `validate_token(token: str) -> Claims` ✓
-- `ValidateToken(token string) (Claims, error)` ✓
-
-무효 예시:
-- `validateToken` (파라미터 없음) ✗
-- `validate token` (공백 포함) ✗
-
-### Behavior 형식 검증
-
-3가지 형식 중 하나에 매칭되어야 합니다:
-
-```regex
-# arrow 형식: input → output
-.+\s*[→\->]\s*.+
-
-# Gherkin 형식: Given/When/Then
-(Given|When|Then)\s+.+
-
-# verb 형식: returns/throws/produces
-.+\s+(returns|throws|produces)\s*.+
-```
-
-유효 예시:
-- `유효한 토큰 → Claims 객체` (arrow) ✓
-- `invalid input -> specific error` (arrow) ✓
-- `Given 유효한 토큰, When validateToken 호출, Then Claims 반환` (Gherkin) ✓
-- `유효한 토큰이면 Claims를 returns` (verb) ✓
-
-무효 예시:
-- `토큰을 검증합니다` (시나리오가 아님) ✗
-
-## 참조 규칙
-
-### 허용
-- 부모 → 자식: 자식 디렉토리 참조 가능
-
-### 금지
-- 자식 → 부모: 부모 디렉토리 참조 불가
-- 형제 ↔ 형제: 형제 디렉토리 상호 참조 불가
-
-```markdown
-# src/CLAUDE.md에서
-## Structure
-- auth/: 인증 모듈 (상세는 auth/CLAUDE.md 참조) ✓
-
-# src/auth/CLAUDE.md에서
-## Dependencies
-- ../api: (부모 참조 - 금지) ✗
-- ../utils: (형제 참조 - 금지) ✗
-```
-
-### 13. Project Convention (조건부 - project_root 또는 module_root)
+### 5. Project Convention (조건부 - project_root 또는 module_root)
 
 프로젝트 수준 아키텍처/구조 규칙입니다. project_root CLAUDE.md에 필수이며, module_root에서는 optional override로 사용됩니다.
 
@@ -600,31 +115,26 @@ None
 
 ### Project Structure
 src/ 하위에 기능별 디렉토리 구성.
-각 기능 디렉토리에 index.ts를 진입점으로 사용.
 
 ### Module Boundaries
-각 모듈은 자체 CLAUDE.md를 가지며, 모듈 간 의존성은 Exports만 참조.
-순환 의존 금지.
+각 모듈은 자체 CLAUDE.md를 가지며, 순환 의존 금지.
 
 ### Naming Conventions
-디렉토리: kebab-case
-파일: camelCase
-패키지: @scope/package-name
+디렉토리: kebab-case, 파일: camelCase
 ```
 
 **필수 서브섹션:**
 
 | 서브섹션 | 필수 | 설명 |
 |----------|------|------|
-| Project Structure | Yes | 디렉토리 구조 규칙, 레이어링 패턴 |
+| Project Structure | Yes | 디렉토리 구조 규칙 |
 | Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
 | Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 
-### 14. Code Convention (project_root 필수, module_root 선택)
+### 6. Code Convention (project_root 필수, module_root 선택)
 
 소스코드 수준 코딩 규칙입니다. project_root CLAUDE.md에 필수 (canonical source).
 module_root에서는 project_root와 다른 부분만 override로 작성합니다.
-project_root와 동일한 경우 module_root에 작성하지 않습니다 (계층적 로드로 자동 상속).
 
 ```markdown
 ## Code Convention
@@ -635,14 +145,10 @@ TypeScript 5.0, Node.js 20 LTS
 ### Coding Rules
 - 비동기: async/await 사용, raw Promise 금지
 - 타입: strict mode, any 금지
-- 불변성: const 우선, let 최소화
-- 함수: 단일 책임, 20줄 이내 권장
 
 ### Naming Rules
 - 변수/함수: camelCase
 - 클래스/타입: PascalCase
-- 상수: UPPER_SNAKE_CASE
-- private: _prefix
 ```
 
 **필수 서브섹션:**
@@ -650,44 +156,17 @@ TypeScript 5.0, Node.js 20 LTS
 | 서브섹션 | 필수 | 설명 |
 |----------|------|------|
 | Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
-| Coding Rules | Yes | 린터 검증 불가 기본 코딩 규칙 |
-| Naming Rules | Yes | 변수/함수/클래스/상수 네이밍 |
+| Coding Rules | Yes | 기본 코딩 규칙 |
+| Naming Rules | Yes | 네이밍 규칙 |
 
-> **린트 제외 원칙**: 포맷터/린터 설정 파일(`.prettierrc`, `.eslintrc`, `ruff.toml`, `biome.json` 등)이
-> 존재하면 해당 도구가 처리하는 항목(들여쓰기, 세미콜론, 따옴표 스타일, 줄 길이, trailing comma 등)은
-> Code Convention에 포함하지 않습니다. 린터가 자동으로 강제하므로 CLAUDE.md에 중복 기재하면
-> 불일치 위험만 높아집니다.
+## 참조 규칙
 
-**선택 서브섹션:**
+### 허용
+- 부모 → 자식: 자식 디렉토리 참조 가능
 
-| 서브섹션 | 필수 | 설명 |
-|----------|------|------|
-| Test Convention | No | 테스트 프레임워크, 파일 패턴, 구조, Mock 전략 |
-| Type System | No | 타입 어노테이션 규칙 |
-| Error Handling | No | try/catch 패턴, 에러 타입 |
-| Import/Export | No | import 순서, barrel file 규칙 |
-| Comments & Documentation | No | 주석/문서화 규칙 |
-
-#### Test Convention 서브섹션 (선택)
-
-`/compile`의 test-designer agent가 테스트 생성 시 참조하는 테스트 컨벤션입니다.
-없으면 프로젝트 설정 파일에서 자동 감지합니다.
-
-```markdown
-### Test Convention
-- Framework: vitest
-- Test file pattern: `*.test.ts`
-- Test structure: describe/it
-- Mock strategy: vi.fn()
-- Test location: co-located (same directory as source)
-```
-
-**Convention 섹션 검증:**
-
-```bash
-# CLI로 deterministic 검증
-claude-md-core validate-convention --project-root /path/to/project
-```
+### 금지
+- 자식 → 부모: 부모 디렉토리 참조 불가
+- 형제 ↔ 형제: 형제 디렉토리 상호 참조 불가
 
 ## 관련 문서
 
@@ -701,13 +180,6 @@ claude-md-core validate-convention --project-root /path/to/project
 ∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 --strict 모드에서 DEVELOPERS.md 부재를 에러로 보고
-```
-
-**INV-4: Section 업데이트 책임**
-```
-/impl → CLAUDE.md + DEVELOPERS.md
-/compile → Source Code
-/decompile → CLAUDE.md + DEVELOPERS.md
 ```
 
 **INV-5: Convention 섹션 배치 규칙**

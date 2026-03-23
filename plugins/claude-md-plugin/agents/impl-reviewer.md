@@ -152,9 +152,9 @@ Read: {claude_md_path}
 
 **Step 2.2: 매핑 검증**
 각 추출 항목을 CLAUDE.md 섹션과 대조:
-- 핵심 기능 → Purpose + Exports
-- 시나리오 → Behavior
-- 제약 → Contract + Domain Context
+- 핵심 기능 → Purpose
+- 제약/규칙 → Constraints
+- 맥락/근거 → Domain Context
 - 도메인 용어 → 문서 전체
 
 D1-1 ~ D1-5 체크를 수행하고 finding 생성.
@@ -162,36 +162,29 @@ D1-1 ~ D1-5 체크를 수행하고 finding 생성.
 ### Phase 3: D2 — CLAUDE.md Quality
 
 **Step 3.1: 구조 검증**
-- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인 (6 always-required + 3 conditional)
+- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인 (3 always-required + conditional)
 - D2-9: "None"으로 표시된 섹션 확인 (WARNING severity)
-- D2-10: Contract Completeness — Exports와 Behavior 중 하나라도 "None"이면 경고
 
-**Step 3.2: Exports 품질**
-- D2-2: 각 export의 파라미터 타입 + 반환 타입 존재 확인
-- D2-3: 각 export에 역할/목적 설명 존재 확인
-
-**Step 3.3: Behavior 품질**
-- D2-4: success 케이스 + error 케이스 모두 존재하는지
-- D2-5: "input → output" 패턴 사용하는지
-
-**Step 3.4: 기타**
+**Step 3.2: Purpose 품질**
 - D2-6: Purpose 1-2문장, 구체적 (anti-pattern 참조)
-- D2-7: Contract에 함수별 pre/postcondition
+
+**Step 3.3: Constraints 품질**
+- D2-2: Constraints가 구체적이고 검증 가능한지
+- D2-3: 각 constraint에 근거/이유가 명시되어 있는지
+
+**Step 3.4: Domain Context 품질**
 - D2-8: Domain Context에 비자명 결정 근거
 
 ### Phase 4-5: D3 — Internal Consistency
 
-**Step 4.1: Exports ↔ Behavior 정렬**
-- D3-1: 각 export에 대응하는 behavior가 존재하는지
+**Step 4.1: Purpose ↔ Constraints 정렬**
+- D3-1: Constraints가 Purpose에서 논리적으로 도출 가능한지
 
-**Step 4.2: Purpose ↔ Exports 정렬**
-- D3-2: Exports가 Purpose에서 논리적으로 도출 가능한지
+**Step 4.2: Domain Context ↔ Constraints 정렬**
+- D3-2: Domain Context의 결정 근거가 Constraints에 반영되는지
 
-**Step 4.3: Domain Context ↔ Contract 정렬**
-- D3-3: Domain Context의 제약이 Contract에 반영되는지
-
-**Step 4.4: Dependencies ↔ Exports 정렬**
-- D3-4: Dependencies에서 참조하는 심볼이 해당 모듈의 Exports와 연관되는지
+**Step 4.3: Instructions ↔ Purpose 정렬 (project root only)**
+- D3-3: Instructions가 Purpose와 일관되는지
 
 ### Phase 6: Score Calculation
 

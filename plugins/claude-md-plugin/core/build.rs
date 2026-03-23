@@ -102,12 +102,12 @@ fn main() {
         .collect();
     always_required_sections.sort();
 
-    // Extract CONDITIONALLY required sections (required=true and condition != "always")
-    // These are (name, condition) tuples
+    // Extract CONDITIONALLY required sections (required=true/false and condition != "always" and not empty)
+    // These are (name, condition) tuples — includes optional sections with dynamic conditions
     let mut conditionally_required_sections: Vec<(&str, &str)> = rules
         .sections
         .values()
-        .filter(|s| s.required && s.condition != "always" && !s.condition.is_empty())
+        .filter(|s| !s.condition.is_empty() && s.condition != "always" && s.condition_type == "dynamic")
         .map(|s| (s.name.as_str(), s.condition.as_str()))
         .collect();
     conditionally_required_sections.sort_by_key(|(name, _)| *name);

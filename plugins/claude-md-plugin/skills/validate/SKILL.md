@@ -10,6 +10,8 @@ user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task]
 ---
 
+> **DEPRECATED (v6.0.0)**: This skill depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 # /validate
 
 CLAUDE.md 계약(Contract)과 코드 간의 일치 여부를 검증하고 위반을 보고.

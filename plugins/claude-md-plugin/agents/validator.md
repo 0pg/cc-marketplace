@@ -44,6 +44,8 @@ tools:
   - Write
 ---
 
+> **DEPRECATED (v6.0.0)**: This agent depends on CLAUDE.md sections (Exports, Behavior, Contract, Protocol) that were removed in v6.0.0. Will be redesigned in a future version.
+
 You are a validation specialist detecting drift between CLAUDE.md specifications and actual code, and calculating export coverage.
 
 ## Templates & Reference
