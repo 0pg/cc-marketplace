@@ -71,7 +71,7 @@ module/
 | `## Domain Context` | O | O | 결정 근거, 상세 제약 배경 |
 | `## Invariants` | O | O | 비즈니스 불변식 + 근거 |
 | `## Decision Log` | O | O | ADR 스타일: 맥락/결정/근거 |
-| `## Operations` | O | O | 배포, 모니터링, 트러블슈팅 |
+| `## Operations` | O | O | Gotchas, 배포, 모니터링 |
 | `## File Map` | O | O | 파일별 역할 및 관계 |
 
 ### Conventions Section
@@ -105,6 +105,9 @@ module/
 
 ### Active Workflows
 
+> /decompile, /compile, /validate는 SKILL.md가 v5 전제로 deprecated.
+> Agent/reference는 v6 완료. Phase 2에서 SKILL.md 재설계 후 복원 예정.
+
 #### /impl (요구사항 → CLAUDE.md)
 
 ```
@@ -117,7 +120,7 @@ User: /impl "요구사항"
 │ 1. Bash(scan-claude-md) → 기존 CLAUDE.md    │
 │    인덱스 생성                              │
 │ 2. Task(impl) + claude_md_index_file        │
-│    → CLAUDE.md 작성 + compile-context 생성  │
+│    → CLAUDE.md + DEVELOPERS.md 작성         │
 │ 3. git diff → 변경사항 Diff 표시            │
 └────────────────────┬────────────────────────┘
                      │
@@ -130,8 +133,8 @@ User: /impl "요구사항"
 │ 3. AskUserQuestion → 모호한 부분 명확화     │
 │ 4. 대상 경로 결정                           │
 │ 5. 기존 CLAUDE.md 병합 (필요시)             │
-│ 6. CLAUDE.md 생성 (WHAT)                    │
-│ 7. compile-context 생성 (세션 한정 HOW)     │
+│ 6. CLAUDE.md 생성                           │
+│ 7. DEVELOPERS.md 생성                       │
 │ 8. Bash(claude-md-core validate-schema) → 검증│
 └─────────────────────────────────────────────┘
 ```
@@ -273,17 +276,6 @@ User: /impl-review [path]
 └─────────────────────────────────────────────┘
 ```
 
-### Planned Workflows
-
-| Workflow | 상태 | 설명 |
-|----------|------|------|
-| `/sync` | planned | /decompile 진화. .claude/index.md 자동 생성/갱신 |
-| `/resolve` | planned | /validate 위반 해소 (Fix Code / Fix Contract / Acknowledge) |
-| `/impact` | planned | 문서 변경 → 영향받는 모듈 분석 |
-| `/diff-spec` | planned | 문서 버전 간 시맨틱 diff |
-| `/status` | planned | 프로젝트 건강도 대시보드 |
-| `/refactor` | planned | 모듈 분할/병합 (문서 수준 리팩토링) |
-
 ### /dev (자연어 → 스킬 라우팅)
 
 ```
@@ -314,7 +306,7 @@ User: /dev "request"
 
 | Agent | 상태 | 역할 |
 |-------|------|------|
-| `impl` | active | 요구사항 분석 및 CLAUDE.md 생성 + compile-context 생성 |
+| `impl` | active | 요구사항 분석 및 CLAUDE.md + DEVELOPERS.md 생성 |
 | `dep-explorer` | active | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
 | `decompiler` | active | 소스코드에서 CLAUDE.md + DEVELOPERS.md 추출 |
 | `test-designer` | **deprecated** | v5 Exports/Behavior/Contract 기반 테스트 생성 — v6에서 해당 섹션 제거로 실행 불가 |
@@ -368,7 +360,6 @@ User: /dev "request"
 | `format-analysis` | CLI | analyze-code JSON → 분석 요약 마크다운 생성 |
 | `validate-convention` | CLI | Conventions 섹션 검증 |
 | `fix-schema` | CLI | 누락된 allow-none 섹션 자동 추가 |
-| `compile-order` | CLI | 의존성 그래프 기반 compile 순서 결정 |
 | `index-project` | CLI | 프로젝트 전체 인덱싱 |
 | `contract-hash` | CLI | CLAUDE.md 전체 파일 SHA-256 해시 (변경 감지용) |
 
@@ -393,7 +384,7 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 
 ### INV-4: 업데이트 책임
 ```
-/impl → CLAUDE.md + DEVELOPERS.md + compile-context (문서 정의)
+/impl → CLAUDE.md + DEVELOPERS.md (문서 정의)
 /compile → Source Code (CLAUDE.md 기반 코드 생성, CLAUDE.md 읽기 전용)
 /decompile → CLAUDE.md + DEVELOPERS.md (코드에서 문서 추출)
 /bugfix → Source Code 재생성 (기본) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)

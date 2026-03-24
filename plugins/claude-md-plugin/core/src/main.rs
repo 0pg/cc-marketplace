@@ -179,7 +179,7 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
-    /// Calculate contract hash (SHA-256) of compilable sections (Exports + Behavior + Contract)
+    /// Calculate SHA-256 hash of entire CLAUDE.md file (change detection)
     ContractHash {
         /// CLAUDE.md file to hash
         #[arg(short, long)]

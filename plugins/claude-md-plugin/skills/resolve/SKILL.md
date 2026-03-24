@@ -1,5 +1,7 @@
 ---
 name: resolve
+version: 1.0.0
+user_invocable: true
 description: |
   /validate 결과를 읽고 각 위반에 대해 해소 워크플로우를 실행합니다.
   3가지 선택지: Fix Code (/compile), Fix Contract (/decompile), Acknowledge (편차 인정).
