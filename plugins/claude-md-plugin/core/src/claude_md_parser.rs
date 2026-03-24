@@ -144,7 +144,7 @@ impl ClaudeMdParser {
         // Warn about unrecognized sections
         let known_sections = [
             "purpose", "constraints", "domain context", "instructions",
-            "project convention", "code convention",
+            "conventions",
         ];
         for section in &sections {
             if section.level == 2 {

@@ -33,13 +33,11 @@ pub struct ValidationError {
 }
 
 /// Context for conditional section evaluation.
-/// v3 schema: conditions are is_project_root, is_project_or_module_root, has_multiple_files.
+/// v3.1 schema: conditions are is_project_root, is_project_or_module_root.
 #[derive(Debug, Default)]
 pub struct ValidationContext {
     pub is_project_root: bool,
-    pub has_subdirs_or_files: bool,
-    pub has_multiple_files: bool,
-    pub source_file_count: usize,
+    pub is_module_root: bool,
 }
 
 // Include generated constants from schema-rules.yaml (SSOT)
@@ -52,39 +50,13 @@ impl SchemaValidator {
         Self
     }
 
-    /// Evaluate conditions by scanning source files in the given directory.
+    /// Evaluate conditions by scanning the given directory.
+    /// Detects module root by presence of build system markers (Cargo.toml, package.json, etc.).
+    /// `is_project_root` must be set by the caller.
     pub fn evaluate_conditions(dir: &Path) -> ValidationContext {
         let mut ctx = ValidationContext::default();
 
-        let mut file_count = 0u32;
-        let mut has_subdirs = false;
-
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return ctx,
-        };
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                let name = path.file_name().unwrap_or_default().to_string_lossy();
-                if !crate::EXCLUDED_DIRS.contains(&name.as_ref()) {
-                    has_subdirs = true;
-                }
-            } else if let Some(ext) = path.extension() {
-                let ext_str = ext.to_string_lossy();
-                if crate::SOURCE_EXTENSIONS.contains(&ext_str.as_ref()) {
-                    file_count += 1;
-                }
-            }
-        }
-
-        ctx.source_file_count = file_count as usize;
-        ctx.has_multiple_files = file_count >= 2;
-        ctx.has_subdirs_or_files = has_subdirs || file_count > 0;
-
-        // is_project_root is not auto-detected from directory scan;
-        // it must be set by the caller based on whether the file is at the project root.
+        ctx.is_module_root = MODULE_ROOT_MARKERS.iter().any(|m| dir.join(m).exists());
 
         ctx
     }
@@ -94,9 +66,7 @@ impl SchemaValidator {
         match condition {
             "always" => true,
             "is_project_root" => ctx.is_project_root,
-            "is_project_or_module_root" => true, // Caller must determine this
-            "has_subdirs_or_files" => ctx.has_subdirs_or_files,
-            "has_multiple_files" => ctx.has_multiple_files,
+            "is_project_or_module_root" => ctx.is_project_root || ctx.is_module_root,
             _ => true, // Unknown conditions default to required
         }
     }
@@ -995,7 +965,16 @@ None
         let temp = TempDir::new().unwrap();
         let ctx = SchemaValidator::evaluate_conditions(temp.path());
         assert!(!ctx.is_project_root);
-        assert!(!ctx.has_multiple_files);
-        assert_eq!(ctx.source_file_count, 0);
+        assert!(!ctx.is_module_root);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_module_root() {
+        let temp = TempDir::new().unwrap();
+        // Create a module root marker
+        File::create(temp.path().join("package.json")).unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(!ctx.is_project_root);
+        assert!(ctx.is_module_root);
     }
 }

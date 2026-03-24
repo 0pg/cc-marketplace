@@ -50,7 +50,7 @@
     {
       "name": "claude-md-plugin",
       "description": "Code-First 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 사전학습 인덱스 + 인간 지식 저장소. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
-      "version": "6.1.0",
+      "version": "6.2.0",
       "author": {
         "name": "jhk"
       },
