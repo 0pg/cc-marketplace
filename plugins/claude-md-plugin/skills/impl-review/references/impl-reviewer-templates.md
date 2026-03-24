@@ -1,9 +1,12 @@
 <!--
   impl-reviewer-templates.md
   Consolidated reference for the impl-reviewer agent.
-  Contains: Review dimensions (D1-D3), check definitions, severity levels,
-  scoring formula, finding format, fix proposal format, result template,
-  and quality anti-patterns.
+  Contains: Review dimensions (D1-D3), check definitions (v6 schema),
+  severity levels, scoring formula, finding format, fix proposal format,
+  result template, and quality anti-patterns.
+
+  v6: CLAUDE.md has Purpose, Constraints, Domain Context (no Exports/Behavior/Contract).
+  Review checks focus on these 3 sections + conditional sections.
 
   Loaded at runtime by the impl-reviewer agent via:
     cat "${CLAUDE_PLUGIN_ROOT}/skills/impl-review/references/impl-reviewer-templates.md"
@@ -15,15 +18,14 @@
 
 ### D1: Requirements Coverage (요구사항이 "N/A"이면 스킵)
 
-원본 요구사항에서 핵심 기능/시나리오/제약을 추출하여 CLAUDE.md 섹션과 대조.
+원본 요구사항에서 핵심 기능/제약/맥락을 추출하여 CLAUDE.md 섹션과 대조.
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
 | D1-1 | Purpose 정렬 | CRITICAL | Purpose가 요구사항의 핵심 의도를 반영하는가 |
-| D1-2 | 기능 커버리지 | CRITICAL | 요구사항에 언급된 기능이 Exports에 매핑되는가 |
-| D1-3 | 시나리오 커버리지 | WARNING | 요구사항에 내포된 에러/엣지 케이스가 Behavior에 있는가 |
-| D1-4 | 제약 캡처 | WARNING | 언급된 제약이 Contract 또는 Domain Context에 있는가 |
-| D1-5 | 도메인 용어 | INFO | 요구사항의 도메인 용어가 문서에 보존되었는가 |
+| D1-2 | 제약 커버리지 | CRITICAL | 요구사항에 언급된 규칙/제한이 Constraints에 매핑되는가 |
+| D1-3 | 맥락 캡처 | WARNING | 언급된 배경/근거가 Domain Context에 있는가 |
+| D1-4 | 도메인 용어 | INFO | 요구사항의 도메인 용어가 문서에 보존되었는가 |
 
 ### D2: CLAUDE.md Quality
 
@@ -31,26 +33,23 @@ CLAUDE.md의 내재적 품질을 평가.
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D2-1 | 스키마 준수 | CRITICAL | 6개 always-required + 3개 conditional 섹션 존재 (CLI 결과 반영) |
-| D2-2 | Export 구체성 | CRITICAL | 각 export에 파라미터 타입 + 반환 타입 명시 |
-| D2-3 | Export 설명 | WARNING | 각 export에 역할/목적 설명 포함 |
-| D2-4 | Behavior 완성도 | WARNING | success + error 케이스 모두 존재 |
-| D2-5 | Behavior 형식 | WARNING | "input → output" 패턴 준수 |
-| D2-6 | Purpose 명확성 | WARNING | 1-2 문장, 구체적 (generic이 아닌) |
-| D2-7 | Contract 구체성 | INFO | 함수별 precondition/postcondition 명시 |
-| D2-8 | Domain Context | INFO | 비자명한 결정에 대한 근거 문서화 |
-| D2-9 | "None" 섹션 감사 | WARNING | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
-| D2-10 | Contract Completeness | WARNING | Exports와 Behavior 중 하나라도 "None"이면 경고 — completeness 부족 |
+| D2-1 | 스키마 준수 | CRITICAL | 3개 always-required (Purpose, Constraints, Domain Context) + conditional 섹션 존재 (CLI 결과 반영) |
+| D2-2 | Constraints 구체성 | CRITICAL | 각 constraint가 검증 가능하고 구체적인가 (수치, 조건 포함) |
+| D2-3 | Constraints 근거 | WARNING | 각 constraint에 근거/이유가 명시되어 있는가 (e.g., PCI-DSS) |
+| D2-4 | Purpose 명확성 | WARNING | 1-2 문장, 구체적 (generic이 아닌) |
+| D2-5 | Domain Context 품질 | WARNING | 2-3문장, 코드만으로 알 수 없는 "왜"에 집중 |
+| D2-6 | Domain Context 히스토리 금지 | WARNING | 변경 이력/날짜/버전 히스토리가 포함되어 있지 않은가 |
+| D2-7 | "None" 섹션 감사 | WARNING | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
+| D2-8 | Constraints 자기완결성 | INFO | 상위 모듈의 관련 제약이 포함 반복되어 있는가 |
 
 ### D3: Internal Consistency
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D3-1 | Exports ↔ Dependencies 정렬 | CRITICAL | 의존성에서 import하는 심볼이 실제 Exports에 존재 |
-| D3-2 | Purpose ↔ Exports 정렬 | WARNING | Exports가 Purpose에서 논리적으로 도출되는가 |
-| D3-3 | Behavior-Contract Derivation | WARNING | error behavior마다 Contract throws 매핑 확인. 모든 Contract.throws는 대응하는 error Behavior가 있어야 함 |
-| D3-4 | Domain Context 활용 | INFO | Domain Context 제약이 Contract 또는 Behavior에 반영 |
-| D3-5 | Domain Context / Decision Log 중복 | INFO | 같은 정보가 CLAUDE.md Domain Context와 DEVELOPERS.md Decision Log 양쪽에 있으면 플래그 |
+| D3-1 | Purpose ↔ Constraints 정렬 | CRITICAL | Constraints가 Purpose에서 논리적으로 도출 가능한가 |
+| D3-2 | Domain Context ↔ Constraints 정렬 | WARNING | Domain Context의 결정 근거가 Constraints에 반영되는가 |
+| D3-3 | Domain Context / Decision Log 중복 | INFO | 같은 정보가 CLAUDE.md Domain Context와 DEVELOPERS.md Decision Log 양쪽에 있으면 플래그 |
+| D3-4 | Instructions ↔ Purpose 정렬 | INFO | project root의 Instructions가 Purpose와 일관되는가 |
 
 ## Scoring Formula
 
@@ -167,33 +166,20 @@ Agent가 판단할 때 참고하는 앵커. 좋은 vs 나쁜 예시.
 사용자 업로드 CSV 파일을 파싱하여 정규화된 트랜잭션 레코드로 변환. 중복 행 제거 및 필수 컬럼(date, amount, description) 검증.
 ```
 
-### Bad: Exports without types
+### Bad: Vague Constraints
 ```
-### Functions
-- processData: 데이터를 처리합니다
-- validate: 검증합니다
-```
-
-### Good: Exports with full signatures
-```
-### Functions
-- processData(input: RawCsvRow[]): NormalizedTransaction[] — CSV 행 배열을 정규화된 트랜잭션으로 변환
-- validate(row: RawCsvRow): ValidationResult — 단일 행의 필수 컬럼 존재/형식 검증
+## Constraints
+- 데이터를 잘 처리해야 한다
+- 에러 처리가 필요하다
 ```
 
-### Bad: Incomplete Behavior (success only)
+### Good: Specific Constraints
 ```
-## Behavior
-- CSV 파일 입력 → 트랜잭션 목록 반환
-```
-
-### Good: Complete Behavior (success + error)
-```
-## Behavior
-- 유효한 CSV 입력 → 정규화된 트랜잭션 목록 반환
-- 빈 CSV 입력 → 빈 배열 반환
-- 필수 컬럼 누락 → ValidationError (누락 컬럼명 포함)
-- 중복 행 존재 → 첫 번째 행만 유지, 중복 수 로그
+## Constraints
+- 입력 CSV는 UTF-8만 허용, 최대 10MB (메모리 제약)
+- 필수 컬럼 누락 시 ValidationError 반환 (누락 컬럼명 포함)
+- 중복 행은 첫 번째만 유지, 중복 수 로그 기록
+- 날짜 형식은 ISO 8601만 허용
 ```
 
 ### Bad: Changelog in Domain Context
@@ -210,11 +196,20 @@ Agent가 판단할 때 참고하는 앵커. 좋은 vs 나쁜 예시.
 ### Good: Domain Context without history
 ```
 ## Domain Context
+JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책을 적용합니다.
+HMAC-SHA256은 내부 서비스 간 통신이라 RSA 불필요합니다.
+```
 
-### Decision Rationale
-- TOKEN_EXPIRY: 7일 (PCI-DSS 컴플라이언스 요구사항)
-- HMAC-SHA256: 내부 서비스 간 통신이라 RSA 불필요
+### Bad: Non-self-contained Constraints
+```
+## Constraints
+- refresh token 만료 시간은 access token의 2배
+```
+(상위 모듈의 "access token 만료 7일" 제약을 참조하지만 자기완결 아님)
 
-### Compatibility
-- UUID v1 형식 지원 필요 (2023 마이그레이션)
+### Good: Self-contained Constraints
+```
+## Constraints
+- access token 만료 최대 7일 (PCI-DSS)
+- refresh token 만료 최대 14일 (access token의 2배)
 ```
