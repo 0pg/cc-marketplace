@@ -66,9 +66,9 @@ module/
 │   Deep context (WHY). Loaded via Instructions + plugin commands.
 │
 └── .claude/
-    └── index.md           ← Auto-generated (planned) / On-demand
+    └── index.md           ← Auto-generated / On-demand
         Interface/behavior/structure index extracted from code.
-        Generated via /sync (planned).
+        Generated via /sync.
 ```
 
 ### CLAUDE.md Schema (v3.1)

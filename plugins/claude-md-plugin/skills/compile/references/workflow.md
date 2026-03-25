@@ -38,7 +38,7 @@
 ## compile-context 확인 (optional)
 
 1. compile 대상 CLAUDE.md 목록을 순회한다.
-2. 각 CLAUDE.md에 대응하는 compile-context 파일이 `.claude/tmp/compile-context-{dir-hash}.md`에 존재하는지 확인한다.
+2. 각 CLAUDE.md에 대응하는 compile-context 파일이 같은 디렉토리에 `compile-context.md`로 존재하는지 확인한다.
 3. compile-context가 있으면 참조용으로 사용한다 (Dependencies Direction, Implementation Approach, Technology Choices).
 4. compile-context가 없어도 compile은 정상 진행한다 (CLAUDE.md만으로 충분).
 
@@ -52,9 +52,9 @@
    - `pyproject.toml`: pytest, unittest 등
    - `Cargo.toml`: 기본 Rust test framework
    - `go.mod`: 기본 Go test framework
-3. 감지 결과를 test-designer에게 전달합니다.
+3. 감지 결과를 compiler agent에게 전달합니다.
 
-## 2-Agent 실행 (의존성 인식)
+## Inline TDD 실행 (의존성 인식)
 
 의존 모듈 간 순서를 보장하기 위해, depth 기반 leaf-first 실행을 수행합니다.
 같은 depth의 독립 모듈은 병렬로 처리하되, 상위(부모) 모듈은 하위(자식) 모듈 compile 완료 후 실행합니다.
@@ -75,25 +75,16 @@ mkdir -p "$TMP_DIR"
    1. 같은 depth 그룹 내의 각 CLAUDE.md에 대해:
       1. 해당 디렉토리의 compile-context 경로(있으면)와 감지된 언어를 준비한다.
       2. `"  • {CLAUDE.md 경로} - 시작 (depth={depth})"` 메시지를 출력한다.
-      3. **Step 1: test-designer 호출** — `Task`로 `test-designer` Agent를 실행한다:
-         - 입력: CLAUDE.md 경로, compile-context 경로(optional), 대상 디렉토리, 감지된 언어, 테스트 프레임워크, 프로젝트 CLAUDE.md 경로, 모드 (full/incremental), 대상 exports, dependency CLAUDE.md 경로 목록
-         - test-designer 결과에서 테스트 파일 목록을 추출한다.
-      4. **Step 2: compiler 호출** — `Task`로 `compiler` Agent를 실행한다:
-         - 입력: CLAUDE.md 경로, compile-context 경로(optional), 대상 디렉토리, 감지된 언어, 테스트 파일 목록, 충돌 처리 모드
+      3. **Inline TDD: compiler 호출** — `Task`로 `compiler` Agent를 실행한다:
+         - 입력: CLAUDE.md 경로, compile-context 경로(optional), 대상 디렉토리, 감지된 언어, 충돌 처리 모드
+         - compiler가 내부적으로 테스트 생성(RED) → 구현(GREEN) → 리팩토링(REFACTOR)을 수행한다.
          - 결과는 ${TMP_DIR}에 저장하고 경로만 반환하도록 지시한다.
-      5. **피드백 루프 (compiler 실패 시):**
-         - compiler가 3회 재시도 후 실패하면:
-         - **Step 3**: test-designer를 에러 컨텍스트와 함께 재호출 (에러 메시지, 실패 테스트 정보 포함)
-         - **Step 4**: compiler를 재호출
-         - Step 4도 실패하면 사용자에게 실패 보고 (최대 1회 피드백 루프)
-   2. 같은 depth 그룹의 모든 2-Agent 실행이 완료될 때까지 대기한 후, 다음(더 얕은) depth 그룹으로 진행한다.
+   2. 같은 depth 그룹의 모든 실행이 완료될 때까지 대기한 후, 다음(더 얕은) depth 그룹으로 진행한다.
 
 **같은 depth 병렬 처리 시 주의:**
-- 각 모듈의 test-designer → compiler는 순차 (dependency)
 - 같은 depth의 독립 모듈은 병렬 가능 (각 모듈 내에서 순차)
 - `--parallel N` 옵션으로 같은 depth에서 동시 실행할 최대 모듈 수를 제어 (기본: 3)
 - 같은 depth에 N개 이상의 모듈이 있으면 N개씩 배치로 처리
-- 예: `--parallel 5`이면 같은 depth에서 최대 5개 모듈을 동시 실행
 
 ## 결과 수집 및 보고
 
@@ -101,7 +92,7 @@ mkdir -p "$TMP_DIR"
 2. 각 결과 파일에서 생성된 파일 수, 건너뛴 파일 수, 테스트 통과/실패 수를 누적한다.
 3. 최종 요약을 출력한다:
    ```
-   === 생성 완료 ===
+   === Compile 완료 ===
    총 CLAUDE.md: {대상 수}개
    생성된 파일: {생성 수}개
    건너뛴 파일: {건너뛴 수}개
@@ -113,25 +104,21 @@ mkdir -p "$TMP_DIR"
 - **`--conflict skip` (기본)**: 대상 파일이 이미 존재하면 `"⏭ Skipped: {경로}"` 메시지를 출력하고 건너뛴 파일 목록에 추가한 뒤, 다음 파일로 넘어간다.
 - **`--conflict overwrite`**: 대상 파일이 이미 존재해도 `"↻ Overwriting: {경로}"` 메시지를 출력하고 덮어쓴다.
 
-## 내부 2-Agent TDD 워크플로우
-
-사용자에게 노출되지 않는 내부 프로세스:
+## Inline TDD 워크플로우
 
 ```
 CLAUDE.md 파싱 (+ compile-context 참조, optional)
      │
      ▼
-[RED] Task(test-designer)
-     │   └─ CLAUDE.md Exports → Export Interface Tests (불변)
-     │   └─ CLAUDE.md Behaviors → Behavior Tests
-     │   └─ dependency CLAUDE.md → Mock 생성
+[RED] compiler: Constraints → 테스트 생성
+     │   └─ Constraints → 경계값/유효성 테스트
+     │   └─ Domain Context → 상수/경계값 테스트
      ▼
-[GREEN] Task(compiler)
+[GREEN] compiler: 구현 생성 + 테스트 통과
      │   └─ 구현 생성 + 테스트 통과 (최대 3회 재시도)
      │   └─ compile-context 참조 (있으면)
-     │   └─ 테스트 파일 수정 금지 (INV-EXPORT)
      ▼
-[REFACTOR] (compiler 내부)
+[REFACTOR] compiler: Convention 기반 코드 정리
      │   └─ Convention 섹션 기반 코드 정리
      │   └─ 회귀 테스트로 안전성 확인
      ▼
@@ -139,11 +126,4 @@ CLAUDE.md 파싱 (+ compile-context 참조, optional)
      │
      ▼
 결과 반환
-     │
-     ▼ (실패 시)
-[Feedback Loop] (최대 1회)
-     │   └─ Task(test-designer) + 에러 컨텍스트 → 인프라 수정
-     │   └─ Task(compiler) → 재시도
-     ▼
-최종 결과
 ```

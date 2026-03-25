@@ -1,8 +1,7 @@
 # Compiler Agent - Detailed Workflow Reference
 <!--
   This file contains the detailed phase-by-phase workflow for the compiler agent.
-  The compiler handles GREEN + REFACTOR phases only.
-  RED phase (test generation) is handled by the test-designer agent.
+  The compiler handles the full Inline TDD cycle: RED (test generation) → GREEN (implementation) → REFACTOR.
   Loaded at runtime by the compiler agent via cat command.
 
   v6: CLAUDE.md provides Constraints + Domain Context (not Exports/Behavior/Contract).
@@ -84,12 +83,58 @@ compile-context가 없으면 기존 소스코드를 직접 탐색하여 import/e
 | `TIMEOUT: 2000ms (IdP SLA × 4)` | `const TIMEOUT_MS = 2000; // Based on IdP SLA` |
 | `UUID v1 지원 필요` | UUID v1 파싱 로직 포함 |
 
-### Phase 2: 테스트 확인
+### Phase 2: 테스트 생성 (RED)
 
-test-designer가 생성한 테스트 파일을 Read하여 다음을 확인합니다:
-1. 테스트 파일 목록 확인 (입력의 `테스트 파일` 필드)
-2. 각 테스트 파일 Read — 테스트 구조와 assertion 파악
-3. **테스트 파일 경로를 수정 금지 목록에 등록**
+Constraints와 Domain Context에서 테스트를 생성합니다.
+
+#### 2.1 Constraints → 테스트 매핑
+
+각 Constraint를 테스트 케이스로 변환합니다:
+
+1. **수치 제한** → 경계값 테스트
+   - `"최대 7일"` → `test: 7일 OK, 8일 실패`
+2. **형식 제약** → 유효/무효 입력 테스트
+   - `"UTF-8만 허용"` → `test: UTF-8 OK, non-UTF-8 실패`
+3. **비즈니스 규칙** → 규칙 준수/위반 시나리오
+   - `"중복 등록 불가"` → `test: 중복 시 에러`
+
+#### 2.2 Domain Context → 경계값/상수 추출
+
+Domain Context에서 테스트에 사용할 구체적인 값을 추출합니다:
+
+| Domain Context | 추출 값 | 테스트 활용 |
+|----------------|---------|-----------|
+| `TIMEOUT: 2000ms` | `2000` | 타임아웃 경계 테스트 |
+| `PCI-DSS 7일` | `7` | 만료 경계 테스트 |
+
+#### 2.3 기존 소스 참조 (overwrite 모드)
+
+`overwrite` 모드에서 기존 소스가 있으면:
+```bash
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
+$CLI_PATH analyze-code --path {target_dir}
+```
+인터페이스를 발견하여 테스트 호환성 보장.
+
+#### 2.4 테스트 파일 생성
+
+언어별 테스트 프레임워크에 맞는 테스트 파일을 Write합니다:
+
+```
+describe('Constraints Tests', () => {
+  // 각 Constraint에 대한 테스트
+});
+
+describe('Domain Context Tests', () => {
+  // 경계값/상수 검증 테스트
+});
+```
+
+테스트가 실패하는지 확인 (RED 상태):
+```bash
+# 테스트 실행 — 아직 구현이 없으므로 실패해야 함
+{test_command}
+```
 
 ### Phase 3: GREEN Phase - 구현 + 테스트 통과
 
@@ -99,7 +144,7 @@ Constraints와 Domain Context를 기반으로 구현 파일을 생성하고, 테
 2. **메인 구현 파일 생성**: Constraints를 검증 로직으로, Domain Context를 상수/설정으로 변환하여 구현합니다.
 3. **테스트 실행 및 반복**: 테스트를 실행하고, 실패하면 실패한 테스트를 분석하여 **구현을 수정**한 후 재실행합니다. 최대 3회 재시도합니다. 3회 재시도 후에도 실패하면 경고를 기록합니다.
 
-**테스트 수정 금지**: 테스트가 실패하면 구현 코드를 수정합니다. 테스트 파일의 assertion이나 구조를 변경하지 않습니다.
+**테스트 수정 원칙**: 테스트가 실패하면 구현 코드를 수정합니다. 단, 자신이 Phase 2에서 생성한 테스트이므로, 테스트 자체에 명백한 오류(잘못된 import 경로, 오타 등)가 있으면 수정 가능합니다. 다만 Constraints에서 도출한 assertion 로직은 변경하지 않습니다.
 
 ### Phase 4: REFACTOR Phase - 코드 개선
 
@@ -205,18 +250,18 @@ compile_context_updated: true
 │  └───────────────────────┬───────────────────────────────┘ │
 │                          │                                  │
 │                          ▼                                  │
-│  ┌─ Read(테스트 파일) ────────────────────────────────────┐ │
-│  │ test-designer 산출물 확인 (Read-only)                  │ │
-│  └───────────────────────┬───────────────────────────────┘ │
-│                          │                                  │
-│                          ▼                                  │
-│  ┌─ GREEN + REFACTOR Workflow ────────────────────────────┐ │
+│  ┌─ RED + GREEN + REFACTOR Workflow ─────────────────────┐ │
 │  │                                                        │ │
+│  │  [RED] Constraints → 테스트 생성                      │ │
+│  │         └─ 수치 제한 → 경계값 테스트                  │ │
+│  │         └─ 형식 제약 → 유효/무효 입력 테스트           │ │
+│  │         └─ Domain Context → 상수/경계값 추출           │ │
+│  │                     │                                  │ │
+│  │                     ▼                                  │ │
 │  │  [GREEN] 구현 생성 + 테스트 통과 (최대 3회 재시도)     │ │
 │  │         └─ Constraints → 검증 로직                    │ │
 │  │         └─ Domain Context → 상수/설정                 │ │
 │  │         └─ compile-context → 구현 전략 (optional)     │ │
-│  │         └─ 테스트 수정 금지                           │ │
 │  │                     │                                  │ │
 │  │                     ▼                                  │ │
 │  │  [REFACTOR] Convention 섹션 기반 코드 정리             │ │

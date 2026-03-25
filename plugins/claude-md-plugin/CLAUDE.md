@@ -32,7 +32,7 @@ AI와 인간이 코드를 더 빠르고 정확하게 이해하고 수정할 수 
 | **Pre-learning Index** | CLAUDE.md | 코드 이해 가속을 위한 사전학습 인덱스 |
 | **Human Knowledge** | CLAUDE.md | 코드에 없는 인간 지식 (제약, 맥락, 컨벤션) |
 | **Deep Context** | DEVELOPERS.md | WHY — 결정 근거, 불변식 배경, 운영 맥락 |
-| **Auto Index** | .claude/index.md | 코드에서 자동 추출한 인터페이스/동작 인덱스 (planned) |
+| **Auto Index** | .claude/index.md | 코드에서 자동 추출한 인터페이스/동작 인덱스 (/sync) |
 
 **불일치 시**: 문서를 업데이트한다 (코드가 SSOT).
 
@@ -49,9 +49,9 @@ module/
 │   CLAUDE.md Instructions + 플러그인 명령어로 로드 보장.
 │
 └── .claude/
-    └── index.md           ← Auto-generated (planned) / On-demand
+    └── index.md           ← Auto-generated / On-demand
         P + ND-D. 코드에서 추출한 인터페이스/동작/구조 인덱스.
-        /sync로 생성/갱신 (planned). 인간 편집 불가.
+        /sync로 생성/갱신. 인간 편집 불가.
 ```
 
 ### CLAUDE.md Schema
@@ -104,9 +104,6 @@ module/
 ## Architecture
 
 ### Active Workflows
-
-> /decompile, /compile, /validate는 SKILL.md가 v5 전제로 deprecated.
-> Agent/reference는 v6 완료. Phase 2에서 SKILL.md 재설계 후 복원 예정.
 
 #### /impl (요구사항 → CLAUDE.md)
 
@@ -169,7 +166,7 @@ User: /decompile
 #### /compile (CLAUDE.md → 소스코드)
 
 ```
-User: /compile [--all] [--integration] [--dry-run]
+User: /compile [--all] [--conflict skip|overwrite] [--dry-run]
         │
         ▼
 ┌─────────────────────────────────────────────┐
@@ -186,40 +183,28 @@ User: /compile [--all] [--integration] [--dry-run]
 │ 4. 의존성 그래프 기반 실행 (leaf-first)     │
 │    같은 depth 독립 모듈은 병렬,             │
 │    의존 관계는 순차 처리                    │
-│    Task(test-designer) → Task(compiler)     │
-│    실패 시 피드백 루프 (최대 1회)           │
-│                                             │
-│ ⚠ DEPRECATED: test-designer가 v5 섹션에    │
-│   의존하여 현재 실행 불가. Phase 2에서 재설계│
+│    Task(compiler) — Inline TDD             │
+│    (RED: 테스트 생성 → GREEN → REFACTOR)    │
 └─────────────────────────────────────────────┘
 ```
 
 #### /validate (문서-코드 일치 검증)
 
 ```
-User: /validate
+User: /validate [path] [--strict]
         │
         ▼
 ┌─────────────────────────────────────────────┐
 │ validate SKILL (Entry Point)                │
 │                                             │
-│ 1. Bash(validate-schema) → 스키마 검증      │
-│ 2. Task(validator) 배치 병렬 → Drift 검증   │
-│ 3. 중간 결과 확인 (이슈 있는 디렉토리 선별) │
-│ 4. Task(issue-verifier) 배치 병렬 → 재검증  │
-│ 5. Task(violation-reporter) 배치 → 위반 보고│
-│ 6. 통합 보고서 생성                         │
-│                                             │
-│ ⚠ DEPRECATED: issue-verifier/violation-    │
-│   reporter가 v5 섹션에 의존하여 실행 불가.  │
-│   validator만 v6 호환. Phase 2에서 재설계   │
-└────────────────────┬────────────────────────┘
-                     ▼
-┌──────────────────────────────────────────┐
-│ validator (v6 호환, drift 검증)          │
-│ Constraints / Domain Context /           │
-│ Convention / DEVELOPERS.md / Boundary    │
-└──────────────────────────────────────────┘
+│ 1. Glob → CLAUDE.md 수집                    │
+│ 2. Bash(validate-schema) → 스키마 검증      │
+│    실패 시 fix-schema → 재검증              │
+│ 3. Task(validator) 배치 병렬 → Drift 검증   │
+│    (5 카테고리: Constraints, Domain Context, │
+│     Convention, DEVELOPERS.md, Boundary)    │
+│ 4. 통합 보고서 생성                         │
+└─────────────────────────────────────────────┘
 ```
 
 #### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
@@ -276,6 +261,37 @@ User: /impl-review [path]
 └─────────────────────────────────────────────┘
 ```
 
+#### /sync (소스코드 → .claude/index.md)
+
+```
+User: /sync [path] [--all] [--p-only] [--check] [--force]
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ sync SKILL (Entry Point)                    │
+│                                             │
+│ 1. 대상 해석 (단일 or --all tree-parse)     │
+│ 2. Staleness 검사 (mtime 비교)             │
+│    --check → 보고만, 종료                  │
+│ 3. Phase 1: CLI → P sections               │
+│    (Exports, Dependencies, Structure 등)   │
+│ 4. Phase 2: Task(index-generator) → ND-D   │
+│    (Export Descriptions, Behavior)          │
+│    --p-only → Phase 2 스킵                 │
+│ 5. 최종 보고                               │
+└────────────────────┬────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│ index-generator AGENT                       │
+│                                             │
+│ 소스 코드 읽기 (Grep + selective Read)      │
+│ Export Descriptions 생성 (1줄/심볼)         │
+│ Behavior 요약 (2-4문장)                     │
+│ 최종 .claude/index.md 조립 + Write          │
+└─────────────────────────────────────────────┘
+```
+
 ### /dev (자연어 → 스킬 라우팅)
 
 ```
@@ -287,8 +303,9 @@ User: /dev "request"
 │                                             │
 │ 1. 인자 파싱 (request + --path)             │
 │ 2. 의도 분류 (FEATURE/BUGFIX/COMPILE/       │
-│    VALIDATE/AMBIGUOUS)                      │
-│ 3. CLAUDE.md 존재 확인 (FEATURE 제외)       │
+│    VALIDATE/SYNC/RESOLVE/IMPACT/DIFF/       │
+│    STATUS/REFACTOR/AMBIGUOUS)               │
+│ 3. CLAUDE.md 존재 확인 (FEATURE+SYNC 제외)  │
 │    없으면 → 안내 후 종료                    │
 │ 4. Skill(target) 호출                       │
 └─────────────────────────────────────────────┘
@@ -309,11 +326,12 @@ User: /dev "request"
 | `impl` | active | 요구사항 분석 및 CLAUDE.md + DEVELOPERS.md 생성 |
 | `dep-explorer` | active | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
 | `decompiler` | active | 소스코드에서 CLAUDE.md + DEVELOPERS.md 추출 |
-| `compiler` | active | CLAUDE.md Constraints + Domain Context 기반 소스코드 생성 (GREEN + REFACTOR) |
+| `compiler` | active | CLAUDE.md Constraints + Domain Context 기반 Inline TDD (RED + GREEN + REFACTOR) |
 | `debug-layer-analyzer` | active | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | active | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | active | CLAUDE.md Constraints/Domain Context/Convention drift 검증 |
+| `index-generator` | active | .claude/index.md ND-D 섹션 생성 (Export Descriptions + Behavior) |
 
 ## Commands
 
@@ -331,16 +349,17 @@ User: /dev "request"
 | Skill | 상태 | 역할 |
 |-------|------|------|
 | `/impl` | active | 요구사항 → CLAUDE.md |
-| `/decompile` | **deprecated** | 소스코드 → CLAUDE.md + DEVELOPERS.md (SKILL.md가 v5 전제, Phase 2 재설계 예정) |
-| `/compile` | **deprecated** | CLAUDE.md → 소스코드 (test-designer 의존, Phase 2 재설계 예정) |
-| `/validate` | **deprecated** | 문서-코드 일치 검증 (issue-verifier/violation-reporter 의존, Phase 2 재설계 예정) |
+| `/decompile` | active | 소스코드 → CLAUDE.md + DEVELOPERS.md |
+| `/compile` | active | CLAUDE.md → 소스코드 (Inline TDD) |
+| `/validate` | active | 문서-코드 일치 검증 (5 drift 카테고리) |
 | `/bugfix` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | active | CLAUDE.md 품질 리뷰 |
-| `/impact` | planned | 문서 변경 → 영향받는 모듈 분석 |
-| `/diff-spec` | planned | 문서 버전 간 시맨틱 diff |
-| `/status` | planned | 프로젝트 건강도 대시보드 |
-| `/refactor` | planned | 모듈 분할/병합 (문서 수준 리팩토링) |
-| `/resolve` | planned | /validate 위반 해소 |
+| `/status` | active | 프로젝트 건강도 대시보드 |
+| `/impact` | active | 문서 변경 → 영향받는 모듈 분석 (Constraints 기반) |
+| `/diff-spec` | active | 문서 버전 간 시맨틱 diff |
+| `/resolve` | active | /validate 위반 대화형 해소 |
+| `/refactor` | active | 모듈 분할/병합 (Constraints 그루핑 기반) |
+| `/sync` | active | 소스코드 → .claude/index.md 자동 생성/갱신 |
 
 ### Internal Skills & CLI Subcommands
 
@@ -387,6 +406,12 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 /bugfix → Source Code 재생성 (기본) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)
 /impl-review → CLAUDE.md (사용자 승인 후 fix patch)
 /validate → 위반 보고 (문서 수정 안 함)
+/resolve → CLAUDE.md 또는 Source Code (사용자 선택에 따라 drift 해소)
+/impact → 분석 보고 (문서 수정 안 함)
+/diff-spec → 분석 보고 (문서 수정 안 함)
+/status → 분석 보고 (문서 수정 안 함)
+/refactor → CLAUDE.md + DEVELOPERS.md (문서 분할/병합)
+/sync → .claude/index.md (소스코드에서 자동 생성, CLAUDE.md/소스코드 수정 안 함)
 ```
 
 ### INV-5: Conventions 섹션 배치 규칙

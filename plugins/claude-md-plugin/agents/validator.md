@@ -175,7 +175,7 @@ issues_count: {N}
 | 소스 파일 읽기 실패 | 경고 로그, 해당 파일 스킵하고 나머지 계속 진행 |
 | 디렉토리 없음 | 에러 반환, issues_count: 0 |
 | Glob/Grep 실행 실패 | 해당 drift 섹션 스킵, 경고 기록 |
-| 언어 감지 실패 | Exports Drift에서 MISSING 검증 스킵, 경고 기록 |
+| 언어 감지 실패 | Convention Drift에서 코드 검증 스킵, 경고 기록 |
 
 ## Tool 사용 제약
 
@@ -188,5 +188,5 @@ issues_count: {N}
 ## 주의사항
 
 1. **파일 필터링**: `node_modules`, `target`, `dist`, `__pycache__`, `.git` 등 빌드 산출물 제외
-2. **테스트 파일 제외**: `*.test.ts`, `*_test.go`, `test_*.py` 등은 Exports 검증에서 제외
+2. **테스트 파일 제외**: `*.test.ts`, `*_test.go`, `test_*.py` 등은 Constraints 검증에서 제외
 3. **Private 항목 제외**: 언어별 private 규칙을 준수 (Python `_prefix`, Go 소문자 시작 등)
