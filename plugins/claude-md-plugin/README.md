@@ -113,7 +113,14 @@ Routes natural language requests to the appropriate skill:
 | FEATURE | add, create, new, 추가, 생성 | `/impl` |
 | BUGFIX | fix, bug, error, 버그, 에러 | `/bugfix` |
 | COMPILE | compile, generate, build | `/compile` |
-| VALIDATE | validate, check, verify | `/validate` |
+| DECOMPILE | decompile, extract, document existing | `/decompile` |
+| VALIDATE | validate, check, verify, drift | `/validate` |
+| SYNC | sync, index, reindex | `/sync` |
+| RESOLVE | resolve, fix-drift, handle violation | `/resolve` |
+| IMPACT | impact, affected, breaking, depends | `/impact` |
+| DIFF | diff, compare, what changed | `/diff-spec` |
+| STATUS | status, health, dashboard | `/status` |
+| REFACTOR | refactor, split, merge, restructure | `/refactor` |
 
 ### `/impl` — Requirements → CLAUDE.md
 
@@ -125,7 +132,7 @@ Analyzes requirements and generates CLAUDE.md (Purpose, Constraints, Domain Cont
 
 ### `/compile` — CLAUDE.md → Source Code
 
-Generates source code from CLAUDE.md specifications via 2-agent TDD workflow (test-designer → compiler).
+Generates source code from CLAUDE.md specifications via Inline TDD (compiler agent generates tests from Constraints, then implements).
 
 ```bash
 /compile                          # Changed CLAUDE.md files
@@ -179,6 +186,36 @@ Reviews CLAUDE.md quality across 3 dimensions:
 /impl-review src/auth
 ```
 
+### `/status` — Project Health Dashboard
+
+Shows project-wide health overview (schema pass rate, drift count, DEVELOPERS.md coverage).
+
+### `/sync` — Source Code → .claude/index.md
+
+Auto-generates `.claude/index.md` from source code (CLI deterministic P-sections + AI-generated ND-D sections).
+
+```bash
+/sync src/auth              # Single module
+/sync --all                 # All modules
+/sync --check               # Staleness report only
+```
+
+### `/resolve` — Interactive Drift Resolution
+
+Reads `/validate` results and interactively resolves each drift issue (Fix Code, Fix Doc, Skip).
+
+### `/impact` — Change Impact Analysis
+
+Analyzes which modules are affected by a CLAUDE.md change (Constraints-based dependency tracing).
+
+### `/diff-spec` — Semantic Diff
+
+Compares document versions to show semantic changes between revisions.
+
+### `/refactor` — Module Split/Merge
+
+Splits or merges modules based on Constraints grouping analysis.
+
 ### Other Commands
 
 | Command | Description |
@@ -227,6 +264,7 @@ Reviews CLAUDE.md quality across 3 dimensions:
 | `debug-layer-analyzer` | active | Single layer (L1/L2/L3) analysis (sub-agent) |
 | `impl-reviewer` | active | CLAUDE.md quality review + requirements coverage |
 | `validator` | active | Constraints/Domain Context/Convention drift detection |
+| `index-generator` | active | .claude/index.md ND-D section generation (Export Descriptions + Behavior) |
 
 ### Tree Dependency
 
@@ -250,7 +288,8 @@ claude-md-core diff-compile-targets --root .          # Changed CLAUDE.md detect
 claude-md-core format-exports --input analysis.json   # Exports markdown generation
 claude-md-core format-analysis --input analysis.json  # Analysis summary generation
 claude-md-core fix-schema --file CLAUDE.md            # Auto-add missing sections
-claude-md-core compile-order --root .                 # Dependency-based compile order
+claude-md-core contract-hash --file CLAUDE.md         # CLAUDE.md SHA-256 hash for change detection
+claude-md-core index-project --root .                 # Project-wide indexing
 ```
 
 ## License
