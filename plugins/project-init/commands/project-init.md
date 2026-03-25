@@ -4,12 +4,11 @@ description: |
   Multi-language project setup plugin. Sets up code conventions, dependencies,
   CLAUDE.md, and installs a language-specific convention skill into the target project.
   "/project-init", "프로젝트 생성", "project init", "프로젝트 초기화", "project setup" 요청 시 사용됩니다.
-user_invocable: true
 allowed-tools: [Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion]
 argument-hint: "[--lang rust] [--name <name>] [--type cli,backend,frontend] [--db toasty|none|<custom>]"
 ---
 
-# Project Init Skill
+# Project Init Command
 
 신규 또는 기존 프로젝트에 코드 컨벤션, 의존성, CLAUDE.md, convention skill을 적용합니다.
 

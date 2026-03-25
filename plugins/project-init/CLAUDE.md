@@ -10,20 +10,19 @@ v1.0은 Rust를 지원하며, `references/{lang}/` 구조로 언어를 확장합
 plugins/project-init/
 ├── .claude-plugin/plugin.json
 ├── CLAUDE.md
-└── skills/
-    └── project-init/
-        ├── SKILL.md
-        └── references/
-            └── rust/                          # 언어별 디렉토리
-                ├── convention/
-                │   └── SKILL.md               # → 대상 프로젝트 .claude/skills/에 설치
-                ├── rustfmt.toml
-                ├── cargo-lints.toml
-                ├── deps-common.toml
-                ├── deps-cli.toml
-                ├── deps-backend.toml
-                ├── deps-frontend.toml
-                └── claude-md-template.md
+└── commands/
+    ├── project-init.md                    # /project-init command
+    └── references/
+        └── rust/                          # 언어별 디렉토리
+            ├── convention/
+            │   └── SKILL.md               # → 대상 프로젝트 .claude/skills/에 설치
+            ├── rustfmt.toml
+            ├── cargo-lints.toml
+            ├── deps-common.toml
+            ├── deps-cli.toml
+            ├── deps-backend.toml
+            ├── deps-frontend.toml
+            └── claude-md-template.md
 ```
 
 ## Workflow
@@ -42,4 +41,4 @@ plugins/project-init/
 새 언어 추가 시:
 1. `references/{lang}/` 디렉토리 생성
 2. 해당 언어의 formatter, lints, deps, CLAUDE.md 템플릿, convention skill 추가
-3. SKILL.md의 각 Phase에 `### {Lang} (LANG == {lang})` 섹션 추가
+3. command의 각 Phase에 `### {Lang} (LANG == {lang})` 섹션 추가

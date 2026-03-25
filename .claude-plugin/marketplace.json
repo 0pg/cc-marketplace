@@ -59,7 +59,7 @@
     },
     {
       "name": "project-init",
-      "description": "Multi-language project setup plugin. /project-init으로 신규 또는 기존 프로젝트에 코드 컨벤션, 의존성, CLAUDE.md, convention skill을 적용.",
+      "description": "Multi-language project setup plugin. Sets up code conventions, dependencies, CLAUDE.md, and installs a language-specific convention skill into the target project.",
       "version": "1.0.0",
       "author": {
         "name": "jhk"

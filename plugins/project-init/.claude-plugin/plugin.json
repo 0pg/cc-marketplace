@@ -1,10 +1,10 @@
 {
   "name": "project-init",
   "version": "1.0.0",
-  "description": "Multi-language project setup plugin. Sets up code conventions, dependencies, CLAUDE.md, and installs language-specific convention skills into the target project.",
+  "description": "Multi-language project setup plugin. Sets up code conventions, dependencies, CLAUDE.md, and installs a language-specific convention skill into the target project.",
   "author": { "name": "jhk" },
   "keywords": ["init", "scaffold", "convention", "project-setup"],
-  "skills": [
-    "./skills/project-init"
+  "commands": [
+    "./commands/project-init.md"
   ]
 }
