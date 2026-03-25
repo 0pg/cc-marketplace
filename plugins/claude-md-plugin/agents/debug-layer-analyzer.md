@@ -49,15 +49,15 @@ description: |
   </user_request>
   <assistant_response>
   I'll analyze L1 (CLAUDE.md Spec) layer for the null return issue.
-  1. Grep spec JSON for searchItems exports signature
-  2. Grep spec JSON for behaviors matching "no results"
+  1. Grep spec JSON for searchItems constraints
+  2. Grep spec JSON for domain context matching "no results"
   3. git log comparison: CLAUDE.md vs source file
-  4. Finding: Behavior says "empty collection" but no explicit null prohibition
+  4. Finding: Constraints say "empty collection" but no explicit null prohibition
 
   ---debug-layer-result---
   layer: L1
   status: ISSUES_FOUND
-  primary_finding: SPEC_BEHAVIOR_GAP
+  primary_finding: SPEC_CONSTRAINT_GAP
   result_file: .claude/tmp/debug-l1-findings.md
   ---end-debug-layer-result---
   </assistant_response>
@@ -119,9 +119,8 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 
 | Type | Description |
 |------|-------------|
-| **SPEC_BEHAVIOR_GAP** | Behavior does not cover this error scenario |
-| **SPEC_EXPORT_MISMATCH** | Exports signature does not match code |
-| **SPEC_CONTRACT_GAP** | Contract does not include this error condition |
+| **SPEC_CONSTRAINT_GAP** | Constraints do not cover this error scenario |
+| **SPEC_CONSTRAINT_MISMATCH** | Constraints do not match code behavior |
 | **SPEC_STALE** | CLAUDE.md is older than source code |
 
 ### L2: DEVELOPERS.md (Context) Issues
@@ -130,7 +129,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 |------|-------------|
 | **CONTEXT_DECISION_GAP** | Decision Log does not explain relevant decision/rationale |
 | **CONTEXT_FILE_MAP_STALE** | File Map relationships do not match actual code dependencies |
-| **CONTEXT_DATA_STRUCTURE_GAP** | Data Structures section missing relevant internal structure |
+| **CONTEXT_INVARIANT_GAP** | Invariants section missing relevant invariant or assertion |
 | **CONTEXT_OPERATIONS_GAP** | Operations section missing relevant gotcha or troubleshooting info |
 
 ### L3: Source Code Issues (diagnostic only)
@@ -188,27 +187,21 @@ Extract actual exports to compare with spec in L1.
 
 ### L1: CLAUDE.md Spec Analysis
 
-**Step 4.1: Exports signature comparison**
+**Step 4.1: Purpose & Constraints check**
 ```
-Grep: pattern="{failing_function}" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
+Grep: pattern="purpose|constraint" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
 ```
-Compare spec signature with code (normalize: `->` to `:`, whitespace normalization).
-- Function not found -> L1 (in spec but not in code)
-- Signature mismatch -> check staleness in Step 4.4
-- Match -> continue to Behavior
+Compare constraints with code behavior.
+- Constraint not found for this scenario -> L1 SPEC_CONSTRAINT_GAP
+- Constraint mismatch -> check staleness in Step 4.4
+- Match -> code is violating constraint (record for L3)
 
-**Step 4.2: Behavior coverage check**
+**Step 4.2: Domain Context check**
 ```
-Grep: pattern="behavior|input|output|error" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=30
+Grep: pattern="domain|context|decision" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=30
 ```
-- Scenario not covered -> L1 SPEC_BEHAVIOR_GAP
-- Scenario covered, behavior mismatch -> CODE_SPEC_DIVERGENCE (record for L3)
-- Scenario covered, incomplete -> L1 (spec too ambiguous)
-
-**Step 4.3: Contract check**
-```
-Grep: pattern="contract|precondition|postcondition|throws" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
-```
+- Domain Context missing relevant rationale -> L1 SPEC_CONSTRAINT_GAP
+- Domain Context present, code diverges -> CODE_SPEC_DIVERGENCE (record for L3)
 
 **Step 4.4: Staleness check (code vs spec)**
 ```bash
@@ -235,10 +228,10 @@ Grep: pattern="^## File Map|file.*map" path={developers_md_path} output_mode=con
 - File relationships not matching code -> L2 CONTEXT_FILE_MAP_STALE
 - Missing file in map -> record as stale
 
-**Step 5.3: Data Structures check (state-related bugs)**
+**Step 5.3: Invariants check (state-related bugs)**
 State keywords: `undefined`, `null`, `nil`, `not initialized`, `stale`
 ```
-Grep: pattern="^## Data Structures|data.*structure" path={developers_md_path} output_mode=content -A 30 head_limit=50
+Grep: pattern="^## Invariants|invariant" path={developers_md_path} output_mode=content -A 30 head_limit=50
 ```
 
 **Step 5.4: Operations check (operational bugs)**

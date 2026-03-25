@@ -10,36 +10,36 @@ CLAUDE.md 검증 보고서
 ----
 검증 대상: 3개 디렉토리
 - 양호: 1개
-- 수정 완료: 1개
-- 개선 필요: 1개 (일부 수정 실패)
+- 개선 필요: 2개
 
-| 디렉토리   | 스키마 | Drift | 확인됨 | 오탐 | 수정됨 | Export 커버리지 | 상태      |
-|------------|--------|-------|--------|------|--------|---------------|-----------|
-| src/auth   | PASS   | 0     | -      | -    | -      | 95%           | 양호      |
-| src/utils  | PASS   | 3     | 2      | 1    | 2      | 78%→90%       | 수정 완료 |
-| src/legacy | FAIL(1)| 5     | 4      | 1    | 3      | 45%→60%       | 개선 필요 |
+| 디렉토리   | 스키마 | Constraints | Domain Context | Convention | DEVELOPERS.md | Boundary | 상태      |
+|------------|--------|-------------|----------------|------------|---------------|----------|-----------|
+| src/auth   | PASS   | 0           | 0              | 0          | OK            | 0        | 양호      |
+| src/utils  | PASS   | 1 VIOLATED  | 1 STALE        | 0          | OK            | 0        | 개선 필요 |
+| src/legacy | FAIL(1)| 2 VIOLATED  | 0              | 1 위반     | MISSING       | 1 위반   | 개선 필요 |
 
 상세 결과
 ---------
 
 src/auth (양호)
   스키마: PASS
-  Drift: 0개 이슈
-  Export 커버리지: 95% (18/19 예측 성공)
+  Drift: 0개 이슈 (5 카테고리 모두 정상)
 
-src/utils (수정 완료)
+src/utils (개선 필요)
   스키마: PASS
-  Drift: 3개 이슈 → 재검증: 2개 확인, 1개 오탐 → 2개 수정 완료
-    - STALE: formatDate → 확인됨 → Exports에서 제거 ✓
-    - MISSING: parseNumber → 확인됨 → Exports에 추가 ✓
-    - MISSING: _internalHelper → 오탐 (private 헬퍼)
-  Export 커버리지: 78%→90%
+  Drift: 2개 이슈
+    - [Constraints VIOLATED] "동시 세션 최대 5개" — 코드에서 MAX_SESSIONS = 10 발견
+    - [Domain Context STALE] "Redis 캐시 사용" — 코드에서 Redis 관련 패턴 미발견
 
 src/legacy (개선 필요)
   스키마: FAIL (1)
-    - [MissingSection] Missing required section: Behavior → fix-schema로 수정 ✓
-  Drift: 5개 이슈 → 재검증: 4개 확인, 1개 오탐 → 3개 수정 완료, 1개 실패
-    - UNCOVERED: 3개 파일 → 2개 확인, 1개 오탐 → 2개 Structure에 추가 ✓
-    - MISMATCH: 2개 시그니처 → 모두 확인 → 1개 수정 ✓, 1개 수정 실패 ✗
-  Export 커버리지: 45%→60%
+    - [MissingSection] Missing required section: Constraints → fix-schema로 수정 ✓
+  Drift: 4개 이슈
+    - [Constraints VIOLATED] "응답 시간 100ms 이내" — 코드에서 timeout 500ms 설정 발견
+    - [Constraints VIOLATED] "UTF-8만 지원" — 코드에서 latin-1 인코딩 사용 발견
+    - [Convention 위반] Naming Rules: 함수명 camelCase 규칙 위반 (snake_case 3건)
+    - [Boundary 위반] 형제 모듈 src/auth/CLAUDE.md 직접 참조
+  DEVELOPERS.md: MISSING (--strict warning)
+
+권장 사항: /resolve로 drift 해소를 진행하세요.
 ```

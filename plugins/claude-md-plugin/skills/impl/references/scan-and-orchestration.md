@@ -1,4 +1,4 @@
-# /impl Workflow Detail
+# /impl SKILL-level Orchestration Guide
 
 ## scan-claude-md 호출 패턴
 
@@ -24,77 +24,21 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 }
 ```
 
-## impl agent 워크플로우 (Phase 0~7)
+## impl agent 워크플로우 요약
 
-### 0. ⭐ Scope Assessment (3차원 증거 기반)
-- 3차원 평가: D1(Purpose 명확도), D2(Interface 구체성), D3(제약/맥락 포함)
-- 각 차원 `있음/추론 가능/없음` → completeness 결정 (high/medium/low)
-- 멀티 모듈 감지: single-module / multi-module
-- multi-module → AskUserQuestion (분해/도메인 그룹/단일유지)
-- `---scope-assessment---` 구조화 출력 (evidence 포함)
+상세 Phase 0~7 워크플로우는 `impl-workflow.md`를 참조하세요.
 
-### 1. 요구사항 분석 (구조화된 추출)
-- Step 1: 요구사항 형식 식별 (User Story / Feature List / 자연어 / 기술 요구사항)
-- Step 2: 7개 스펙 요소 순차 추출 (신뢰도 `confirmed/inferred/gap` 부여)
-- Step 3: `---extraction-summary---` 구조화 출력 (gap 항목 → Phase 2 질문 대상)
-
-### 1.5. 의존성 탐색 (dep-explorer)
-- scan 인덱스(~6KB) 로드 → purpose + export_names로 관련 모듈 판단
-- LLM 판단 기반 (programmatic 필터링 아님)
-- 관련 모듈만 선별적 Read (3-5개 수준)
-
-### 2. ⭐ Tiered Clarification (UPDATED)
-- Round 1 — Tier 1(범위): PURPOSE, LOCATION (completeness=low일 때)
-- Round 2 — Tier 2(인터페이스)+3(제약): EXPORTS, BEHAVIOR, CONTRACT, DOMAIN_CONTEXT
-- 최대 2라운드, 라운드당 최대 4질문
-- completeness=high이면 Phase 2 건너뛰기 (경로 미지정 시 LOCATION만 질문)
-
-### 3. 대상 위치 결정
-- 명시적 경로 > 모듈명 추론 > 사용자 선택
-- 기존 디렉토리 존재 시 update, 없으면 create
-
-### 4. 기존 CLAUDE.md 존재시 병합
-- Purpose: 기존 유지 또는 확장 (사용자 선택)
-- Exports: 이름 기준 병합 (기존 유지 + 신규 추가)
-- Behavior: 시나리오 추가 (중복 제거)
-- Contract: 함수명 기준 병합
-- Dependencies: Union
-
-### 5. CLAUDE.md 생성
-- 필수 6개 섹션: Purpose, Exports, Behavior, Contract, Protocol, Domain Context
-- Contract/Protocol/Domain Context는 "None" 허용
-
-### 5.5. compile-context 생성 (session temp)
-- Dependencies Direction: CLAUDE.md 경로로 resolve된 의존성
-- Implementation Approach: 구현 전략과 대안
-- Technology Choices: 기술 선택 근거
-- `.claude/tmp/compile-context-{dir-hash}.md`에 저장 (세션 한정)
-
-### 6. 스키마 검증 (1회)
-- claude-md-core validate-schema CLI 호출
-- 실패 시 경고와 함께 이슈 보고
-
-### 6.5. ⭐ Plan Preview (NEW)
-- 생성 계획 요약 제시 (경로, Purpose, Exports, Behaviors, Dependencies)
-- AskUserQuestion: 승인 / 범위조정 / 위치변경 / 취소
-- 수정 요청 시 → Phase 5~6.5 재실행 (최대 1회 루프백)
-- 승인된 경우만 Phase 7로 진행
-
-### 7. 최종 저장
-- 승인된 경우에만 CLAUDE.md + compile-context 파일 저장
-
-## compile-context 생성 로직
-
-### Dependencies Direction
-```markdown
-### External
-- `jsonwebtoken@9.0.0`: JWT 검증 (선택 이유: 성숙한 라이브러리)
-
-### Internal
-- `utils/crypto/CLAUDE.md`: hashPassword, verifyPassword (해시 유틸리티)
-```
-
-의존성 탐색 우선순위:
-1. Internal (기존 CLAUDE.md) - scan 인덱스 매칭
-2. Existing External (프로젝트에 이미 선언된 의존성)
-3. New External (AskUserQuestion으로 승인 필수)
+| Phase | 요약 |
+|-------|------|
+| 0 | Scope Assessment — 3차원 증거 기반 완성도 분류 (D1: Purpose, D2: Constraints, D3: Domain Context) |
+| 1 | Requirements Analysis — 4개 스펙 요소 추출 (Purpose, Constraints, Domain Context, Location) |
+| 1.5 | dep-explorer 위임 — 의존성 탐색 |
+| 2 | Tiered Clarification — 최대 2라운드, 라운드당 최대 4질문 |
+| 3 | 대상 위치 결정 — 명시적 경로 > 모듈명 추론 > 사용자 선택 |
+| 4 | 기존 CLAUDE.md 존재시 병합 — Purpose/Constraints/Domain Context smart merge |
+| 5 | CLAUDE.md 생성 — v6 스키마 (Purpose, Constraints, Domain Context) |
+| 5.25 | DEVELOPERS.md 생성 — WHY 맥락 |
+| 5.5 | compile-context 생성 — Dependencies Direction, Implementation Approach |
+| 6 | 스키마 검증 (1회) — validate-schema CLI |
+| 6.5 | Plan Preview — 사용자 승인/범위조정/위치변경/취소 |
+| 7 | 최종 저장 — CLAUDE.md + DEVELOPERS.md + compile-context |

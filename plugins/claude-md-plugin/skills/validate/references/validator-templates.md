@@ -1,9 +1,9 @@
 <!--
   validator-templates.md
   Consolidated reference for the validator agent.
-  Contains: Drift type definitions, export coverage formula,
-  language-specific export patterns, result template format,
-  and CLI output JSON structures.
+  Contains: Drift type definitions (v6 schema),
+  Convention drift, DEVELOPERS.md drift, Boundary violations,
+  result template format, and CLI output JSON structures.
 
   Loaded at runtime by the validator agent via:
     cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
@@ -11,49 +11,49 @@
 
 # Validator Templates & Reference
 
-## Drift Type Definitions
+## Drift Type Definitions (v6 Schema)
 
-### 1. Structure Drift
+v6 CLAUDE.md 스키마는 Purpose, Constraints, Domain Context 3개 필수 섹션과
+조건부 섹션(Instructions, Conventions)으로 구성됩니다.
 
-CLAUDE.md의 Structure 섹션과 실제 디렉토리 내 파일/디렉토리의 불일치.
+### 1. Constraints Drift
 
-| 유형 | 설명 | 원인 |
-|------|------|------|
-| **UNCOVERED** | 실제 파일이 Structure에 없음 | 새 파일 추가 후 CLAUDE.md 미갱신 |
-| **ORPHAN** | Structure에 있으나 실제로 없음 | 파일 삭제 후 CLAUDE.md 미갱신 |
+CLAUDE.md의 Constraints 섹션과 실제 코드 동작의 불일치.
 
-### 2. Exports Drift
+| 유형 | 설명 | 검증 방법 | 신뢰도 |
+|------|------|----------|--------|
+| **VIOLATED** | 코드가 명시된 제약을 위반 | 코드에서 제약 위반 패턴 검색 (Grep) | MEDIUM (샘플 기반) |
+| **STALE** | 제약이 코드에서 더 이상 적용되지 않음 | 제약과 관련된 코드 패턴이 존재하지 않음 | LOW (코드 리팩토링으로 패턴 변경 가능) |
 
-CLAUDE.md의 Exports 섹션과 코드의 export 후보(candidates) 불일치.
+**검증 방법:**
+1. CLAUDE.md의 Constraints 섹션을 파싱하여 개별 제약 추출
+2. 각 제약에서 키워드/수치를 추출 (e.g., "최대 7일" → `7`, `expiry`)
+3. Grep으로 관련 코드 패턴 검색
+4. 제약 위반 또는 미적용 여부 판정
 
-| 유형 | 설명 | 신뢰도 | 원인 |
-|------|------|--------|------|
-| **STALE** | 문서의 export가 candidates에 없음 | 높음 | 함수 삭제/이름 변경 후 CLAUDE.md 미갱신 |
-| **MISSING** | 코드의 export 후보가 문서에 없음 | 중간 (의도적 제외 가능) | 새 함수 추가 후 CLAUDE.md 미갱신 또는 LLM이 의도적으로 제외 |
-| **MISMATCH** | 시그니처 불일치 | 높음 | 파라미터/반환 타입 변경 후 CLAUDE.md 미갱신 |
+**예시:**
+```
+Constraints: "동시 세션은 최대 5개"
+코드 검색: MAX_SESSIONS, maxSessions, session.*limit
+발견: const MAX_SESSIONS = 10  →  VIOLATED (5 vs 10)
+```
 
-### 3. Dependencies Drift
+### 2. Domain Context Drift
 
-CLAUDE.md의 Dependencies 섹션과 실제 의존성의 불일치.
+CLAUDE.md의 Domain Context와 코드/환경의 불일치.
 
-| 유형 | 설명 | 검증 방법 |
-|------|------|----------|
-| **STALE** | 문서의 의존성이 실제로 없음 | internal → 파일 존재 확인, external → 패키지 매니저 확인 |
-| **ORPHAN** | 코드에서 사용하지만 문서에 없음 | import문 분석 vs 문서 비교 |
+| 유형 | 설명 | 검증 방법 | 신뢰도 |
+|------|------|----------|--------|
+| **STALE** | Domain Context가 현재 코드와 맞지 않음 | 키워드 기반 코드 매칭 | LOW (맥락 변경 감지 어려움) |
 
-### 4. Cross-Module Signature Drift
+**검증 방법:**
+1. Domain Context에서 기술적 키워드 추출 (e.g., "Redis 캐시", "HMAC-SHA256")
+2. Grep으로 관련 코드/설정 존재 확인
+3. 언급된 기술/패턴이 코드에서 사용되지 않으면 STALE
 
-모듈 간 시그니처 호환성 불일치.
+### 3. Convention Drift
 
-| 유형 | 설명 | 검증 방법 |
-|------|------|----------|
-| **SIGNATURE_MISMATCH** | Dependencies 시그니처와 의존 모듈 Exports 시그니처 불일치 | CLAUDE.md 간 비교 |
-| **SYMBOL_NOT_FOUND** | Dependencies 선언 symbol이 의존 모듈 Exports에 없음 | 이름 매칭 |
-| **MODULE_NOT_FOUND** | Dependencies 선언 모듈의 CLAUDE.md 부재 | 파일 존재 확인 |
-
-### 5. Convention Drift
-
-CLAUDE.md의 Convention 섹션(계약의 일부)과 실제 코드 스타일의 불일치.
+CLAUDE.md의 Conventions 섹션(프로젝트/코드 수준 규칙)과 실제 코드 스타일의 불일치.
 
 | 유형 | 설명 | 검증 방법 |
 |------|------|----------|
@@ -61,55 +61,25 @@ CLAUDE.md의 Convention 섹션(계약의 일부)과 실제 코드 스타일의 �
 | **MISSING_SUBSECTION** | Convention에 필수 서브섹션 없음 | 섹션 구조 확인 |
 | **CODE_VIOLATION** | 코드가 Convention 규칙 위반 | 샘플 기반 Grep 검증 (신뢰도: MEDIUM) |
 
-### 6. Behavior Drift
+### 4. DEVELOPERS.md Drift
 
-CLAUDE.md의 Behavior 섹션과 실제 동작의 불일치.
+DEVELOPERS.md의 존재 여부와 내용 일치성 검증.
 
 | 유형 | 설명 | 검증 방법 |
 |------|------|----------|
-| **MISMATCH** | 문서화된 시나리오와 실제 동작 불일치 | 테스트 케이스 매칭, 코드 분기문 분석 |
+| **MISSING_DEVELOPERS_MD** | CLAUDE.md가 있는데 DEVELOPERS.md 없음 | INV-3 검증 |
+| **FILE_MAP_ORPHAN** | File Map에 있지만 실제로 없는 파일 | 파일 존재 확인 |
+| **FILE_MAP_UNCOVERED** | 실제에만 있는 소스 파일 | File Map과 비교 |
+| **INVARIANT_STALE** | Invariants가 코드와 맞지 않음 | 키워드 기반 코드 매칭 (LOW) |
 
-## Export Coverage Formula
+### 5. Boundary Violations (INV-1)
 
-커버리지 = (문서화된 전체 export 수 - STALE 수) ÷ (문서화된 전체 export 수 + MISSING 수) × 100
+CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
 
-- `total_exports`: 문서화된 전체 export 수
-- `stale_count`: STALE로 판정된 수
-- `missing_count`: MISSING으로 판정된 수
-- `total_exports + missing_count`가 0이면 coverage = 100
-
-## Export Candidates (Primary Method)
-
-`format-exports` CLI를 사용하여 코드에서 export 후보(candidates) 목록을 생성합니다:
-
-```bash
-# 1. 코드 분석
-claude-md-core analyze-code --path {directory} --output ${TMP_DIR}validate-{name}-analysis.json
-
-# 2. Export candidates 마크다운 생성
-claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --output ${TMP_DIR}validate-{name}-candidates.md
-```
-
-생성된 candidates 파일과 CLAUDE.md의 Exports 섹션을 비교하여 STALE/MISSING/MISMATCH를 판정합니다.
-
-**비교 방법:**
-- candidates의 각 항목(backtick 내 이름)과 CLAUDE.md Exports의 각 항목을 이름 기준으로 매칭
-- 이름이 candidates에만 있으면 → MISSING (중간 신뢰도: LLM이 의도적으로 제외했을 수 있음)
-- 이름이 CLAUDE.md에만 있으면 → STALE (높은 신뢰도: permissive analyzer도 못 찾으면 삭제된 것)
-- 양쪽에 있으나 시그니처가 다르면 → MISMATCH (description 차이는 무시)
-
-## Language-Specific Export Patterns (Fallback)
-
-`format-exports` CLI 실행이 실패할 때 사용하는 Grep 기반 fallback 방법입니다.
-
-디렉토리 내 파일 확장자로 언어를 감지합니다 (.ts/.tsx → TypeScript, .py → Python, .go → Go, .rs → Rust, .java → Java, .kt → Kotlin).
-
-- export 키워드 기반 언어 (TS/JS): `^export (function|const|class)`
-- public 키워드 기반 언어 (Java): `^public (class|interface)`
-- public이 기본인 언어 (Kotlin): `^(fun|class|interface|object) [A-Z]`
-- 대문자 시작이 public인 언어 (Go): `^func [A-Z]|^type [A-Z]`
-- pub 키워드 언어 (Rust): `^pub (fn|struct|enum)`
-- 명시적 export 없는 언어 (Python): `__all__` 리스트 확인 또는 `_` 접두사 없는 top-level `^(def|class) [a-zA-Z]`
+| 유형 | 설명 | 검증 방법 |
+|------|------|----------|
+| **PARENT_REFERENCE** | `../` 참조 (부모 참조 금지) | resolve-boundary CLI |
+| **SIBLING_REFERENCE** | 형제 디렉토리 참조 | resolve-boundary CLI |
 
 ## Result Template
 
@@ -119,101 +89,59 @@ claude-md-core format-exports --input ${TMP_DIR}validate-{name}-analysis.json --
 ## 요약
 
 - 전체 이슈: {N}개
-- Structure: {n1}개
-- Exports: {n2}개
-- Dependencies: {n3}개
-- Cross-Module: {n4}개
-- Convention: {n5}개
-- Behavior: {n6}개
-
-## Export 커버리지
-
-- 커버리지: {coverage}%
-- 전체: {total_exports}개, 발견: {found_count}개, 누락(STALE): {stale_count}개
-
-| 점수 범위 | 해석 |
-|----------|------|
-| 90-100% | 우수 - CLAUDE.md exports가 코드와 일치 |
-| 70-89% | 양호 - 일부 export 보완 필요 |
-| 50-69% | 보통 - 주요 export 누락 |
-| 0-49% | 미흡 - CLAUDE.md 재작성 권장 |
+- Constraints Drift: {n1}개
+- Domain Context Drift: {n2}개
+- Convention Drift: {n3}개
+- DEVELOPERS.md Drift: {n4}개
+- Boundary Violations: {n5}개
 
 ## 상세
 
-### Structure Drift
+### Constraints Drift
 
-#### UNCOVERED (문서에 없는 파일)
-- `helper.ts`: 디렉토리에 존재하나 Structure에 없음
+#### VIOLATED (제약 위반)
+- "동시 세션은 최대 5개": 코드에서 MAX_SESSIONS = 10 (불일치)
 
-#### ORPHAN (실제 없는 파일)
-- `legacy.ts`: Structure에 있으나 실제로 존재하지 않음
+#### STALE (미적용 제약)
+- "Redis 캐시 TTL은 토큰 만료보다 짧아야 함": Redis 관련 코드 없음
 
-### Exports Drift
+### Domain Context Drift
 
-#### STALE (코드에 없는 export)
-- `formatDate(date: Date): string`: 문서에 있으나 코드에 없음
-
-#### MISSING (문서에 없는 export)
-- `parseNumber`: 코드에 있으나 문서에 없음
-
-#### MISMATCH (시그니처 불일치)
-- `validateToken`:
-  - 문서: `validateToken(token: string): boolean`
-  - 실제: `validateToken(token: string, options?: ValidateOptions): Promise<boolean>`
-
-### Dependencies Drift
-
-#### STALE (없는 의존성)
-- `lodash`: package.json에 없음
-
-### Cross-Module Signature Drift
-
-#### SIGNATURE_MISMATCH
-- `hashPassword`: 참조측 `(password: string): string` vs 실제 `(password: string, salt: string): HashedResult`
-
-#### SYMBOL_NOT_FOUND
-- `verifyHash`: Dependencies에 선언되어 있으나 src/utils/crypto/CLAUDE.md Exports에 없음
+#### STALE (맥락 불일치)
+- "Redis 캐시를 사용하여 인증 지연을 최소화": Redis 의존성/코드 없음
 
 ### Convention Drift
 
 #### MISSING_CONVENTION
-- project_root에 `## Code Convention` 섹션 없음
+- project_root에 `## Conventions` 섹션 없음
 
 #### CODE_VIOLATION
 - Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)
 
-### Behavior Drift
+### DEVELOPERS.md Drift
 
-#### MISMATCH (동작 불일치)
-- "빈 입력 시 빈 배열 반환": 실제로는 null 반환
+#### MISSING_DEVELOPERS_MD
+- src/auth/CLAUDE.md 존재하나 DEVELOPERS.md 없음 (INV-3 위반)
+
+#### FILE_MAP_ORPHAN
+- `legacy.ts`: File Map에 있으나 실제로 존재하지 않음
+
+### Boundary Violations
+
+#### PARENT_REFERENCE
+- `../utils` 참조 발견 (line 15)
 ```
 
 ## CLI Output JSON Structures
 
-### parse-claude-md 출력
+### parse-claude-md 출력 (v6 schema)
 
 ```json
 {
   "name": "auth",
   "purpose": "User authentication module",
-  "exports": {
-    "functions": [{"name": "validateToken", "signature": "validateToken(token: string): Promise<Claims>", "is_async": true}],
-    "types": [{"name": "Claims", "definition": "Claims { userId: string, role: Role }", "kind": "interface"}],
-    "classes": [{"name": "TokenManager", "constructor_signature": "TokenManager(secret: string)"}],
-    "enums": [],
-    "variables": []
-  },
-  "dependencies": {
-    "external": ["jsonwebtoken@9.0.0"],
-    "internal": ["./types"]
-  },
-  "behaviors": [
-    {"input": "valid JWT token", "output": "Claims object", "category": "success"},
-    {"input": "expired token", "output": "TokenExpiredError", "category": "error"}
-  ],
-  "contracts": [{"function_name": "validateToken", "preconditions": [...], "postconditions": [...], "throws": [...], "invariants": []}],
-  "protocol": {"states": [...], "transitions": [...], "lifecycle": [...]},
-  "structure": {"subdirs": [{"name": "jwt", "description": "..."}], "files": [{"name": "types.ts", "description": "..."}]},
+  "constraints": ["토큰 만료 최대 7일", "동시 세션 최대 5개"],
+  "domain_context": "JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책 적용",
   "warnings": []
 }
 ```

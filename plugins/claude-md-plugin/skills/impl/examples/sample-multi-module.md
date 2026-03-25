@@ -15,13 +15,13 @@ completeness: medium
 scope: multi-module
 evidence:
   D1_purpose: 있음 — "결제 시스템" (명확한 도메인)
-  D2_interface: 추론 가능 — "카드 결제, 정산, 환불" (구체적 함수명 없음)
-  D3_constraints: 없음 — 제약/규칙 미언급
+  D2_constraints: 추론 가능 — "카드 결제, 정산, 환불" (구체적 제약 없음)
+  D3_domain_context: 없음 — 결정 근거/배경 미언급
 next_phase: Phase 2 Tier 2
 ---end-scope-assessment---
 ```
 
-- **감지 신호**: 나열형 "카드 결제, 정산, 환불" — 각각 독립된 Exports 보유 가능
+- **감지 신호**: 나열형 "카드 결제, 정산, 환불" — 각각 독립된 책임 보유 가능
 
 ### AskUserQuestion: 멀티 모듈 처리 방법
 
@@ -29,7 +29,7 @@ next_phase: Phase 2 Tier 2
 
 옵션:
 1. **모듈별 분해 (권장)** — 첫 모듈만 생성, 나머지는 /impl 가이드 제공
-2. **도메인 그룹 생성** — Structure로 하위 모듈을 참조하는 상위 CLAUDE.md 생성
+2. **도메인 그룹 생성** — Purpose로 하위 모듈을 참조하는 상위 CLAUDE.md 생성
 3. 단일 모듈 유지 — 모든 기능을 하나의 CLAUDE.md에
 
 사용자 선택: **모듈별 분해**
@@ -49,7 +49,7 @@ next_phase: Phase 2 Tier 2
 
 ### Phase 1: Requirements Analysis
 - Purpose: 카드 결제 처리
-- Exports: processPayment, getPaymentStatus 등 추론
+- Constraints: 추론 가능 (구체적 제약 미언급)
 
 ### Phase 1.5: dep-explorer
 - Internal: 0개
@@ -61,11 +61,11 @@ next_phase: Phase 2 Tier 2
 
 AskUserQuestion (3개):
 
-1. **EXPORTS** (Tier 2): "카드 결제에서 어떤 함수를 export해야 하나요?"
-   - 사용자 답변: processPayment, cancelPayment, getPaymentStatus
+1. **CONSTRAINTS** (Tier 2): "카드 결제에서 어떤 제약/규칙이 있나요?"
+   - 사용자 답변: 결제 성공 시 트랜잭션 ID 반환, 잔액부족/카드만료/한도초과 시 에러
 
-2. **BEHAVIOR** (Tier 2): "결제 실패 시나리오는?"
-   - 사용자 답변: 잔액부족, 카드 만료, 한도 초과
+2. **CONSTRAINTS 추가** (Tier 2): "결제 취소/상태 조회 기능도 필요한가요?"
+   - 사용자 답변: 예, cancelPayment + getPaymentStatus 필요
 
 3. **DOMAIN_CONTEXT** (Tier 3): "결제 타임아웃 기준이 있나요?"
    - 사용자 답변: 30초 타임아웃, PG사 API 호출
@@ -83,8 +83,8 @@ AskUserQuestion (3개):
 액션: created
 
 Purpose: 카드 결제 처리 모듈
-Exports: 3개 — processPayment, cancelPayment, getPaymentStatus
-Behaviors: 6개 — 결제 성공, 잔액부족 에러, 카드 만료 에러, ...
+Constraints: 6개 — 결제 성공 시 트랜잭션 ID 반환, 잔액부족 에러, 카드만료 에러, ...
+Domain Context: 있음 (30초 타임아웃, PG사 API)
 Dependencies: Internal 0개, External 1개 (payments-sdk)
 ```
 
@@ -95,11 +95,13 @@ Dependencies: Internal 0개, External 1개 (payments-sdk)
 ```
 ---impl-result---
 claude_md_file: src/payment/CLAUDE.md
+developers_md_file: src/payment/DEVELOPERS.md
+compile_context_file: .claude/tmp/compile-context-src-payment.md
 status: success
 action: created
 validation: passed
-exports_count: 3
-behaviors_count: 6
+constraints_count: 6
+domain_context: present
 dependencies_count: 1
 tech_choices_count: 1
 ---end-impl-result---
@@ -117,5 +119,5 @@ tech_choices_count: 1
 1. /impl "정산 모듈: 카드 결제 내역을 기반으로 가맹점 정산 처리"
 2. /impl "환불 모듈: 결제 건에 대한 전액/부분 환불 처리"
 
-참고: 정산/환불 모듈은 src/payment/CLAUDE.md의 Exports를 참조할 수 있습니다.
+참고: 정산/환불 모듈은 src/payment/CLAUDE.md를 의존성으로 참조할 수 있습니다.
 ```

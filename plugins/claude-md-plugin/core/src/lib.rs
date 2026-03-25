@@ -74,7 +74,6 @@ pub use boundary_resolver::BoundaryResolver;
 pub use schema_validator::SchemaValidator;
 pub use code_analyzer::CodeAnalyzer;
 pub use claude_md_parser::ClaudeMdParser;
-pub use bracket_utils::{split_respecting_brackets, find_matching_bracket, extract_parenthesized};
 pub use convention_validator::ConventionValidator;
 
 #[cfg(test)]

@@ -49,8 +49,8 @@
     },
     {
       "name": "claude-md-plugin",
-      "description": "Code-First + Spec-as-Contract 문서-코드 동기화 플러그인. /dev로 자연어 요청을 스킬에 라우팅, /decompile로 소스코드에서 계약 추출, /compile로 계약 만족 코드 생성, /validate로 계약 위반 보고, /impl으로 요구사항에서 계약 생성, /impl-review로 품질 리뷰, /bugfix로 런타임 버그 3계층 추적 진단, /project-setup으로 컨벤션 자동 감지, /convention-update으로 코드 컨벤션 관리.",
-      "version": "5.0.0",
+      "description": "Code-First 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 사전학습 인덱스 + 인간 지식 저장소. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
+      "version": "7.3.2",
       "author": {
         "name": "jhk"
       },

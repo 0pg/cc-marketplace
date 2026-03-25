@@ -1,422 +1,182 @@
 ---
 name: compile
-version: 2.0.0
+version: 3.0.0
 aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement CLAUDE.md",
   "create source files", or uses "/compile". Processes changed CLAUDE.md files in the target path (or all with --all flag).
-  Performs 2-agent TDD workflow: test-designer (RED) → compiler (GREEN+REFACTOR) to ensure compiled code passes tests.
-  Supports --integration for cross-module contract tests and --dry-run for preview.
+  Performs Inline TDD: compiler agent generates tests from Constraints, then implements code (GREEN+REFACTOR).
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
 ---
 
-# Compile Skill
+# /compile
 
-## Core Philosophy
+CLAUDE.md를 기반으로 소스코드를 생성합니다.
 
-**계약(Contract) → 코드 생성 = Compile**
+## Triggers
 
-```
-CLAUDE.md (Contract)  ─── /compile ──→  계약을 만족하는 코드
-```
+- `/compile`
+- `코드 생성`
+- `CLAUDE.md에서 코드`
 
-`/compile`은 CLAUDE.md 계약을 만족하는 소스코드를 생성합니다.
-compile-context (session temp)가 있으면 구현 방향 힌트로 활용.
-DEVELOPERS.md가 있으면 맥락 정보(File Map, Decision Log)를 선택적으로 참조.
+## Arguments
 
-## 2-Agent 아키텍처
+| 이름 | 필수 | 기본값 | 설명 |
+|------|------|--------|------|
+| `--path` | 아니오 | `.` | 대상 경로 |
+| `--all` | 아니오 | false | 전체 CLAUDE.md 대상 (incremental 대신) |
+| `--conflict` | 아니오 | `skip` | 파일 충돌 처리: `skip` \| `overwrite` |
+| `--dry-run` | 아니오 | false | 실제 파일 생성 없이 대상만 표시 |
 
-```
-/compile
-    │
-    ├─ Step 1: Task(test-designer) → 테스트 설계 (RED)
-    │   INV-EXPORT: Exports 시그니처를 불변 테스트로 변환
-    │
-    └─ Step 2: Task(compiler) → 코드 생성 (GREEN + REFACTOR)
-        INV-EXPORT: 테스트 수정 금지, 구현만 수정
-```
+## Workflow
 
-**왜 2-Agent인가?**
-1. **설계와 구현의 명확한 분리**: RED(설계)가 별도 agent이므로 GREEN이 설계를 변경할 수 없음
-2. **Context 격리**: GREEN agent는 "테스트를 통과시키는 코드"만 생성
-3. **INV-EXPORT 자연 보장**: compiler에게 테스트 파일은 Read-only → 시그니처 변경 원천 차단
-
-## 입력 문서
-
-| 입력 | 역할 | 업데이트 |
-|------|------|----------|
-| CLAUDE.md | 계약 (Contract = WHAT) | 읽기 전용 |
-| DEVELOPERS.md (optional) | 맥락 (WHY — File Map, Decision Log) | 읽기 전용 |
-| compile-context (optional) | 구현 방향 (session temp) | 읽기 전용 |
-
-## 사용법
+### 0. 초기화
 
 ```bash
-# 기본 사용 (변경된 CLAUDE.md만 처리 — incremental)
-/compile
-
-# 전체 CLAUDE.md 처리 (full rebuild)
-/compile --all
-
-# 특정 경로만 처리
-/compile --path src/auth
-
-# 기존 파일 덮어쓰기
-/compile --conflict overwrite
-
-# 통합 테스트 포함 (단위 + 크로스 모듈 계약 검증)
-/compile --integration
-
-# 미리보기 (파일 생성 안 함)
-/compile --dry-run
-
-# 병렬 실행 수 조정 (기본 3, 대규모 프로젝트에서 조정)
-/compile --all --parallel 5
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+mkdir -p "$TMP_DIR"
 ```
 
-## 옵션
+### 1. Compile 대상 결정
 
-| 옵션 | 기본값 | 설명 |
-|------|--------|------|
-| `--path` | `.` | 처리 대상 경로 |
-| `--conflict` | `skip` | 기존 파일과 충돌 시 처리 (`skip` \| `overwrite`) |
-| `--all` | `false` | 전체 CLAUDE.md compile (incremental 비활성화) |
-| `--integration` | `false` | 크로스 모듈 계약 검증 통합 테스트 포함 |
-| `--dry-run` | `false` | 생성될 코드를 미리 보여줌 (파일 생성 안 함) |
-| `--parallel` | `3` | 같은 depth 병렬 실행 최대 수 |
-
-## 워크플로우
-
+**`--all` 모드:**
 ```
-/compile
-    │
-    ├─ --all? ──YES──→ 모든 CLAUDE.md 검색 (기존 full rebuild)
-    │
-    └─ NO → Bash(diff-compile-targets) → 변경 감지
-              │
-              ├─ targets = 0 → "All up-to-date" 출력, 종료
-              │
-              └─ targets > 0
-                    │
-                    ▼
-              compile-context 존재 확인 (optional)
-                    │
-                    ▼
-              언어 자동 감지
-                    │
-                    ▼
-              의존성 그래프 기반 실행 순서 결정 (leaf-first)
-                    │
-                    ▼
-              각 대상에 대해 2-Agent 실행:
-              │
-              ├─ Step 1: Task(test-designer) → 테스트 설계
-              │
-              ├─ Step 2: Task(compiler) → 코드 생성
-              │   │
-              │   ├─ 성공 → 완료
-              │   │
-              │   └─ 실패 (3회 재시도 후)
-              │       │
-              │       ├─ Step 3: Task(test-designer) + 에러 컨텍스트
-              │       │   → 테스트 인프라 수정 (assertion 변경 금지)
-              │       │
-              │       └─ Step 4: Task(compiler) → 재시도
-              │           ├─ 성공 → 완료
-              │           └─ 실패 → 사용자에게 보고
-              │
-              └─ 결과 수집 및 보고
+Glob("{path}/**/CLAUDE.md")
 ```
 
-상세 구현은 `references/workflow.md` 참조.
-
-### --integration 모드 (크로스 모듈 계약 검증)
-
-`--integration` 플래그가 있으면, 기본 2-Agent 실행 후 추가로 크로스 모듈 통합 테스트를 생성합니다.
-
-```
-/compile --integration
-    │
-    ├─ 기본 2-Agent 실행 (단위 테스트 + 구현)
-    │
-    └─ 추가: 크로스 모듈 계약 검증
-        │
-        ├─ 각 모듈의 Dependencies 섹션에서 의존 모듈 식별
-        │
-        ├─ 의존 모듈 CLAUDE.md Exports와 참조측 Dependencies의
-        │   symbol 목록을 교차 검증
-        │
-        └─ 통합 테스트 생성:
-            ├─ 시그니처 호환성 테스트 (의존 모듈의 실제 export가
-            │   참조측 기대 시그니처와 일치하는지)
-            └─ 계약 간 동작 검증 (모듈 A가 모듈 B의 계약대로
-                호출하는지)
+**Incremental 모드 (기본):**
+```bash
+$CLI_PATH diff-compile-targets --root {path}
 ```
 
-**통합 테스트 생성 규칙:**
-1. 모듈 A의 Dependencies에 `B: hashPassword(password: string): string`이 있으면
-2. 모듈 B의 실제 Exports에서 `hashPassword` 시그니처를 확인
-3. 시그니처가 일치하면 → 통합 테스트 생성 (실제 모듈 간 호출 검증)
-4. 시그니처가 불일치하면 → `SIGNATURE_MISMATCH` 경고 출력 후 통합 테스트 스킵
+결과 분기:
+- git 저장소 아님 → 전체 대상으로 fallback
+- 변경 없음 → "All up-to-date. Use --all for full compile." → 종료
+- 변경 있음 → 대상 목록 + 사유 표시 (staged, modified, spec-newer 등)
 
-**통합 테스트 파일:** `{directory}/__integration__/{dep-module}.integration.test.{ext}`
+대상이 없으면 종료.
 
-**통합 테스트 내용:**
-```typescript
-// src/auth/__integration__/crypto.integration.test.ts
-import { hashPassword } from '../../utils/crypto';
+### 2. 언어 자동 감지
 
-describe('Cross-module Contract: auth → crypto', () => {
-  it('hashPassword satisfies auth contract signature', () => {
-    // auth expects: hashPassword(password: string): string
-    const fn: (password: string) => string = hashPassword;
-    expect(typeof fn).toBe('function');
-  });
+각 대상 디렉토리의 파일 확장자를 분석하여 언어를 추론:
+1. 디렉토리 내 소스 파일 확장자 → 언어 결정
+2. 소스 파일 없으면 부모 디렉토리 참조
+3. 모두 실패하면 `AskUserQuestion`으로 질문
 
-  it('hashPassword returns non-empty string for valid input', async () => {
-    const result = hashPassword('test-password');
-    expect(result).toBeTruthy();
-    expect(typeof result).toBe('string');
-  });
-});
+### 3. compile-context 확인 (optional)
+
+각 CLAUDE.md에 대응하는 `compile-context.md`가 같은 디렉토리에 있으면 참조용으로 사용.
+없어도 compile은 정상 진행 (CLAUDE.md만으로 충분).
+
+### 4. 의존성 순서 결정 (leaf-first)
+
+디렉토리 depth 기준 정렬 (깊은 것부터).
+같은 depth의 독립 모듈은 병렬 실행 가능 (최대 3개).
+
+### 5. `--dry-run` 처리
+
+`--dry-run`이면 대상 목록만 출력하고 종료:
+```
+Compile 대상:
+  • src/auth/jwt (depth=3, typescript)
+  • src/auth (depth=2, typescript)
+  • src/utils (depth=2, typescript)
 ```
 
-### --dry-run 모드 (미리보기)
+### 6. 컴파일 실행
 
-`--dry-run` 플래그가 있으면, 생성될 코드를 미리 보여주되 파일을 실제로 생성하지 않습니다.
-
+각 대상에 대해 `Task(compiler)` 호출:
 ```
-/compile --dry-run
-    │
-    ├─ 기본 워크플로우와 동일하게 진행:
-    │   ├─ 대상 감지
-    │   ├─ CLAUDE.md 파싱
-    │   └─ test-designer (RED) 실행 → 테스트 설계
-    │
-    └─ compiler (GREEN) 대신:
-        ├─ 생성될 파일 목록 출력
-        ├─ 각 파일의 예상 구조/시그니처 출력
-        └─ 파일 Write 안 함
+CLAUDE.md 경로: {path}/CLAUDE.md
+compile-context: {path}/compile-context.md (optional)
+대상 디렉토리: {path}
+감지된 언어: {language}
+충돌 처리: {conflict_mode}
+결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
-**dry-run 출력 예시:**
-```
-/compile --dry-run --path src/auth
+> **Inline TDD**: compiler agent가 Constraints에서 테스트를 생성하고
+> 구현까지 단일 워크플로우로 수행합니다 (Phase 2: 테스트 생성 → Phase 3: GREEN → Phase 4: REFACTOR).
 
-=== Dry Run 결과 ===
+compiler 결과에서 status 확인:
+- `success`: 다음 모듈로
+- `warning`: 경고 수집, 다음 모듈로
 
-대상: src/auth/CLAUDE.md
-감지된 언어: typescript
+### 7. 변경사항 표시
 
-생성될 파일:
-  src/auth/index.ts (신규)
-    - export function validateToken(token: string): Promise<Claims>
-    - export function revokeToken(tokenId: string): Promise<void>
-  src/auth/types.ts (신규)
-    - export interface Claims { userId: string, exp: number }
-  src/auth/errors.ts (신규)
-    - export class TokenExpiredError extends Error
-
-테스트 파일:
-  src/auth/auth.test.ts
-    - Export Interface Tests: 4개
-    - Contract Tests: 3개
-    - Behavior Tests: 5개
-
-충돌 파일: 없음
-
-⚠ 실제 파일은 생성되지 않았습니다.
-   /compile --path src/auth 로 실제 생성하세요.
+```bash
+git diff --stat
 ```
 
-**dry-run 제약:**
-- test-designer는 실행하여 테스트 설계를 확인
-- compiler는 실행하지 않음 (파일 생성 안 함)
-- 테스트 파일도 Write하지 않음 (설계만 출력)
-
-## 언어 및 테스트 프레임워크
-
-프로젝트에서 사용 중인 언어와 테스트 프레임워크를 자동 감지.
-
-- **언어**: 파일 확장자 기반
-- **테스트 프레임워크**: 프로젝트 설정 파일 분석 (package.json, pyproject.toml, Cargo.toml 등)
-- **Test Convention**: 프로젝트 CLAUDE.md `### Test Convention` 서브섹션 (있으면 우선)
-
-## 파일 충돌 처리
-
-| 모드 | 동작 |
-|------|------|
-| `skip` (기본) | 기존 파일 유지, 새 파일만 생성 |
-| `overwrite` | 기존 파일 덮어쓰기 |
-
-## 출력 예시
-
-### Incremental 모드 (기본)
+### 8. 최종 보고
 
 ```
-변경된 CLAUDE.md를 감지합니다...
-
-감지된 compile 대상 (3/6):
-  ✓ src/auth — staged
-  ✓ src/core — modified
-  ✓ src/new  — no-source-code
-
-건너뛴 모듈 (3/6): up-to-date
-
-⚠ Dependency warnings:
-  - src/auth changed; src/api may need recompilation
-  - Use --all for full compilation
-
-코드 생성을 시작합니다...
-
-[1/2] src/auth/CLAUDE.md
-✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개, 클래스 1개
-✓ compile-context 로드 (optional)
-✓ [RED] test-designer: 5 export tests + 3 behavior tests
-✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
-✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
-
-[2/2] src/new/CLAUDE.md
-✓ CLAUDE.md 파싱 완료 - 함수 1개
-✓ compile-context 로드 (optional)
-✓ [RED] test-designer: 1 export test + 2 behavior tests
-✓ [GREEN] 구현 생성 → 테스트 통과 (attempt 1/3)
-✓ [REFACTOR] Convention 적용 → 회귀 테스트 통과
-
-=== 생성 완료 ===
-총 CLAUDE.md: 2개 (변경분)
-생성된 파일: 5개
-건너뛴 파일: 0개
-테스트: 11 passed, 0 failed
+=== Compile 완료 ===
+총 CLAUDE.md: {total}개
+생성된 파일: {generated}개
+건너뛴 파일: {skipped}개
+테스트: {passed} passed, {failed} failed
 ```
-
-### All up-to-date
-
-```
-변경된 CLAUDE.md를 감지합니다...
-
-✓ All up-to-date. 변경된 CLAUDE.md가 없습니다.
-  Use --all for full compilation.
-```
-
-### Full rebuild (--all)
-
-```
-프로젝트에서 CLAUDE.md 파일을 검색합니다...
-
-발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md
-2. src/utils/CLAUDE.md
-
-코드 생성을 시작합니다...
-...
-```
-
-### Integration 모드
-
-```
-/compile --integration --path src/auth
-
-...기본 compile 결과...
-
-=== 통합 테스트 ===
-크로스 모듈 계약 검증:
-  src/auth → src/utils/crypto
-    ✓ hashPassword 시그니처 호환
-    ✓ 통합 테스트 생성: src/auth/__integration__/crypto.integration.test.ts
-
-통합 테스트 실행: 2 passed, 0 failed
-```
-
-### Dry-run 모드
-
-```
-/compile --dry-run --path src/auth
-
-=== Dry Run 결과 ===
-
-대상: src/auth/CLAUDE.md
-감지된 언어: typescript
-
-생성될 파일:
-  src/auth/index.ts (신규)
-  src/auth/types.ts (신규)
-
-테스트 설계:
-  Export Interface Tests: 3개
-  Contract Tests: 2개
-  Behavior Tests: 4개
-
-⚠ 실제 파일은 생성되지 않았습니다.
-```
-
-## 참조 자료
-
-- `references/compiler-workflow.md`: compiler agent 워크플로우 상세
-- `references/test-designer-reference.md`: test-designer agent 방법론 + 언어별 패턴
-- `references/workflow.md`: compile skill 워크플로우 상세
-- `examples/generate-result.json`: compiler agent 결과 JSON 예시
 
 ## DO / DON'T
 
 **DO:**
-- Follow 2-agent TDD workflow (test-designer → compiler)
-- Respect INV-EXPORT: test files are read-only for compiler
-- Respect file conflict mode (skip/overwrite)
-- Run feedback loop (max 1 round) when compiler fails
+- leaf-first 순서 준수 (의존 모듈 먼저)
+- 언어 자동 감지 후 compile
+- compiler agent에게 Inline TDD 위임
 
 **DON'T:**
-- Delete existing test files
-- Let compiler modify test-designer's test files
-- Overwrite files when conflict mode is "skip"
-- Modify CLAUDE.md (read-only during compile)
-- Run more than 1 feedback loop (infinite loop prevention)
+- CLAUDE.md 수정 (읽기 전용)
+- 사용자에게 compiler agent 내부 진행 상황 중계
+- 별도 테스트 생성 agent 호출 (compiler가 Inline TDD로 테스트 생성도 수행)
 
 ## 오류 처리
 
 | 상황 | 대응 |
 |------|------|
-| CLAUDE.md 없음 | "CLAUDE.md 파일을 찾을 수 없음" 메시지 출력 |
-| compile-context 없음 | CLAUDE.md만으로 진행 (optional) |
-| 파싱 오류 | 해당 파일 건너뛰고 계속 진행, 오류 로그 |
-| 언어 감지 실패 | 사용자에게 언어 선택 질문 |
-| test-designer 실패 | 해당 대상 건너뛰고 오류 로그 |
-| compiler 실패 (피드백 루프 포함) | 경고 표시, 수동 수정 필요 안내 |
-| 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
+| CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
+| CLAUDE.md 없음 | 안내 메시지, 종료 |
+| compiler agent 실패 (단일 모듈) | 경고, 나머지 계속 |
+| 언어 감지 실패 | AskUserQuestion |
 
 ## Examples
 
 <example>
-<context>
-사용자가 프로젝트의 CLAUDE.md를 처리하려고 합니다.
-</context>
 <user_request>/compile</user_request>
 <assistant_response>
-프로젝트에서 CLAUDE.md 파일을 검색합니다...
+Incremental 대상 감지:
+  • src/auth — staged
+  • src/utils — spec-newer
 
-발견된 CLAUDE.md 파일:
-1. src/auth/CLAUDE.md
-2. src/utils/CLAUDE.md
+Compile 진행:
+  • src/auth (typescript) — 성공 (tests: 5 passed)
+  • src/utils (typescript) — 성공 (tests: 3 passed)
 
-코드 생성을 시작합니다...
-
-[1/2] src/auth/CLAUDE.md
-✓ CLAUDE.md 파싱 완료 - 함수 2개, 타입 2개
-✓ [RED] test-designer: 4 export tests + 3 behavior tests
-✓ [GREEN] 구현 생성 → 테스트 통과
-✓ [REFACTOR] Convention 적용
-
-[2/2] src/utils/CLAUDE.md
-✓ CLAUDE.md 파싱 완료 - 함수 3개
-✓ [RED] test-designer: 3 export tests + 2 behavior tests
-✓ [GREEN] 구현 생성 → 테스트 통과
-✓ [REFACTOR] Convention 적용
-
-=== 생성 완료 ===
+=== Compile 완료 ===
 총 CLAUDE.md: 2개
-생성된 파일: 7개
+생성된 파일: 6개
+건너뛴 파일: 0개
+테스트: 8 passed, 0 failed
+</assistant_response>
+</example>
+
+<example>
+<user_request>/compile --all --conflict overwrite</user_request>
+<assistant_response>
+전체 CLAUDE.md 3개 수집.
+
+Compile 진행:
+  • src/auth/jwt (depth=3) — 성공
+  • src/auth (depth=2) — 성공 (2 overwritten)
+  • src/utils (depth=2) — 성공
+
+=== Compile 완료 ===
+총 CLAUDE.md: 3개
+생성된 파일: 9개
+건너뛴 파일: 0개
 테스트: 12 passed, 0 failed
 </assistant_response>
 </example>

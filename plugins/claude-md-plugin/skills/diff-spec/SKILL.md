@@ -1,28 +1,28 @@
 ---
 name: diff-spec
-version: 1.0.0
+version: 2.0.0
 aliases: [spec-diff, contract-diff]
 description: |
   This skill should be used when the user asks to "compare CLAUDE.md versions",
   "show spec changes", "diff specification", "what changed in the contract",
   or uses "/diff-spec".
-  Shows semantic diff between two versions of a CLAUDE.md contract.
-  Trigger keywords: 스펙 변경, 계약 비교, 문서 diff, 명세 변경
+  Shows semantic diff between two versions of a CLAUDE.md, comparing Purpose, Constraints, Domain Context, and Conventions.
+  Trigger keywords: 스펙 변경, 문서 비교, 문서 diff, 명세 변경
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write]
 ---
 
 # /diff-spec
 
-CLAUDE.md 계약의 버전 간 시맨틱 diff를 표시합니다.
+CLAUDE.md의 버전 간 시맨틱 diff를 표시합니다.
 
-단순 텍스트 diff가 아닌, 계약 섹션별로 구조화된 변경 분석을 제공합니다.
+단순 텍스트 diff가 아닌, 섹션별로 구조화된 변경 분석을 제공합니다.
 
 ## Triggers
 
 - `/diff-spec`
 - `스펙 변경`
-- `계약 비교`
+- `문서 비교`
 
 ## Arguments
 
@@ -33,14 +33,17 @@ CLAUDE.md 계약의 버전 간 시맨틱 diff를 표시합니다.
 
 ## Workflow
 
-### 1. 두 버전 로드
+### 0. 초기화
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
-
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
+```
 
+### 1. 두 버전 로드
+
+```bash
 # 현재 버전 파싱
 $CLI_PATH parse-claude-md --file {path}/CLAUDE.md > "${TMP_DIR}diff-spec-current.json"
 
@@ -56,46 +59,33 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 두 파싱 결과 JSON을 Read하여 섹션별로 비교합니다:
 
 #### Purpose 비교
-- 텍스트 변경 여부
+- 텍스트 변경 여부: CHANGED / UNCHANGED
 
-#### Exports 비교
-각 export를 이름으로 매칭하여 변경 분류:
+#### Constraints 비교 (항목 단위)
+
+각 constraint를 매칭하여 변경 분류:
 
 | 변경 유형 | 조건 |
 |-----------|------|
 | **ADDED** | 현재에만 존재 |
 | **REMOVED** | 이전에만 존재 |
-| **SIGNATURE_CHANGED** | 양쪽에 존재, 시그니처 다름 |
+| **MODIFIED** | 양쪽에 유사 항목 존재, 내용 다름 |
 | **UNCHANGED** | 양쪽 동일 |
 
-#### Behavior 비교
-각 behavior를 input/output 패턴으로 매칭:
+#### Domain Context 비교
 
-| 변경 유형 | 조건 |
-|-----------|------|
-| **ADDED** | 현재에만 존재 |
-| **REMOVED** | 이전에만 존재 |
-| **MODIFIED** | 유사한 input, 다른 output |
+항목별 변경 분류 (ADDED / REMOVED / MODIFIED / UNCHANGED)
 
-#### Contract 비교
-각 function의 contract를 비교:
-- preconditions 추가/제거
-- postconditions 추가/제거
-- throws 추가/제거
+#### Conventions 비교 (서브섹션 단위)
 
-#### Dependencies 비교
-- 추가된 의존성
-- 제거된 의존성
-- 버전 변경
-
-#### Structure 비교
-- 추가된 파일/디렉토리
-- 제거된 파일/디렉토리
+각 서브섹션별 변경 여부:
+- Project Structure, Module Boundaries, Naming Conventions
+- Language & Runtime, Coding Rules, Naming Rules
 
 ### 3. 시맨틱 Diff 보고서 생성
 
 ```markdown
-# 계약 시맨틱 Diff: {path}
+# 시맨틱 Diff: {path}
 
 **비교:** {ref} → 현재 (working copy)
 
@@ -103,50 +93,40 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 
 | 섹션 | 추가 | 제거 | 변경 | 상태 |
 |------|------|------|------|------|
-| Exports | 1 | 1 | 1 | BREAKING |
-| Behavior | 2 | 0 | 1 | MODIFIED |
-| Contract | 1 | 0 | 0 | ADDED |
-| Dependencies | 0 | 1 | 0 | MODIFIED |
-| Structure | 1 | 0 | 0 | MODIFIED |
+| Purpose | - | - | 1 | CHANGED |
+| Constraints | 2 | 1 | 1 | BREAKING |
+| Domain Context | 1 | 0 | 0 | MODIFIED |
+| Conventions | 0 | 0 | 1 | MODIFIED |
 
-## Exports 변경
+## Purpose 변경
+
+- 이전: "JWT 기반 인증 모듈"
++ 현재: "JWT 및 OAuth2 기반 인증 모듈"
+
+## Constraints 변경
 
 ### ADDED
-- `+ revokeToken(tokenId: string): Promise<void>`
+- `+ 동시 세션 최대 5개`
+- `+ OAuth2 PKCE 필수`
 
 ### REMOVED
-- `- formatDate(date: Date): string` [BREAKING]
-
-### SIGNATURE_CHANGED
-- `validateToken(token: string): boolean`
-  → `validateToken(token: string, options?: ValidateOptions): Promise<boolean>` [BREAKING]
-
-### UNCHANGED
-- `Claims { userId: string, exp: number }`
-
-## Behavior 변경
-
-### ADDED
-- `+ 토큰 폐기 시 → 즉시 무효화`
-- `+ 만료된 토큰 갱신 시 → RefreshTokenError`
+- `- 레거시 MD5 해시 지원` [BREAKING]
 
 ### MODIFIED
-- `유효한 토큰 → Claims 반환` → `유효한 토큰 → Claims 반환 (옵션에 따라 캐시 적용)`
+- `토큰 만료 최대 7일` → `토큰 만료 최대 14일`
 
-## Contract 변경
+### UNCHANGED
+- `UTF-8 인코딩만 허용`
 
-### validateToken
-- `+ precondition: options.timeout must be positive if provided`
-
-## Dependencies 변경
-
-### REMOVED
-- `- lodash@4.17.21`
-
-## Structure 변경
+## Domain Context 변경
 
 ### ADDED
-- `+ cache.ts: 토큰 캐시 관리`
+- `+ OAuth2 IdP: Google, GitHub 지원`
+
+## Conventions 변경
+
+### MODIFIED
+- `Coding Rules`: 린트 규칙 추가
 ```
 
 ### 4. 결과 출력
@@ -154,41 +134,12 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 보고서를 사용자에게 직접 출력합니다.
 파일 사본은 `${TMP_DIR}diff-spec-{dir-safe-name}.md`에 저장합니다.
 
-## 출력 예시
-
-```
-/diff-spec src/auth
-
-계약 시맨틱 Diff: src/auth
-===========================
-비교: HEAD → 현재
-
-요약
-----
-| 섹션       | 추가 | 제거 | 변경 | 상태     |
-|------------|------|------|------|----------|
-| Exports    | 1    | 1    | 1    | BREAKING |
-| Behavior   | 2    | 0    | 1    | MODIFIED |
-| Contract   | 1    | 0    | 0    | ADDED    |
-
-Exports 변경
------------
-+ revokeToken(tokenId: string): Promise<void>
-- formatDate(date: Date): string  [BREAKING]
-~ validateToken: 시그니처 변경  [BREAKING]
-  (token: string): boolean
-  → (token: string, options?: ValidateOptions): Promise<boolean>
-
-다음 단계:
-  /impact src/auth — 영향받는 모듈 분석
-```
-
 ## DO / DON'T
 
 **DO:**
 - parse-claude-md CLI로 두 버전을 구조적으로 파싱
-- 이름 기반 매칭으로 추가/제거/변경 분류
-- BREAKING 변경(시그니처 변경, 삭제)을 명확히 표시
+- Constraints를 항목 단위로 ADDED/REMOVED/MODIFIED 비교
+- BREAKING 변경(Constraints 제거/수정)을 명확히 표시
 - `/impact` 연계 안내
 
 **DON'T:**
@@ -205,30 +156,25 @@ Exports 변경
 | git ref 없음 | "ref를 찾을 수 없음" 메시지 |
 | parse-claude-md 실패 | Raw text diff fallback |
 
-## 관련 컴포넌트
-
-- CLI: `parse-claude-md` (CLAUDE.md 구조적 파싱)
-- `/impact`: diff-spec 결과 후 영향 분석 연계
-
 ## Examples
 
 <example>
 <user_request>/diff-spec src/auth</user_request>
 <assistant_response>
-계약 시맨틱 Diff: src/auth
-===========================
+시맨틱 Diff: src/auth
+=======================
 비교: HEAD → 현재
 
 요약
 ----
-| 섹션    | 추가 | 제거 | 변경 | 상태     |
-|---------|------|------|------|----------|
-| Exports | 1    | 0    | 1    | BREAKING |
+| 섹션 | 추가 | 제거 | 변경 | 상태 |
+|------|------|------|------|------|
+| Constraints | 1 | 0 | 1 | MODIFIED |
 
-Exports 변경
+Constraints 변경
 -----------
-+ revokeToken(tokenId: string): Promise<void>
-~ validateToken: 시그니처 변경 [BREAKING]
++ 동시 세션 최대 5개
+~ 토큰 만료: 7일 → 14일
 
 다음 단계:
   /impact src/auth — 영향받는 모듈 분석
@@ -238,20 +184,19 @@ Exports 변경
 <example>
 <user_request>/diff-spec src/utils --ref v2.0.0</user_request>
 <assistant_response>
-계약 시맨틱 Diff: src/utils
-============================
+시맨틱 Diff: src/utils
+========================
 비교: v2.0.0 → 현재
 
 요약
 ----
-| 섹션    | 추가 | 제거 | 변경 | 상태      |
-|---------|------|------|------|-----------|
-| Exports | 2    | 0    | 0    | COMPATIBLE|
+| 섹션 | 추가 | 제거 | 변경 | 상태 |
+|------|------|------|------|------|
+| Domain Context | 1 | 0 | 0 | MODIFIED |
 
-Exports 변경
+Domain Context 변경
 -----------
-+ parseNumber(input: string): number
-+ formatCurrency(amount: number, locale: string): string
++ Redis 6.0 캐시 레이어 도입
 
 변경 없음 — 하위 호환.
 </assistant_response>

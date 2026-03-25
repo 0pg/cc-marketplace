@@ -77,11 +77,11 @@ Feature: Compile Target Resolution (Incremental Diff)
     Then root CLAUDE.md should not be a compile target
     And "src/auth" should be a compile target with reason "spec-newer"
 
-  Scenario: Dependency warning for changed module
+  Scenario: Multiple modules with different compile states
     Given a committed spec file "core/domain/CLAUDE.md"
     And a committed source file "core/domain/model.ts" before the spec
-    And a committed spec file "src/auth/CLAUDE.md" depending on "core/domain/CLAUDE.md"
+    And a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/token.ts" after the spec
     When I resolve compile targets
     Then "core/domain" should be a compile target with reason "spec-newer"
-    And I should get a dependency warning for "core/domain" affecting "src/auth"
+    And "src/auth" should be skipped with reason "up-to-date"

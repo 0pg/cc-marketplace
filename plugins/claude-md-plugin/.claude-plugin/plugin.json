@@ -1,7 +1,7 @@
 {
   "name": "claude-md-plugin",
-  "version": "5.0.0",
-  "description": "Code-First + Spec-as-Contract 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 코드가 만족해야 할 계약. /impl로 계약 정의, /compile로 코드 생성, /validate로 계약 위반 보고, /decompile로 계약 추출, /bugfix로 3계층 버그 추적, /impl-review로 품질 리뷰, /impact로 변경 영향 분석, /diff-spec으로 버전 비교, /status로 건강도 대시보드, /refactor로 모듈 분할/병합",
+  "version": "7.3.2",
+  "description": "Code-First 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 사전학습 인덱스 + 인간 지식 저장소. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
   "author": {
     "name": "jhk"
   },
@@ -26,21 +26,20 @@
     "./skills/diff-spec",
     "./skills/status",
     "./skills/refactor",
+    "./skills/sync",
     "./skills/tree-parse",
     "./skills/resolve"
   ],
   "agents": [
     "./agents/compiler.md",
-    "./agents/test-designer.md",
     "./agents/debug-layer-analyzer.md",
     "./agents/debugger.md",
     "./agents/decompiler.md",
     "./agents/dep-explorer.md",
+    "./agents/index-generator.md",
     "./agents/impl.md",
     "./agents/impl-reviewer.md",
-    "./agents/validator.md",
-    "./agents/issue-verifier.md",
-    "./agents/violation-reporter.md"
+    "./agents/validator.md"
   ],
   "commands": [
     "./commands/dev.md",

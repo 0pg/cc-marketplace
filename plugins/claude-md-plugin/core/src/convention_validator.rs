@@ -10,7 +10,7 @@ include!(concat!(env!("OUT_DIR"), "/schema_rules.rs"));
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConventionValidationResult {
     pub project_root: String,
-    pub project_convention: ConventionCheck,
+    pub conventions: ConventionCheck,
     pub module_roots: Vec<ModuleConventionResult>,
     pub valid: bool,
     pub errors: Vec<String>,
@@ -30,8 +30,7 @@ pub struct ConventionCheck {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModuleConventionResult {
     pub path: String,
-    pub code_convention: ConventionCheck,
-    pub project_convention_override: Option<ConventionCheck>,
+    pub conventions: ConventionCheck,
 }
 
 pub struct ConventionValidator {
@@ -55,29 +54,16 @@ impl ConventionValidator {
     ) -> ConventionValidationResult {
         let mut errors = Vec::new();
 
-        // 1. Check project_root CLAUDE.md for Project Convention
+        // 1. Check project_root CLAUDE.md for Conventions
         let project_claude_md = project_root.join("CLAUDE.md");
-        let project_convention = self.check_file_section(
+        let conventions = self.check_file_section(
             &project_claude_md,
-            "Project Convention",
-            PROJECT_CONVENTION_REQUIRED_SUBSECTIONS,
+            "Conventions",
+            CONVENTIONS_REQUIRED_SUBSECTIONS,
         );
 
-        if !project_convention.valid {
-            for err in &project_convention.errors {
-                errors.push(err.clone());
-            }
-        }
-
-        // 1b. Check project_root CLAUDE.md for Code Convention (canonical source)
-        let project_code_convention = self.check_file_section(
-            &project_claude_md,
-            "Code Convention",
-            CODE_CONVENTION_REQUIRED_SUBSECTIONS,
-        );
-
-        if !project_code_convention.valid {
-            for err in &project_code_convention.errors {
+        if !conventions.valid {
+            for err in &conventions.errors {
                 errors.push(err.clone());
             }
         }
@@ -93,60 +79,31 @@ impl ConventionValidator {
         for module_root in &detected_modules {
             let module_claude_md = module_root.join("CLAUDE.md");
 
-            // Code Convention check
+            // Conventions check
             // Multi-module: optional (inherits from project_root if absent)
             // Single-module (project_root == module_root): already validated above
-            let code_convention = self.check_file_section(
+            let module_conventions = self.check_file_section(
                 &module_claude_md,
-                "Code Convention",
-                CODE_CONVENTION_REQUIRED_SUBSECTIONS,
+                "Conventions",
+                CONVENTIONS_REQUIRED_SUBSECTIONS,
             );
 
             let is_multi_module = module_root != project_root;
 
-            if !code_convention.valid {
-                if is_multi_module && !code_convention.section_found {
-                    // Multi-module: Code Convention absent = inherited from project_root → OK
-                } else {
-                    // Single-module: already validated at project_root level (1b)
-                    // Or section_found=true but malformed → report errors
-                    if !(module_root == project_root) {
-                        // Only add errors for non-root modules with malformed sections
-                        for err in &code_convention.errors {
-                            errors.push(err.clone());
-                        }
+            if !module_conventions.valid {
+                if is_multi_module && !module_conventions.section_found {
+                    // Multi-module: Conventions absent = inherited from project_root → OK
+                } else if module_root != project_root {
+                    // Non-root module with malformed section → report errors
+                    for err in &module_conventions.errors {
+                        errors.push(err.clone());
                     }
                 }
             }
 
-            // Project Convention override (optional for module roots)
-            let project_override = if module_root != project_root {
-                let override_check = self.check_file_section(
-                    &module_claude_md,
-                    "Project Convention",
-                    PROJECT_CONVENTION_REQUIRED_SUBSECTIONS,
-                );
-                if override_check.section_found {
-                    if !override_check.valid {
-                        for err in &override_check.errors {
-                            errors.push(err.clone());
-                        }
-                    }
-                    Some(override_check)
-                } else {
-                    None
-                }
-            } else {
-                // Single module case (module_root == project_root):
-                // Project Convention is already validated at project_root level (line 60-70).
-                // No separate override check needed.
-                None
-            };
-
             module_results.push(ModuleConventionResult {
                 path: module_root.to_string_lossy().to_string(),
-                code_convention,
-                project_convention_override: project_override,
+                conventions: module_conventions,
             });
         }
 
@@ -154,7 +111,7 @@ impl ConventionValidator {
 
         ConventionValidationResult {
             project_root: project_root.to_string_lossy().to_string(),
-            project_convention,
+            conventions,
             module_roots: module_results,
             valid,
             errors,
@@ -364,8 +321,31 @@ mod tests {
         write!(file, "{}", content).unwrap();
     }
 
+    const VALID_CONVENTIONS: &str = r#"
+## Conventions
+
+### Project Structure
+Layered architecture with src/ containing all source code.
+
+### Module Boundaries
+Each module is self-contained and communicates through public APIs.
+
+### Naming Conventions
+camelCase for files, PascalCase for classes.
+
+### Language & Runtime
+TypeScript 5.0, Node.js 20 LTS
+
+### Coding Rules
+- 비동기: async/await 사용, raw Promise 금지
+- 타입: strict mode, any 금지
+
+### Naming Rules
+camelCase for variables and functions, PascalCase for types.
+"#;
+
     #[test]
-    fn test_project_convention_valid() {
+    fn test_conventions_valid() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
 
@@ -374,46 +354,19 @@ mod tests {
 
         create_claude_md(
             root,
-            r#"# My Project
-
-## Purpose
-A test project.
-
-## Project Convention
-
-### Project Structure
-Layered architecture.
-
-### Module Boundaries
-Each module is independent.
-
-### Naming Conventions
-camelCase for files.
-
-## Code Convention
-
-### Language & Runtime
-TypeScript 5.0, Node.js 20
-
-### Coding Rules
-- async/await 사용, raw Promise 금지
-- strict mode, any 금지
-
-### Naming Rules
-camelCase for variables
-"#,
+            &format!("# My Project\n\n## Purpose\nA test project.\n{}", VALID_CONVENTIONS),
         );
 
         let validator = ConventionValidator::new();
         let result = validator.validate(root, None);
 
         assert!(result.valid, "Errors: {:?}", result.errors);
-        assert!(result.project_convention.section_found);
-        assert!(result.project_convention.valid);
+        assert!(result.conventions.section_found);
+        assert!(result.conventions.valid);
     }
 
     #[test]
-    fn test_project_convention_missing_section() {
+    fn test_conventions_missing_section() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
 
@@ -421,18 +374,14 @@ camelCase for variables
 
         create_claude_md(
             root,
-            r#"# My Project
-
-## Purpose
-A test project.
-"#,
+            "# My Project\n\n## Purpose\nA test project.\n",
         );
 
         let validator = ConventionValidator::new();
         let result = validator.validate(root, None);
 
         assert!(!result.valid);
-        assert!(!result.project_convention.section_found);
+        assert!(!result.conventions.section_found);
     }
 
     #[test]
@@ -449,21 +398,13 @@ A test project.
 ## Purpose
 A test project.
 
-## Project Convention
+## Conventions
 
 ### Project Structure
 Layered architecture.
 
-## Code Convention
-
 ### Language & Runtime
 TypeScript
-
-### Coding Rules
-- async/await 사용
-
-### Naming Rules
-camelCase
 "#,
         );
 
@@ -471,11 +412,13 @@ camelCase
         let result = validator.validate(root, None);
 
         assert!(!result.valid);
-        assert!(result.project_convention.section_found);
-        assert!(!result.project_convention.valid);
-        // Module Boundaries and Naming Conventions missing
-        assert!(!result.project_convention.required_subsections["Module Boundaries"]);
-        assert!(!result.project_convention.required_subsections["Naming Conventions"]);
+        assert!(result.conventions.section_found);
+        assert!(!result.conventions.valid);
+        // Module Boundaries, Naming Conventions, Coding Rules, Naming Rules missing
+        assert!(!result.conventions.required_subsections["Module Boundaries"]);
+        assert!(!result.conventions.required_subsections["Naming Conventions"]);
+        assert!(!result.conventions.required_subsections["Coding Rules"]);
+        assert!(!result.conventions.required_subsections["Naming Rules"]);
     }
 
     #[test]
@@ -514,31 +457,16 @@ camelCase
     }
 
     #[test]
-    fn test_module_root_code_convention_missing() {
+    fn test_module_root_conventions_missing() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
 
         File::create(root.join("package.json")).unwrap();
 
-        // Project convention OK but no code convention
+        // No Conventions section
         create_claude_md(
             root,
-            r#"# My Project
-
-## Purpose
-A test project.
-
-## Project Convention
-
-### Project Structure
-Layered
-
-### Module Boundaries
-Independent
-
-### Naming Conventions
-camelCase
-"#,
+            "# My Project\n\n## Purpose\nA test project.\n",
         );
 
         let validator = ConventionValidator::new();
@@ -546,6 +474,6 @@ camelCase
 
         assert!(!result.valid);
         assert!(!result.module_roots.is_empty());
-        assert!(!result.module_roots[0].code_convention.section_found);
+        assert!(!result.module_roots[0].conventions.section_found);
     }
 }

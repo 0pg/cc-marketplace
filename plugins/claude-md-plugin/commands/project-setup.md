@@ -1,7 +1,7 @@
 ---
 name: project-setup
 description: |
-  프로젝트/모듈 CLAUDE.md에 Convention 섹션(Project Convention, Code Convention)을 추가합니다.
+  프로젝트/모듈 CLAUDE.md에 Conventions 섹션 (통합 6개 서브섹션)을 추가합니다.
   기존 프로젝트는 소스코드에서 컨벤션을 추출하고, 새 프로젝트는 대화형으로 수집합니다.
 argument-hint: "[project_root_path]"
 allowed-tools: [Bash, Read, Glob, Grep, Write, AskUserQuestion]
@@ -44,7 +44,7 @@ find_project_root()
 
 project_root CLAUDE.md와 각 module_root CLAUDE.md에서 Convention 섹션 존재 여부를 확인합니다:
 
-`{project_root}/CLAUDE.md`를 Read하고, `## Project Convention` 섹션과 `## Code Convention` 섹션이 존재하는지 확인합니다.
+`{project_root}/CLAUDE.md`를 Read하고, `## Conventions` 섹션이 존재하는지 확인합니다.
 
 기존 섹션이 존재하면 AskUserQuestion으로 처리 방법을 질문합니다:
 - **덮어쓰기**: 기존 섹션을 새로 생성된 내용으로 대체
@@ -74,7 +74,7 @@ project_root CLAUDE.md와 각 module_root CLAUDE.md에서 Convention 섹션 존�
 
 > **린트 제외 원칙**: 포맷터/린터 설정 파일(`.prettierrc`, `.eslintrc`, `ruff.toml`, `biome.json` 등)이
 > 존재하면 해당 도구가 처리하는 항목(들여쓰기, 세미콜론, 따옴표 스타일, 줄 길이, trailing comma 등)은
-> Code Convention에 포함하지 않습니다. 린터가 자동으로 강제하므로 CLAUDE.md에 중복 기재하면
+> Conventions의 Coding Rules에 포함하지 않습니다. 린터가 자동으로 강제하므로 CLAUDE.md에 중복 기재하면
 > 불일치 위험만 높아집니다.
 
 분석 결과를 사용자에게 보여주고 AskUserQuestion으로 확인을 받습니다:
@@ -91,39 +91,16 @@ AskUserQuestion 시퀀스로 컨벤션 정보를 수집합니다:
 
 **Q3. 코딩 스타일**: "코딩 스타일 기본 규칙을 선택해주세요." 옵션: Strict(엄격한 타입/린트), Moderate(일반적 규칙), Minimal(최소한의 규칙)
 
-### 5.5. Source of Truth 섹션 확인 및 추가
-
-project_root CLAUDE.md에 `## Source of Truth` 섹션이 이미 있는지 확인합니다.
-
-**있음** → 스킵 (안내: "ℹ Source of Truth 섹션이 이미 존재합니다")
-
-**없음** → CLAUDE.md 최상단(첫 `##` 섹션 앞)에 다음 내용을 추가합니다:
-
-```markdown
-## Source of Truth
-
-CLAUDE.md를 소스코드로, Source Code를 바이너리로 취급합니다.
-모듈을 이해하려면 소스코드가 아닌 CLAUDE.md를 먼저 읽으세요.
-CLAUDE.md가 없는 디렉토리는 소스코드로 직접 작업합니다.
-```
-
-> Convention 섹션보다 앞에 배치: Source of Truth는 프로젝트의 근본 패러다임 선언이므로
-> Convention(코딩 규칙)보다 상위 개념입니다.
-
-CLAUDE.md가 아직 없는 경우, Step 6에서 파일을 생성할 때 `## Source of Truth` 섹션을 맨 위에 포함합니다.
-
-### 6. project_root CLAUDE.md에 `## Project Convention` + `## Code Convention` 섹션 추가
+### 6. project_root CLAUDE.md에 `## Conventions` 섹션 추가
 
 CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니다.
 
-project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
+project_root에 통합 Conventions 섹션을 작성합니다 (DRY canonical source).
 
-#### 6-A. `## Project Convention`
-
-필수 3개 서브섹션은 반드시 포함합니다:
+필수 6개 서브섹션은 반드시 포함합니다:
 
 ```markdown
-## Project Convention
+## Conventions
 
 ### Project Structure
 (필수) 디렉토리 구조 규칙, 레이어링 패턴
@@ -133,25 +110,6 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 
 ### Naming Conventions
 (필수) 모듈/디렉토리/패키지 네이밍 규칙
-```
-
-선택 서브섹션 (분석/수집 결과에 따라 추가):
-
-| 서브섹션 | 필수 | 설명 |
-|----------|------|------|
-| Project Structure | Yes | 디렉토리 구조 규칙, 레이어링 패턴 |
-| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
-| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
-| API Design | No | REST/RPC 컨벤션 |
-| Error Strategy | No | 글로벌 에러 핸들링 전략 |
-| Testing Strategy | No | 테스트 조직, 커버리지 기대 |
-
-#### 6-B. `## Code Convention`
-
-필수 3개 서브섹션은 반드시 포함합니다:
-
-```markdown
-## Code Convention
 
 ### Language & Runtime
 (필수) 주요 언어, 버전, 런타임
@@ -163,13 +121,19 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 (필수) 변수/함수/클래스/상수 네이밍 규칙
 ```
 
-선택 서브섹션:
+서브섹션 목록:
 
 | 서브섹션 | 필수 | 설명 |
 |----------|------|------|
+| Project Structure | Yes | 디렉토리 구조 규칙, 레이어링 패턴 |
+| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
+| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
 | Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
 | Coding Rules | Yes | 린터 검증 불가 기본 코딩 규칙 |
 | Naming Rules | Yes | 변수/함수/클래스/상수 네이밍 |
+| API Design | No | REST/RPC 컨벤션 |
+| Error Strategy | No | 글로벌 에러 핸들링 전략 |
+| Testing Strategy | No | 테스트 조직, 커버리지 기대 |
 | Test Convention | No | 테스트 프레임워크, 파일 패턴, Mock 전략 |
 | Type System | No | 타입 어노테이션 규칙 |
 | Error Handling | No | try/catch 패턴, 에러 타입 |
@@ -202,11 +166,9 @@ project_root에 **두 섹션 모두** 작성합니다 (DRY canonical source).
 
 1. 해당 모듈의 Convention이 project_root와 동일한지 비교합니다.
 2. **동일한 경우**: 작성하지 않음. 안내 메시지 출력:
-   "ℹ {module_root}: Convention이 project_root와 동일 → 상속 (별도 작성 불필요)"
-3. **다른 경우**: AskUserQuestion으로 확인 후, 차이나는 섹션 전체를 module_root에 작성:
-   "ℹ {module_root}: Code Convention이 project_root와 다름 → module_root에 override 작성"
-
-`## Project Convention` override도 동일 원칙: 다를 때만 module_root에 작성.
+   "ℹ {module_root}: Conventions가 project_root와 동일 → 상속 (별도 작성 불필요)"
+3. **다른 경우**: AskUserQuestion으로 확인 후, Conventions 섹션 전체를 module_root에 작성:
+   "ℹ {module_root}: Conventions가 project_root와 다름 → module_root에 override 작성"
 
 ### 8. CLI 빌드 확인
 
@@ -250,12 +212,12 @@ $CLI_PATH validate-convention --project-root {project_root}
 Convention 섹션이 CLAUDE.md에 추가되었습니다.
 
 변경된 파일:
-  - {project_root}/CLAUDE.md (## Project Convention + ## Code Convention 추가)
+  - {project_root}/CLAUDE.md (## Conventions 추가 (6개 서브섹션))
   - {module_root}/CLAUDE.md (override 작성된 경우만 표시)
 
 상속 정보:
   - {module_root}: project_root에서 상속 (별도 작성 없음)  ← 동일한 경우
-  - {module_root}: Code Convention override 작성            ← 다른 경우
+  - {module_root}: Conventions override 작성            ← 다른 경우
 
 이 섹션들은 `/compile` 실행 시 REFACTOR 단계에서 자동 참조됩니다.
 컨벤션을 수정하려면 `/convention-update`를 사용하세요.

@@ -9,12 +9,9 @@ Feature: Schema Rules SSOT
   Scenario: Required sections are defined from YAML SSOT
     When I check the required sections
     Then required sections should include:
-      | Purpose        |
-      | Exports        |
-      | Behavior       |
+      | Constraints    |
       | Domain Context |
-      | Contract       |
-      | Error Taxonomy |
+      | Purpose        |
 
   Scenario: Valid CLAUDE.md with all required sections passes validation
     Given a CLAUDE.md file with content:
@@ -24,20 +21,10 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
-      - invalid token → false
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the file
@@ -48,26 +35,17 @@ Feature: Schema Rules SSOT
       """
       # Test Module
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
     And the error should mention "Purpose"
 
-  Scenario: Missing Contract section fails validation
+  Scenario: Missing Constraints section fails validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -75,23 +53,14 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
-
       ## Domain Context
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
-    And the error should mention "Contract"
+    And the error should mention "Constraints"
 
-  Scenario: Missing Error Taxonomy section fails validation
+  Scenario: Missing Domain Context section fails validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -99,23 +68,14 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
-
-      ## Domain Context
-      None
-
-      ## Contract
+      ## Constraints
       None
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
-    And the error should mention "Error Taxonomy"
+    And the error should mention "Domain Context"
 
-  Scenario: Contract section with "None" passes validation
+  Scenario: Constraints section with "None" passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -123,25 +83,16 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
+      ## Constraints
+      None
 
       ## Domain Context
-      None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should pass
 
-  Scenario: Error Taxonomy section with "N/A" passes validation
+  Scenario: Domain Context section with "N/A" passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -149,25 +100,16 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
-
-      ## Domain Context
-      None
-
-      ## Contract
+      ## Constraints
       N/A
 
-      ## Error Taxonomy
+      ## Domain Context
       N/A
       """
     When I validate the file
     Then validation should pass
 
-  Scenario: Contract section with actual content passes validation
+  Scenario: Constraints section with actual content passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -175,58 +117,30 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
+      ## Constraints
+      - Password reset must be within 90 days
+      - Maximum 5 concurrent sessions
 
       ## Domain Context
-      None
-
-      ## Contract
-
-      ### validate
-      - **Preconditions**: token must be non-empty string
-      - **Postconditions**: returns boolean
-
-      ## Error Taxonomy
       None
       """
     When I validate the file
     Then validation should pass
 
-  Scenario: Protocol section with state machine passes validation
+  Scenario: Purpose section with "None" fails validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
 
       ## Purpose
-      This module handles authentication.
+      None
 
-      ## Exports
-      - `validate(token: string): boolean`
-
-      ## Behavior
-      - valid token → true
+      ## Constraints
+      None
 
       ## Domain Context
       None
-
-      ## Contract
-      None
-
-      ## Error Taxonomy
-      None
-
-      ## Protocol
-
-      ### State Machine
-      States: `Idle` | `Validating` | `Done`
-
-      Transitions:
-      - `Idle` + `validate()` → `Validating`
-      - `Validating` + `success` → `Done`
       """
     When I validate the file
-    Then validation should pass
+    Then validation should fail with error "InvalidSectionContent"
+    And the error should mention "Purpose"

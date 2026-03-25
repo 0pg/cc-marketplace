@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 // Import the modules we're testing
-use claude_md_core::{TreeParser, BoundaryResolver, SchemaValidator, CodeAnalyzer, ConventionValidator};
+use claude_md_core::{TreeParser, BoundaryResolver, SchemaValidator, CodeAnalyzer, ClaudeMdParser, ConventionValidator};
 use claude_md_core::tree_parser::TreeResult;
 use claude_md_core::boundary_resolver::BoundaryResult;
 use claude_md_core::schema_validator::ValidationResult;
+use claude_md_core::claude_md_parser::{ClaudeMdSpec, ParseError};
 use claude_md_core::code_analyzer::AnalysisResult;
 use claude_md_core::convention_validator::ConventionValidationResult;
 use claude_md_core::compile_target_resolver::{CompileTargetResolver, DiffResult};
@@ -45,6 +46,8 @@ pub struct TestWorld {
     format_exports_output2: Option<String>,
     // Fix schema fields
     fix_schema_added: Option<Vec<String>>,
+    // Parser fields
+    parser_result: Option<Result<ClaudeMdSpec, ParseError>>,
 }
 
 // ============== Common Steps ==============
@@ -364,6 +367,24 @@ fn validate_schema(world: &mut TestWorld) {
 
     let validator = SchemaValidator::new();
     world.validation_result = Some(validator.validate(claude_md_path));
+}
+
+#[given("DEVELOPERS.md with content:")]
+fn create_developers_md_for_validation(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let full_path = get_temp_path(world);
+    let developers_md_path = full_path.join("DEVELOPERS.md");
+    let content = step.docstring.as_ref().expect("No content provided");
+
+    let mut file = File::create(&developers_md_path).expect("Failed to create DEVELOPERS.md");
+    write!(file, "{}", content).expect("Failed to write content");
+}
+
+#[when("I validate the schema with strict mode")]
+fn validate_schema_strict(world: &mut TestWorld) {
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+
+    let validator = SchemaValidator::new();
+    world.validation_result = Some(validator.validate_strict(claude_md_path));
 }
 
 #[then("validation should pass")]
@@ -1111,8 +1132,8 @@ fn create_file_at(base: &Path, rel: &str, content: &str) {
     write!(f, "{}", content).expect("Failed to write");
 }
 
-const VALID_PROJECT_CONVENTION: &str = r#"
-## Project Convention
+const VALID_CONVENTIONS: &str = r#"
+## Conventions
 
 ### Project Structure
 Layered architecture with src/ containing all source code.
@@ -1122,10 +1143,6 @@ Each module is self-contained and communicates through public APIs.
 
 ### Naming Conventions
 camelCase for files, PascalCase for classes.
-"#;
-
-const VALID_CODE_CONVENTION: &str = r#"
-## Code Convention
 
 ### Language & Runtime
 TypeScript 5.0, Node.js 20 LTS
@@ -1139,36 +1156,30 @@ TypeScript 5.0, Node.js 20 LTS
 camelCase for variables and functions, PascalCase for types.
 "#;
 
-#[given("a project root with CLAUDE.md containing valid Project Convention")]
-fn project_root_valid_project_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create marker");
-    let content = format!(
-        "# Test Project\n\n## Purpose\nA test project.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &content);
-}
-
-#[given("a project root with CLAUDE.md without Project Convention")]
-fn project_root_no_project_convention(world: &mut TestWorld) {
+#[given("a project root with CLAUDE.md containing valid Conventions")]
+fn project_root_valid_conventions_section(world: &mut TestWorld) {
     let root = get_temp_path(world);
     File::create(root.join("package.json")).expect("create marker");
     let content = format!(
         "# Test Project\n\n## Purpose\nA test project.\n{}",
-        VALID_CODE_CONVENTION
+        VALID_CONVENTIONS
     );
     create_file_at(&root, "CLAUDE.md", &content);
 }
 
-#[given("a project root with CLAUDE.md containing incomplete Project Convention")]
-fn project_root_incomplete_project_convention(world: &mut TestWorld) {
+#[given("a project root with CLAUDE.md without Conventions")]
+fn project_root_no_conventions(world: &mut TestWorld) {
     let root = get_temp_path(world);
     File::create(root.join("package.json")).expect("create marker");
-    let content = format!(
-        "# Test\n\n## Purpose\nTest.\n\n## Project Convention\n\n### Project Structure\nLayered.\n\n{}",
-        VALID_CODE_CONVENTION
-    );
+    let content = "# Test Project\n\n## Purpose\nA test project.\n";
+    create_file_at(&root, "CLAUDE.md", content);
+}
+
+#[given("a project root with CLAUDE.md containing incomplete Conventions")]
+fn project_root_incomplete_conventions(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create marker");
+    let content = "# Test\n\n## Purpose\nTest.\n\n## Conventions\n\n### Project Structure\nLayered.\n\n### Language & Runtime\nTypeScript\n";
     create_file_at(&root, "CLAUDE.md", &content);
 }
 
@@ -1177,30 +1188,8 @@ fn project_root_valid_conventions(world: &mut TestWorld) {
     let root = get_temp_path(world);
     File::create(root.join("package.json")).expect("create marker");
     let content = format!(
-        "# Test\n\n## Purpose\nTest.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &content);
-}
-
-#[given("a project root with CLAUDE.md containing only Project Convention")]
-fn project_root_only_project_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create marker");
-    let content = format!(
         "# Test\n\n## Purpose\nTest.\n{}",
-        VALID_PROJECT_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &content);
-}
-
-#[given("a project root with CLAUDE.md containing incomplete Code Convention")]
-fn project_root_incomplete_code_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create marker");
-    let content = format!(
-        "# Test\n\n## Purpose\nTest.\n{}\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Coding Rules\n- async/await 사용\n",
-        VALID_PROJECT_CONVENTION
+        VALID_CONVENTIONS
     );
     create_file_at(&root, "CLAUDE.md", &content);
 }
@@ -1225,80 +1214,14 @@ fn multi_module_with_sub_packages(world: &mut TestWorld) {
     File::create(sub2.join("package.json")).expect("create sub2 marker");
 }
 
-#[given("a multi module project with module-level Project Convention override")]
+#[given("a multi module project with module-level Conventions override")]
 fn multi_module_with_override(world: &mut TestWorld) {
     let root = get_temp_path(world);
     File::create(root.join("package.json")).expect("create root marker");
 
     let root_content = format!(
-        "# Root\n\n## Purpose\nRoot project.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &root_content);
-
-    let sub = root.join("packages").join("api");
-    fs::create_dir_all(&sub).expect("create sub");
-    File::create(sub.join("package.json")).expect("create sub marker");
-
-    let sub_content = format!(
-        "# API Module\n\n## Purpose\nAPI module.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&sub, "CLAUDE.md", &sub_content);
-}
-
-// ---- DRY: Convention Inheritance steps ----
-
-#[given("a multi module project where module has no Code Convention")]
-fn multi_module_no_code_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create root marker");
-
-    // Project root has both conventions (canonical source)
-    let root_content = format!(
-        "# Root\n\n## Purpose\nRoot project.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &root_content);
-
-    // Sub-module has NO Code Convention (inherits from project root)
-    let sub = root.join("packages").join("api");
-    fs::create_dir_all(&sub).expect("create sub");
-    File::create(sub.join("package.json")).expect("create sub marker");
-
-    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n";
-    create_file_at(&sub, "CLAUDE.md", sub_content);
-}
-
-#[given("a multi module project where module has incomplete Code Convention")]
-fn multi_module_incomplete_code_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create root marker");
-
-    let root_content = format!(
-        "# Root\n\n## Purpose\nRoot project.\n{}\n{}",
-        VALID_PROJECT_CONVENTION, VALID_CODE_CONVENTION
-    );
-    create_file_at(&root, "CLAUDE.md", &root_content);
-
-    // Sub-module has Code Convention but missing Naming Rules
-    let sub = root.join("packages").join("api");
-    fs::create_dir_all(&sub).expect("create sub");
-    File::create(sub.join("package.json")).expect("create sub marker");
-
-    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n\n## Code Convention\n\n### Language & Runtime\nTypeScript\n\n### Coding Rules\n- async/await 사용\n";
-    create_file_at(&sub, "CLAUDE.md", sub_content);
-}
-
-#[given("a multi module project where project root has no Code Convention")]
-fn multi_module_no_project_code_convention(world: &mut TestWorld) {
-    let root = get_temp_path(world);
-    File::create(root.join("package.json")).expect("create root marker");
-
-    // Project root has only Project Convention, no Code Convention
-    let root_content = format!(
         "# Root\n\n## Purpose\nRoot project.\n{}",
-        VALID_PROJECT_CONVENTION
+        VALID_CONVENTIONS
     );
     create_file_at(&root, "CLAUDE.md", &root_content);
 
@@ -1308,7 +1231,70 @@ fn multi_module_no_project_code_convention(world: &mut TestWorld) {
 
     let sub_content = format!(
         "# API Module\n\n## Purpose\nAPI module.\n{}",
-        VALID_CODE_CONVENTION
+        VALID_CONVENTIONS
+    );
+    create_file_at(&sub, "CLAUDE.md", &sub_content);
+}
+
+// ---- DRY: Convention Inheritance steps ----
+
+#[given("a multi module project where module has no Conventions")]
+fn multi_module_no_conventions(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    // Project root has Conventions (canonical source)
+    let root_content = format!(
+        "# Root\n\n## Purpose\nRoot project.\n{}",
+        VALID_CONVENTIONS
+    );
+    create_file_at(&root, "CLAUDE.md", &root_content);
+
+    // Sub-module has NO Conventions (inherits from project root)
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n";
+    create_file_at(&sub, "CLAUDE.md", sub_content);
+}
+
+#[given("a multi module project where module has incomplete Conventions")]
+fn multi_module_incomplete_conventions(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    let root_content = format!(
+        "# Root\n\n## Purpose\nRoot project.\n{}",
+        VALID_CONVENTIONS
+    );
+    create_file_at(&root, "CLAUDE.md", &root_content);
+
+    // Sub-module has Conventions but missing Naming Rules
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = "# API Module\n\n## Purpose\nAPI module.\n\n## Conventions\n\n### Project Structure\nLayered.\n\n### Language & Runtime\nTypeScript\n\n### Coding Rules\n- async/await 사용\n";
+    create_file_at(&sub, "CLAUDE.md", sub_content);
+}
+
+#[given("a multi module project where project root has no Conventions")]
+fn multi_module_no_project_conventions(world: &mut TestWorld) {
+    let root = get_temp_path(world);
+    File::create(root.join("package.json")).expect("create root marker");
+
+    // Project root has NO Conventions
+    let root_content = "# Root\n\n## Purpose\nRoot project.\n";
+    create_file_at(&root, "CLAUDE.md", root_content);
+
+    let sub = root.join("packages").join("api");
+    fs::create_dir_all(&sub).expect("create sub");
+    File::create(sub.join("package.json")).expect("create sub marker");
+
+    let sub_content = format!(
+        "# API Module\n\n## Purpose\nAPI module.\n{}",
+        VALID_CONVENTIONS
     );
     create_file_at(&sub, "CLAUDE.md", &sub_content);
 }
@@ -1339,17 +1325,10 @@ fn convention_validation_fail(world: &mut TestWorld) {
     assert!(!result.valid, "Expected convention validation to fail, but it passed");
 }
 
-#[then("project convention should be found")]
-fn project_convention_found(world: &mut TestWorld) {
+#[then("conventions should be found")]
+fn conventions_found(world: &mut TestWorld) {
     let result = world.convention_result.as_ref().expect("No convention result");
-    assert!(result.project_convention.section_found, "Project Convention section not found");
-}
-
-#[then("code convention should be found")]
-fn code_convention_found(world: &mut TestWorld) {
-    let result = world.convention_result.as_ref().expect("No convention result");
-    assert!(!result.module_roots.is_empty(), "No module roots found");
-    assert!(result.module_roots[0].code_convention.section_found, "Code Convention section not found");
+    assert!(result.conventions.section_found, "Conventions section not found");
 }
 
 #[then(expr = "convention error should mention {string}")]
@@ -1371,13 +1350,13 @@ fn module_root_count_at_least(world: &mut TestWorld, count: usize) {
     assert!(roots.len() >= count, "Expected at least {} module roots, got {}: {:?}", count, roots.len(), roots);
 }
 
-#[then("module should have project convention override")]
-fn module_has_project_convention_override(world: &mut TestWorld) {
+#[then("module should have conventions override")]
+fn module_has_conventions_override(world: &mut TestWorld) {
     let result = world.convention_result.as_ref().expect("No convention result");
     let has_override = result.module_roots.iter().any(|m| {
-        m.project_convention_override.as_ref().map_or(false, |o| o.section_found)
+        m.conventions.section_found
     });
-    assert!(has_override, "Expected at least one module with project convention override");
+    assert!(has_override, "Expected at least one module with conventions override");
 }
 
 // ============== Schema Rules Steps ==============
@@ -1473,6 +1452,87 @@ fn parser_produces_json(_world: &mut TestWorld) {
     // Documentation step - no implementation needed
 }
 
+// ============== CLAUDE.md Parser Steps ==============
+
+#[when("I parse the CLAUDE.md file")]
+fn parse_claude_md_file(world: &mut TestWorld) {
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let content = fs::read_to_string(claude_md_path).expect("Failed to read CLAUDE.md");
+
+    let parser = ClaudeMdParser::new();
+    world.parser_result = Some(parser.parse_content(&content));
+}
+
+#[then(expr = "the spec should have purpose {string}")]
+fn spec_should_have_purpose(world: &mut TestWorld, expected: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert_eq!(spec.purpose, expected, "Purpose mismatch");
+}
+
+#[then(expr = "the spec should have constraints count {int}")]
+fn spec_should_have_constraints_count(world: &mut TestWorld, count: usize) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let constraints = spec.constraints.as_ref().expect("No constraints");
+    assert_eq!(constraints.len(), count, "Constraints count mismatch");
+}
+
+#[then("the spec should have no constraints")]
+fn spec_should_have_no_constraints(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.constraints.is_none(), "Expected no constraints, got: {:?}", spec.constraints);
+}
+
+#[then(expr = "the spec should have domain context containing {string}")]
+fn spec_should_have_domain_context(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let dc = spec.domain_context.as_ref().expect("No domain context");
+    assert!(dc.contains(&text), "Expected domain context to contain '{}', got: {}", text, dc);
+}
+
+#[then("the spec should have no domain context")]
+fn spec_should_have_no_domain_context(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.domain_context.is_none(), "Expected no domain context, got: {:?}", spec.domain_context);
+}
+
+#[then(expr = "the spec should have instructions containing {string}")]
+fn spec_should_have_instructions(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let instructions = spec.instructions.as_ref().expect("No instructions");
+    assert!(instructions.contains(&text), "Expected instructions to contain '{}', got: {}", text, instructions);
+}
+
+#[then("the spec should have no instructions")]
+fn spec_should_have_no_instructions(world: &mut TestWorld) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    assert!(spec.instructions.is_none(), "Expected no instructions, got: {:?}", spec.instructions);
+}
+
+#[then(expr = "parsing should fail with error {string}")]
+fn parsing_should_fail(world: &mut TestWorld, expected_error: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    assert!(result.is_err(), "Expected parsing to fail, but it succeeded");
+    let err = result.as_ref().unwrap_err();
+    let err_msg = err.to_string();
+    assert!(err_msg.contains(&expected_error),
+        "Expected error containing '{}', got: {}", expected_error, err_msg);
+}
+
+#[then(expr = "the spec should have warnings containing {string}")]
+fn spec_should_have_warnings(world: &mut TestWorld, text: String) {
+    let result = world.parser_result.as_ref().expect("No parser result");
+    let spec = result.as_ref().expect("Parsing failed");
+    let found = spec.warnings.iter().any(|w| w.contains(&text));
+    assert!(found, "Expected warning containing '{}', got: {:?}", text, spec.warnings);
+}
+
 // ============== Compile Target Resolver Steps ==============
 
 fn git_init(dir: &Path) {
@@ -1505,9 +1565,9 @@ fn create_spec_file(world: &mut TestWorld, path: String) {
     let full_path = get_temp_path(world).join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = if path.ends_with("CLAUDE.md") {
-        "# Module\n\n## Purpose\nTest module\n\n## Exports\nNone\n\n## Behavior\n| Input | Output |\n|-------|--------|\n| any | ok |\n\n## Dependencies\nNone\n\n## Contract\nNone\n\n## Protocol\nNone\n"
+        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nNone\n"
     } else {
-        "# DEVELOPERS\n\n## File Map\n\n| File | Role | Dependencies |\n|------|------|--------------|\n| N/A | N/A | N/A |\n\n## Data Structures\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n"
+        "# DEVELOPERS\n\n## Domain Context\nNone\n\n## Invariants\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n\n## File Map\nNone\n"
     };
     let mut f = File::create(&full_path).expect("create file failed");
     write!(f, "{}", content).expect("write failed");
@@ -1641,7 +1701,7 @@ fn create_committed_spec_with_dep(world: &mut TestWorld, path: String, dep: Stri
     let full_path = root.join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = format!(
-        "# Module\n\n## Purpose\nTest module\n\n## Exports\nNone\n\n## Behavior\n| Input | Output |\n|-------|--------|\n| any | ok |\n\n## Dependencies\n### Internal\n- `{}` — dependency\n\n### External\nNone\n\n## Contract\nNone\n\n## Protocol\nNone\n",
+        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nDepends on `{}`.\n",
         dep
     );
     let mut f = File::create(&full_path).expect("create file failed");

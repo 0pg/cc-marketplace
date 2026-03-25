@@ -1,7 +1,7 @@
 ---
 name: convention-update
 description: |
-  CLAUDE.md 내 Convention 섹션(Project Convention, Code Convention)을 업데이트합니다.
+  CLAUDE.md 내 Conventions 섹션을 업데이트합니다.
   인자가 있으면 직접 반영하고, 없으면 대화형으로 수정 사항을 수집합니다.
 argument-hint: "[업데이트 내용]"
 allowed-tools: [Bash, Read, Write, Glob, AskUserQuestion]
@@ -29,7 +29,7 @@ CLAUDE.md 내 Convention 섹션을 업데이트합니다.
 
 project_root CLAUDE.md와 module_root CLAUDE.md에서 Convention 섹션을 찾습니다:
 
-프로젝트 루트를 탐지한 후 `{project_root}/CLAUDE.md`를 Read합니다. `## Project Convention` 섹션과 `## Code Convention` 섹션의 존재 여부를 확인합니다.
+프로젝트 루트를 탐지한 후 `{project_root}/CLAUDE.md`를 Read합니다. `## Conventions` 섹션의 존재 여부를 확인합니다.
 
 **섹션이 없는 경우:**
 
@@ -46,19 +46,17 @@ Convention 섹션이 CLAUDE.md에 존재하지 않습니다.
 
 인자의 내용을 분석하여 대상 섹션을 자동으로 결정합니다:
 
-| 키워드/내용 | 대상 섹션 |
-|------------|-----------|
-| 디렉토리 구조, 모듈 경계, 레이어링, 의존성 방향 | `## Project Convention` |
-| 코딩 규칙, 에러 처리 패턴, 비동기 패턴, 네이밍 규칙, import 순서 | `## Code Convention` |
-| 테스트 프레임워크, 테스트 패턴, Mock 전략 | `## Code Convention > ### Test Convention` |
-| 둘 다 해당하는 경우 | 두 섹션 모두 업데이트 |
+인자의 내용을 분석하여 대상 서브섹션을 자동으로 결정합니다:
+
+| 키워드/내용 | 대상 서브섹션 |
+|------------|--------------|
+| 디렉토리 구조, 모듈 경계, 레이어링, 의존성 방향 | `### Project Structure`, `### Module Boundaries`, `### Naming Conventions` |
+| 코딩 규칙, 에러 처리 패턴, 비동기 패턴, 네이밍 규칙, import 순서 | `### Coding Rules`, `### Naming Rules`, `### Language & Runtime` |
+| 테스트 프레임워크, 테스트 패턴, Mock 전략 | `### Test Convention` (optional subsection) |
 
 #### 2-B. 인자가 없는 경우: 대화형 선택
 
-AskUserQuestion으로 수정 대상을 질문합니다:
-- **Project Convention**: 프로젝트 구조, 모듈 경계, 네이밍 규칙
-- **Code Convention**: 코딩 규칙, 네이밍 규칙, 타입 시스템
-- **둘 다**: 두 섹션 모두 수정
+AskUserQuestion으로 수정 대상 서브섹션을 질문합니다. 옵션은 `## Conventions` 섹션 내 현재 서브섹션 목록으로 동적 생성합니다.
 
 ### 3. 변경 사항 수집
 
@@ -69,7 +67,7 @@ AskUserQuestion으로 수정 대상을 질문합니다:
 3. 인자 내용을 변경 지시사항으로 해석하여 섹션 내용 수정
 4. 수정된 섹션을 CLAUDE.md에 다시 Write
 
-대상 CLAUDE.md를 Read하고, 인자의 변경 지시사항에 따라 해당 Convention 섹션을 수정한 후, 전체 파일을 Write합니다. 예: "에러 처리를 Result 타입으로 통일" → Code Convention의 Coding Rules 서브섹션에서 에러 처리 규칙을 업데이트합니다.
+대상 CLAUDE.md를 Read하고, 인자의 변경 지시사항에 따라 해당 Convention 섹션을 수정한 후, 전체 파일을 Write합니다. 예: "에러 처리를 Result 타입으로 통일" → Conventions의 Coding Rules 서브섹션에서 에러 처리 규칙을 업데이트합니다.
 
 #### 3-B. 인자가 없는 경우: 대화형 수집
 
