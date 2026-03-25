@@ -1,12 +1,11 @@
 ---
 name: rust-convention
 description: |
-  Rust code convention reference for code generation and modification.
-  Load this skill when writing, reviewing, or refactoring Rust source code (.rs files).
-  Covers: error handling (thiserror vs anyhow), panic-free patterns (no unwrap/expect/panic),
-  polymorphism design (trait dispatch vs enum dispatch), module layout, naming conventions.
-  Keywords: rust, convention, style, lint, clippy, Result, Option, pattern matching,
-  struct, enum, trait, impl, mod, crate, cargo, formatting, rustfmt.
+  Rust code convention reference. Load this skill when:
+  - generating or modifying Rust source files (.rs)
+  - deciding between trait dispatch and enum dispatch for polymorphism
+  - implementing error handling with Result types
+  - structuring modules or naming types, functions, and files
 user_invocable: false
 ---
 
