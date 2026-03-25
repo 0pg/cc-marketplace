@@ -1,9 +1,9 @@
 ---
 name: rust-init
 description: |
-  Rust 프로젝트 초기화 플러그인. cargo init, 코드 컨벤션(rustfmt, clippy lints),
-  의존성 템플릿, CLAUDE.md 생성, superpowers 플러그인 설치를 단일 커맨드로 수행합니다.
-  "/rust-init", "rust 프로젝트 생성", "rust init", "러스트 초기화" 요청 시 사용됩니다.
+  Rust 프로젝트 셋업 플러그인. 신규 또는 기존 프로젝트에 cargo init, 코드 컨벤션(rustfmt, clippy lints),
+  의존성 템플릿, CLAUDE.md를 단일 커맨드로 적용합니다.
+  "/rust-init", "rust 프로젝트 생성", "rust init", "러스트 초기화", "rust setup" 요청 시 사용됩니다.
 user_invocable: true
 allowed-tools: [Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion]
 argument-hint: "[--name <name>] [--type cli,backend,frontend] [--db toasty|none|<custom>]"
@@ -11,7 +11,7 @@ argument-hint: "[--name <name>] [--type cli,backend,frontend] [--db toasty|none|
 
 # Rust Init Skill
 
-Rust 프로젝트를 초기화하고 코드 컨벤션, 의존성, CLAUDE.md를 설정합니다.
+신규 또는 기존 Rust 프로젝트에 코드 컨벤션, 의존성, CLAUDE.md를 적용합니다.
 
 ---
 
@@ -76,8 +76,9 @@ Rust 프로젝트를 초기화하고 코드 컨벤션, 의존성, CLAUDE.md를 �
 1. 프로젝트 루트의 `Cargo.toml`을 Read
 2. `[package]` 섹션에서 `edition` 값을 `"2024"`로 설정 (Edit)
 3. `references/cargo-lints.toml`을 Read
-4. `[lints.clippy]`와 `[lints.rust]` 섹션을 Cargo.toml 끝에 추가 (Edit)
-   - 이미 `[lints` 섹션이 있으면 교체
+4. `[lints.clippy]`와 `[lints.rust]` 섹션을 Cargo.toml에 적용 (Edit)
+   - `[lints` 섹션이 없으면: Cargo.toml 끝에 추가
+   - `[lints` 섹션이 있으면: **merge (upsert)** — reference의 각 키를 추가하거나 기존 값을 갱신하되, 사용자가 추가한 다른 lint 키는 보존
 
 ### 주입할 lint 규칙
 ```toml
@@ -101,40 +102,17 @@ unsafe_code = "deny"
 `cargo add`를 사용하여 의존성을 설치합니다. 버전은 cargo가 자동으로 최신 호환 버전을 해석합니다.
 
 ### 4-1. 공통 의존성 (항상 설치)
-`references/deps-common.toml`을 참조:
-```bash
-cargo add tracing tracing-subscriber --features env-filter
-cargo add serde --features derive
-cargo add serde_json thiserror anyhow
-```
+1. `references/deps-common.toml`을 Read
+2. 각 크레이트에 대해 `cargo add <name>` 실행 (features가 있으면 `--features` 플래그 추가)
 
 ### 4-2. 타입별 의존성
-
-**CLI** (`references/deps-cli.toml` 참조):
-```bash
-cargo add clap --features derive
-```
-
-**Backend** (`references/deps-backend.toml` 참조):
-```bash
-cargo add tokio --features full
-cargo add axum tower
-cargo add tower-http --features cors,trace
-```
-
-**Frontend** (`references/deps-frontend.toml` 참조):
-```bash
-cargo add leptos --features csr
-```
+선택된 `PROJECT_TYPES`에 해당하는 reference 파일만 처리:
+- **CLI**: `references/deps-cli.toml`을 Read → `cargo add`
+- **Backend**: `references/deps-backend.toml`을 Read → `cargo add`
+- **Frontend**: `references/deps-frontend.toml`을 Read → `cargo add`
 
 ### 4-3. DB 드라이버 (선택된 경우)
-```bash
-# toasty 선택 시
-cargo add toasty
-
-# 커스텀 크레이트 선택 시
-cargo add <custom-crate-name>
-```
+- `DB_DRIVER`가 `none`이 아니면: `cargo add <DB_DRIVER>`
 
 ### 오류 처리
 - `cargo add` 실패 시 오류 메시지를 출력하되 다음 의존성 설치를 계속 진행
@@ -154,30 +132,7 @@ cargo add <custom-crate-name>
 
 ---
 
-## Phase 6: Superpowers Plugin Installation
-
-Claude Code superpowers 플러그인을 설치합니다.
-
-```
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
-```
-
-위 명령은 Claude Code 내부 커맨드이므로, 사용자에게 직접 실행하도록 안내합니다:
-
-```
-superpowers 플러그인을 설치하려면 다음 명령을 실행하세요:
-1. /plugin marketplace add obra/superpowers-marketplace
-2. /plugin install superpowers@superpowers-marketplace
-```
-
-### 대안
-이미 설치된 경우 skip합니다. 설치 여부 확인:
-- `.claude/plugins` 또는 설정에서 superpowers 존재 여부 Grep
-
----
-
-## Phase 7: Summary
+## Phase 6: Summary
 
 모든 Phase 완료 후 결과를 요약합니다:
 
@@ -216,4 +171,4 @@ superpowers 플러그인을 설치하려면 다음 명령을 실행하세요:
 ### DON'T
 - Cargo.toml의 `[dependencies]`를 직접 편집하지 않음
 - 사용자가 거부한 파일을 덮어쓰지 않음
-- Phase 6 설치 실패 시 전체 프로세스를 abort하지 않음
+- `cargo add` 실패 시 전체 프로세스를 abort하지 않음

@@ -1,8 +1,8 @@
 # rust-init Plugin
 
 ## Purpose
-Rust 프로젝트 초기화 플러그인. 단일 커맨드(`/rust-init`)로 cargo init, 코드 컨벤션(rustfmt, clippy lints),
-의존성 설정, CLAUDE.md 생성, superpowers 플러그인 설치를 수행합니다.
+Rust 프로젝트 셋업 플러그인. 단일 커맨드(`/rust-init`)로 신규 또는 기존 프로젝트에
+코드 컨벤션(rustfmt, clippy lints), 의존성 설정, CLAUDE.md를 적용합니다.
 
 ## Directory Structure
 ```
@@ -25,10 +25,9 @@ plugins/rust-init/
 1. 인자 파싱 (interactive vs direct mode)
 2. cargo init (idempotent)
 3. rustfmt.toml 생성
-4. Cargo.toml에 lints + deps 병합
+4. Cargo.toml에 lints merge (upsert) + deps 추가
 5. CLAUDE.md 생성
-6. superpowers 플러그인 설치 안내
-7. 결과 요약
+6. 결과 요약
 
 ## Convention
 - Edition: 2024

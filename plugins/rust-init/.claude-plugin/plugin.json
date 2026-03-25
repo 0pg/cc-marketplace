@@ -1,7 +1,7 @@
 {
   "name": "rust-init",
   "version": "1.0.0",
-  "description": "Rust 프로젝트 초기화 플러그인. cargo init, 코드 컨벤션, 의존성 템플릿, CLAUDE.md를 단일 커맨드로 설정합니다.",
+  "description": "Rust 프로젝트 셋업 플러그인. 신규 또는 기존 프로젝트에 코드 컨벤션, 의존성 템플릿, CLAUDE.md를 단일 커맨드로 적용합니다.",
   "author": { "name": "jhk" },
   "keywords": ["rust", "init", "scaffold", "cargo", "convention"],
   "skills": [
