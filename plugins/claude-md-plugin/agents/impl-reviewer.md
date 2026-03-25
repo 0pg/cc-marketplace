@@ -117,12 +117,6 @@ CLAUDE.md: {claude_md_path}
 
 ## Workflow
 
-### Phase 0: Template Loading
-
-```bash
-cat "${CLAUDE_PLUGIN_ROOT}/skills/impl-review/references/impl-reviewer-templates.md"
-```
-
 ### Phase 1: Document Loading & Parsing
 
 **Step 1.1: CLAUDE.md 파싱**

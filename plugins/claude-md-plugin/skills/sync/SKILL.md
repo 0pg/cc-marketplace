@@ -162,7 +162,6 @@ Phase 2가 필요한 각 대상에 대해 (최대 3개 concurrent Task 권장):
 Task(index-generator):
   "대상: {dir}
    analysis: ${TMP_DIR}sync-{dir_safe}-analysis.json
-   format-analysis: ${TMP_DIR}sync-{dir_safe}-format-analysis.md
    p-sections: ${TMP_DIR}sync-{dir_safe}-p-sections.md
    previous: {dir}/.claude/index.md (있으면)"
 ```

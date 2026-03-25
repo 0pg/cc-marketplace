@@ -155,11 +155,10 @@ CLAUDE.md 생성 후, 같은 디렉토리에 DEVELOPERS.md를 생성합니다.
 4. 환경변수 참조, 설정 파일 → Operations (추론 또는 None)
 
 **생성 규칙:**
-- **File Map** (필수, None 불가): `analyze-code` 결과의 `analyzed_files`에서 파일명/역할/의존 테이블 생성
+- **File Map** (필수, None 허용): `analyze-code` 결과의 `analyzed_files`에서 파일명/역할/의존 테이블 생성
 - **Data Structures** (None 허용): export가 아닌 내부 타입/변환 흐름. 없으면 "None"
 - **Decision Log** (None 허용): 매직넘버, 주석에서 ADR 추론. 없으면 "None". 각 결정은 소제목으로, 맥락/결정/근거 고정 스키마
 - **Operations** (None 허용): 환경변수 참조, 설정 파일에서 추론. 없으면 "None"
-- **File Map** (None 허용): 파일별 역할과 의존관계 테이블. 없으면 "None"
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
@@ -192,10 +191,6 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 |------|------|------|
 | {file} | {role} | {deps or "-"} |
 ```
-
-> **진화 예정**: /decompile은 향후 /sync로 진화할 예정입니다.
-> /sync는 코드 변경을 감지하여 CLAUDE.md + DEVELOPERS.md를 자동 동기화하는
-> 양방향 동기화 워크플로우입니다.
 
 ### Phase 5: 스키마 검증 (1회)
 
@@ -240,7 +235,7 @@ developers_md: generated
 **Always-required**: Purpose, Constraints, Domain Context
 - Constraints/Domain Context는 "None" 명시적 표기 허용
 
-**Conditional**: Instructions (project root only), Project Convention, Code Convention
+**Conditional**: Instructions (project root only), Conventions (project/module root)
 - 해당 규칙이 없으면 섹션 생략 가능
 
 ### Domain Context / Decision Log 추출 규칙

@@ -57,7 +57,7 @@ description: |
   ---debug-layer-result---
   layer: L1
   status: ISSUES_FOUND
-  primary_finding: SPEC_BEHAVIOR_GAP
+  primary_finding: SPEC_CONSTRAINT_GAP
   result_file: .claude/tmp/debug-l1-findings.md
   ---end-debug-layer-result---
   </assistant_response>
@@ -119,7 +119,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 
 | Type | Description |
 |------|-------------|
-| **SPEC_BEHAVIOR_GAP** | Constraints do not cover this error scenario |
+| **SPEC_CONSTRAINT_GAP** | Constraints do not cover this error scenario |
 | **SPEC_CONSTRAINT_MISMATCH** | Constraints do not match code behavior |
 | **SPEC_STALE** | CLAUDE.md is older than source code |
 
@@ -192,7 +192,7 @@ Extract actual exports to compare with spec in L1.
 Grep: pattern="purpose|constraint" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
 ```
 Compare constraints with code behavior.
-- Constraint not found for this scenario -> L1 SPEC_BEHAVIOR_GAP
+- Constraint not found for this scenario -> L1 SPEC_CONSTRAINT_GAP
 - Constraint mismatch -> check staleness in Step 4.4
 - Match -> code is violating constraint (record for L3)
 
@@ -200,7 +200,7 @@ Compare constraints with code behavior.
 ```
 Grep: pattern="domain|context|decision" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=30
 ```
-- Domain Context missing relevant rationale -> L1 SPEC_BEHAVIOR_GAP
+- Domain Context missing relevant rationale -> L1 SPEC_CONSTRAINT_GAP
 - Domain Context present, code diverges -> CODE_SPEC_DIVERGENCE (record for L3)
 
 **Step 4.4: Staleness check (code vs spec)**

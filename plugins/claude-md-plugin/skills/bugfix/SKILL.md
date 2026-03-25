@@ -165,7 +165,7 @@ debugger agent가 구조화된 블록으로 결과 반환:
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_CONSTRAINT_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}
@@ -174,9 +174,9 @@ test_command: {command} | N/A
 ---end-debugger-result---
 ```
 
-### 6.5. 수정사항 Diff 표시
+### 6.5. 수정사항 Diff 표시 (문서 수정 시)
 
-debugger가 CLAUDE.md를 수정한 후, compile 전에 변경사항을 표시합니다:
+debugger가 CLAUDE.md를 수정한 경우 (`fix_targets`가 비어있지 않을 때), compile 전에 변경사항을 표시합니다:
 
 ```
 Bash: git diff HEAD -- {path}/CLAUDE.md
@@ -373,7 +373,7 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_BEHAVIOR_GAP
+Root Cause: L1 - SPEC_CONSTRAINT_GAP
 요약: Token refresh on expiry not specified in CLAUDE.md Constraints
 
 수정된 문서: [CLAUDE.md]

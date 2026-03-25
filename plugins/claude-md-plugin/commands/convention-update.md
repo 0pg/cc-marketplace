@@ -67,7 +67,7 @@ AskUserQuestion으로 수정 대상 서브섹션을 질문합니다. 옵션은 `
 3. 인자 내용을 변경 지시사항으로 해석하여 섹션 내용 수정
 4. 수정된 섹션을 CLAUDE.md에 다시 Write
 
-대상 CLAUDE.md를 Read하고, 인자의 변경 지시사항에 따라 해당 Convention 섹션을 수정한 후, 전체 파일을 Write합니다. 예: "에러 처리를 Result 타입으로 통일" → Code Convention의 Coding Rules 서브섹션에서 에러 처리 규칙을 업데이트합니다.
+대상 CLAUDE.md를 Read하고, 인자의 변경 지시사항에 따라 해당 Convention 섹션을 수정한 후, 전체 파일을 Write합니다. 예: "에러 처리를 Result 타입으로 통일" → Conventions의 Coding Rules 서브섹션에서 에러 처리 규칙을 업데이트합니다.
 
 #### 3-B. 인자가 없는 경우: 대화형 수집
 

@@ -338,7 +338,7 @@ Sub-agent가 `confidence: LOW`를 기록한 경우:
 - L1 finding → **AskUserQuestion으로 사용자 선택 요청** (Phase 6.5)
 - 계약 변경은 의도적이고 명시적이어야 함
 
-**L2 finding → DEVELOPERS.md 참고하여 진단 맥락 보충 (DEVELOPERS.md는 직접 수정하지 않음)
+**L2 finding** → DEVELOPERS.md 참고하여 진단 맥락 보충 (DEVELOPERS.md는 직접 수정하지 않음)
 
 **Fix 우선순위 (Multi-layer 시):**
 1. L3 먼저 — 대부분의 버그는 코드가 계약을 위반
@@ -412,7 +412,7 @@ AskUserQuestion: "다음 CLAUDE.md 수정을 적용하시겠습니까?"
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_BEHAVIOR_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_CONSTRAINT_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}

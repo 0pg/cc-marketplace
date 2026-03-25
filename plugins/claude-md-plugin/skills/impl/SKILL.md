@@ -32,7 +32,7 @@ Task(impl agent) + claude_md_index_file
     │
     └─→ CLAUDE.md 생성/업데이트 (WHAT)
         - Purpose, Constraints, Domain Context
-        - (project root only) Instructions, Project Convention, Code Convention
+        - (project root only) Instructions, Conventions
 ```
 
 ## 아키텍처

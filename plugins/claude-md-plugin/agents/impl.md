@@ -173,7 +173,7 @@ You are a requirements analyst and specification writer specializing in creating
 2. Explore existing CLAUDE.md files to discover available interfaces and dependencies
 3. Clarify via tiered AskUserQuestion (Tier 1: scope → Tier 2: interface → Tier 3: constraints, max 2 rounds)
 4. Determine target location for dual documents
-5. Generate or merge CLAUDE.md following the schema (Purpose, Constraints, Domain Context + conditional: Instructions, Project Convention, Code Convention)
+5. Generate or merge CLAUDE.md following the schema (Purpose, Constraints, Domain Context + conditional: Instructions, Conventions)
 5.5. Generate DEVELOPERS.md with minimum Decision Log (other sections None)
 6. Validate against schema using `claude-md-core validate-schema` CLI
 8. Present plan preview to user and get approval before saving files
@@ -205,10 +205,10 @@ claude_md_index_file: {claude_md_index_file}
 cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
 ```
 
-**CLAUDE.md 필수 섹션**: 3개 always-required (Purpose, Constraints, Domain Context) + conditional (Instructions — project root only, Project Convention, Code Convention)
+**CLAUDE.md 필수 섹션**: 3개 always-required (Purpose, Constraints, Domain Context) + conditional (Instructions — project root only, Conventions — project/module root)
 - Constraints/Domain Context는 "None" 명시 허용
 - Instructions는 project root CLAUDE.md에만 배치
-- Project Convention/Code Convention은 해당 규칙이 있을 때만 작성
+- Conventions는 project_root 또는 module_root에서만 작성 (6개 필수 서브섹션)
 
 ## 오류 처리
 

@@ -34,17 +34,18 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | STATUS | status, health, dashboard, overview, coverage | 상태, 건강도, 대시보드, 현황, 커버리지 | `/status` | active |
 | RESOLVE | resolve, handle violation, resolve drift | drift 해소, 위반 해소, 결과 처리 | `/resolve` | active |
 | REFACTOR | refactor, split, merge, restructure, reorganize | 리팩토링, 분할, 병합, 재구성, 구조 변경 | `/refactor` | active |
+| DECOMPILE | decompile, extract, document existing, reverse-engineer | 디컴파일, 추출, 기존 코드 문서화, 역추출 | `/decompile` | active |
 
 **분류 규칙:**
 1. 키워드 매칭은 대소문자 무시
-2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > VALIDATE > SYNC > RESOLVE > IMPACT > DIFF > STATUS > REFACTOR)
+2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > DECOMPILE > VALIDATE > SYNC > RESOLVE > IMPACT > DIFF > STATUS > REFACTOR)
 3. 어느 카테고리에도 해당하지 않으면 **AMBIGUOUS** → AskUserQuestion으로 명확화:
    - "요청을 다음 중 어느 작업으로 분류해야 할까요?"
    - 선택지: 기능 추가(/impl), 버그 수정(/bugfix), 코드 생성(/compile), 검증(/validate), 영향 분석(/impact), 기타(구체적 설명 요청)
 
 ## Step 3: CLAUDE.md 존재 확인
 
-**FEATURE(→ /impl)와 SYNC(→ /sync) 카테고리는 이 단계를 건너뜁니다** — /impl은 새 CLAUDE.md를 생성, /sync는 소스코드에서 직접 생성하므로.
+**FEATURE(→ /impl), DECOMPILE(→ /decompile), SYNC(→ /sync) 카테고리는 이 단계를 건너뜁니다** — /impl은 새 CLAUDE.md를 생성, /decompile과 /sync는 소스코드에서 직접 생성하므로.
 
 나머지 카테고리(BUGFIX, COMPILE, VALIDATE, IMPACT, DIFF, STATUS, RESOLVE, REFACTOR):
 1. `--path` 경로에서 CLAUDE.md를 Glob으로 검색
@@ -61,6 +62,7 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | FEATURE | `Skill("claude-md-plugin:impl", args: "{request} [--path]")` |
 | BUGFIX | `Skill("claude-md-plugin:bugfix", args: "--error \"{request}\" [--path]")` |
 | COMPILE | `Skill("claude-md-plugin:compile", args: "[--path]")` |
+| DECOMPILE | `Skill("claude-md-plugin:decompile", args: "[--path]")` |
 | VALIDATE | `Skill("claude-md-plugin:validate", args: "[path]")` |
 | SYNC | `Skill("claude-md-plugin:sync", args: "[--path] [--all]")` |
 | RESOLVE | `Skill("claude-md-plugin:resolve", args: "[path]")` |

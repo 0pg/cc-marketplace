@@ -59,7 +59,6 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/sync/references/index-templates.md"
 ```
 대상: {dir}
 analysis: {analysis_json_path}
-format-analysis: {format_analysis_md_path}
 p-sections: {p_sections_md_path}
 previous: {previous_index_md_path or "없음"}
 ```

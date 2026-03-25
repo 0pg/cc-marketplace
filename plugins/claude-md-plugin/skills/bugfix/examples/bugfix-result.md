@@ -27,8 +27,8 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: MULTI - SPEC_BEHAVIOR_GAP
-요약: Token refresh on expiry not specified in CLAUDE.md Behavior
+Root Cause: MULTI - SPEC_CONSTRAINT_GAP
+요약: Token refresh on expiry not specified in CLAUDE.md Constraints
 
 수정된 문서: [CLAUDE.md]
 재현: REPRODUCED

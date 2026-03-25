@@ -87,7 +87,6 @@ tools:
   - Grep
   - Write
   - Edit
-  - AskUserQuestion
 ---
 
 You are a code compiler specializing in implementing source code from CLAUDE.md + compile-context specifications.

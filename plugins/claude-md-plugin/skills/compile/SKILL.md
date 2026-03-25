@@ -136,7 +136,7 @@ git diff --stat
 **DON'T:**
 - CLAUDE.md 수정 (읽기 전용)
 - 사용자에게 compiler agent 내부 진행 상황 중계
-- test-designer agent 호출 (compiler가 테스트 생성도 수행)
+- 별도 테스트 생성 agent 호출 (compiler가 Inline TDD로 테스트 생성도 수행)
 
 ## 오류 처리
 
