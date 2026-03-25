@@ -309,14 +309,11 @@ User: /dev "request"
 | `impl` | active | 요구사항 분석 및 CLAUDE.md + DEVELOPERS.md 생성 |
 | `dep-explorer` | active | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
 | `decompiler` | active | 소스코드에서 CLAUDE.md + DEVELOPERS.md 추출 |
-| `test-designer` | **deprecated** | v5 Exports/Behavior/Contract 기반 테스트 생성 — v6에서 해당 섹션 제거로 실행 불가 |
 | `compiler` | active | CLAUDE.md Constraints + Domain Context 기반 소스코드 생성 (GREEN + REFACTOR) |
 | `debug-layer-analyzer` | active | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | active | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
 | `validator` | active | CLAUDE.md Constraints/Domain Context/Convention drift 검증 |
-| `issue-verifier` | **deprecated** | v5 Exports/Behavior drift 재검증 — v6에서 해당 drift 유형 제거로 실행 불가 |
-| `violation-reporter` | **deprecated** | v5 Contract 위반 보고 — v6에서 Contract 모델 제거로 실행 불가 |
 
 ## Commands
 
