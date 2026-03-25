@@ -9,16 +9,19 @@ Rust 프로젝트 셋업 플러그인. 단일 커맨드(`/rust-init`)로 신규 
 plugins/rust-init/
 ├── .claude-plugin/plugin.json
 ├── CLAUDE.md
-└── skills/rust-init/
-    ├── SKILL.md
-    └── references/
-        ├── rustfmt.toml           # rustfmt 설정 템플릿
-        ├── cargo-lints.toml       # [lints] 섹션 템플릿
-        ├── deps-common.toml       # 공통 의존성
-        ├── deps-cli.toml          # CLI 프로젝트 의존성
-        ├── deps-backend.toml      # Backend 프로젝트 의존성
-        ├── deps-frontend.toml     # Frontend 프로젝트 의존성
-        └── claude-md-template.md  # CLAUDE.md 템플릿
+└── skills/
+    ├── rust-init/
+    │   ├── SKILL.md
+    │   └── references/
+    │       ├── rustfmt.toml           # rustfmt 설정 템플릿
+    │       ├── cargo-lints.toml       # [lints] 섹션 템플릿
+    │       ├── deps-common.toml       # 공통 의존성
+    │       ├── deps-cli.toml          # CLI 프로젝트 의존성
+    │       ├── deps-backend.toml      # Backend 프로젝트 의존성
+    │       ├── deps-frontend.toml     # Frontend 프로젝트 의존성
+    │       └── claude-md-template.md  # CLAUDE.md 템플릿
+    └── rust-convention/
+        └── SKILL.md                   # 코드 컨벤션 레퍼런스
 ```
 
 ## Workflow
