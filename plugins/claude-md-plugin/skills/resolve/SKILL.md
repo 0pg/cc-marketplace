@@ -1,6 +1,7 @@
 ---
 name: resolve
 version: 2.0.0
+aliases: [fix-drift, handle-violation]
 user_invocable: true
 description: |
   This skill should be used when the user asks to "resolve drift", "fix validation issues",

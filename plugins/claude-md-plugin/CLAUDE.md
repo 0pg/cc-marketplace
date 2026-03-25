@@ -303,9 +303,10 @@ User: /dev "request"
 │                                             │
 │ 1. 인자 파싱 (request + --path)             │
 │ 2. 의도 분류 (FEATURE/BUGFIX/COMPILE/       │
-│    VALIDATE/SYNC/RESOLVE/IMPACT/DIFF/       │
-│    STATUS/REFACTOR/AMBIGUOUS)               │
-│ 3. CLAUDE.md 존재 확인 (FEATURE+SYNC 제외)  │
+│    DECOMPILE/VALIDATE/SYNC/RESOLVE/         │
+│    IMPACT/DIFF/STATUS/REFACTOR/AMBIGUOUS)   │
+│ 3. CLAUDE.md 존재 확인                       │
+│    (FEATURE+DECOMPILE+SYNC 제외)            │
 │    없으면 → 안내 후 종료                    │
 │ 4. Skill(target) 호출                       │
 └─────────────────────────────────────────────┘

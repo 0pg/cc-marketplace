@@ -15,8 +15,8 @@ completeness: low
 scope: single-module
 evidence:
   D1_purpose: 추론 가능 — "사용자 관리 기능" (CRUD/인증/권한 등 구체적 범위 불명)
-  D2_interface: 없음 — 함수명/타입 리터럴 없음
-  D3_constraints: 없음 — 제약/규칙 미언급
+  D2_constraints: 없음 — 제약/규칙 미언급
+  D3_domain_context: 없음 — 결정 근거/배경 미언급
 next_phase: Phase 2 Tier 1
 ---end-scope-assessment---
 ```
@@ -27,16 +27,10 @@ next_phase: Phase 2 Tier 1
 ---extraction-summary---
 format: natural-language
 purpose: 사용자 관리 [inferred]
-exports:
-  (none - gap)
-behaviors:
-  confirmed: 0
-  inferred: 0
-contracts: gap
-protocol: gap
+constraints: gap
 domain_context: gap
 location: unknown [gap]
-gaps: [PURPOSE 구체화, EXPORTS, BEHAVIORS, CONTRACTS, LOCATION]
+gaps: [PURPOSE 구체화, CONSTRAINTS, DOMAIN_CONTEXT, LOCATION]
 ---end-extraction-summary---
 ```
 
@@ -59,26 +53,25 @@ AskUserQuestion (2개):
    - 옵션: src/user, src/users, src/account
    - 사용자 답변: **src/user**
 
-### Round 2 — Tier 2 + Tier 3 (인터페이스 + 제약)
+### Round 2 — Tier 2 + Tier 3 (제약 + 맥락)
 
 AskUserQuestion (3개):
 
-1. **EXPORTS** (Tier 2): "어떤 함수를 export해야 하나요?"
-   - 옵션: createUser/getUser/updateUser/deleteUser, 위 4개 + listUsers, 위 5개 + searchUsers
-   - 사용자 답변: **위 4개 + listUsers**
+1. **CONSTRAINTS** (Tier 2): "어떤 제약/규칙이 있나요?"
+   - 옵션: 중복 이메일 금지만, 중복 이메일 + 필수 필드(email/password/name), 중복 이메일 + 필수 필드 + 비밀번호 8자 이상
+   - 사용자 답변: **중복 이메일 + 필수 필드 + 비밀번호 8자 이상**
 
-2. **BEHAVIOR** (Tier 2): "에러 시나리오는 어떤 것이 있나요?"
+2. **CONSTRAINTS 에러** (Tier 2): "에러 시나리오는 어떤 것이 있나요?"
    - 옵션: 중복 이메일 에러만, 중복 이메일 + 미존재 사용자 에러, 중복 이메일 + 미존재 + 권한 에러
    - 사용자 답변: **중복 이메일 + 미존재 사용자 에러**
 
-3. **CONTRACT** (Tier 3): "사용자 생성 시 필수 필드는?"
-   - 옵션: email + password만, email + password + name, email + password + name + role
-   - 사용자 답변: **email + password + name**
+3. **DOMAIN_CONTEXT** (Tier 3): "비밀번호 해싱이나 보안 관련 배경이 있나요?"
+   - 사용자 답변: **bcrypt 해싱, 이메일 unique constraint**
 
 ## Phase 3~6: 경로 결정 → 문서 생성
 
 - Target path: `src/user` (create 모드)
-- CLAUDE.md 생성 (5 Exports, 7 Behaviors)
+- CLAUDE.md 생성 (Constraints 8개, Domain Context 있음)
 
 ## Phase 6.5: Plan Preview
 
@@ -89,8 +82,8 @@ AskUserQuestion (3개):
 액션: created
 
 Purpose: 사용자 CRUD 관리 모듈
-Exports: 5개 — createUser, getUser, updateUser, deleteUser, listUsers
-Behaviors: 7개 — 사용자 생성 성공, 중복 이메일 에러, 사용자 조회 성공, 미존재 사용자 에러, ...
+Constraints: 8개 — 중복 이메일 금지, 필수 필드(email/password/name), 비밀번호 8자 이상, ...
+Domain Context: 있음
 Dependencies: Internal 0개, External 1개 (bcrypt)
 ```
 
@@ -102,11 +95,13 @@ AskUserQuestion: "이 계획으로 CLAUDE.md를 생성할까요?"
 ```
 ---impl-result---
 claude_md_file: src/user/CLAUDE.md
+developers_md_file: src/user/DEVELOPERS.md
+compile_context_file: .claude/tmp/compile-context-src-user.md
 status: success
 action: created
 validation: passed
-exports_count: 5
-behaviors_count: 7
+constraints_count: 8
+domain_context: present
 dependencies_count: 1
 tech_choices_count: 1
 ---end-impl-result---
@@ -121,37 +116,19 @@ tech_choices_count: 1
 
 사용자 CRUD 관리 모듈. 사용자 생성, 조회, 수정, 삭제, 목록 조회 기능을 제공합니다.
 
-## Exports
+## Constraints
 
-- `createUser(input: CreateUserInput): Promise<User>` — 새 사용자 생성
-- `getUser(id: string): Promise<User>` — ID로 사용자 조회
-- `updateUser(id: string, input: UpdateUserInput): Promise<User>` — 사용자 정보 수정
-- `deleteUser(id: string): Promise<void>` — 사용자 삭제
-- `listUsers(filter?: UserFilter): Promise<User[]>` — 사용자 목록 조회
-- `CreateUserInput { email: string, password: string, name: string }` — 생성 입력 타입
-- `User { id: string, email: string, name: string, createdAt: Date }` — 사용자 엔티티
-
-## Behavior
-
-- success: 유효한 입력 → User 객체 반환
-- success: 존재하는 ID → User 조회 성공
-- error: 중복 이메일 → DuplicateUserError
-- error: 미존재 ID → UserNotFoundError
-- success: 필터 적용 → 필터링된 목록 반환
-- success: 사용자 삭제 → void 반환
-- success: 사용자 수정 → 업데이트된 User 반환
-
-## Contract
-
-- createUser: email은 유효한 이메일 형식, password는 8자 이상
-- getUser/updateUser/deleteUser: id는 비어있지 않은 문자열
-
-## Protocol
-
-None
+- 유효한 입력 → User 객체 반환
+- 존재하는 ID → User 조회 성공
+- 중복 이메일 → DuplicateUserError
+- 미존재 ID → UserNotFoundError
+- 필터 적용 → 필터링된 목록 반환
+- email은 유효한 이메일 형식, password는 8자 이상
+- 생성/수정/삭제 시 id는 비어있지 않은 문자열
+- 이메일은 unique constraint
 
 ## Domain Context
 
 - 비밀번호는 bcrypt로 해시하여 저장
-- 이메일은 unique constraint
+- 이메일 중복은 DB 레벨 unique constraint로 보장
 ```

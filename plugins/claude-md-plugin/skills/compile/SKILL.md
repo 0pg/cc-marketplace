@@ -73,12 +73,7 @@ $CLI_PATH diff-compile-targets --root {path}
 
 ### 4. 의존성 순서 결정 (leaf-first)
 
-```bash
-# CLI 사용 (우선)
-$CLI_PATH compile-order --targets <targets-json>
-```
-
-CLI 미지원 시 디렉토리 depth 기준 정렬 (깊은 것부터).
+디렉토리 depth 기준 정렬 (깊은 것부터).
 같은 depth의 독립 모듈은 병렬 실행 가능 (최대 3개).
 
 ### 5. `--dry-run` 처리

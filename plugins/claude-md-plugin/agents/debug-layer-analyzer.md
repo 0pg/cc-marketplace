@@ -129,7 +129,7 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 |------|-------------|
 | **CONTEXT_DECISION_GAP** | Decision Log does not explain relevant decision/rationale |
 | **CONTEXT_FILE_MAP_STALE** | File Map relationships do not match actual code dependencies |
-| **CONTEXT_DATA_STRUCTURE_GAP** | Data Structures section missing relevant internal structure |
+| **CONTEXT_INVARIANT_GAP** | Invariants section missing relevant invariant or assertion |
 | **CONTEXT_OPERATIONS_GAP** | Operations section missing relevant gotcha or troubleshooting info |
 
 ### L3: Source Code Issues (diagnostic only)

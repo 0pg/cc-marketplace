@@ -8,8 +8,8 @@
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_EXPORT_MISMATCH
-요약: CLAUDE.md exports validateToken as standalone but code defines it as class method
+Root Cause: L1 - SPEC_CONSTRAINT_MISMATCH
+요약: CLAUDE.md Constraints와 코드 동작 불일치 — Constraints는 standalone 함수 호출을 전제하나 코드는 class method로 구현
 
 수정된 문서: [CLAUDE.md]
 재현: REPRODUCED

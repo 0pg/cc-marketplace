@@ -8,7 +8,7 @@ description: |
   Runs CLI analysis tools and index-generator agent to create/update .claude/index.md.
   Trigger keywords: 인덱스 생성, 인덱스 갱신, 동기화, reindex
 user_invocable: true
-allowed-tools: [Bash, Read, Write, Glob, Grep, Task]
+allowed-tools: [Bash, Read, Write, Glob, Grep, Task, Skill]
 ---
 
 # /sync
