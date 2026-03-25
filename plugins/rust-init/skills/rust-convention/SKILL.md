@@ -1,11 +1,7 @@
 ---
 name: rust-convention
 description: |
-  Rust code convention reference. Load this skill when:
-  - generating or modifying Rust source files (.rs)
-  - deciding between trait dispatch and enum dispatch for polymorphism
-  - implementing error handling with Result types
-  - structuring modules or naming types, functions, and files
+  Rust code convention reference. Load this skill when generating or modifying Rust source files (.rs).
 user_invocable: false
 ---
 
