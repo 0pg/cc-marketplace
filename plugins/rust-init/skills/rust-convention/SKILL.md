@@ -1,8 +1,12 @@
 ---
 name: rust-convention
 description: |
-  Rust 코드 컨벤션 레퍼런스. Rust 코드를 생성하거나 수정할 때 이 스킬을 참조하여
-  프로젝트의 코딩 규칙을 준수합니다. 다른 스킬이 내부적으로 로드합니다.
+  Rust code convention reference for code generation and modification.
+  Load this skill when writing, reviewing, or refactoring Rust source code (.rs files).
+  Covers: error handling (thiserror vs anyhow), panic-free patterns (no unwrap/expect/panic),
+  polymorphism design (trait dispatch vs enum dispatch), module layout, naming conventions.
+  Keywords: rust, convention, style, lint, clippy, Result, Option, pattern matching,
+  struct, enum, trait, impl, mod, crate, cargo, formatting, rustfmt.
 user_invocable: false
 ---
 
@@ -12,8 +16,8 @@ user_invocable: false
 
 ## 1. Error Handling
 
-### Library 코드 → `thiserror`
-외부에 노출하는 크레이트/모듈은 구체적 에러 타입을 정의한다.
+### Library code → `thiserror`
+Crates and public modules define concrete error types.
 
 ```rust
 use thiserror::Error;
@@ -31,8 +35,8 @@ pub fn parse(input: &str) -> Result<Parsed, ParseError> {
 }
 ```
 
-### Application 코드 → `anyhow`
-바이너리/엔트리포인트는 `anyhow::Result`로 에러를 전파한다.
+### Application code → `anyhow`
+Binaries and entry points propagate errors with `anyhow::Result`.
 
 ```rust
 use anyhow::{Context, Result};
@@ -45,28 +49,28 @@ fn main() -> Result<()> {
 }
 ```
 
-### 경계 규칙
-- 같은 크레이트 내부에서도 **pub 모듈 경계**는 library 규칙 적용
-- `anyhow`는 `main`, CLI handler, test 코드에서만 사용
+### Boundary rule
+- Public module boundaries within the same crate follow the library rule
+- `anyhow` is only used in `main`, CLI handlers, and test code
 
 ---
 
 ## 2. Panic-Free
 
-`unwrap()`, `expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()` 사용 금지.
-`[lints.clippy]`에서 deny로 컴파일 에러 발생.
+`unwrap()`, `expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()` are denied.
+Enforced at compile time via `[lints.clippy]` deny rules.
 
-### 대체 패턴
+### Replacement patterns
 
-| 금지 | 대체 |
-|------|------|
+| Denied | Replacement |
+|--------|-------------|
 | `.unwrap()` | `?`, `.unwrap_or_default()`, `.ok_or_else(\|\| ...)` |
 | `.expect("msg")` | `.context("msg")?` (anyhow) |
 | `panic!("msg")` | `return Err(...)` |
-| `todo!()` | 컴파일 에러로 남기거나 `unimplemented` 에러 variant 반환 |
-| `unreachable!()` | `unreachable` 에러 variant, 또는 타입 시스템으로 불가능한 상태 제거 |
+| `todo!()` | Compile error or return an `unimplemented` error variant |
+| `unreachable!()` | `unreachable` error variant, or eliminate impossible states via the type system |
 
-### 예시
+### Example
 
 ```rust
 // BAD
@@ -81,8 +85,8 @@ let value = map.get("key")
 
 ## 3. Polymorphism — Trait vs Enum Dispatch
 
-### 외부 확장 가능 (Open) → Trait dispatch
-외부에서 구현체를 추가할 수 있어야 하는 경우.
+### Open (externally extensible) → Trait dispatch
+Use when external crates need to add implementations.
 
 ```rust
 pub trait Storage: Send + Sync {
@@ -90,13 +94,13 @@ pub trait Storage: Send + Sync {
     fn put(&self, key: &str, value: &[u8]) -> Result<(), StorageError>;
 }
 
-// 외부 크레이트에서 자유롭게 구현 가능
+// External crates can freely implement:
 // impl Storage for RedisStorage { ... }
 // impl Storage for S3Storage { ... }
 ```
 
-### 내부로 닫힌 (Closed) → Enum dispatch
-변형이 내부에서 고정되고 패턴 매칭으로 분기하는 경우.
+### Closed (internally fixed) → Enum dispatch
+Use when variants are fixed and dispatched via pattern matching.
 
 ```rust
 pub enum Command {
@@ -116,22 +120,22 @@ impl Command {
 }
 ```
 
-### 판단 기준
-- **"이 타입의 변형을 사용자(외부 크레이트)가 추가할 수 있어야 하는가?"** → Yes: trait, No: enum
-- enum은 `#[non_exhaustive]`로 향후 variant 추가에 대비할 수 있음
+### Decision criteria
+- **"Should external crates be able to add variants of this type?"** → Yes: trait, No: enum
+- Use `#[non_exhaustive]` on enums to allow future variant additions
 
 ---
 
 ## 4. Module Style
 
-`{module}.rs` 패턴 사용. `mod.rs` 금지.
+Use `{module}.rs` pattern. Do not use `mod.rs`.
 
 ```
 src/
 ├── lib.rs
 ├── parser.rs          # mod parser
 ├── parser/
-│   ├── lexer.rs       # mod parser::lexer (parser.rs에서 mod lexer;)
+│   ├── lexer.rs       # mod parser::lexer (declared in parser.rs: mod lexer;)
 │   └── token.rs       # mod parser::token
 └── config.rs          # mod config
 ```
@@ -140,11 +144,11 @@ src/
 
 ## 5. Naming Rules
 
-| 대상 | 스타일 | 예시 |
-|------|--------|------|
+| Target | Style | Example |
+|--------|-------|---------|
 | Files | snake_case | `order_handler.rs` |
 | Types (struct, enum, trait) | PascalCase | `OrderHandler` |
 | Functions, methods | snake_case | `process_order` |
 | Constants | SCREAMING_SNAKE_CASE | `MAX_RETRY_COUNT` |
-| Type parameters | 단일 대문자 또는 PascalCase | `T`, `Item` |
-| Crate names | kebab-case (Cargo.toml) / snake_case (코드) | `my-crate` / `my_crate` |
+| Type parameters | Single uppercase or PascalCase | `T`, `Item` |
+| Crate names | kebab-case (Cargo.toml) / snake_case (code) | `my-crate` / `my_crate` |
