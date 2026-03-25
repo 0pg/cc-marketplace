@@ -1,0 +1,7 @@
+[dependencies]
+tracing = {}
+tracing-subscriber = { features = ["env-filter"] }
+serde = { features = ["derive"] }
+serde_json = {}
+thiserror = {}
+anyhow = {}
