@@ -28,7 +28,6 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | BUGFIX | fix, bug, error, fail, broken, crash, debug, trace | 수정, 버그, 에러, 실패, 오류, 크래시, 진단, 추적 | `/bugfix` | active |
 | COMPILE | compile, generate, build, code generation | 컴파일, 코드 생성, 빌드 | `/compile` | active |
 | VALIDATE | validate, check, verify, drift, lint | 검증, 확인, 드리프트, 린트 | `/validate` | active |
-| SYNC | sync, index, reindex, refresh index | 동기화, 인덱스, 인덱스 생성, 인덱스 갱신 | `/sync` | active |
 | IMPACT | impact, affected, breaking, depends, dependency, influence | 영향, 영향 분석, 의존, 의존 모듈, breaking change | `/impact` | active |
 | DIFF | diff, compare, changes, what changed, spec diff | 비교, 변경사항, 뭐가 바뀌었, 스펙 변경, 계약 비교 | `/diff-spec` | active |
 | STATUS | status, health, dashboard, overview, coverage | 상태, 건강도, 대시보드, 현황, 커버리지 | `/status` | active |
@@ -38,14 +37,14 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 
 **분류 규칙:**
 1. 키워드 매칭은 대소문자 무시
-2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > DECOMPILE > VALIDATE > SYNC > RESOLVE > IMPACT > DIFF > STATUS > REFACTOR)
+2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > DECOMPILE > VALIDATE > RESOLVE > IMPACT > DIFF > STATUS > REFACTOR)
 3. 어느 카테고리에도 해당하지 않으면 **AMBIGUOUS** → AskUserQuestion으로 명확화:
    - "요청을 다음 중 어느 작업으로 분류해야 할까요?"
    - 선택지: 기능 추가(/impl), 버그 수정(/bugfix), 코드 생성(/compile), 검증(/validate), 영향 분석(/impact), 기타(구체적 설명 요청)
 
 ## Step 3: CLAUDE.md 존재 확인
 
-**FEATURE(→ /impl), DECOMPILE(→ /decompile), SYNC(→ /sync) 카테고리는 이 단계를 건너뜁니다** — /impl은 새 CLAUDE.md를 생성, /decompile과 /sync는 소스코드에서 직접 생성하므로.
+**FEATURE(→ /impl), DECOMPILE(→ /decompile) 카테고리는 이 단계를 건너뜁니다** — /impl은 새 CLAUDE.md를 생성, /decompile은 소스코드에서 직접 생성하므로.
 
 나머지 카테고리(BUGFIX, COMPILE, VALIDATE, IMPACT, DIFF, STATUS, RESOLVE, REFACTOR):
 1. `--path` 경로에서 CLAUDE.md를 Glob으로 검색
@@ -64,7 +63,6 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | COMPILE | `Skill("claude-md-plugin:compile", args: "[--path]")` |
 | DECOMPILE | `Skill("claude-md-plugin:decompile", args: "[--path]")` |
 | VALIDATE | `Skill("claude-md-plugin:validate", args: "[path]")` |
-| SYNC | `Skill("claude-md-plugin:sync", args: "[--path] [--all]")` |
 | RESOLVE | `Skill("claude-md-plugin:resolve", args: "[path]")` |
 | IMPACT | `Skill("claude-md-plugin:impact", args: "[path]")` |
 | DIFF | `Skill("claude-md-plugin:diff-spec", args: "{path}")` |

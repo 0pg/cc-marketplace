@@ -31,7 +31,7 @@ Bash(claude-md-core scan-claude-md) → 기존 CLAUDE.md 인덱스
 Task(impl agent) + claude_md_index_file
     │
     └─→ CLAUDE.md 생성/업데이트 (WHAT)
-        - Purpose, Constraints, Domain Context
+        - Purpose, Requirements, Domain Context
         - (project root only) Instructions, Conventions
 ```
 
@@ -98,7 +98,7 @@ impl agent를 Task로 호출합니다. 프롬프트에 사용자 요구사항(`u
 
 **impl agent 워크플로우:**
 0. **⭐ Scope Assessment** — 완성도 분류 (high/medium/low) + 멀티 모듈 감지
-1. 요구사항에서 Purpose, Constraints, Domain Context 추출
+1. 요구사항에서 Purpose, Requirements, Domain Context 추출
 1.5. **Task(dep-explorer)** — 의존성 탐색 위임 (internal CLAUDE.md + external packages)
 2. **⭐ Tiered Clarification** — Tier 1(범위) → Tier 2(제약) → Tier 3(맥락), 최대 2라운드
    - completeness=high이면 Phase 2 건너뛰기 (경로 미지정 시 LOCATION만 질문)
@@ -159,11 +159,11 @@ Bash: git diff HEAD -- {target_path}/CLAUDE.md
 === /impl 완료 ===
 
 생성/업데이트된 파일:
-  ✓ {target_path}/CLAUDE.md (WHAT - 계약)
+  ✓ {target_path}/CLAUDE.md (PM 요구사항)
 
-계약 요약:
+요약:
   - Purpose: {purpose}
-  - Constraints: {constraints_count}개
+  - Requirements: {requirements_count}개
   - Domain Context: {domain_context_count}개
 
 검증 결과: 스키마 검증 통과
@@ -207,7 +207,7 @@ status: cancelled_by_user
 - Generate source code (use /compile)
 - Modify source code (use /compile)
 - Skip schema validation
-- Read source code for dependency discovery (use CLAUDE.md Purpose/Constraints)
+- Read source code for dependency discovery (use CLAUDE.md Purpose/Requirements)
 - Save files without user approval (Phase 6.5)
 
 ## 오류 처리
@@ -259,11 +259,11 @@ status: cancelled_by_user
 === /impl 완료 ===
 
 생성/업데이트된 파일:
-  ✓ src/auth/CLAUDE.md (WHAT - 계약)
+  ✓ src/auth/CLAUDE.md (PM 요구사항)
 
-계약 요약:
+요약:
   - Purpose: JWT 토큰 검증 인증 모듈
-  - Constraints: 2개
+  - Requirements: 2개
   - Domain Context: 1개
 
 다음 단계:

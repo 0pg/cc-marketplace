@@ -1,7 +1,7 @@
 {
   "name": "claude-md-plugin",
-  "version": "7.3.2",
-  "description": "Code-First 문서-코드 동기화 플러그인. 소스코드가 Source of Truth, CLAUDE.md는 사전학습 인덱스 + 인간 지식 저장소. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
+  "version": "8.0.0",
+  "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. CLAUDE.md가 PM 요구사항 문서, DEVELOPERS.md가 개발자 명세, 소스코드는 파생 산출물. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
   "author": {
     "name": "jhk"
   },
@@ -26,7 +26,6 @@
     "./skills/diff-spec",
     "./skills/status",
     "./skills/refactor",
-    "./skills/sync",
     "./skills/tree-parse",
     "./skills/resolve"
   ],
@@ -36,7 +35,6 @@
     "./agents/debugger.md",
     "./agents/decompiler.md",
     "./agents/dep-explorer.md",
-    "./agents/index-generator.md",
     "./agents/impl.md",
     "./agents/impl-reviewer.md",
     "./agents/validator.md"

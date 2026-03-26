@@ -1,11 +1,11 @@
 <!--
   impl-reviewer-templates.md
   Consolidated reference for the impl-reviewer agent.
-  Contains: Review dimensions (D1-D3), check definitions (v6 schema),
+  Contains: Review dimensions (D1-D3), check definitions (v7 schema),
   severity levels, scoring formula, finding format, fix proposal format,
   result template, and quality anti-patterns.
 
-  v6: CLAUDE.md has Purpose, Constraints, Domain Context (no Exports/Behavior/Contract).
+  v7: CLAUDE.md has Purpose, Requirements, Domain Context.
   Review checks focus on these 3 sections + conditional sections.
 
   Loaded at runtime by the impl-reviewer agent via:
@@ -23,7 +23,7 @@
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
 | D1-1 | Purpose 정렬 | CRITICAL | Purpose가 요구사항의 핵심 의도를 반영하는가 |
-| D1-2 | 제약 커버리지 | CRITICAL | 요구사항에 언급된 규칙/제한이 Constraints에 매핑되는가 |
+| D1-2 | 요구사항 커버리지 | CRITICAL | 요구사항에 언급된 규칙/제한이 Requirements에 매핑되는가 |
 | D1-3 | 맥락 캡처 | WARNING | 언급된 배경/근거가 Domain Context에 있는가 |
 | D1-4 | 도메인 용어 | INFO | 요구사항의 도메인 용어가 문서에 보존되었는가 |
 
@@ -33,21 +33,21 @@ CLAUDE.md의 내재적 품질을 평가.
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D2-1 | 스키마 준수 | CRITICAL | 3개 always-required (Purpose, Constraints, Domain Context) + conditional 섹션 존재 (CLI 결과 반영) |
-| D2-2 | Constraints 구체성 | CRITICAL | 각 constraint가 검증 가능하고 구체적인가 (수치, 조건 포함) |
-| D2-3 | Constraints 근거 | WARNING | 각 constraint에 근거/이유가 명시되어 있는가 (e.g., PCI-DSS) |
+| D2-1 | 스키마 준수 | CRITICAL | 3개 always-required (Purpose, Requirements, Domain Context) + conditional 섹션 존재 (CLI 결과 반영) |
+| D2-2 | Requirements 구체성 | CRITICAL | 각 requirement가 검증 가능하고 비즈니스 관점인가 |
+| D2-3 | Requirements 근거 | WARNING | 각 requirement에 근거/이유가 명시되어 있는가 (e.g., PCI-DSS) |
 | D2-4 | Purpose 명확성 | WARNING | 1-2 문장, 구체적 (generic이 아닌) |
 | D2-5 | Domain Context 품질 | WARNING | 2-3문장, 코드만으로 알 수 없는 "왜"에 집중 |
 | D2-6 | Domain Context 히스토리 금지 | WARNING | 변경 이력/날짜/버전 히스토리가 포함되어 있지 않은가 |
 | D2-7 | "None" 섹션 감사 | WARNING | "None"으로 표시된 섹션이 실제로 해당 없는지 확인 |
-| D2-8 | Constraints 자기완결성 | INFO | 상위 모듈의 관련 제약이 포함 반복되어 있는가 |
+| D2-8 | Requirements 자기완결성 | INFO | 상위 모듈의 관련 요구사항이 포함 반복되어 있는가 |
 
 ### D3: Internal Consistency
 
 | ID | Check | Severity | Criteria |
 |----|-------|----------|----------|
-| D3-1 | Purpose ↔ Constraints 정렬 | CRITICAL | Constraints가 Purpose에서 논리적으로 도출 가능한가 |
-| D3-2 | Domain Context ↔ Constraints 정렬 | WARNING | Domain Context의 결정 근거가 Constraints에 반영되는가 |
+| D3-1 | Purpose ↔ Requirements 정렬 | CRITICAL | Requirements가 Purpose에서 논리적으로 도출 가능한가 |
+| D3-2 | Domain Context ↔ Requirements 정렬 | WARNING | Domain Context의 결정 근거가 Requirements에 반영되는가 |
 | D3-3 | Domain Context / Decision Log 중복 | INFO | 같은 정보가 CLAUDE.md Domain Context와 DEVELOPERS.md Decision Log 양쪽에 있으면 플래그 |
 | D3-4 | Instructions ↔ Purpose 정렬 | INFO | project root의 Instructions가 Purpose와 일관되는가 |
 
@@ -166,18 +166,18 @@ Agent가 판단할 때 참고하는 앵커. 좋은 vs 나쁜 예시.
 사용자 업로드 CSV 파일을 파싱하여 정규화된 트랜잭션 레코드로 변환. 중복 행 제거 및 필수 컬럼(date, amount, description) 검증.
 ```
 
-### Bad: Vague Constraints
+### Bad: Vague Requirements
 ```
-## Constraints
+## Requirements
 - 데이터를 잘 처리해야 한다
 - 에러 처리가 필요하다
 ```
 
-### Good: Specific Constraints
+### Good: Specific Requirements
 ```
-## Constraints
-- 입력 CSV는 UTF-8만 허용, 최대 10MB (메모리 제약)
-- 필수 컬럼 누락 시 ValidationError 반환 (누락 컬럼명 포함)
+## Requirements
+- 입력 CSV는 UTF-8만 허용, 최대 10MB
+- 필수 컬럼 누락 시 에러 반환 (누락 컬럼명 포함)
 - 중복 행은 첫 번째만 유지, 중복 수 로그 기록
 - 날짜 형식은 ISO 8601만 허용
 ```
@@ -200,16 +200,16 @@ JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책을 적용합니다.
 HMAC-SHA256은 내부 서비스 간 통신이라 RSA 불필요합니다.
 ```
 
-### Bad: Non-self-contained Constraints
+### Bad: Non-self-contained Requirements
 ```
-## Constraints
+## Requirements
 - refresh token 만료 시간은 access token의 2배
 ```
-(상위 모듈의 "access token 만료 7일" 제약을 참조하지만 자기완결 아님)
+(상위 모듈의 "access token 만료 7일" 요구사항을 참조하지만 자기완결 아님)
 
-### Good: Self-contained Constraints
+### Good: Self-contained Requirements
 ```
-## Constraints
+## Requirements
 - access token 만료 최대 7일 (PCI-DSS)
 - refresh token 만료 최대 14일 (access token의 2배)
 ```

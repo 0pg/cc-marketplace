@@ -1,7 +1,7 @@
 Feature: Schema Validation
   As a developer maintaining CLAUDE.md files
   I want to validate that they follow the required schema
-  So that they can be reliably used as pre-learning indices
+  So that they can be reliably used as the primary SSOT
 
   Background:
     Given a clean test directory
@@ -11,7 +11,7 @@ Feature: Schema Validation
       """
       # Test Module
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -21,7 +21,7 @@ Feature: Schema Validation
     Then validation should fail
     And error should mention "Missing required section: Purpose"
 
-  Scenario: Missing Constraints fails validation
+  Scenario: Missing Requirements fails validation
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -34,7 +34,7 @@ Feature: Schema Validation
       """
     When I validate the schema
     Then validation should fail
-    And error should mention "Missing required section: Constraints"
+    And error should mention "Missing required section: Requirements"
 
   Scenario: Missing Domain Context fails validation
     Given CLAUDE.md with content:
@@ -44,7 +44,7 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
-      ## Constraints
+      ## Requirements
       None
       """
     When I validate the schema
@@ -59,7 +59,7 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -68,7 +68,7 @@ Feature: Schema Validation
     When I validate the schema
     Then validation should pass
 
-  Scenario: Valid spec with constraints passes validation
+  Scenario: Valid spec with requirements passes validation
     Given CLAUDE.md with content:
       """
       # Auth Module
@@ -76,7 +76,7 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
-      ## Constraints
+      ## Requirements
       - Token expiry must be 7 days (PCI-DSS)
       - Maximum 5 concurrent sessions
 
@@ -94,7 +94,7 @@ Feature: Schema Validation
       ## Purpose
       None
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -112,7 +112,7 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
-      ## Constraints
+      ## Requirements
       N/A
 
       ## Domain Context
@@ -129,7 +129,7 @@ Feature: Schema Validation
       ## Purpose
       Validates authentication tokens.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -152,7 +152,7 @@ Feature: Schema Validation
       Test module.
       """
     When I fix the schema
-    Then fix should add sections "Constraints, Domain Context"
+    Then fix should add sections "Requirements, Domain Context"
     And the fixed file should pass validation
 
   Scenario: Fix schema does not modify complete files
@@ -163,7 +163,7 @@ Feature: Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context

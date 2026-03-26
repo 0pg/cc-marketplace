@@ -6,7 +6,7 @@ description: |
   This skill should be used when the user asks to "compare CLAUDE.md versions",
   "show spec changes", "diff specification", "what changed in the contract",
   or uses "/diff-spec".
-  Shows semantic diff between two versions of a CLAUDE.md, comparing Purpose, Constraints, Domain Context, and Conventions.
+  Shows semantic diff between two versions of a CLAUDE.md, comparing Purpose, Requirements, Domain Context, and Conventions.
   Trigger keywords: 스펙 변경, 문서 비교, 문서 diff, 명세 변경
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write]
@@ -61,9 +61,9 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 #### Purpose 비교
 - 텍스트 변경 여부: CHANGED / UNCHANGED
 
-#### Constraints 비교 (항목 단위)
+#### Requirements 비교 (항목 단위)
 
-각 constraint를 매칭하여 변경 분류:
+각 requirement를 매칭하여 변경 분류:
 
 | 변경 유형 | 조건 |
 |-----------|------|
@@ -94,7 +94,7 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 | 섹션 | 추가 | 제거 | 변경 | 상태 |
 |------|------|------|------|------|
 | Purpose | - | - | 1 | CHANGED |
-| Constraints | 2 | 1 | 1 | BREAKING |
+| Requirements | 2 | 1 | 1 | BREAKING |
 | Domain Context | 1 | 0 | 0 | MODIFIED |
 | Conventions | 0 | 0 | 1 | MODIFIED |
 
@@ -103,7 +103,7 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 - 이전: "JWT 기반 인증 모듈"
 + 현재: "JWT 및 OAuth2 기반 인증 모듈"
 
-## Constraints 변경
+## Requirements 변경
 
 ### ADDED
 - `+ 동시 세션 최대 5개`
@@ -138,8 +138,8 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 
 **DO:**
 - parse-claude-md CLI로 두 버전을 구조적으로 파싱
-- Constraints를 항목 단위로 ADDED/REMOVED/MODIFIED 비교
-- BREAKING 변경(Constraints 제거/수정)을 명확히 표시
+- Requirements를 항목 단위로 ADDED/REMOVED/MODIFIED 비교
+- BREAKING 변경(Requirements 제거/수정)을 명확히 표시
 - `/impact` 연계 안내
 
 **DON'T:**
@@ -169,9 +169,9 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 ----
 | 섹션 | 추가 | 제거 | 변경 | 상태 |
 |------|------|------|------|------|
-| Constraints | 1 | 0 | 1 | MODIFIED |
+| Requirements | 1 | 0 | 1 | MODIFIED |
 
-Constraints 변경
+Requirements 변경
 -----------
 + 동시 세션 최대 5개
 ~ 토큰 만료: 7일 → 14일

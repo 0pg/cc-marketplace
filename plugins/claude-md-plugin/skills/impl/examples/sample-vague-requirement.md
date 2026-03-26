@@ -71,7 +71,7 @@ AskUserQuestion (3개):
 ## Phase 3~6: 경로 결정 → 문서 생성
 
 - Target path: `src/user` (create 모드)
-- CLAUDE.md 생성 (Constraints 8개, Domain Context 있음)
+- CLAUDE.md 생성 (Requirements 8개, Domain Context 있음)
 
 ## Phase 6.5: Plan Preview
 

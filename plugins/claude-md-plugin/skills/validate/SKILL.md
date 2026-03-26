@@ -74,12 +74,11 @@ auto-fix 후에도 실패하면 해당 모듈을 스키마 오류로 보고하�
 Task(validator): "검증 대상: {directory}"
 ```
 
-validator agent가 검증하는 5개 drift 카테고리:
-1. **Constraints Drift** — 코드가 명시된 제약을 위반/미적용
-2. **Domain Context Drift** — 맥락 정보가 코드와 불일치
-3. **Convention Drift** — 코딩 규칙 위반
-4. **DEVELOPERS.md Drift (INV-3)** — DEVELOPERS.md 부재, File Map 불일치
-5. **Boundary Violations (INV-1)** — 트리 구조 의존성 위반
+validator agent가 검증하는 4개 drift 카테고리:
+1. **Requirements Drift** — 코드가 명시된 요구사항을 위반/미적용
+2. **Convention Drift** — 코딩 규칙 위반
+3. **DEVELOPERS.md Drift (INV-3)** — DEVELOPERS.md 부재, Constraints/Technical Context 불일치
+4. **Boundary Violations (INV-1)** — 트리 구조 의존성 위반
 
 결과를 `${TMP_DIR}validate-progress.jsonl`에 누적:
 ```bash
@@ -114,7 +113,7 @@ echo '{"directory":"{dir}","issues":{n},"status":"{status}"}' >> "${TMP_DIR}vali
 
 | 카테고리 | 유형 | 설명 | 신뢰도 |
 |----------|------|------|--------|
-| Constraints | VIOLATED | {description} | MEDIUM |
+| Requirements | VIOLATED | {description} | MEDIUM |
 | DEVELOPERS.md | MISSING | DEVELOPERS.md 부재 | HIGH |
 
 ## 추천 액션
@@ -169,8 +168,8 @@ Validation Report
 | 총 이슈 | 5개 |
 
 Drift 이슈:
-  src/auth: Constraints VIOLATED (1), Convention MISSING_SUBSECTION (1)
-  src/legacy: DEVELOPERS.md MISSING (1), Domain Context STALE (2)
+  src/auth: Requirements VIOLATED (1), Convention MISSING_SUBSECTION (1)
+  src/legacy: DEVELOPERS.md MISSING (1), Boundary VIOLATED (2)
 
 추천: `/resolve` 로 drift 해소
 </assistant_response>

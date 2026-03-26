@@ -21,7 +21,7 @@ description: |
 
   1. Scan index loaded - 12 modules found
   2. Semantic matching - 2 relevant modules identified (utils/crypto, config)
-  3. CLAUDE.md Read - Purpose/Constraints confirmed for utils/crypto, config
+  3. CLAUDE.md Read - Purpose/Requirements confirmed for utils/crypto, config
   4. External deps checked - jsonwebtoken@9.0.0 found in package.json
   5. No new external deps needed
   6. Result saved
@@ -57,7 +57,7 @@ description: |
 
   1. Scan index loaded - 12 modules found
   2. Semantic matching - 1 relevant module identified (utils/template)
-  3. CLAUDE.md Read - Purpose/Constraints confirmed for utils/template
+  3. CLAUDE.md Read - Purpose/Requirements confirmed for utils/template
   4. External deps checked - no PDF library in package.json
   5. [AskUserQuestion: "PDF 생성에 puppeteer를 새로 추가해도 될까요?"] → approved
   6. Result saved
@@ -147,9 +147,9 @@ claude_md_index_file: {claude_md_index_file}
 
 ### Step 3: 매칭된 CLAUDE.md 선별적 Read
 
-관련 모듈만 Read하여 Purpose/Constraints/Domain Context 상세 확인 (3-5개 수준):
+관련 모듈만 Read하여 Purpose/Requirements/Domain Context 상세 확인 (3-5개 수준):
 
-매칭된 각 모듈의 CLAUDE.md를 Read하여 Purpose와 Constraints 섹션을 추출합니다. 각 모듈의 `purpose`와 `constraints`를 모듈별 정보로 구성합니다.
+매칭된 각 모듈의 CLAUDE.md를 Read하여 Purpose와 Requirements 섹션을 추출합니다. 각 모듈의 `purpose`와 `requirements`를 모듈별 정보로 구성합니다.
 
 ### Step 4: 기존 외부 의존성 확인
 
@@ -197,9 +197,9 @@ module 모드에서는 대상 모듈을 **참조하는** 다른 모듈(dependent
 
 requirement 모드의 Step 1과 동일합니다.
 
-### Step M2: 대상 모듈 Purpose/Constraints 확인
+### Step M2: 대상 모듈 Purpose/Requirements 확인
 
-대상 모듈의 CLAUDE.md를 Read하여 Purpose와 Constraints를 확인합니다.
+대상 모듈의 CLAUDE.md를 Read하여 Purpose와 Requirements를 확인합니다.
 
 ### Step M3: 역방향 의존성 검색
 
@@ -240,7 +240,7 @@ dependent_count: N
 
 1. **1순위 - Internal (기존 CLAUDE.md)**:
    - scan 인덱스의 `purpose`로 매칭합니다.
-   - 매칭되면 해당 CLAUDE.md를 Read하여 Purpose/Constraints를 상세 확인합니다.
+   - 매칭되면 해당 CLAUDE.md를 Read하여 Purpose/Requirements를 상세 확인합니다.
    - 사용 가능하면 internal dep으로 추가합니다 (CLAUDE.md 경로 포함).
 2. **2순위 - Existing External (프로젝트에 이미 선언된 외부 의존성)**:
    - 프로젝트 의존성 설정 파일을 읽어 이미 선언된 라이브러리를 확인합니다.

@@ -5,8 +5,8 @@
 #   - Documentation (templates/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "3.1.0"
-description: "CLAUDE.md 스키마 검증 규칙 - v3.1 (Pre-learning Index + Human Knowledge Store)"
+version: "4.0.0"
+description: "CLAUDE.md 스키마 검증 규칙 - v4.0 (Primary SSOT — PM 요구사항)"
 
 sections:
   purpose:
@@ -15,15 +15,15 @@ sections:
     condition: "always"
     condition_type: "static"
     allow_none: false
-    description: "모듈의 책임을 1-2문장으로 명시"
+    description: "모듈의 존재 이유 (비즈니스 가치)"
 
-  constraints:
-    name: "Constraints"
+  requirements:
+    name: "Requirements"
     required: true
     condition: "always"
     condition_type: "static"
     allow_none: true
-    description: "코드가 지켜야 할 규칙. 자기완결(상위 제약 포함 반복)."
+    description: "비즈니스 요구사항 (사용자 관점, 검증 가능한 문장)"
 
   domain_context:
     name: "Domain Context"
@@ -31,7 +31,7 @@ sections:
     condition: "always"
     condition_type: "static"
     allow_none: true
-    description: "핵심 맥락 요약. 2-3문장."
+    description: "비즈니스 제약 배경 (규정, 레거시, 조직적 이유)"
 
   instructions:
     name: "Instructions"
@@ -80,19 +80,19 @@ reference_rules:
       description: "자식 디렉토리 참조 허용"
 
 developers_sections:
-  domain_context:
-    name: "Domain Context"
+  constraints:
+    name: "Constraints"
     required: true
     allow_none: true
-    description: "모듈 도메인 맥락 상세. CLAUDE.md Domain Context의 확장."
-  invariants:
-    name: "Invariants"
+    description: "정밀한 입출력 계약 — 테스트 변환 가능해야 함"
+  technical_context:
+    name: "Technical Context"
     required: true
     allow_none: true
-    description: "모듈 내부 불변식. 코드가 항상 만족해야 할 조건."
+    description: "기술 선택 + 근거 (라이브러리, 알고리즘, 패턴)"
   decision_log:
     name: "Decision Log"
-    required: true
+    required: false
     allow_none: true
     description: "ADR 스타일 결정 기록. 각 결정을 소제목으로, Context/Decision/Rationale 또는 맥락/결정/근거 고정 스키마"
     required_entry_fields:
@@ -101,18 +101,13 @@ developers_sections:
       - "Rationale|근거"
   operations:
     name: "Operations"
-    required: true
+    required: false
     allow_none: true
     description: "배포, 모니터링, 트러블슈팅"
     subsections:
       - "Gotchas"
       - "Deployment|배포"
       - "Monitoring|모니터링"
-  file_map:
-    name: "File Map"
-    required: true
-    allow_none: true
-    description: "파일별 역할 및 의존관계 테이블"
 
 none_marker:
   values:

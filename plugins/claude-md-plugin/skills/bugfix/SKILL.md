@@ -88,7 +88,7 @@ Glob: {matched_dir}/**/*test*  또는  {matched_dir}/**/*spec*
 
 **3.4. 관련 테스트 실행 → 실패 시 Type A/B 흐름 합류.**
 
-**3.5. 전체 통과 → Constraints 교차 분석 (CLAUDE.md Constraints vs 실제 동작 비교).**
+**3.5. 전체 통과 → Requirements 교차 분석 (CLAUDE.md Requirements vs 실제 동작 비교).**
 
 ### 4. 대상 식별
 
@@ -125,7 +125,7 @@ $CLI_PATH diff-compile-targets --root {project_root}
 
 | 검증 결과 | 조건 | 리스크 | 대응 |
 |-----------|------|--------|------|
-| 스키마 FAIL (필수 섹션 누락) | Purpose/Constraints/Domain Context 오류 | **HIGH** | 차단 + AskUserQuestion 오버라이드 확인 |
+| 스키마 FAIL (필수 섹션 누락) | Purpose/Requirements/Domain Context 오류 | **HIGH** | 차단 + AskUserQuestion 오버라이드 확인 |
 | 스키마 FAIL (선택 섹션만) | 경고만 | **LOW** | 경고 후 계속 |
 | 미컴파일: `untracked`/`no-source-code` | 소스코드 없음 | **HIGH** | 차단 + `/compile` 안내 |
 | 미컴파일: `staged`/`modified`/`spec-newer` | 코드-스펙 불일치 | **MEDIUM** | 경고 + AskUserQuestion |
@@ -165,7 +165,7 @@ debugger agent가 구조화된 블록으로 결과 반환:
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_CONSTRAINT_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_REQUIREMENTS_GAP | SPEC_REQUIREMENTS_MISMATCH | CONTEXT_CONSTRAINT_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}
@@ -309,8 +309,8 @@ src/auth에서 에러를 진단합니다...
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_CONSTRAINT_MISMATCH
-요약: CLAUDE.md constraints specify validateToken as standalone but code defines it as class method
+Root Cause: L1 - SPEC_REQUIREMENTS_MISMATCH
+요약: CLAUDE.md Requirements specify validateToken as standalone but code defines it as class method
 
 수정된 문서: [CLAUDE.md]
 Compile: PASS
@@ -340,7 +340,7 @@ Compile: PASS
 =========
 
 Root Cause: L3 - CODE_SPEC_DIVERGENCE
-요약: Code returns null instead of empty array as specified in CLAUDE.md Constraints
+요약: Code returns null instead of empty array as specified in CLAUDE.md Requirements
 
 수정된 문서: (스펙/플랜 정확 — 재컴파일로 해결)
 Compile: PASS
@@ -373,8 +373,8 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_CONSTRAINT_GAP
-요약: Token refresh on expiry not specified in CLAUDE.md Constraints
+Root Cause: L1 - SPEC_REQUIREMENTS_GAP
+요약: Token refresh on expiry not specified in CLAUDE.md Requirements
 
 수정된 문서: [CLAUDE.md]
 Compile: PASS

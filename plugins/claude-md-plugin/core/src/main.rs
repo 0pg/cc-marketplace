@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use claude_md_core::{
@@ -124,17 +123,6 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
-    /// Index entire project: tree-parse + code analysis for all directories
-    IndexProject {
-        /// Root directory to scan and analyze
-        #[arg(short, long, default_value = ".")]
-        root: PathBuf,
-
-        /// Output JSON file path
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
-
     /// Scan existing CLAUDE.md files and build lightweight index
     ScanClaudeMd {
         /// Root directory to scan
@@ -196,20 +184,6 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct IndexResult {
-    root: PathBuf,
-    directories: Vec<DirectoryAnalysis>,
-    excluded: Vec<PathBuf>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DirectoryAnalysis {
-    path: PathBuf,
-    depth: usize,
-    analysis: code_analyzer::AnalysisResult,
 }
 
 fn main() {
@@ -407,36 +381,6 @@ fn main() {
                 ).into()),
             }
         }
-        Commands::IndexProject { root, output } => {
-            let tree_parser = TreeParser::new();
-            let tree_result = tree_parser.parse(root);
-            let analyzer = CodeAnalyzer::new();
-            // Borrows tree_result temporarily; copies needed data internally via clone.
-            let resolver = DependencyResolver::new(&tree_result);
-
-            let mut directories = Vec::new();
-            for dir_info in &tree_result.needs_claude_md {
-                let dir_path = root.join(&dir_info.path);
-                match analyzer.analyze_directory(&dir_path, None) {
-                    Ok(mut analysis) => {
-                        resolver.resolve(&mut analysis, &dir_info.path);
-                        directories.push(DirectoryAnalysis {
-                            path: dir_info.path.clone(),
-                            depth: dir_info.depth,
-                            analysis,
-                        });
-                    }
-                    Err(e) => eprintln!("Warning: skipping {}: {}", dir_info.path.display(), e),
-                }
-            }
-
-            let index_result = IndexResult {
-                root: tree_result.root,
-                directories,
-                excluded: tree_result.excluded,
-            };
-            output_result(&index_result, output.as_ref(), "index-project")
-        }
     };
 
     if let Err(e) = result {
@@ -451,7 +395,6 @@ fn main() {
 
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
-            Commands::IndexProject { .. } => "index-project",
             Commands::ContractHash { .. } => "contract-hash",
             Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",

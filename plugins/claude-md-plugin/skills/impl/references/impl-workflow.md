@@ -2,13 +2,13 @@
      Extracted from agents/impl.md for context efficiency.
      Contains detailed workflow pseudocode for the impl agent:
      - Phase 0: Scope Assessment (completeness + multi-module detection)
-     - Phase 1: Requirements Analysis (v6: 4 elements)
+     - Phase 1: Requirements Analysis (v7: 4 elements)
      - Phase 1.5: dep-explorer delegation
      - Phase 2: Tiered Clarification (Tier 1→2→3, max 2 rounds)
      - Phase 3: Target path determination
      - Phase 4: Merge strategy
-     - Phase 5: CLAUDE.md generation (v6 schema: Purpose, Constraints, Domain Context)
-     - Phase 5.25: DEVELOPERS.md generation
+     - Phase 5: CLAUDE.md generation (v7 schema: Purpose, Requirements, Domain Context)
+     - Phase 5.25: DEVELOPERS.md generation (Derived Spec: Constraints + Technical Context)
      - Phase 5.5: compile-context generation (ephemeral spec)
      - Phase 6: Schema validation
      - Phase 6.5: Plan Preview & User Approval
@@ -29,7 +29,7 @@
 | 차원 | 평가 대상 | 평가 방법 |
 |------|----------|----------|
 | **D1: Purpose 명확도** | 모듈 책임이 특정되었는가 | 핵심 동사+목적어가 명확하면 "있음", 추상적이면 "추론 가능", 불명이면 "없음" |
-| **D2: Constraints 구체성** | 제약/규칙이 구체적으로 명시되었는가 | 수치, 조건이 **리터럴로** 존재하면 "있음", 암시적이면 "추론 가능", 없으면 "없음" |
+| **D2: Requirements 구체성** | 요구사항/규칙이 구체적으로 명시되었는가 | 수치, 조건이 **리터럴로** 존재하면 "있음", 암시적이면 "추론 가능", 없으면 "없음" |
 | **D3: Domain Context 포함** | 결정 근거, 도메인 규칙이 있는가 | 구체적 배경(PCI-DSS, SLA 등) 명시면 "있음", 암시적이면 "추론 가능", 없으면 "없음" |
 
 각 차원을 `있음` / `추론 가능` / `없음`으로 평가 → completeness 결정:
@@ -54,7 +54,7 @@ completeness: {high|medium|low}
 scope: {single-module|multi-module}
 evidence:
   D1_purpose: {있음|추론 가능|없음} — "{인용 근거}"
-  D2_constraints: {있음|추론 가능|없음} — "{인용 근거}"
+  D2_requirements: {있음|추론 가능|없음} — "{인용 근거}"
   D3_domain_context: {있음|추론 가능|없음} — "{인용 근거}"
 next_phase: {Phase 2 진입점}
 ---end-scope-assessment---
@@ -85,7 +85,7 @@ multi-module 감지 시 AskUserQuestion:
 "도메인 그룹 생성" 선택 시:
 - 상위 디렉토리에 CLAUDE.md 생성
   - Purpose: 도메인 그룹 설명 (예: "결제 도메인 — 카드 결제, 정산, 환불을 관할")
-  - Constraints: 그룹 레벨 제약 (개별 모듈 공통)
+  - Requirements: 그룹 레벨 요구사항 (개별 모듈 공통)
   - Domain Context: 모듈 간 관계가 있으면 기술, 없으면 None
 - 하위 모듈 CLAUDE.md는 생성하지 않음 → 나머지 모듈용 /impl 가이드 제공
 - Phase 1~7을 그룹 노드 기준으로 진행
@@ -98,9 +98,9 @@ multi-module 감지 시 AskUserQuestion:
 
 | 형식 | 판별 기준 | 추출 전략 |
 |------|----------|----------|
-| **User Story** | "~로서 ~를 ~하고 싶다" 패턴 | 역할→Purpose, 행위→Constraints, 가치→Domain Context |
-| **Feature List** | 나열형 기능 목록, 번호 매김 | 각 항목→Constraints 후보, 항목 관계→Domain Context |
-| **자연어** | 비정형 설명, 대화체 | 핵심 동사+목적어→Purpose, 조건절→Constraints |
+| **User Story** | "~로서 ~를 ~하고 싶다" 패턴 | 역할→Purpose, 행위→Requirements, 가치→Domain Context |
+| **Feature List** | 나열형 기능 목록, 번호 매김 | 각 항목→Requirements 후보, 항목 관계→Domain Context |
+| **자연어** | 비정형 설명, 대화체 | 핵심 동사+목적어→Purpose, 조건절→Requirements |
 | **기술 요구사항** | 수치, 제한, API 스펙 포함 | 리터럴 추출 (confirmed), 나머지 추론 |
 
 **혼합형 요구사항:** 여러 형식이 섞여 있으면 `자연어`로 분류합니다.
@@ -113,7 +113,7 @@ multi-module 감지 시 AskUserQuestion:
 | 추출 항목 | 추출 방법 | 신뢰도 기준 |
 |-----------|----------|------------|
 | **Purpose** | "핵심 동사+목적어" 패턴으로 모듈 책임 식별 | 명시적 문장→confirmed, 맥락 추론→inferred |
-| **Constraints** | 수치 제한, 형식 제약, "반드시/필수" 키워드에서 추출 | 명시적 규칙→confirmed, 관례 추론→inferred |
+| **Requirements** | 수치 제한, 형식 제약, "반드시/필수" 키워드에서 추출 | 명시적 규칙→confirmed, 관례 추론→inferred |
 | **Domain Context** | 결정 근거, 도메인 규칙, 호환성 요구, 규정(PCI-DSS 등) 추출 | 명시→confirmed, 표준 관행 추론→inferred |
 | **Location** | 명시된 경로 추출, 없으면 모듈명에서 추론 | 경로 명시→confirmed, 이름 추론→inferred, 불명→gap |
 
@@ -125,7 +125,7 @@ gap 항목이 Phase 2 질문 대상을 직접 결정합니다:
 ---extraction-summary---
 format: {user-story|feature-list|natural-language|technical-spec}
 purpose: {추출된 Purpose} [{confirmed|inferred|gap}]
-constraints: {confirmed|inferred|gap}
+requirements: {confirmed|inferred|gap}
 domain_context: {confirmed|inferred|gap}
 location: {path or "unknown"} [{confirmed|inferred|gap}]
 gaps: [{Phase 2 질문 대상}]
@@ -167,7 +167,7 @@ AskUserQuestion 제약(최대 4질문, 2-4옵션)을 고려하여 계층적으�
 | Tier | 카테고리 | 질문 조건 | 질문 예시 |
 |------|---------|----------|----------|
 | **1 (범위)** | PURPOSE, LOCATION | completeness=low 이거나 경로 미지정 | "핵심 책임은?", "위치는?" |
-| **2 (제약)** | CONSTRAINTS | Constraints 불명확 | "어떤 제약?", "에러 처리?" |
+| **2 (제약)** | REQUIREMENTS | Requirements 불명확 | "어떤 요구사항?", "에러 처리?" |
 | **3 (맥락)** | DOMAIN_CONTEXT, DEPENDENCY | D3="없음"이면 필수, D3="추론 가능"이면 선택적 | "배경은?", "외부 라이브러리?" |
 
 #### 라운드 실행 로직
@@ -209,16 +209,16 @@ Round 2: Tier 2 질문(최대 2개) + Tier 3 질문(최대 2개) 합산하여 �
 | 섹션 | 병합 전략 |
 |------|----------|
 | Purpose | 기존 유지 또는 확장 (사용자 선택) |
-| Constraints | 기존 유지 + 신규 추가 (중복 제거) |
+| Requirements | 기존 유지 + 신규 추가 (중복 제거) |
 | Domain Context | 기존 유지 또는 확장 (사용자 선택) |
 
-### Phase 5: CLAUDE.md 생성 (v6 스키마)
+### Phase 5: CLAUDE.md 생성 (v7 스키마)
 
 #### Step 0: 기존 패턴 참조
 
 scan 인덱스에 기존 모듈이 3개 이상 있으면, 기존 CLAUDE.md에서 패턴을 추론합니다:
 
-- **Constraints 스타일**: 불릿 리스트 vs 문단
+- **Requirements 스타일**: 불릿 리스트 vs 문단
 - **Domain Context 수준**: 상세 vs 간략
 - **Convention 준수 여부**: Convention이 있으면 우선 참조
 
@@ -233,18 +233,18 @@ scan 인덱스에 기존 모듈이 3개 이상 있으면, 기존 CLAUDE.md에서
 
 {spec.purpose}
 
-## Constraints
+## Requirements
 
-{format_constraints(spec.constraints) or "None"}
+{format_requirements(spec.requirements) or "None"}
 
 ## Domain Context
 
 {format_domain_context(spec.domain_context) or "None"}
 ```
 
-### Phase 5.25: DEVELOPERS.md 생성 (WHY 맥락)
+### Phase 5.25: DEVELOPERS.md 생성 (Derived Spec)
 
-CLAUDE.md와 함께 DEVELOPERS.md를 생성합니다. /impl에서는 최소한의 내용으로 생성합니다.
+CLAUDE.md와 함께 DEVELOPERS.md를 생성합니다. DEVELOPERS.md는 CLAUDE.md Requirements를 시스템 레벨로 구체화한 기술 명세입니다.
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
@@ -252,11 +252,38 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ```
 
 **생성 규칙:**
-- **Domain Context**: CLAUDE.md Domain Context의 확장. 없으면 None
-- **Invariants**: None (구현 전이므로 내부 불변식 미확정)
-- **Decision Log**: compile-context의 Technology Choices에서 시드. 각 선택을 ADR 형식(맥락/결정/근거)으로 변환
+- **Constraints**: CLAUDE.md Requirements를 시스템 레벨로 구체화한 입출력 계약. 테스트로 변환 가능한 정밀한 조건 (입력 범위, 출력 형식, 에러 코드 등). 비즈니스 불변식도 여기에 포함. 없으면 None
+- **Technical Context**: compile-context의 Technology Choices에서 시드. 기술 선택과 그 근거, 구현 방향을 기술. 없으면 None
+- **Decision Log**: compile-context의 Technology Choices에서 시드. 각 선택을 ADR 형식(맥락/결정/근거)으로 변환. optional
 - **Operations**: None (구현 전이므로 운영 정보 미확정)
-- **File Map**: None (아직 소스 파일이 없으므로)
+
+**Constraints 변환 예시:**
+
+CLAUDE.md Requirements:
+```
+- 비밀번호는 8자 이상이어야 한다
+- 로그인 실패 시 계정 잠금
+```
+
+→ DEVELOPERS.md Constraints:
+```markdown
+- 비밀번호 길이: min=8, max=128 (UTF-8 문자 단위)
+- 계정 잠금: 연속 실패 5회 → 30분 잠금, 잠금 상태에서 로그인 시도 → 423 Locked 응답
+- 비밀번호 해시: bcrypt, cost factor ≥ 12
+```
+
+**Technical Context 변환 예시:**
+
+compile-context Technology Choices:
+```
+| jsonwebtoken | jose | 기존 코드베이스 호환성 |
+```
+
+→ DEVELOPERS.md Technical Context:
+```markdown
+- **JWT 라이브러리**: jsonwebtoken 사용 (jose 대비 기존 코드베이스 호환성 우수)
+- **해시 알고리즘**: bcrypt 사용 (argon2 대비 라이브러리 성숙도)
+```
 
 **Decision Log 변환 예시:**
 
@@ -339,7 +366,7 @@ auto-fix 후에도 검증이 실패하면 사용자에게 이슈를 보고하고
 액션: {created | updated}
 
 Purpose: {purpose 요약}
-Constraints: {count}개 — {주요 제약 나열}
+Requirements: {count}개 — {주요 요구사항 나열}
 Domain Context: {있음 | None}
 Dependencies: Internal {count}개, External {count}개
 
@@ -361,7 +388,7 @@ Dependencies: Internal {count}개, External {count}개
 4. 취소 — 파일 생성 없이 종료
 
 "범위 조정" 선택 시:
-- 추가 AskUserQuestion: "어떤 부분을 변경할까요?" (Constraints 추가/삭제, Domain Context 변경, Purpose 변경)
+- 추가 AskUserQuestion: "어떤 부분을 변경할까요?" (Requirements 추가/삭제, Domain Context 변경, Purpose 변경)
 - 변경 반영 후 Phase 5~6.5 재실행
 - 최대 1회 루프백. 2번째 Plan Preview에서는 "승인"과 "취소" 옵션만 제시
 
@@ -385,7 +412,7 @@ compile_context_file: .claude/tmp/compile-context-{dir-hash}.md
 status: success
 action: {created|updated}
 validation: {passed|failed_with_warnings}
-constraints_count: {len(constraints)}
+requirements_count: {len(requirements)}
 domain_context: {present|none}
 dependencies_count: {len(dependencies)}
 tech_choices_count: {len(tech_choices)}

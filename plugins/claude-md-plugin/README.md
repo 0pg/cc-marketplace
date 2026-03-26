@@ -1,36 +1,37 @@
-# claude-md-plugin (v6)
+# claude-md-plugin (v7)
 
-> Source Code = SSOT, CLAUDE.md = Pre-learning Index + Human Knowledge Store
+> CLAUDE.md = Primary SSOT (PM Requirements), Source Code = Derived Artifact
 
 ## Overview
 
-**Source Code is the single source of truth.** CLAUDE.md provides a compact pre-learning index and stores human knowledge (constraints, context, conventions) that cannot be derived from code alone.
+**CLAUDE.md is the Primary Source of Truth.** It defines PM-level business requirements. DEVELOPERS.md provides developer-level constraints and technical context. Source code is generated from these specifications.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v6                        │
+│                    claude-md-plugin v7                        │
 │                                                              │
-│   Source Code (SSOT)                                         │
-│         │                                                    │
-│         ├──── /decompile ──→ CLAUDE.md + DEVELOPERS.md 추출  │
-│         ├──── /validate ──→  문서-코드 일치 검증             │
-│         │                                                    │
-│   CLAUDE.md (pre-learning index + human knowledge)           │
+│   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
 │         ├──── /impl ──→     요구사항 → CLAUDE.md 정의        │
 │         ├──── /compile ──→  CLAUDE.md 기반 코드 생성         │
+│         ├──── /validate ──→ 문서-코드 일치 검증              │
 │         └──── /bugfix ──→   3계층 추적 → 수정               │
+│                                                              │
+│   DEVELOPERS.md (Derived Spec — Developer Constraints)       │
+│         └──── Constraints = test generation source           │
+│                                                              │
+│   Source Code (Derived Artifact)                             │
+│         └──── /decompile ──→ CLAUDE.md + DEVELOPERS.md 추출  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 | Concept | Role | Description |
 |---------|------|-------------|
-| **Source of Truth** | Source Code | The actual implementation, the only truth |
-| **Pre-learning Index** | CLAUDE.md | Compact index for faster code understanding |
-| **Human Knowledge** | CLAUDE.md | Constraints, context, conventions not in code |
-| **Deep Context** | DEVELOPERS.md | WHY — decision rationale, invariants, operations |
+| **Primary SSOT** | CLAUDE.md | PM requirements (Purpose, Requirements, Domain Context) |
+| **Derived Spec** | DEVELOPERS.md | Developer constraints (Constraints, Technical Context) |
+| **Derived Artifact** | Source Code | Generated from CLAUDE.md + DEVELOPERS.md |
 
-**When documents and code disagree**: Update the documents (code is SSOT).
+**When documents and code disagree**: Regenerate the code (CLAUDE.md is SSOT).
 
 ## Prerequisites
 
@@ -47,37 +48,32 @@ cd plugins/claude-md-plugin/core && cargo build --release
 | Situation | Command | Result |
 |-----------|---------|--------|
 | Natural language request | `/dev "request"` | Routes to appropriate skill |
-| Define requirements | `/impl "requirements"` | CLAUDE.md + compile-context |
+| Define requirements | `/impl "requirements"` | CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
 | Document existing code | `/decompile` | CLAUDE.md + DEVELOPERS.md |
-| Generate code from spec | `/compile` | Source code + tests |
+| Generate code from spec | `/compile` | Source code + tests (from DEVELOPERS.md Constraints) |
 | Check doc-code consistency | `/validate` | Drift report |
 | Fix runtime bug | `/bugfix --error "error"` | 3-layer trace → code regeneration |
 | Review spec quality | `/impl-review` | Quality report |
 
-## 3-Document System
+## 2-Document System
 
 ```
 module/
 ├── CLAUDE.md              ← Human-authored / Auto-loaded / 200-600 tok
-│   Critical rules and context needed when modifying code.
+│   PM requirements document. Critical rules and context.
 │   Claude Code loads hierarchically.
 │
-├── DEVELOPERS.md          ← Human-authored / On-demand
-│   Deep context (WHY). Loaded via Instructions + plugin commands.
-│
-└── .claude/
-    └── index.md           ← Auto-generated / On-demand
-        Interface/behavior/structure index extracted from code.
-        Generated via /sync.
+└── DEVELOPERS.md          ← Human-authored / On-demand
+    Derived spec. Constraints (test source) + Technical Context.
 ```
 
-### CLAUDE.md Schema (v3.1)
+### CLAUDE.md Schema (v4.0)
 
 | Section | Rule | None Allowed | Description |
 |---------|------|-------------|-------------|
 | `## Purpose` | Always required | No | Module responsibility in 1-2 sentences |
-| `## Constraints` | Always required | Yes | Rules code must follow (self-contained) |
-| `## Domain Context` | Always required | Yes | Key context in 2-3 sentences |
+| `## Requirements` | Always required | Yes | Business requirements (PM-level, verifiable) |
+| `## Domain Context` | Always required | Yes | Business constraint background (regulations, legacy) |
 | `## Conventions` | project/module root | No | Unified coding rules (6 subsections) |
 | `## Instructions` | project root only | No | AI behavior directives |
 
@@ -85,11 +81,10 @@ module/
 
 | Section | Required | None Allowed | Description |
 |---------|----------|-------------|-------------|
-| `## Domain Context` | Yes | Yes | Extended module domain context |
-| `## Invariants` | Yes | Yes | Business invariants + rationale |
-| `## Decision Log` | Yes | Yes | ADR-style: Context/Decision/Rationale |
-| `## Operations` | Yes | Yes | Deployment, monitoring, troubleshooting |
-| `## File Map` | Yes | Yes | File roles and relationships |
+| `## Constraints` | Yes | Yes | Precise I/O contracts — test-convertible |
+| `## Technical Context` | Yes | Yes | Technology choices + rationale |
+| `## Decision Log` | No | Yes | ADR-style: Context/Decision/Rationale |
+| `## Operations` | No | Yes | Deployment, monitoring, troubleshooting |
 
 ### Conventions (6 Required Subsections)
 
@@ -115,16 +110,15 @@ Routes natural language requests to the appropriate skill:
 | COMPILE | compile, generate, build | `/compile` |
 | DECOMPILE | decompile, extract, document existing | `/decompile` |
 | VALIDATE | validate, check, verify, drift | `/validate` |
-| SYNC | sync, index, reindex | `/sync` |
 | RESOLVE | resolve, fix-drift, handle violation | `/resolve` |
 | IMPACT | impact, affected, breaking, depends | `/impact` |
 | DIFF | diff, compare, what changed | `/diff-spec` |
 | STATUS | status, health, dashboard | `/status` |
 | REFACTOR | refactor, split, merge, restructure | `/refactor` |
 
-### `/impl` — Requirements → CLAUDE.md
+### `/impl` — Requirements → CLAUDE.md + DEVELOPERS.md
 
-Analyzes requirements and generates CLAUDE.md (Purpose, Constraints, Domain Context) + compile-context (ephemeral session spec).
+Analyzes requirements and generates CLAUDE.md (Purpose, Requirements, Domain Context) + DEVELOPERS.md (Constraints, Technical Context).
 
 ```bash
 /impl "JWT token validation authentication module"
@@ -132,10 +126,10 @@ Analyzes requirements and generates CLAUDE.md (Purpose, Constraints, Domain Cont
 
 ### `/compile` — CLAUDE.md → Source Code
 
-Generates source code from CLAUDE.md specifications via Inline TDD (compiler agent generates tests from Constraints, then implements).
+Generates source code via Inline TDD (tests from DEVELOPERS.md Constraints, then implements).
 
 ```bash
-/compile                          # Changed CLAUDE.md files
+/compile                          # Changed CLAUDE.md/DEVELOPERS.md files
 /compile --all                    # All CLAUDE.md files
 /compile --path src/auth          # Specific path
 /compile --conflict overwrite     # Overwrite existing files
@@ -152,10 +146,9 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 ### `/validate` — Document-Code Consistency
 
 Validates drift between CLAUDE.md and actual code:
-- **Constraints Drift**: Code violates documented constraints
-- **Domain Context Drift**: Context no longer applies
+- **Requirements Drift**: Code violates documented requirements
 - **Convention Drift**: Code violates coding conventions
-- **DEVELOPERS.md Drift**: File Map out of sync, missing DEVELOPERS.md
+- **DEVELOPERS.md Drift**: Missing DEVELOPERS.md, Constraints/Technical Context stale
 - **Boundary Violations**: Tree dependency violations
 
 ```bash
@@ -166,8 +159,8 @@ Validates drift between CLAUDE.md and actual code:
 ### `/bugfix` — Runtime Bug → 3-Layer Trace → Fix
 
 Traces root cause through 3 layers:
-- **L1** (CLAUDE.md): Constraint gaps or mismatches
-- **L2** (DEVELOPERS.md): Invariant violations, algorithm flaws
+- **L1** (CLAUDE.md): Requirements gaps or mismatches
+- **L2** (DEVELOPERS.md): Constraint violations, algorithm flaws
 - **L3** (Source Code): Logic errors, spec divergence
 
 ```bash
@@ -179,7 +172,7 @@ Traces root cause through 3 layers:
 
 Reviews CLAUDE.md quality across 3 dimensions:
 - **D1**: Requirements coverage
-- **D2**: CLAUDE.md quality (constraints specificity, purpose clarity)
+- **D2**: CLAUDE.md quality (requirements specificity, purpose clarity)
 - **D3**: Internal consistency
 
 ```bash
@@ -190,23 +183,13 @@ Reviews CLAUDE.md quality across 3 dimensions:
 
 Shows project-wide health overview (schema pass rate, drift count, DEVELOPERS.md coverage).
 
-### `/sync` — Source Code → .claude/index.md
-
-Auto-generates `.claude/index.md` from source code (CLI deterministic P-sections + AI-generated ND-D sections).
-
-```bash
-/sync src/auth              # Single module
-/sync --all                 # All modules
-/sync --check               # Staleness report only
-```
-
 ### `/resolve` — Interactive Drift Resolution
 
 Reads `/validate` results and interactively resolves each drift issue (Fix Code, Fix Doc, Skip).
 
 ### `/impact` — Change Impact Analysis
 
-Analyzes which modules are affected by a CLAUDE.md change (Constraints-based dependency tracing).
+Analyzes which modules are affected by a CLAUDE.md change (Requirements-based dependency tracing).
 
 ### `/diff-spec` — Semantic Diff
 
@@ -214,7 +197,7 @@ Compares document versions to show semantic changes between revisions.
 
 ### `/refactor` — Module Split/Merge
 
-Splits or merges modules based on Constraints grouping analysis.
+Splits or merges modules based on Requirements grouping analysis.
 
 ### Other Commands
 
@@ -222,7 +205,7 @@ Splits or merges modules based on Constraints grouping analysis.
 |---------|-------------|
 | `/project-setup` | Initialize Conventions section in project CLAUDE.md |
 | `/convention-update` | Update Conventions section |
-| `/migrate` | Migrate CLAUDE.md to new schema version |
+| `/migrate` | Migrate CLAUDE.md to new schema version (v6→v7 supported) |
 
 ## Workflow Examples
 
@@ -256,15 +239,14 @@ Splits or merges modules based on Constraints grouping analysis.
 
 | Agent | Status | Role |
 |-------|--------|------|
-| `impl` | active | Requirements analysis → CLAUDE.md + compile-context |
+| `impl` | active | Requirements analysis → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
 | `dep-explorer` | active | Dependency exploration (requirement/module modes) |
-| `decompiler` | active | Source code → CLAUDE.md + DEVELOPERS.md extraction |
-| `compiler` | active | CLAUDE.md Constraints/Domain Context → source code (GREEN + REFACTOR) |
-| `debugger` | active | 3-layer bug trace orchestrator |
+| `decompiler` | active | Source code → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) extraction |
+| `compiler` | active | DEVELOPERS.md Constraints → Inline TDD → source code (GREEN + REFACTOR) |
+| `debugger` | active | 3-layer bug trace orchestrator (L1=Requirements, L2=Constraints, L3=Code) |
 | `debug-layer-analyzer` | active | Single layer (L1/L2/L3) analysis (sub-agent) |
 | `impl-reviewer` | active | CLAUDE.md quality review + requirements coverage |
-| `validator` | active | Constraints/Domain Context/Convention drift detection |
-| `index-generator` | active | .claude/index.md ND-D section generation (Export Descriptions + Behavior) |
+| `validator` | active | Requirements/Convention/DEVELOPERS.md/Boundary drift detection |
 
 ### Tree Dependency
 
@@ -284,12 +266,11 @@ claude-md-core parse-claude-md --file CLAUDE.md       # CLAUDE.md → JSON
 claude-md-core validate-schema --file CLAUDE.md       # Schema validation
 claude-md-core validate-convention --project-root .   # Convention validation
 claude-md-core scan-claude-md --root .                # Project-wide CLAUDE.md index
-claude-md-core diff-compile-targets --root .          # Changed CLAUDE.md detection
+claude-md-core diff-compile-targets --root .          # Changed CLAUDE.md/DEVELOPERS.md detection
 claude-md-core format-exports --input analysis.json   # Exports markdown generation
 claude-md-core format-analysis --input analysis.json  # Analysis summary generation
 claude-md-core fix-schema --file CLAUDE.md            # Auto-add missing sections
 claude-md-core contract-hash --file CLAUDE.md         # CLAUDE.md SHA-256 hash for change detection
-claude-md-core index-project --root .                 # Project-wide indexing
 ```
 
 ## License

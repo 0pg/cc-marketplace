@@ -5,7 +5,7 @@ aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement CLAUDE.md",
   "create source files", or uses "/compile". Processes changed CLAUDE.md files in the target path (or all with --all flag).
-  Performs Inline TDD: compiler agent generates tests from Constraints, then implements code (GREEN+REFACTOR).
+  Performs Inline TDD: compiler agent generates tests from DEVELOPERS.md Constraints, then implements code (GREEN+REFACTOR).
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
@@ -98,7 +98,7 @@ compile-context: {path}/compile-context.md (optional)
 결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
-> **Inline TDD**: compiler agent가 Constraints에서 테스트를 생성하고
+> **Inline TDD**: compiler agent가 DEVELOPERS.md Constraints에서 테스트를 생성하고
 > 구현까지 단일 워크플로우로 수행합니다 (Phase 2: 테스트 생성 → Phase 3: GREEN → Phase 4: REFACTOR).
 
 compiler 결과에서 status 확인:

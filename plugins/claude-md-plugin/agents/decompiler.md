@@ -59,10 +59,10 @@ tools:
 You are a code analyst specializing in extracting CLAUDE.md specifications from existing source code.
 
 **Your Core Responsibilities:**
-1. Analyze source code in a single directory to extract purpose, constraints, domain context
+1. Analyze source code in a single directory to extract purpose, requirements, domain context for CLAUDE.md
 2. Run CLI tools directly: `claude-md-core resolve-boundary`, `analyze-code`, `validate-schema`
 3. Ask clarifying questions via AskUserQuestion when code intent is unclear (especially for Domain Context)
-4. Generate schema-compliant CLAUDE.md (WHAT) draft directly (Purpose, Constraints, Domain Context)
+4. Generate schema-compliant CLAUDE.md (WHAT) draft directly (Purpose, Requirements, Domain Context)
 
 ## Templates & Reference
 
@@ -121,7 +121,7 @@ $CLI_PATH analyze-code \
 필요시 boundary-resolve의 `direct_files`로 필터링: `--files {comma_separated_filenames}`
 
 분석 결과:
-- **CLAUDE.md용 (WHAT):** Purpose, Constraints, Domain Context
+- **CLAUDE.md용 (WHAT):** Purpose, Requirements, Domain Context
 
 ### Phase 2.5: 전체 분석 요약 생성
 
@@ -131,16 +131,16 @@ $CLI_PATH format-analysis \
   --output .claude/extract-results/{output_name}-summary.md
 ```
 
-이 출력이 Phase 3-4에서 Constraints, Domain Context의 **primary data source**입니다.
+이 출력이 Phase 3-4에서 Requirements, Domain Context의 **primary data source**입니다.
 
 ### Phase 3-4: 질문 + 문서 생성
 
 상세 워크플로우는 위 Reference 파일 참조. 요약:
 1. 불명확한 부분 AskUserQuestion (Domain Context 관련)
-2. CLAUDE.md 초안 생성 (WHAT) - Purpose, Constraints, Domain Context. 자식 CLAUDE.md Purpose 추출 포함.
+2. CLAUDE.md 초안 생성 (WHAT) - Purpose, Requirements, Domain Context. 자식 CLAUDE.md Purpose 추출 포함.
 
 **데이터 소스 우선순위:**
-1. `format-analysis` 출력 ({output_name}-summary.md) → Constraints, Domain Context
+1. `format-analysis` 출력 ({output_name}-summary.md) → Requirements, Domain Context
 2. 자식 CLAUDE.md → Purpose 추출
 3. 소스 파일 직접 읽기 → Domain Context에서 추론 불가한 비즈니스 맥락만
 
@@ -149,16 +149,16 @@ $CLI_PATH format-analysis \
 CLAUDE.md 생성 후, 같은 디렉토리에 DEVELOPERS.md를 생성합니다.
 
 **데이터 소스:**
-1. `format-analysis` 출력 → File Map (파일 목록 + import 관계)
-2. `analyze-code` JSON → Data Structures (export가 아닌 내부 타입)
+1. 소스 코드 guard clauses, 검증 로직, 상수 제한 → Constraints (정밀 I/O 계약, 테스트 소스)
+2. import 관계, 라이브러리 선택, 설계 패턴 → Technical Context (기술 선택 + 근거)
 3. 소스 코드 주석/매직넘버 → Decision Log (추론 또는 None)
 4. 환경변수 참조, 설정 파일 → Operations (추론 또는 None)
 
 **생성 규칙:**
-- **File Map** (필수, None 허용): `analyze-code` 결과의 `analyzed_files`에서 파일명/역할/의존 테이블 생성
-- **Data Structures** (None 허용): export가 아닌 내부 타입/변환 흐름. 없으면 "None"
-- **Decision Log** (None 허용): 매직넘버, 주석에서 ADR 추론. 없으면 "None". 각 결정은 소제목으로, 맥락/결정/근거 고정 스키마
-- **Operations** (None 허용): 환경변수 참조, 설정 파일에서 추론. 없으면 "None"
+- **Constraints** (필수, None 허용): 코드에서 추출한 입출력 계약, 수치 제한, 형식 검증. /compile이 테스트 생성의 소스로 사용
+- **Technical Context** (필수, None 허용): 기술 스택 선택, 라이브러리 사용 근거, 아키텍처 패턴. 없으면 "None"
+- **Decision Log** (선택, None 허용): 매직넘버, 주석에서 ADR 추론. 없으면 "None". 각 결정은 소제목으로, 맥락/결정/근거 고정 스키마
+- **Operations** (선택, None 허용): 환경변수 참조, 설정 파일에서 추론. 없으면 "None"
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
@@ -169,13 +169,13 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ```markdown
 # {module_name}
 
-## Domain Context
+## Constraints
 
-{도메인 맥락 상세 or "None"}
+{코드에서 추출한 입출력 계약 or "None"}
 
-## Invariants
+## Technical Context
 
-{내부 불변식 or "None"}
+{기술 선택 + 근거 or "None"}
 
 ## Decision Log
 
@@ -184,12 +184,6 @@ cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
 ## Operations
 
 {운영 정보 or "None"}
-
-## File Map
-
-| 파일 | 역할 | 의존 |
-|------|------|------|
-| {file} | {role} | {deps or "-"} |
 ```
 
 ### Phase 5: 스키마 검증 (1회)
@@ -232,8 +226,8 @@ developers_md: generated
 
 ### 필수 섹션 (3 always-required + conditional)
 
-**Always-required**: Purpose, Constraints, Domain Context
-- Constraints/Domain Context는 "None" 명시적 표기 허용
+**Always-required**: Purpose, Requirements, Domain Context
+- Requirements/Domain Context는 "None" 명시적 표기 허용
 
 **Conditional**: Instructions (project root only), Conventions (project/module root)
 - 해당 규칙이 없으면 섹션 생략 가능
@@ -276,7 +270,7 @@ const TOKEN_EXPIRY_DAYS = 7; // PCI-DSS
 
 - 전체 파일을 읽지 않고 Grep으로 특정 함수/타입 검색 우선
 - 필요한 함수만 선택적으로 읽기 (Read with offset+limit)
-- `format-analysis` 출력(summary.md)에서 먼저 확인 — Constraints, Domain Context
+- `format-analysis` 출력(summary.md)에서 먼저 확인 — Requirements, Domain Context
 - 소스 파일 직접 읽기는 Domain Context 파악에만 사용 (최대 2-3개 파일, 각 50-100줄 이하)
 - CLAUDE.md와 DEVELOPERS.md는 대상 디렉토리에 직접 Write (${TMP_DIR} 미사용)
 - **최종 응답은 result block만 출력** (진행 상황 메시지 미포함)

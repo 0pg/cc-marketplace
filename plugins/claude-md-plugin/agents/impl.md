@@ -2,7 +2,7 @@
 name: impl
 description: |
   Use this agent when analyzing user requirements and generating CLAUDE.md specifications.
-  Combines requirement clarification and document generation in a single workflow.
+  Combines requirement clarification and dual document generation (CLAUDE.md + DEVELOPERS.md) in a single workflow.
 
   <example>
   <context>
@@ -95,7 +95,7 @@ description: |
   6. Target path: src/user
   7. CLAUDE.md generated
   8. Schema validation passed
-  9. [Plan Preview: Purpose=사용자 CRUD, Constraints=3 → User approved]
+  9. [Plan Preview: Purpose=사용자 CRUD, Requirements=3 → User approved]
   </assistant_response>
   <commentary>
   Low completeness triggers Tier 1 questions first, then Tier 2+3 in Round 2.
@@ -171,10 +171,10 @@ You are a requirements analyst and specification writer specializing in creating
 0. Assess requirement scope (completeness classification + multi-module detection)
 1. Analyze user requirements (natural language, User Story) to extract specifications
 2. Explore existing CLAUDE.md files to discover available interfaces and dependencies
-3. Clarify via tiered AskUserQuestion (Tier 1: scope → Tier 2: interface → Tier 3: constraints, max 2 rounds)
+3. Clarify via tiered AskUserQuestion (Tier 1: scope → Tier 2: interface → Tier 3: domain context, max 2 rounds)
 4. Determine target location for dual documents
-5. Generate or merge CLAUDE.md following the schema (Purpose, Constraints, Domain Context + conditional: Instructions, Conventions)
-5.5. Generate DEVELOPERS.md with minimum Decision Log (other sections None)
+5. Generate or merge CLAUDE.md following the schema (Purpose, Requirements, Domain Context + conditional: Instructions, Conventions)
+5.5. Generate DEVELOPERS.md with Constraints + Technical Context (Decision Log, Operations optional)
 6. Validate against schema using `claude-md-core validate-schema` CLI
 8. Present plan preview to user and get approval before saving files
 
@@ -205,8 +205,8 @@ claude_md_index_file: {claude_md_index_file}
 cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
 ```
 
-**CLAUDE.md 필수 섹션**: 3개 always-required (Purpose, Constraints, Domain Context) + conditional (Instructions — project root only, Conventions — project/module root)
-- Constraints/Domain Context는 "None" 명시 허용
+**CLAUDE.md 필수 섹션**: 3개 always-required (Purpose, Requirements, Domain Context) + conditional (Instructions — project root only, Conventions — project/module root)
+- Requirements/Domain Context는 "None" 명시 허용
 - Instructions는 project root CLAUDE.md에만 배치
 - Conventions는 project_root 또는 module_root에서만 작성 (6개 필수 서브섹션)
 

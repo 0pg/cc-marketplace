@@ -1,12 +1,12 @@
-## CLAUDE.md Is a Pre-Learning Index in This Project
+## CLAUDE.md Is the Primary Source of Truth in This Project
 
-**Source code is the sole Source of Truth.** CLAUDE.md is a compact pre-learning index and human knowledge store:
-- **CLAUDE.md** — purpose, constraints, domain context (compact index for AI pre-learning)
-- **DEVELOPERS.md** — file relationships, decision rationale, operations (WHY)
+**CLAUDE.md is the Primary SSOT — PM의 요구사항 문서.** Source code is a derived artifact generated from CLAUDE.md specifications.
+- **CLAUDE.md** — purpose, requirements, domain context (PM-level business requirements)
+- **DEVELOPERS.md** — constraints, technical context, decision log, operations (developer-level derived spec)
 
 When you encounter a CLAUDE.md:
-- **Read it first** for quick orientation on the module's purpose and constraints
-- **Then check source code** for the actual implementation details
+- **Read it first** — it defines the authoritative requirements for the module
+- **Source code should conform** to what CLAUDE.md specifies; if they disagree, the code should be regenerated
 
 ### No CLAUDE.md?
 If the target directory has no CLAUDE.md, these rules do not apply. Work with source files normally.

@@ -56,8 +56,8 @@ Glob("${TMP_DIR}validate-*.md")
 
 | Drift 유형 | 해소 옵션 |
 |------------|----------|
-| **Constraints VIOLATED** | Fix Code (`/compile --conflict overwrite`), Fix Doc (CLAUDE.md 수정), Skip |
-| **Constraints STALE** | Remove (제약 삭제), Keep (유지), Update (갱신) |
+| **Requirements VIOLATED** | Fix Code (`/compile --conflict overwrite`), Fix Doc (CLAUDE.md 수정), Skip |
+| **Requirements STALE** | Remove (제약 삭제), Keep (유지), Update (갱신) |
 | **Domain Context STALE** | Update (갱신), Keep (유지) |
 | **Convention 위반** | Fix Code (코드 수정), Update Convention (규칙 수정) |
 | **DEVELOPERS.md MISSING** | Generate (`/decompile`), Skip |
@@ -83,8 +83,8 @@ AskUserQuestion: "CLAUDE.md를 현재 코드에 맞게 업데이트합니다. �
 ```
 
 "진행" 선택 시:
-- Constraints VIOLATED → CLAUDE.md의 해당 Constraint를 Edit으로 수정
-- Constraints STALE → 해당 Constraint 삭제
+- Requirements VIOLATED → CLAUDE.md의 해당 Requirement를 Edit으로 수정
+- Requirements STALE → 해당 Requirement 삭제
 - Domain Context STALE → 해당 항목 업데이트/삭제
 
 #### Generate DEVELOPERS.md 선택 시
@@ -106,7 +106,7 @@ Resolve 결과
 
 | 모듈 | Drift | 해소 방법 |
 |------|-------|----------|
-| src/auth | Constraints VIOLATED | Fix Code |
+| src/auth | Requirements VIOLATED | Fix Code |
 | src/utils | Domain Context STALE | Update |
 | src/legacy | DEVELOPERS.md MISSING | Generate |
 
@@ -158,7 +158,7 @@ Skill("claude-md-plugin:validate")
 
 3개 이슈 발견:
 
-[1/3] src/auth: Constraints VIOLATED — "토큰 만료 최대 7일" 제약이 코드에서 14일로 설정됨
+[1/3] src/auth: Requirements VIOLATED — "토큰 만료 최대 7일" 제약이 코드에서 14일로 설정됨
   해소 방법: [Fix Code / Fix Doc / Skip]
 → Fix Code
 

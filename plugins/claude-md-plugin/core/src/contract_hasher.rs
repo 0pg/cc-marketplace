@@ -2,7 +2,7 @@ use sha2::{Sha256, Digest};
 use std::path::Path;
 
 /// Calculate SHA-256 hash of the entire CLAUDE.md file content.
-/// In v3 schema, CLAUDE.md is compact (no Exports/Behavior/Contract),
+/// In v4 schema, CLAUDE.md is compact (Purpose, Requirements, Domain Context),
 /// so we hash the entire file for change detection.
 pub fn contract_hash(file: &Path) -> Result<String, std::io::Error> {
     let content = std::fs::read_to_string(file)?;
@@ -42,7 +42,7 @@ mod tests {
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -58,7 +58,7 @@ None
         let content = r#"## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -74,7 +74,7 @@ None
         let content1 = r#"## Purpose
 Test module v1.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -83,7 +83,7 @@ None
         let content2 = r#"## Purpose
 Test module v2.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -96,8 +96,8 @@ None
 
     #[test]
     fn test_hash_ignores_trailing_whitespace() {
-        let content1 = "## Purpose\nTest module.\n\n## Constraints\nNone\n";
-        let content2 = "## Purpose\nTest module.  \n\n## Constraints  \nNone  \n";
+        let content1 = "## Purpose\nTest module.\n\n## Requirements\nNone\n";
+        let content2 = "## Purpose\nTest module.  \n\n## Requirements  \nNone  \n";
         let h1 = hash_content(content1);
         let h2 = hash_content(content2);
         assert_eq!(h1, h2, "Trailing whitespace differences should not affect hash");
