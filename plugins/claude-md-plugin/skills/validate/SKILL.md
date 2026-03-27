@@ -5,7 +5,7 @@ aliases: [check, verify, lint]
 description: |
   This skill should be used when the user asks to "validate CLAUDE.md", "check documentation-code consistency",
   "verify specification matches implementation", "check for drift", "lint documentation", or uses "/validate".
-  Runs schema validation and validator agent for comprehensive drift detection.
+  Runs deterministic CLI validation (schema, convention structure, boundary) and semantic validator agent for comprehensive drift detection.
   Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
@@ -46,7 +46,9 @@ Glob("{path}/**/CLAUDE.md")
 
 수집된 파일이 없으면: "대상 경로에 CLAUDE.md가 없습니다." → 종료.
 
-### 2. 스키마 사전 검증
+### 2. Deterministic 검증 (CLI only)
+
+#### 2a. 스키마 검증 + auto-fix
 
 각 CLAUDE.md에 대해 스키마 검증:
 
@@ -61,9 +63,39 @@ $CLI_PATH fix-schema --file "$claude_md"
 $CLI_PATH validate-schema --file "$claude_md" --output "${TMP_DIR}schema-${dir_safe}.json"
 ```
 
-auto-fix 후에도 실패하면 해당 모듈을 스키마 오류로 보고하고 drift 검증 대상에서 제외.
+auto-fix 후에도 실패하면 해당 모듈을 스키마 오류로 보고하고 Phase 3 대상에서 제외.
 
-### 3. Drift 검증 (validator agent)
+#### 2b. Convention 구조 검증
+
+스키마 통과한 모듈에 대해 Convention 섹션 구조를 검증:
+
+```bash
+$CLI_PATH validate-convention --project-root {project_root} --output "${TMP_DIR}convention-result.json"
+```
+
+결과에서 `MISSING_CONVENTION`, `MISSING_SUBSECTION` 이슈를 수집합니다.
+Convention 구조 이슈는 보고만 하며 Phase 3 진행을 차단하지 않습니다.
+
+#### 2c. Boundary 검증
+
+스키마 통과한 각 디렉토리에 대해 트리 구조 의존성을 검증:
+
+```bash
+$CLI_PATH resolve-boundary --path {dir} --claude-md {dir}/CLAUDE.md --output "${TMP_DIR}boundary-${dir_safe}.json"
+```
+
+결과의 `violations` 배열에서 `PARENT_REFERENCE`, `SIBLING_REFERENCE` 이슈를 수집합니다.
+
+#### Phase 2 결과 저장
+
+모든 Deterministic 검증 결과를 저장:
+```bash
+# ${TMP_DIR}deterministic-results.json에 schema/convention/boundary 결과 통합
+```
+
+**Gate 규칙**: Schema 실패 모듈만 Phase 3 스킵. Convention/Boundary 결과는 보고만.
+
+### 3. Semantic 검증 (validator agent)
 
 스키마 통과한 CLAUDE.md 디렉토리를 배치로 나누어 `Task(validator)` 실행.
 
@@ -74,11 +106,10 @@ auto-fix 후에도 실패하면 해당 모듈을 스키마 오류로 보고하�
 Task(validator): "검증 대상: {directory}"
 ```
 
-validator agent가 검증하는 4개 drift 카테고리:
+validator agent가 검증하는 3개 semantic drift 카테고리:
 1. **Requirements Drift** — 코드가 명시된 요구사항을 위반/미적용
-2. **Convention Drift** — 코딩 규칙 위반
-3. **DEVELOPERS.md Drift (INV-3)** — DEVELOPERS.md 부재, Constraints/Technical Context 불일치
-4. **Boundary Violations (INV-1)** — 트리 구조 의존성 위반
+2. **Convention CODE_VIOLATION** — 코드가 Convention 규칙을 위반 (샘플 기반)
+3. **DEVELOPERS.md Drift** — DEVELOPERS.md 부재, Constraints/Technical Context 불일치
 
 결과를 `${TMP_DIR}validate-progress.jsonl`에 누적:
 ```bash
@@ -87,7 +118,7 @@ echo '{"directory":"{dir}","issues":{n},"status":"{status}"}' >> "${TMP_DIR}vali
 
 ### 4. 통합 보고서 생성
 
-모든 validator 결과 파일을 읽어 통합 보고서를 생성합니다:
+Phase 2 (Deterministic) 결과와 Phase 3 (Semantic) 결과를 병합하여 단일 보고서를 생성합니다:
 
 ```markdown
 # Validation Report
@@ -114,7 +145,14 @@ echo '{"directory":"{dir}","issues":{n},"status":"{status}"}' >> "${TMP_DIR}vali
 | 카테고리 | 유형 | 설명 | 신뢰도 |
 |----------|------|------|--------|
 | Requirements | VIOLATED | {description} | MEDIUM |
+| Requirements | STALE | {description} | LOW |
+| Convention | MISSING_CONVENTION | project_root에 Conventions 없음 | HIGH |
+| Convention | MISSING_SUBSECTION | 필수 서브섹션 없음 | HIGH |
+| Convention | CODE_VIOLATION | {description} | MEDIUM |
 | DEVELOPERS.md | MISSING | DEVELOPERS.md 부재 | HIGH |
+| DEVELOPERS.md | CONSTRAINTS_STALE | {description} | MEDIUM |
+| Boundary | PARENT_REFERENCE | 부모 참조 위반 | HIGH |
+| Boundary | SIBLING_REFERENCE | 형제 참조 위반 | HIGH |
 
 ## 추천 액션
 
@@ -169,7 +207,7 @@ Validation Report
 
 Drift 이슈:
   src/auth: Requirements VIOLATED (1), Convention MISSING_SUBSECTION (1)
-  src/legacy: DEVELOPERS.md MISSING (1), Boundary VIOLATED (2)
+  src/legacy: DEVELOPERS.md MISSING (1), Boundary PARENT_REFERENCE (2)
 
 추천: `/resolve` 로 drift 해소
 </assistant_response>

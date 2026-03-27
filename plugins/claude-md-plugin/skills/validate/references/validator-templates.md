@@ -2,7 +2,7 @@
   validator-templates.md
   Consolidated reference for the validator agent.
   Contains: Drift type definitions (v7 schema),
-  Convention drift, DEVELOPERS.md drift, Boundary violations,
+  Convention CODE_VIOLATION, DEVELOPERS.md drift,
   result template format, and CLI output JSON structures.
 
   Loaded at runtime by the validator agent via:
@@ -38,15 +38,15 @@ Requirements: "동시 세션은 최대 5개"
 발견: const MAX_SESSIONS = 10  →  VIOLATED (5 vs 10)
 ```
 
-### 2. Convention Drift
+### 2. Convention CODE_VIOLATION
 
-CLAUDE.md의 Conventions 섹션(프로젝트/코드 수준 규칙)과 실제 코드 스타일의 불일치.
+코드가 CLAUDE.md Conventions 섹션의 규칙을 위반.
 
 | 유형 | 설명 | 검증 방법 |
 |------|------|----------|
-| **MISSING_CONVENTION** | project_root에 필수 Convention 섹션 없음 | CLI validate-convention 또는 수동 확인 |
-| **MISSING_SUBSECTION** | Convention에 필수 서브섹션 없음 | 섹션 구조 확인 |
 | **CODE_VIOLATION** | 코드가 Convention 규칙 위반 | 샘플 기반 Grep 검증 (신뢰도: MEDIUM) |
+
+**Note:** Convention 구조 검증(MISSING_CONVENTION, MISSING_SUBSECTION)은 validate SKILL Phase 2b에서 CLI로 처리됩니다.
 
 ### 3. DEVELOPERS.md Drift
 
@@ -57,16 +57,6 @@ DEVELOPERS.md의 존재 여부와 내용 일치성 검증.
 | **MISSING_DEVELOPERS_MD** | CLAUDE.md가 있는데 DEVELOPERS.md 없음 | INV-3 검증 |
 | **CONSTRAINTS_STALE** | DEVELOPERS.md Constraints와 코드 불일치 | 키워드 기반 매칭 |
 | **TECHNICAL_CONTEXT_STALE** | Technical Context가 현재 코드와 맞지 않음 | 키워드 기반 코드 매칭 |
-| **REQUIREMENTS_COVERAGE_GAP** | CLAUDE.md Requirements가 DEVELOPERS.md Constraints에 구체화되지 않음 | L1↔L2 교차 검증 |
-
-### 4. Boundary Violations (INV-1)
-
-CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
-
-| 유형 | 설명 | 검증 방법 |
-|------|------|----------|
-| **PARENT_REFERENCE** | `../` 참조 (부모 참조 금지) | resolve-boundary CLI |
-| **SIBLING_REFERENCE** | 형제 디렉토리 참조 | resolve-boundary CLI |
 
 ## Result Template
 
@@ -77,9 +67,8 @@ CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
 
 - 전체 이슈: {N}개
 - Requirements Drift: {n1}개
-- Convention Drift: {n2}개
+- Convention CODE_VIOLATION: {n2}개
 - DEVELOPERS.md Drift: {n3}개
-- Boundary Violations: {n4}개
 
 ## 상세
 
@@ -91,12 +80,7 @@ CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
 #### STALE (미적용 요구사항)
 - "Redis 캐시 TTL은 토큰 만료보다 짧아야 함": Redis 관련 코드 없음
 
-### Convention Drift
-
-#### MISSING_CONVENTION
-- project_root에 `## Conventions` 섹션 없음
-
-#### CODE_VIOLATION
+### Convention CODE_VIOLATION
 - Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)
 
 ### DEVELOPERS.md Drift
@@ -109,14 +93,6 @@ CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
 
 #### TECHNICAL_CONTEXT_STALE
 - Technical Context에 "Redis 캐시 사용" 명시되나 코드에 Redis 의존성 없음
-
-#### REQUIREMENTS_COVERAGE_GAP
-- CLAUDE.md Requirements "동시 세션 최대 5개"가 DEVELOPERS.md Constraints에 구체화되지 않음
-
-### Boundary Violations
-
-#### PARENT_REFERENCE
-- `../utils` 참조 발견 (line 15)
 ```
 
 ## CLI Output JSON Structures
@@ -130,18 +106,5 @@ CLAUDE.md 또는 코드 내 참조가 트리 구조 의존성을 위반.
   "requirements": ["토큰 만료 최대 7일", "동시 세션 최대 5개"],
   "domain_context": "JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책 적용",
   "warnings": []
-}
-```
-
-### resolve-boundary 출력
-
-```json
-{
-  "path": "src/auth",
-  "direct_files": [{"name": "index.ts", "type": "typescript"}, {"name": "types.ts", "type": "typescript"}],
-  "subdirs": [{"name": "jwt", "has_claude_md": true}],
-  "source_file_count": 2,
-  "subdir_count": 1,
-  "violations": [{"violation_type": "Parent", "reference": "../utils", "line_number": 15}]
 }
 ```

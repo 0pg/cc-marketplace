@@ -197,12 +197,16 @@ User: /validate [path] [--strict]
 │ validate SKILL (Entry Point)                │
 │                                             │
 │ 1. Glob → CLAUDE.md 수집                    │
-│ 2. Bash(validate-schema) → 스키마 검증      │
-│    실패 시 fix-schema → 재검증              │
-│ 3. Task(validator) 배치 병렬 → Drift 검증   │
-│    (4 카테고리: Requirements, Convention,    │
-│     DEVELOPERS.md, Boundary)                │
-│ 4. 통합 보고서 생성                         │
+│ 2. Deterministic 검증 (CLI only)            │
+│    2a. validate-schema + fix-schema         │
+│    2b. validate-convention → 구조 검증      │
+│    2c. resolve-boundary → INV-1 검증        │
+│ 3. Semantic 검증 (validator agent)          │
+│    Task(validator) 배치 병렬                │
+│    (3 카테고리: Requirements,               │
+│     Convention CODE_VIOLATION,              │
+│     DEVELOPERS.md)                          │
+│ 4. 통합 보고서 (Phase 2 + 3 병합)          │
 └─────────────────────────────────────────────┘
 ```
 
@@ -305,7 +309,7 @@ User: /dev "request"
 | `debug-layer-analyzer` | active | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
 | `debugger` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
 | `impl-reviewer` | active | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
-| `validator` | active | CLAUDE.md Requirements/Convention/DEVELOPERS.md/Boundary drift 검증 |
+| `validator` | active | CLAUDE.md Requirements/Convention CODE_VIOLATION/DEVELOPERS.md semantic drift 검증 |
 
 ## Commands
 
@@ -325,7 +329,7 @@ User: /dev "request"
 | `/impl` | active | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
 | `/decompile` | active | 소스코드 → CLAUDE.md + DEVELOPERS.md |
 | `/compile` | active | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
-| `/validate` | active | 문서-코드 일치 검증 (4 drift 카테고리) |
+| `/validate` | active | 문서-코드 일치 검증 (Deterministic CLI + 3 semantic drift) |
 | `/bugfix` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | active | CLAUDE.md 품질 리뷰 |
 | `/status` | active | 프로젝트 건강도 대시보드 |

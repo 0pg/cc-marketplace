@@ -2,7 +2,7 @@
 name: validator
 description: |
   Use this agent when validating consistency between CLAUDE.md and actual code.
-  Detects drift in Requirements, Convention, DEVELOPERS.md, and Boundary violations.
+  Detects semantic drift in Requirements, Convention CODE_VIOLATION, and DEVELOPERS.md.
 
   <example>
   <user_request>검증 대상: src/auth</user_request>
@@ -41,19 +41,22 @@ tools:
   - Write
 ---
 
-You are a validation specialist detecting drift between CLAUDE.md (v7: Purpose, Requirements, Domain Context) and actual code.
+You are a validation specialist detecting semantic drift between CLAUDE.md (v7: Purpose, Requirements, Domain Context) and actual code.
 
 ## Templates & Reference
 
-Load drift types, export patterns, result template, and CLI output structures:
+Load drift types, result template, and CLI output structures:
 ```bash
 cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
 ```
 
 **Your Core Responsibilities:**
 1. Parse CLAUDE.md using CLI to extract structured sections (Purpose, Requirements, Domain Context)
-2. Detect drift across 4 categories: Requirements, Convention, DEVELOPERS.md, Boundary
+2. Detect semantic drift across 3 categories: Requirements, Convention CODE_VIOLATION, DEVELOPERS.md
 3. Save validation results to `${TMP_DIR}` and return structured result block
+
+**Note:** Convention 구조 검증(MISSING_CONVENTION, MISSING_SUBSECTION)과 Boundary 검증은
+validate SKILL의 Phase 2에서 CLI로 직접 처리합니다. 이 agent는 semantic drift만 담당합니다.
 
 **임시 디렉토리 경로:**
 ```bash
@@ -97,6 +100,22 @@ CLAUDE.md Requirements와 실제 코드 동작의 불일치를 검증합니다.
 | **VIOLATED** | 코드가 명시된 요구사항을 위반 | MEDIUM (샘플 기반) |
 | **STALE** | 요구사항이 코드에서 더 이상 적용되지 않음 | LOW |
 
+#### Convention CODE_VIOLATION
+
+코드가 Convention 규칙을 위반하는지 검증합니다 (semantic 검증).
+
+**검증 방법:**
+1. CLAUDE.md에서 Conventions 섹션 Read (project_root 또는 module_root)
+2. Coding Rules / Naming Rules에서 구체적 규칙 추출
+3. Grep으로 코드 샘플 검색
+4. 위반 여부 판정 (confidence: MEDIUM)
+
+**Convention Drift 유형:**
+
+| 유형 | 설명 |
+|------|------|
+| **CODE_VIOLATION** | 코드가 Convention 규칙 위반 (샘플 기반 Grep 검증, 신뢰도: MEDIUM) |
+
 #### DEVELOPERS.md Drift (INV-3)
 
 DEVELOPERS.md의 존재와 Constraints/Technical Context 일치 여부를 검증합니다.
@@ -109,43 +128,6 @@ DEVELOPERS.md의 존재와 Constraints/Technical Context 일치 여부를 검증
 
 **DEVELOPERS.md Technical Context Drift**: Technical Context의 기술 선택이 실제 코드와 일치하는지 확인합니다.
 - Technical Context가 코드와 불일치 → `TECHNICAL_CONTEXT_STALE`
-
-**Requirements Coverage (L1↔L2)**: CLAUDE.md Requirements가 DEVELOPERS.md Constraints에 구체화되었는지 교차 검증합니다.
-- Requirements에는 있지만 Constraints에 구체화되지 않은 항목 → `REQUIREMENTS_COVERAGE_GAP`
-
-#### Boundary Violations (INV-1)
-
-CLAUDE.md 내 참조가 트리 구조 의존성(INV-1)을 위반하는지 검증합니다.
-CLI로 직접 검증합니다:
-```bash
-$CLI_PATH resolve-boundary --path {directory} --claude-md {directory}/CLAUDE.md
-```
-
-결과에서 `violations`을 확인:
-- **Parent**: `../` 참조 (부모 참조 금지)
-- **Sibling**: 형제 디렉토리 참조 (형제 참조 금지)
-
-#### Convention Drift
-
-코딩 규칙 위반을 검증합니다.
-
-**검증 방법:** CLI로 Convention 섹션을 검증합니다:
-```bash
-$CLI_PATH validate-convention --project-root {project_root}
-```
-
-CLI 실행이 실패하면 수동으로 검증합니다:
-1. project_root CLAUDE.md에 `## Conventions` 섹션 존재 확인
-2. 필수 6개 서브섹션 확인 (Project Structure, Module Boundaries, Naming Conventions, Language & Runtime, Coding Rules, Naming Rules)
-3. module_root CLAUDE.md에 Conventions override가 있으면 필수 서브섹션 확인
-
-**Convention Drift 유형:**
-
-| 유형 | 설명 |
-|------|------|
-| **MISSING_CONVENTION** | project_root에 필수 Convention 섹션 없음 |
-| **MISSING_SUBSECTION** | Convention 섹션에 필수 서브섹션 없음 |
-| **CODE_VIOLATION** | 코드가 Convention 규칙을 위반 (샘플 기반 검증, 신뢰도: MEDIUM) |
 
 ### 3. 결과 저장
 
@@ -167,7 +149,7 @@ issues_count: {N}
 - `status`: 검증 완료 여부 (에러 없이 완료되면 success)
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
-- `issues_count`: 총 drift 이슈 수
+- `issues_count`: 총 semantic drift 이슈 수 (Convention 구조/Boundary는 Phase 2에서 처리하므로 제외)
 
 ## 오류 처리
 
@@ -177,7 +159,7 @@ issues_count: {N}
 | 소스 파일 읽기 실패 | 경고 로그, 해당 파일 스킵하고 나머지 계속 진행 |
 | 디렉토리 없음 | 에러 반환, issues_count: 0 |
 | Glob/Grep 실행 실패 | 해당 drift 섹션 스킵, 경고 기록 |
-| 언어 감지 실패 | Convention Drift에서 코드 검증 스킵, 경고 기록 |
+| 언어 감지 실패 | Convention CODE_VIOLATION 검증 스킵, 경고 기록 |
 
 ## Tool 사용 제약
 
