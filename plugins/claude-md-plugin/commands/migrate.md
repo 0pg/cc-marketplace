@@ -269,6 +269,46 @@ git status -- "**/IMPLEMENTS.md"
 **일부 FAIL:**
 > "⚠ {fail_count}개 파일이 여전히 검증 실패합니다. 수동 확인이 필요합니다."
 
+### 7.5. Conventions 부재 감지
+
+v7에서 project/module root에 `## Conventions` (6개 필수 서브섹션)가 필수입니다.
+마이그레이션만으로는 Conventions가 자동 생성되지 않으므로, 부재를 감지하고 안내합니다.
+
+**7.5a. project root 검증:**
+
+```bash
+$CLI_PATH validate-convention --project-root {project_root_path}
+```
+
+실패 시 (Conventions 부재 또는 서브섹션 누락):
+
+```
+AskUserQuestion: "project root CLAUDE.md에 ## Conventions 섹션이 없거나 불완전합니다.
+v7에서 이 섹션은 /compile의 REFACTOR 단계에 필요합니다.
+
+/project-setup을 실행하여 기존 코드에서 컨벤션을 추출하시겠습니까?"
+옵션: [실행, 나중에 수동 추가]
+```
+
+"실행" 선택 시:
+```
+Skill("claude-md-plugin:project-setup", args: "{project_root_path}")
+```
+
+**7.5b. module root 검증 (선택):**
+
+project root와 다른 module root가 존재하는 경우, 각 module root에서:
+```
+Grep: pattern="^## Conventions" path={module_root}/CLAUDE.md
+```
+
+module root에 override Conventions가 없으면 project root에서 상속하므로 **경고만** 출력:
+> "ⓘ {module_root}/CLAUDE.md에 ## Conventions가 없습니다. project root에서 상속됩니다.
+> override가 필요하면 /convention-update를 실행하세요."
+
+성공 시 (Conventions 존재 + 6개 서브섹션 완전):
+> 별도 출력 없이 다음 단계로 진행.
+
 ### 8. 후속 액션 안내
 
 마이그레이션 결과에 따라 다음 단계를 안내합니다:
@@ -296,6 +336,12 @@ v6→v7 전환이 수행된 경우:
   - 품질 검증: /impl-review
   - 계약-코드 일치 확인: /validate
   - 코드 재생성이 필요하면: /compile --all --conflict overwrite
+```
+
+Conventions가 없거나 불완전한 경우:
+```
+  - Conventions 생성: /project-setup
+  - Conventions 업데이트: /convention-update
 ```
 
 ### 9. 계약 검증 (선택)
