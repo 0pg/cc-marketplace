@@ -68,10 +68,10 @@ v7 CLAUDE.md는 Purpose, Requirements, Domain Context로 구성됩니다.
 | **CONTEXT_DECISION_GAP** | Decision Log에 관련 결정/근거 미기술 | Decision Log에 매칭 엔트리 없음 |
 | **CONTEXT_OPERATIONS_GAP** | Operations에 관련 gotcha/트러블슈팅 미기술 | Operations 섹션에 정보 누락 |
 
-### L3: Source Code Issues (대부분의 버그 — 코드가 계약 위반)
+### L3: Source Code Issues (대부분의 버그 — 코드가 요구사항 위반)
 
-Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상태를 의미한다.
-계약(CLAUDE.md)이 올바르면 `/compile`로 재생성하여 해결한다.
+Code-First 모델에서 L3 finding은 **코드가 요구사항을 위반**하는 상태를 의미한다.
+요구사항(CLAUDE.md)이 올바르면 `/compile`로 재생성하여 해결한다.
 
 | 타입 | 설명 | 증거 패턴 | 수정 방향 |
 |------|------|----------|----------|
@@ -121,10 +121,10 @@ Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상�
 **후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
-### L3 Fix (코드가 계약 위반 — `/compile`로 재생성)
+### L3 Fix (코드가 요구사항 위반 — `/compile`로 재생성)
 
-L3 finding은 코드가 계약을 위반하는 상태. 계약이 올바르면 `/compile`로 재생성한다.
-계약 보강이 필요한 경우(CODE_LOGIC_ERROR, CODE_GUARD_MISSING) CLAUDE.md 수정 후 `/compile`.
+L3 finding은 코드가 요구사항을 위반하는 상태. 요구사항이 올바르면 `/compile`로 재생성한다.
+요구사항 보강이 필요한 경우(CODE_LOGIC_ERROR, CODE_GUARD_MISSING) CLAUDE.md 수정 후 `/compile`.
 
 ```markdown
 ## L3 Finding → L1/L2 Fix: {root_cause_type}

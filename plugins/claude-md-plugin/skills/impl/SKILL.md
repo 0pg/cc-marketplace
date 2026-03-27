@@ -17,7 +17,7 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash]
 ## 목적
 
 요구사항(자연어 또는 User Story)을 분석하여 **CLAUDE.md**를 생성/업데이트.
-**코드 구현 없이** 계약 정의만 수행하여 "명세 먼저" 원칙을 따름.
+**코드 구현 없이** 요구사항 정의만 수행하여 "명세 먼저" 원칙을 따름.
 
 ## 출력 구조
 

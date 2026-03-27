@@ -5,8 +5,8 @@ aliases: [diagnose, troubleshoot, fix-bug]
 description: |
   This skill should be used when the user asks to "bugfix code", "fix a bug", "diagnose an error",
   "trace a test failure", "find root cause", or uses "/bugfix".
-  Traces root cause through CLAUDE.md (contract), DEVELOPERS.md (context, optional), and Source Code layers.
-  Code-First: most bugs are code violating the contract → code gets regenerated. Contract changes require user approval.
+  Traces root cause through CLAUDE.md (requirements), DEVELOPERS.md (context, optional), and Source Code layers.
+  Code-First: most bugs are code violating the requirements → code gets regenerated. Requirements changes require user approval.
   Trigger keywords: 버그 진단, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
@@ -15,8 +15,8 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 # /bugfix
 
 소스코드의 런타임 버그/에러를 진단.
-근본 원인을 CLAUDE.md(계약), DEVELOPERS.md(맥락, optional), Source Code 3계층으로 추적.
-Code-First 원칙: 대부분의 버그는 코드가 계약을 위반 → 코드 수정(재생성). 계약 자체 오류는 사용자 승인 후 수정.
+근본 원인을 CLAUDE.md(요구사항), DEVELOPERS.md(맥락, optional), Source Code 3계층으로 추적.
+Code-First 원칙: 대부분의 버그는 코드가 요구사항을 위반 → 코드 수정(재생성). 요구사항 자체 오류는 사용자 승인 후 수정.
 
 ## Triggers
 
@@ -268,14 +268,14 @@ Compile: FAIL
 ## DO / DON'T
 
 **DO:**
-- 코드가 계약(CLAUDE.md)을 위반하는지 우선 확인 (L3 먼저)
+- 코드가 요구사항(CLAUDE.md)을 위반하는지 우선 확인 (L3 먼저)
 - L3 root cause → `/compile` 재실행으로 코드 재생성
-- L1 root cause (계약 자체 오류) → 사용자 승인 필수 후 계약 수정
+- L1 root cause (요구사항 자체 오류) → 사용자 승인 필수 후 요구사항 수정
 - Fix 적용 후 `/compile` 자동 실행 (`compile_required: true`인 경우)
 - Compile 후 원본 테스트 재실행 검증
 
 **DON'T:**
-- 사용자 승인 없이 CLAUDE.md(계약) 수정
+- 사용자 승인 없이 CLAUDE.md(요구사항) 수정
 - compile 없이 bugfix 완료 보고 금지 (`compile_required: true`인 경우)
 - 전체 소스 디렉토리 읽기 (에러 위치 중심 타깃 분석)
 - 상세 진단을 context에 반환 (`${TMP_DIR}` 파일 사용)

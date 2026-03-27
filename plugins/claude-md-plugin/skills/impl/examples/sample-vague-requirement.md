@@ -15,7 +15,7 @@ completeness: low
 scope: single-module
 evidence:
   D1_purpose: 추론 가능 — "사용자 관리 기능" (CRUD/인증/권한 등 구체적 범위 불명)
-  D2_constraints: 없음 — 제약/규칙 미언급
+  D2_requirements: 없음 — 요구사항/규칙 미언급
   D3_domain_context: 없음 — 결정 근거/배경 미언급
 next_phase: Phase 2 Tier 1
 ---end-scope-assessment---
@@ -27,10 +27,10 @@ next_phase: Phase 2 Tier 1
 ---extraction-summary---
 format: natural-language
 purpose: 사용자 관리 [inferred]
-constraints: gap
+requirements: gap
 domain_context: gap
 location: unknown [gap]
-gaps: [PURPOSE 구체화, CONSTRAINTS, DOMAIN_CONTEXT, LOCATION]
+gaps: [PURPOSE 구체화, REQUIREMENTS, DOMAIN_CONTEXT, LOCATION]
 ---end-extraction-summary---
 ```
 
@@ -57,11 +57,11 @@ AskUserQuestion (2개):
 
 AskUserQuestion (3개):
 
-1. **CONSTRAINTS** (Tier 2): "어떤 제약/규칙이 있나요?"
+1. **REQUIREMENTS** (Tier 2): "어떤 요구사항/규칙이 있나요?"
    - 옵션: 중복 이메일 금지만, 중복 이메일 + 필수 필드(email/password/name), 중복 이메일 + 필수 필드 + 비밀번호 8자 이상
    - 사용자 답변: **중복 이메일 + 필수 필드 + 비밀번호 8자 이상**
 
-2. **CONSTRAINTS 에러** (Tier 2): "에러 시나리오는 어떤 것이 있나요?"
+2. **REQUIREMENTS 에러** (Tier 2): "에러 시나리오는 어떤 것이 있나요?"
    - 옵션: 중복 이메일 에러만, 중복 이메일 + 미존재 사용자 에러, 중복 이메일 + 미존재 + 권한 에러
    - 사용자 답변: **중복 이메일 + 미존재 사용자 에러**
 
@@ -82,7 +82,7 @@ AskUserQuestion (3개):
 액션: created
 
 Purpose: 사용자 CRUD 관리 모듈
-Constraints: 8개 — 중복 이메일 금지, 필수 필드(email/password/name), 비밀번호 8자 이상, ...
+Requirements: 8개 — 중복 이메일 금지, 필수 필드(email/password/name), 비밀번호 8자 이상, ...
 Domain Context: 있음
 Dependencies: Internal 0개, External 1개 (bcrypt)
 ```
@@ -100,7 +100,7 @@ compile_context_file: .claude/tmp/compile-context-src-user.md
 status: success
 action: created
 validation: passed
-constraints_count: 8
+requirements_count: 8
 domain_context: present
 dependencies_count: 1
 tech_choices_count: 1
@@ -116,7 +116,7 @@ tech_choices_count: 1
 
 사용자 CRUD 관리 모듈. 사용자 생성, 조회, 수정, 삭제, 목록 조회 기능을 제공합니다.
 
-## Constraints
+## Requirements
 
 - 유효한 입력 → User 객체 반환
 - 존재하는 ID → User 조회 성공
