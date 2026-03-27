@@ -1,4 +1,4 @@
-# claude-md-plugin (v7)
+# claude-md-plugin (v8)
 
 > CLAUDE.md = Primary SSOT (PM Requirements), Source Code = Derived Artifact
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v7                        │
+│                    claude-md-plugin v8                        │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
@@ -181,23 +181,58 @@ Reviews CLAUDE.md quality across 3 dimensions:
 
 ### `/status` — Project Health Dashboard
 
-Shows project-wide health overview (schema pass rate, drift count, DEVELOPERS.md coverage).
+Shows project-wide CLAUDE.md health: schema validity, compile freshness, convention health, and DEVELOPERS.md pairing.
+
+```bash
+/status                   # Project-wide dashboard
+/status src/auth          # Specific path
+```
+
+Output includes health grade (HEALTHY / GOOD / WARNING / CRITICAL) and recommended actions.
 
 ### `/resolve` — Interactive Drift Resolution
 
-Reads `/validate` results and interactively resolves each drift issue (Fix Code, Fix Doc, Skip).
+Reads `/validate` results and interactively resolves each drift issue with per-issue options:
+
+| Drift Type | Options |
+|------------|---------|
+| Requirements VIOLATED | Fix Code (`/compile`) / Fix Doc / Skip |
+| Requirements STALE | Remove / Keep / Update |
+| Convention violation | Fix Code / Update Convention |
+| DEVELOPERS.md MISSING | Generate (`/decompile`) / Skip |
+
+```bash
+/resolve                  # Resolve all recent /validate issues
+/resolve src/auth         # Resolve issues for specific path
+```
 
 ### `/impact` — Change Impact Analysis
 
-Analyzes which modules are affected by a CLAUDE.md change (Requirements-based dependency tracing).
+Analyzes which modules are affected by CLAUDE.md changes. Classifies impact level (HIGH/MEDIUM/LOW) per section type and suggests follow-up actions.
+
+```bash
+/impact                   # Analyze changes in current directory
+/impact src/auth          # Analyze specific module's changes
+```
 
 ### `/diff-spec` — Semantic Diff
 
-Compares document versions to show semantic changes between revisions.
+Shows structured, section-by-section comparison between CLAUDE.md versions. Each requirement is classified as ADDED / REMOVED / MODIFIED / UNCHANGED.
+
+```bash
+/diff-spec src/auth               # Compare HEAD vs working copy
+/diff-spec src/auth --ref v2.0.0  # Compare specific git ref vs working copy
+```
 
 ### `/refactor` — Module Split/Merge
 
-Splits or merges modules based on Requirements grouping analysis.
+Document-level refactoring: split one CLAUDE.md into multiple modules, or merge multiple into one. Uses Requirements grouping for split decisions and runs `/impact` before execution.
+
+```bash
+/refactor src/auth                # Interactive mode selection
+/refactor src/auth --mode split   # Split module by Requirements groups
+/refactor src/auth --mode merge   # Merge with other modules
+```
 
 ### Other Commands
 
@@ -218,7 +253,7 @@ Splits or merges modules based on Requirements grouping analysis.
 ### B. Legacy Code Documentation
 
 ```
-/decompile → /validate → (fix issues) → /validate
+/decompile → /validate → /resolve → /validate
 ```
 
 ### C. Runtime Bug Fix
@@ -231,6 +266,24 @@ Splits or merges modules based on Requirements grouping analysis.
 
 ```
 /impl-review → (apply fixes) → /compile
+```
+
+### E. Spec Change → Impact Check → Recompile
+
+```
+/diff-spec src/auth → /impact src/auth → /compile
+```
+
+### F. Validate → Resolve → Verify
+
+```
+/validate → /resolve → /validate
+```
+
+### G. Module Restructuring
+
+```
+/refactor src/auth --mode split → /compile --all → /validate
 ```
 
 ## Architecture

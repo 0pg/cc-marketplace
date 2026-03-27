@@ -248,7 +248,7 @@ CLAUDE.md와 함께 DEVELOPERS.md를 생성합니다. DEVELOPERS.md는 CLAUDE.md
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
-cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
+cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 ```
 
 **생성 규칙:**

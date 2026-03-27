@@ -1,6 +1,6 @@
 <!--
   이 파일은 예시와 설명을 위한 문서입니다.
-  규칙의 Single Source of Truth: references/shared/schema-rules.yaml
+  규칙의 Single Source of Truth: core/schema-rules.yaml
 -->
 
 # CLAUDE.md Schema Template (v4.0.0)
@@ -42,7 +42,7 @@
 | Instructions | conditional | is_project_root | ✗ | AI 행동 지시 (project root에만) |
 | Conventions | conditional | is_project_or_module_root | — | 프로젝트/코드 수준 통합 규칙 |
 
-> 규칙 상세: `references/shared/schema-rules.yaml` 참조
+> 규칙 상세: `core/schema-rules.yaml` 참조
 
 ---
 
@@ -159,7 +159,7 @@ TypeScript 5.0, Node.js 20 LTS
 ## 관련 문서
 
 - **DEVELOPERS.md**: Derived Spec — CLAUDE.md Requirements를 시스템 레벨로 구체화하는 쌍 문서
-- 템플릿: `templates/developers-md-schema.md`
+- 템플릿: `references/shared/developers-md-schema.md`
 
 ### 불변식
 

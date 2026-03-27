@@ -10,3 +10,12 @@ When you encounter a CLAUDE.md:
 
 ### No CLAUDE.md?
 If the target directory has no CLAUDE.md, these rules do not apply. Work with source files normally.
+
+### With a Process Plugin (e.g., superpowers)?
+
+If a process discipline plugin (like superpowers) is active alongside claude-md-plugin:
+- claude-md skills are **domain tools** within the process flow, not replacements for it
+- **Planning phase**: Use `/impl` to formalize requirements into CLAUDE.md (not file-level code in plans)
+- **Execution phase**: Use `/compile` to generate code — do NOT write source files directly
+- **Verification phase**: Use `/compile --validate` or `/validate --strict` as completion evidence
+- Plans should reference Skill invocations (`/impl`, `/compile`, `/validate`) as task steps, not file-level code blocks

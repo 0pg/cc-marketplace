@@ -95,7 +95,7 @@ check_stale() {
   # Check if any source file is newer than the binary
   local stale_files
   stale_files=$(find "$CORE_DIR/src" "$CORE_DIR/Cargo.toml" "$CORE_DIR/Cargo.lock" "$CORE_DIR/build.rs" \
-    "$PLUGIN_ROOT/references/shared/schema-rules.yaml" \
+    "$CORE_DIR/schema-rules.yaml" \
     -newer "$CLI_PATH" 2>/dev/null | head -1)
   if [[ -n "$stale_files" ]]; then
     return 0  # stale

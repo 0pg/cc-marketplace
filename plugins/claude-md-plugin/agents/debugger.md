@@ -377,7 +377,7 @@ L3 root cause인 경우 이 Phase를 스킵하고 바로 Phase 7로 진행합니
 Fix 대상 문서의 스키마를 로드하여 수정안이 스키마를 준수하도록 합니다:
 
 ```bash
-cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
+cat "${CLAUDE_PLUGIN_ROOT}/references/shared/claude-md-schema.md"
 ```
 
 debugger-templates.md의 Fix Strategy Templates 형식으로 수정안을 작성하되,

@@ -2,7 +2,7 @@
 # This file defines all validation rules for CLAUDE.md files.
 # Rules are consumed by:
 #   - Rust core engine (build-time code generation via build.rs)
-#   - Documentation (templates/claude-md-schema.md)
+#   - Documentation (references/shared/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
 version: "4.0.0"

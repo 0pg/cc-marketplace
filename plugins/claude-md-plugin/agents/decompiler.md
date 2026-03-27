@@ -162,7 +162,7 @@ CLAUDE.md 생성 후, 같은 디렉토리에 DEVELOPERS.md를 생성합니다.
 
 **DEVELOPERS.md 스키마 참조:**
 ```bash
-cat "${CLAUDE_PLUGIN_ROOT}/templates/developers-md-schema.md"
+cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 ```
 
 **DEVELOPERS.md 템플릿:**

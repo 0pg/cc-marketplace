@@ -83,8 +83,8 @@ Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상�
 ## Fix Strategy Templates
 
 > **스키마 SSOT**: 수정안은 반드시 스키마 템플릿을 준수해야 합니다.
-> - CLAUDE.md: `templates/claude-md-schema.md`
-> - DEVELOPERS.md: `templates/developers-md-schema.md`
+> - CLAUDE.md: `references/shared/claude-md-schema.md`
+> - DEVELOPERS.md: `references/shared/developers-md-schema.md`
 > debugger agent가 Phase 7.1에서 해당 스키마를 로드합니다.
 
 ### L1 Fix (CLAUDE.md)

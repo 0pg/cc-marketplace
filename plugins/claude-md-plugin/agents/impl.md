@@ -202,7 +202,7 @@ claude_md_index_file: {claude_md_index_file}
 
 ```bash
 # CLAUDE.md 스키마
-cat "${CLAUDE_PLUGIN_ROOT}/templates/claude-md-schema.md"
+cat "${CLAUDE_PLUGIN_ROOT}/references/shared/claude-md-schema.md"
 ```
 
 **CLAUDE.md 필수 섹션**: 3개 always-required (Purpose, Requirements, Domain Context) + conditional (Instructions — project root only, Conventions — project/module root)

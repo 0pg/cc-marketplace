@@ -1,6 +1,6 @@
 ---
 name: compile
-version: 3.0.0
+version: 3.1.0
 aliases: [gen, generate, build]
 description: |
   This skill should be used when the user asks to "compile CLAUDE.md to code", "generate code from CLAUDE.md", "implement CLAUDE.md",
@@ -8,7 +8,7 @@ description: |
   Performs Inline TDD: compiler agent generates tests from DEVELOPERS.md Constraints, then implements code (GREEN+REFACTOR).
   Trigger keywords: 코드 생성, 컴파일, CLAUDE.md에서 코드
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
 # /compile
@@ -29,6 +29,7 @@ CLAUDE.md를 기반으로 소스코드를 생성합니다.
 | `--all` | 아니오 | false | 전체 CLAUDE.md 대상 (incremental 대신) |
 | `--conflict` | 아니오 | `skip` | 파일 충돌 처리: `skip` \| `overwrite` |
 | `--dry-run` | 아니오 | false | 실제 파일 생성 없이 대상만 표시 |
+| `--validate` | 아니오 | false | 컴파일 후 /validate 자동 실행 |
 
 ## Workflow
 
@@ -111,6 +112,16 @@ compiler 결과에서 status 확인:
 git diff --stat
 ```
 
+### 7.5. Post-compile 검증 (optional)
+
+`--validate` 플래그가 있으면 `/validate`를 자동 실행합니다:
+
+```
+Skill("claude-md-plugin:validate", args: "{path}")
+```
+
+검증 결과를 최종 보고에 포함합니다.
+
 ### 8. 최종 보고
 
 ```
@@ -119,6 +130,7 @@ git diff --stat
 생성된 파일: {generated}개
 건너뛴 파일: {skipped}개
 테스트: {passed} passed, {failed} failed
+검증: {validate_status} (--validate 사용 시)
 ```
 
 ## DO / DON'T
@@ -178,5 +190,26 @@ Compile 진행:
 생성된 파일: 9개
 건너뛴 파일: 0개
 테스트: 12 passed, 0 failed
+</assistant_response>
+</example>
+
+<example>
+<user_request>/compile --validate --path src/auth</user_request>
+<assistant_response>
+Incremental 대상 감지:
+  • src/auth — modified
+
+Compile 진행:
+  • src/auth (typescript) — 성공 (tests: 4 passed)
+
+Post-compile 검증:
+  • /validate src/auth — PASS (0 violations)
+
+=== Compile 완료 ===
+총 CLAUDE.md: 1개
+생성된 파일: 3개
+건너뛴 파일: 0개
+테스트: 4 passed, 0 failed
+검증: PASS (0 violations)
 </assistant_response>
 </example>
