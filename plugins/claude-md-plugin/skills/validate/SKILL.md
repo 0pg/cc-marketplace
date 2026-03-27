@@ -8,7 +8,7 @@ description: |
   Runs schema validation and validator agent for comprehensive drift detection.
   Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, 문서 린트
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
 ---
 
 # /validate

@@ -103,7 +103,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 **CLI 경로:**
 ```bash
-CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 ## 입력

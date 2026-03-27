@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "8.1.0",
+  "version": "8.1.1",
   "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. CLAUDE.md가 PM 요구사항 문서, DEVELOPERS.md가 개발자 명세, 소스코드는 파생 산출물. /dev로 자연어 라우팅, /impl로 요구사항 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출, /bugfix로 버그 추적, /impl-review로 품질 리뷰.",
   "author": {
     "name": "jhk"

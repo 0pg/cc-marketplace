@@ -60,13 +60,18 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
+**CLI 경로:**
+```bash
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
+```
+
 ## Workflow
 
 ### 1. CLAUDE.md 파싱
 
 CLI로 직접 파싱합니다:
 ```bash
-claude-md-core parse-claude-md --file {directory}/CLAUDE.md
+$CLI_PATH parse-claude-md --file {directory}/CLAUDE.md
 ```
 
 파싱 결과 JSON에서 다음 섹션 추출:
@@ -113,7 +118,7 @@ DEVELOPERS.md의 존재와 Constraints/Technical Context 일치 여부를 검증
 CLAUDE.md 내 참조가 트리 구조 의존성(INV-1)을 위반하는지 검증합니다.
 CLI로 직접 검증합니다:
 ```bash
-claude-md-core resolve-boundary --path {directory} --claude-md {directory}/CLAUDE.md
+$CLI_PATH resolve-boundary --path {directory} --claude-md {directory}/CLAUDE.md
 ```
 
 결과에서 `violations`을 확인:
@@ -126,7 +131,7 @@ claude-md-core resolve-boundary --path {directory} --claude-md {directory}/CLAUD
 
 **검증 방법:** CLI로 Convention 섹션을 검증합니다:
 ```bash
-claude-md-core validate-convention --project-root {project_root}
+$CLI_PATH validate-convention --project-root {project_root}
 ```
 
 CLI 실행이 실패하면 수동으로 검증합니다:
