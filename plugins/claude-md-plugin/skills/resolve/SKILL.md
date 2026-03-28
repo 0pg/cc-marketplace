@@ -5,9 +5,11 @@ aliases: [fix-drift, handle-violation]
 user_invocable: true
 description: |
   This skill should be used when the user asks to "resolve drift", "fix validation issues",
-  "handle validation results", or uses "/resolve".
-  Reads /validate results and interactively resolves each drift issue.
-  Trigger keywords: drift 해소, 위반 해소, validate 결과 처리
+  "handle validation results", "fix documentation mismatch", "update code to match spec",
+  "sync docs with code", or uses "/resolve".
+  Reads /validate results and interactively resolves each drift issue by presenting
+  per-issue options (Fix Code, Fix Doc, Generate, Skip) with user confirmation.
+  Trigger keywords: drift 해소, 위반 해소, validate 결과 처리, 문서 불일치 수정
 argument-hint: "[path]"
 allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, Skill, AskUserQuestion]
 ---

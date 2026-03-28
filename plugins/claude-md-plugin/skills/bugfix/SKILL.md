@@ -5,8 +5,8 @@ aliases: [diagnose, troubleshoot, fix-bug]
 description: |
   This skill should be used when the user asks to "bugfix code", "fix a bug", "diagnose an error",
   "trace a test failure", "find root cause", or uses "/bugfix".
-  Traces root cause through CLAUDE.md (requirements), DEVELOPERS.md (context, optional), and Source Code layers.
-  Code-First: most bugs are code violating the requirements → code gets regenerated. Requirements changes require user approval.
+  Traces root cause through 3 layers: CLAUDE.md (requirements), DEVELOPERS.md (context), Source Code.
+  Code-First: most bugs are code violating requirements → regenerated via /compile.
   Trigger keywords: 버그 진단, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]

@@ -154,6 +154,11 @@ Skill("claude-md-plugin:validate", args: "{path}")
 | compiler agent 실패 (단일 모듈) | 경고, 나머지 계속 |
 | 언어 감지 실패 | AskUserQuestion |
 
+## References
+
+- `references/compiler-workflow.md`: compiler agent의 Inline TDD 워크플로우 (테스트 생성 → GREEN → REFACTOR)
+- `examples/generate-result.json`: compiler agent 결과 JSON 예시
+
 ## Examples
 
 <example>
