@@ -1,0 +1,5 @@
+[dependencies]
+tokio = { features = ["full"] }
+axum = {}
+tower = {}
+tower-http = { features = ["cors", "trace"] }

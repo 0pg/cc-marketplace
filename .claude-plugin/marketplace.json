@@ -56,6 +56,16 @@
       },
       "source": "./plugins/claude-md-plugin",
       "category": "documentation"
+    },
+    {
+      "name": "project-init",
+      "description": "Multi-language project setup plugin. Sets up code conventions, dependencies, CLAUDE.md, and installs a language-specific convention skill into the target project.",
+      "version": "1.0.0",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/project-init",
+      "category": "development"
     }
   ]
 }
