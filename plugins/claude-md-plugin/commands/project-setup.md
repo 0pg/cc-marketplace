@@ -27,12 +27,14 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, AskUserQuestion]
 
 ### 1. 프로젝트 루트 결정
 
-인자가 있으면 해당 경로를 사용합니다. 없으면 자동 탐지합니다:
+인자가 있으면 해당 경로를 사용합니다. 없으면 CWD를 확인합니다:
 
-```bash
-# .git, package.json, pyproject.toml, Cargo.toml, go.mod 등으로 탐지
-find_project_root()
-```
+1. CWD에서 project root marker (`.git`, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod` 등) 존재 여부 확인
+2. marker가 있으면 → CWD를 project root로 사용
+3. marker가 없으면 → AskUserQuestion으로 프로젝트 루트 경로를 질문:
+   "현재 디렉토리({CWD})에서 프로젝트 루트를 찾을 수 없습니다. 프로젝트 루트 경로를 입력해주세요."
+
+**상위 디렉토리 탐색 금지** — CWD 외부로 탐색하지 않습니다.
 
 ### 2. 모듈 루트 탐지
 
