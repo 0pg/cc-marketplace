@@ -1,7 +1,7 @@
 Feature: CLAUDE.md Parser
-  As a pre-learning index system
+  As a primary SSOT system
   I want to parse CLAUDE.md files into structured specs
-  So that I can extract purpose, constraints, and domain context
+  So that I can extract purpose, requirements, and domain context
 
   Background:
     Given the claude-md-parser uses regex patterns for section parsing
@@ -19,7 +19,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Handles user authentication and token validation.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -28,7 +28,7 @@ Feature: CLAUDE.md Parser
     When I parse the CLAUDE.md file
     Then the spec should have purpose "Handles user authentication and token validation."
 
-  Scenario: Parse Constraints section with bullet list
+  Scenario: Parse Requirements section with bullet list
     Given a CLAUDE.md file with content:
       """
       # auth-module
@@ -36,7 +36,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Authentication module.
 
-      ## Constraints
+      ## Requirements
       - Password reset must be within 90 days
       - Maximum 5 concurrent sessions
 
@@ -44,9 +44,9 @@ Feature: CLAUDE.md Parser
       None
       """
     When I parse the CLAUDE.md file
-    Then the spec should have constraints count 2
+    Then the spec should have requirements count 2
 
-  Scenario: Parse Constraints section with None value
+  Scenario: Parse Requirements section with None value
     Given a CLAUDE.md file with content:
       """
       # auth-module
@@ -54,14 +54,14 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Authentication module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
       None
       """
     When I parse the CLAUDE.md file
-    Then the spec should have no constraints
+    Then the spec should have no requirements
 
   Scenario: Parse Domain Context section
     Given a CLAUDE.md file with content:
@@ -71,7 +71,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Authentication module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -89,7 +89,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Authentication module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -106,7 +106,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       My project root.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -128,7 +128,7 @@ Feature: CLAUDE.md Parser
       """
       # module-name
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -137,7 +137,7 @@ Feature: CLAUDE.md Parser
     When I parse the CLAUDE.md file
     Then parsing should fail with error "Missing required section: Purpose"
 
-  Scenario: Fail fast on missing Constraints section
+  Scenario: Fail fast on missing Requirements section
     Given a CLAUDE.md file with content:
       """
       # module-name
@@ -149,7 +149,7 @@ Feature: CLAUDE.md Parser
       None
       """
     When I parse the CLAUDE.md file
-    Then parsing should fail with error "Missing required section: Constraints"
+    Then parsing should fail with error "Missing required section: Requirements"
 
   Scenario: Fail fast on missing Domain Context section
     Given a CLAUDE.md file with content:
@@ -159,7 +159,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Some purpose description.
 
-      ## Constraints
+      ## Requirements
       None
       """
     When I parse the CLAUDE.md file
@@ -182,7 +182,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -202,7 +202,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -210,7 +210,7 @@ Feature: CLAUDE.md Parser
       """
     When I parse the CLAUDE.md file
     Then the spec should have purpose "Test module."
-    And the spec should have no constraints
+    And the spec should have no requirements
     And the spec should have no domain context
     And the spec should have no instructions
 
@@ -222,7 +222,7 @@ Feature: CLAUDE.md Parser
       ## Purpose
       None
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context

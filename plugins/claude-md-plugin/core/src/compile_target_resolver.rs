@@ -285,9 +285,12 @@ impl CompileTargetResolver {
         dirs
     }
 
-    /// Get relative paths to spec files (CLAUDE.md) in a directory
+    /// Get relative paths to spec files (CLAUDE.md + DEVELOPERS.md) in a directory
     fn spec_files_in(&self, _root: &Path, dir: &Path) -> Vec<String> {
-        vec![dir.join("CLAUDE.md").to_string_lossy().to_string()]
+        vec![
+            dir.join("CLAUDE.md").to_string_lossy().to_string(),
+            dir.join("DEVELOPERS.md").to_string_lossy().to_string(),
+        ]
     }
 
     /// Get relative paths to source files in a directory (non-recursive)
@@ -520,11 +523,12 @@ fn git_last_commit_ts(root: &Path, paths: &[String]) -> Option<u64> {
 
 // ============== Utility functions ==============
 
-/// Extract directory paths from file paths that contain CLAUDE.md
+/// Extract directory paths from file paths that contain CLAUDE.md or DEVELOPERS.md
 fn extract_spec_dirs(files: &[String]) -> HashSet<String> {
     let mut dirs = HashSet::new();
     for file in files {
         if file.ends_with("/CLAUDE.md") || file == "CLAUDE.md"
+            || file.ends_with("/DEVELOPERS.md") || file == "DEVELOPERS.md"
         {
             let dir = Path::new(file)
                 .parent()
@@ -594,14 +598,23 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_spec_dirs_ignores_non_claude_md() {
+    fn test_extract_spec_dirs_developers_md_triggers() {
         let files = vec![
-            "src/auth/IMPLEMENTS.md".to_string(),
-            "IMPLEMENTS.md".to_string(),
             "src/auth/DEVELOPERS.md".to_string(),
         ];
         let dirs = extract_spec_dirs(&files);
-        assert!(dirs.is_empty(), "Non-CLAUDE.md spec files should not trigger compile targets");
+        assert!(dirs.contains("src/auth"), "DEVELOPERS.md should trigger compile targets in v7");
+        assert_eq!(dirs.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_spec_dirs_ignores_non_spec_files() {
+        let files = vec![
+            "src/auth/IMPLEMENTS.md".to_string(),
+            "IMPLEMENTS.md".to_string(),
+        ];
+        let dirs = extract_spec_dirs(&files);
+        assert!(dirs.is_empty(), "Non-spec files should not trigger compile targets");
     }
 
     #[test]

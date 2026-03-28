@@ -5,8 +5,8 @@ aliases: [diagnose, troubleshoot, fix-bug]
 description: |
   This skill should be used when the user asks to "bugfix code", "fix a bug", "diagnose an error",
   "trace a test failure", "find root cause", or uses "/bugfix".
-  Traces root cause through CLAUDE.md (contract), DEVELOPERS.md (context, optional), and Source Code layers.
-  Code-First: most bugs are code violating the contract → code gets regenerated. Contract changes require user approval.
+  Traces root cause through 3 layers: CLAUDE.md (requirements), DEVELOPERS.md (context), Source Code.
+  Code-First: most bugs are code violating requirements → regenerated via /compile.
   Trigger keywords: 버그 진단, 버그 수정, 에러 추적, 테스트 실패, 런타임 에러
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
@@ -15,8 +15,8 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 # /bugfix
 
 소스코드의 런타임 버그/에러를 진단.
-근본 원인을 CLAUDE.md(계약), DEVELOPERS.md(맥락, optional), Source Code 3계층으로 추적.
-Code-First 원칙: 대부분의 버그는 코드가 계약을 위반 → 코드 수정(재생성). 계약 자체 오류는 사용자 승인 후 수정.
+근본 원인을 CLAUDE.md(요구사항), DEVELOPERS.md(맥락, optional), Source Code 3계층으로 추적.
+Code-First 원칙: 대부분의 버그는 코드가 요구사항을 위반 → 코드 수정(재생성). 요구사항 자체 오류는 사용자 승인 후 수정.
 
 ## Triggers
 
@@ -56,39 +56,8 @@ AskUserQuestion: "버그 수정할 에러 정보를 알려주세요."
 
 ### 3. (Type C 전용) 모듈 탐색
 
-기능 설명이 입력된 경우, 기술적 진단 대상을 먼저 특정:
-
-**3.1. 전체 CLAUDE.md 인덱스 생성:**
-```bash
-CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
-
-TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
-mkdir -p "$TMP_DIR"
-
-$CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}debug-scan-index.json"
-```
-
-**3.2. 의미적 매칭 & 신뢰도 분류:**
-
-기능 설명의 키워드와 각 모듈의 `purpose` 매칭 후 결과 분류:
-
-```
-매칭 결과 분류:
-- 확실 (1개, purpose 직접 일치) → 바로 3.3으로 진행
-- 후보 다수 (2-3개) → Purpose 요약과 함께 AskUserQuestion으로 선택
-- 매칭 실패 (0개) → Grep fallback:
-    Grep: pattern="{keyword}" glob="**/*.{ts,py,go,rs}" head_limit=30
-  → 여전히 없으면 AskUserQuestion으로 경로 직접 입력 요청
-```
-
-**3.3. 매칭된 모듈(최대 3개)에서 관련 테스트 탐색:**
-```
-Glob: {matched_dir}/**/*test*  또는  {matched_dir}/**/*spec*
-```
-
-**3.4. 관련 테스트 실행 → 실패 시 Type A/B 흐름 합류.**
-
-**3.5. 전체 통과 → Constraints 교차 분석 (CLAUDE.md Constraints vs 실제 동작 비교).**
+상세 워크플로우는 `references/bugfix-workflow.md` Step 3을 참조하세요.
+요약: CLAUDE.md 인덱스 생성 → 의미적 매칭 → 테스트 탐색/실행 → Type A/B 합류.
 
 ### 4. 대상 식별
 
@@ -102,45 +71,8 @@ Glob: {matched_dir}/**/*test*  또는  {matched_dir}/**/*spec*
 
 ### 5. 사전 검증 (CLI) — 리스크 레벨 분류
 
-CLAUDE.md가 존재할 때만 실행:
-
-```bash
-TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
-mkdir -p "$TMP_DIR"
-
-CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
-```
-
-**5.1. 스키마 검증:**
-```bash
-$CLI_PATH validate-schema --file {claude_md_path}
-```
-
-**5.2. 미컴파일 변경 확인:**
-```bash
-$CLI_PATH diff-compile-targets --root {project_root}
-```
-
-**5.3. 리스크 레벨 분류:**
-
-| 검증 결과 | 조건 | 리스크 | 대응 |
-|-----------|------|--------|------|
-| 스키마 FAIL (필수 섹션 누락) | Purpose/Constraints/Domain Context 오류 | **HIGH** | 차단 + AskUserQuestion 오버라이드 확인 |
-| 스키마 FAIL (선택 섹션만) | 경고만 | **LOW** | 경고 후 계속 |
-| 미컴파일: `untracked`/`no-source-code` | 소스코드 없음 | **HIGH** | 차단 + `/compile` 안내 |
-| 미컴파일: `staged`/`modified`/`spec-newer` | 코드-스펙 불일치 | **MEDIUM** | 경고 + AskUserQuestion |
-| 스키마 FAIL + 미컴파일 | 복합 | **HIGH** (에스컬레이션) | 차단 + 단계별 해결 안내 |
-| 둘 다 PASS | 정상 | **NONE** | 그대로 진행 |
-
-**HIGH 리스크 차단 시:**
-```
-AskUserQuestion: "사전 검증에서 HIGH 리스크가 발견되었습니다. {상세 설명}. 그래도 진행할까요?"
-옵션: [오버라이드하고 진행, 먼저 해결 후 재시도]
-```
-
-**오버라이드 시 후속 처리:**
-- debugger Task 호출 시 `risk_override: true` 플래그 전달
-- debugger가 영향받는 계층 findings에 `confidence: LOW` 강제
+상세 워크플로우는 `references/bugfix-workflow.md` Step 5를 참조하세요.
+요약: 스키마 검증 + 미컴파일 변경 확인 → NONE/LOW/MEDIUM/HIGH 리스크 분류 → HIGH 시 AskUserQuestion 차단.
 
 ### 6. 진단 (debugger agent)
 
@@ -165,7 +97,7 @@ debugger agent가 구조화된 블록으로 결과 반환:
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_CONSTRAINT_GAP | SPEC_CONSTRAINT_MISMATCH | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
+root_cause_type: SPEC_REQUIREMENTS_GAP | SPEC_REQUIREMENTS_MISMATCH | CONTEXT_CONSTRAINT_GAP | CODE_LOGIC_ERROR | ...
 summary: <한 줄 근본 원인 설명>
 fix_targets: [CLAUDE.md]
 compile_path: {dir}
@@ -268,14 +200,14 @@ Compile: FAIL
 ## DO / DON'T
 
 **DO:**
-- 코드가 계약(CLAUDE.md)을 위반하는지 우선 확인 (L3 먼저)
+- 코드가 요구사항(CLAUDE.md)을 위반하는지 우선 확인 (L3 먼저)
 - L3 root cause → `/compile` 재실행으로 코드 재생성
-- L1 root cause (계약 자체 오류) → 사용자 승인 필수 후 계약 수정
+- L1 root cause (요구사항 자체 오류) → 사용자 승인 필수 후 요구사항 수정
 - Fix 적용 후 `/compile` 자동 실행 (`compile_required: true`인 경우)
 - Compile 후 원본 테스트 재실행 검증
 
 **DON'T:**
-- 사용자 승인 없이 CLAUDE.md(계약) 수정
+- 사용자 승인 없이 CLAUDE.md(요구사항) 수정
 - compile 없이 bugfix 완료 보고 금지 (`compile_required: true`인 경우)
 - 전체 소스 디렉토리 읽기 (에러 위치 중심 타깃 분석)
 - 상세 진단을 context에 반환 (`${TMP_DIR}` 파일 사용)
@@ -283,6 +215,7 @@ Compile: FAIL
 ## 참조 자료
 
 - `references/debugger-templates.md`: Root cause types, fix strategies, stack trace patterns, CLI guide, result template (debugger agent가 런타임에 `cat`으로 로드)
+- `references/bugfix-workflow.md`: Type C 모듈 탐색 (Step 3) + 사전 검증 리스크 분류 (Step 5) 상세 워크플로우
 
 ## 관련 컴포넌트
 
@@ -309,8 +242,8 @@ src/auth에서 에러를 진단합니다...
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_CONSTRAINT_MISMATCH
-요약: CLAUDE.md constraints specify validateToken as standalone but code defines it as class method
+Root Cause: L1 - SPEC_REQUIREMENTS_MISMATCH
+요약: CLAUDE.md Requirements specify validateToken as standalone but code defines it as class method
 
 수정된 문서: [CLAUDE.md]
 Compile: PASS
@@ -340,7 +273,7 @@ Compile: PASS
 =========
 
 Root Cause: L3 - CODE_SPEC_DIVERGENCE
-요약: Code returns null instead of empty array as specified in CLAUDE.md Constraints
+요약: Code returns null instead of empty array as specified in CLAUDE.md Requirements
 
 수정된 문서: (스펙/플랜 정확 — 재컴파일로 해결)
 Compile: PASS
@@ -373,8 +306,8 @@ Compile: PASS
 /bugfix 결과
 =========
 
-Root Cause: L1 - SPEC_CONSTRAINT_GAP
-요약: Token refresh on expiry not specified in CLAUDE.md Constraints
+Root Cause: L1 - SPEC_REQUIREMENTS_GAP
+요약: Token refresh on expiry not specified in CLAUDE.md Requirements
 
 수정된 문서: [CLAUDE.md]
 Compile: PASS

@@ -166,7 +166,7 @@ mod tests {
 
 JWT 토큰 검증 인증 모듈
 
-## Constraints
+## Requirements
 "#;
         assert_eq!(extract_purpose(content), "JWT 토큰 검증 인증 모듈");
     }
@@ -178,7 +178,7 @@ JWT 토큰 검증 인증 모듈
 This module handles user authentication
 by verifying JWT tokens against the secret key.
 
-## Constraints
+## Requirements
 "#;
         assert_eq!(
             extract_purpose(content),
@@ -189,7 +189,7 @@ by verifying JWT tokens against the secret key.
     #[test]
     fn test_extract_purpose_truncation() {
         let long_text = "A".repeat(250);
-        let content = format!("## Purpose\n\n{}\n\n## Constraints\n", long_text);
+        let content = format!("## Purpose\n\n{}\n\n## Requirements\n", long_text);
         let result = extract_purpose(&content);
         assert_eq!(result.chars().count(), 203);
         assert!(result.ends_with("..."));
@@ -197,7 +197,7 @@ by verifying JWT tokens against the secret key.
 
     #[test]
     fn test_extract_purpose_empty() {
-        let content = "## Constraints\n\n- some rule\n";
+        let content = "## Requirements\n\n- some rule\n";
         assert_eq!(extract_purpose(content), "");
     }
 
@@ -216,7 +216,7 @@ by verifying JWT tokens against the secret key.
 
 JWT 토큰 검증 인증 모듈
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -236,7 +236,7 @@ None
 
 공통 유틸리티 함수
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -281,7 +281,7 @@ None
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(
             src_dir.join("CLAUDE.md"),
-            "## Purpose\n\nShould be included\n\n## Constraints\nNone\n",
+            "## Purpose\n\nShould be included\n\n## Requirements\nNone\n",
         )
         .unwrap();
 
@@ -296,7 +296,7 @@ None
     fn test_extract_purpose_korean_70_chars_not_truncated() {
         let korean_70 = "가".repeat(70);
         assert_eq!(korean_70.chars().count(), 70);
-        let content = format!("## Purpose\n\n{}\n\n## Constraints\n", korean_70);
+        let content = format!("## Purpose\n\n{}\n\n## Requirements\n", korean_70);
         let result = extract_purpose(&content);
         assert_eq!(result, korean_70);
         assert!(!result.ends_with("..."));
@@ -306,7 +306,7 @@ None
     fn test_extract_purpose_korean_210_chars_truncated() {
         let korean_210 = "나".repeat(210);
         assert_eq!(korean_210.chars().count(), 210);
-        let content = format!("## Purpose\n\n{}\n\n## Constraints\n", korean_210);
+        let content = format!("## Purpose\n\n{}\n\n## Requirements\n", korean_210);
         let result = extract_purpose(&content);
         assert!(result.ends_with("..."));
         assert_eq!(result.chars().count(), 203);
@@ -318,7 +318,7 @@ None
 
         fs::write(
             temp.path().join("CLAUDE.md"),
-            "## Purpose\n\nProject root spec\n\n## Constraints\nNone\n",
+            "## Purpose\n\nProject root spec\n\n## Requirements\nNone\n",
         )
         .unwrap();
 

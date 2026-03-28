@@ -52,12 +52,12 @@ description: |
   1. Grep spec JSON for searchItems constraints
   2. Grep spec JSON for domain context matching "no results"
   3. git log comparison: CLAUDE.md vs source file
-  4. Finding: Constraints say "empty collection" but no explicit null prohibition
+  4. Finding: Requirements say "empty collection" but no explicit null prohibition
 
   ---debug-layer-result---
   layer: L1
   status: ISSUES_FOUND
-  primary_finding: SPEC_CONSTRAINT_GAP
+  primary_finding: SPEC_REQUIREMENTS_GAP
   result_file: .claude/tmp/debug-l1-findings.md
   ---end-debug-layer-result---
   </assistant_response>
@@ -78,8 +78,8 @@ description: |
   <assistant_response>
   I'll analyze L2 (DEVELOPERS.md Context) layer.
   1. Grep DEVELOPERS.md Decision Log
-  2. Grep DEVELOPERS.md File Map for relevant relationships
-  3. Finding: Decision Log lacks import validation rationale, File Map shows missing dependency link
+  2. Grep DEVELOPERS.md Constraints for relevant contracts
+  3. Finding: Decision Log lacks import validation rationale, Constraints missing relevant contract
 
   ---debug-layer-result---
   layer: L2
@@ -119,8 +119,8 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 
 | Type | Description |
 |------|-------------|
-| **SPEC_CONSTRAINT_GAP** | Constraints do not cover this error scenario |
-| **SPEC_CONSTRAINT_MISMATCH** | Constraints do not match code behavior |
+| **SPEC_REQUIREMENTS_GAP** | Requirements do not cover this error scenario |
+| **SPEC_REQUIREMENTS_MISMATCH** | Requirements do not match code behavior |
 | **SPEC_STALE** | CLAUDE.md is older than source code |
 
 ### L2: DEVELOPERS.md (Context) Issues
@@ -128,9 +128,9 @@ You are a layer-specific debugging analyst. You analyze exactly one layer (L1, L
 | Type | Description |
 |------|-------------|
 | **CONTEXT_DECISION_GAP** | Decision Log does not explain relevant decision/rationale |
-| **CONTEXT_FILE_MAP_STALE** | File Map relationships do not match actual code dependencies |
-| **CONTEXT_INVARIANT_GAP** | Invariants section missing relevant invariant or assertion |
+| **CONTEXT_CONSTRAINT_GAP** | DEVELOPERS.md Constraints section missing relevant constraint |
 | **CONTEXT_OPERATIONS_GAP** | Operations section missing relevant gotcha or troubleshooting info |
+| **CONTEXT_TECHNICAL_STALE** | Technical Context does not match current code |
 
 ### L3: Source Code Issues (diagnostic only)
 
@@ -187,20 +187,20 @@ Extract actual exports to compare with spec in L1.
 
 ### L1: CLAUDE.md Spec Analysis
 
-**Step 4.1: Purpose & Constraints check**
+**Step 4.1: Purpose & Requirements check**
 ```
-Grep: pattern="purpose|constraint" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
+Grep: pattern="purpose|requirement" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=20
 ```
-Compare constraints with code behavior.
-- Constraint not found for this scenario -> L1 SPEC_CONSTRAINT_GAP
-- Constraint mismatch -> check staleness in Step 4.4
+Compare requirements with code behavior.
+- Requirement not found for this scenario -> L1 SPEC_REQUIREMENTS_GAP
+- Requirement mismatch -> check staleness in Step 4.4
 - Match -> code is violating constraint (record for L3)
 
 **Step 4.2: Domain Context check**
 ```
 Grep: pattern="domain|context|decision" path=${TMP_DIR}debug-spec.json output_mode=content head_limit=30
 ```
-- Domain Context missing relevant rationale -> L1 SPEC_CONSTRAINT_GAP
+- Domain Context missing relevant rationale -> L1 SPEC_REQUIREMENTS_GAP
 - Domain Context present, code diverges -> CODE_SPEC_DIVERGENCE (record for L3)
 
 **Step 4.4: Staleness check (code vs spec)**
@@ -221,24 +221,24 @@ Grep: pattern="^## Decision Log|decision|rationale|why" path={developers_md_path
 - Relevant decision not documented -> L2 CONTEXT_DECISION_GAP
 - Decision documented but contradicts code -> record for L3
 
-**Step 5.2: File Map verification**
+**Step 5.2: Constraints check**
 ```
-Grep: pattern="^## File Map|file.*map" path={developers_md_path} output_mode=content -A 50 head_limit=50
+Grep: pattern="^## Constraints|constraint" path={developers_md_path} output_mode=content -A 30 head_limit=50
 ```
-- File relationships not matching code -> L2 CONTEXT_FILE_MAP_STALE
-- Missing file in map -> record as stale
+- Constraint missing for this error scenario -> L2 CONTEXT_CONSTRAINT_GAP
+- Constraint present but contradicts code -> record for L3
 
-**Step 5.3: Invariants check (state-related bugs)**
-State keywords: `undefined`, `null`, `nil`, `not initialized`, `stale`
-```
-Grep: pattern="^## Invariants|invariant" path={developers_md_path} output_mode=content -A 30 head_limit=50
-```
-
-**Step 5.4: Operations check (operational bugs)**
+**Step 5.3: Operations check (operational bugs)**
 For config, deployment, environment-related errors:
 ```
 Grep: pattern="^## Operations|gotcha|troubleshoot" path={developers_md_path} output_mode=content -A 20 head_limit=50
 ```
+
+**Step 5.4: Technical Context check**
+```
+Grep: pattern="^## Technical Context|technical" path={developers_md_path} output_mode=content -A 20 head_limit=50
+```
+- Technical Context does not match current code -> L2 CONTEXT_TECHNICAL_STALE
 
 ## Output
 

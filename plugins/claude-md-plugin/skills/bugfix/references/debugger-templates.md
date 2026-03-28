@@ -1,13 +1,13 @@
 <!--
   debugger-templates.md
   Consolidated reference for the debugger agent.
-  Contains: Input type classification, root cause type definitions (v6),
+  Contains: Input type classification, root cause type definitions (v7),
   fix strategy templates, stack trace patterns, CLI usage guide,
   CLI output JSON structures, result template format, decision tree.
 
-  v6: CLAUDE.md has Purpose, Constraints, Domain Context (no Exports/Behavior/Contract).
-  L1 root causes reference Constraints instead of Exports/Contract.
-  L2 references Invariants instead of Data Structures.
+  v7: CLAUDE.md has Purpose, Requirements, Domain Context.
+  L1 root causes reference Requirements instead of Exports/Contract.
+  L2 references DEVELOPERS.md Constraints + Technical Context instead of Invariants/File Map.
 
   Loaded at runtime by the debugger agent via:
     cat "${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/debugger-templates.md"
@@ -47,44 +47,44 @@
 
 **초기 대응:** `scan-claude-md`로 모듈 탐색 → 관련 테스트 찾기 → 실행.
 
-## Root Cause Type Definitions (v6)
+## Root Cause Type Definitions (v7)
 
 ### L1: CLAUDE.md (Spec) Issues
 
-v6 CLAUDE.md는 Purpose, Constraints, Domain Context로 구성됩니다.
+v7 CLAUDE.md는 Purpose, Requirements, Domain Context로 구성됩니다.
 
 | 타입 | 설명 | 증거 패턴 |
 |------|------|----------|
-| **SPEC_CONSTRAINT_GAP** | Constraints에 이 에러 시나리오의 제약이 없음 | Constraints 섹션에 관련 규칙 없음 |
-| **SPEC_CONSTRAINT_MISMATCH** | Constraints와 코드 동작 불일치 | Constraints 규칙과 코드 동작 비교 실패 |
+| **SPEC_REQUIREMENTS_GAP** | Requirements에 이 에러 시나리오의 요구사항이 없음 | Requirements 섹션에 관련 규칙 없음 |
+| **SPEC_REQUIREMENTS_MISMATCH** | Requirements와 코드 동작 불일치 | Requirements 규칙과 코드 동작 비교 실패 |
 | **SPEC_STALE** | CLAUDE.md가 코드보다 오래됨 | `git log` 타임스탬프 비교 |
 
 ### L2: DEVELOPERS.md (Context) Issues
 
 | 타입 | 설명 | 증거 패턴 |
 |------|------|----------|
+| **CONTEXT_CONSTRAINT_GAP** | DEVELOPERS.md Constraints에 관련 계약이 없음 | Constraints 섹션에 I/O 계약 누락 |
+| **CONTEXT_TECHNICAL_STALE** | Technical Context가 현재 코드와 맞지 않음 | Technical Context와 실제 기술 스택 불일치 |
 | **CONTEXT_DECISION_GAP** | Decision Log에 관련 결정/근거 미기술 | Decision Log에 매칭 엔트리 없음 |
-| **CONTEXT_FILE_MAP_STALE** | File Map 관계가 실제 코드 의존성과 불일치 | File Map 의존관계 vs 실제 import 불일치 |
-| **CONTEXT_INVARIANT_GAP** | Invariants에 관련 내부 불변식 미기술 | Invariants 섹션에 불변식 누락 |
 | **CONTEXT_OPERATIONS_GAP** | Operations에 관련 gotcha/트러블슈팅 미기술 | Operations 섹션에 정보 누락 |
 
-### L3: Source Code Issues (대부분의 버그 — 코드가 계약 위반)
+### L3: Source Code Issues (대부분의 버그 — 코드가 요구사항 위반)
 
-Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상태를 의미한다.
-계약(CLAUDE.md)이 올바르면 `/compile`로 재생성하여 해결한다.
+Code-First 모델에서 L3 finding은 **코드가 요구사항을 위반**하는 상태를 의미한다.
+요구사항(CLAUDE.md)이 올바르면 `/compile`로 재생성하여 해결한다.
 
 | 타입 | 설명 | 증거 패턴 | 수정 방향 |
 |------|------|----------|----------|
-| **CODE_SPEC_DIVERGENCE** | 코드가 Constraints를 따르지 않음 | Constraints 존재 + 코드 동작 불일치 | Constraints가 맞으면 `/compile`로 재생성 |
-| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | Constraints 올바르나 코드 잘못됨 | CLAUDE.md Constraints 보강 후 `/compile` |
-| **CODE_GUARD_MISSING** | guard clause/입력 검증 누락 | Constraints에 규칙 존재 + 코드에 guard 없음 | Constraints 명확화 후 `/compile` |
+| **CODE_SPEC_DIVERGENCE** | 코드가 Requirements/Constraints를 따르지 않음 | Requirements/Constraints 존재 + 코드 동작 불일치 | Requirements/Constraints가 맞으면 `/compile`로 재생성 |
+| **CODE_LOGIC_ERROR** | 코드 자체의 로직 버그 | Requirements 올바르나 코드 잘못됨 | CLAUDE.md Requirements 보강 후 `/compile` |
+| **CODE_GUARD_MISSING** | guard clause/입력 검증 누락 | Requirements/Constraints에 규칙 존재 + 코드에 guard 없음 | Requirements/Constraints 명확화 후 `/compile` |
 | **CODE_IMPLEMENTATION_BUG** | 코드가 DEVELOPERS.md 맥락을 따르지 않음 | DEVELOPERS.md 기술 존재 + 코드가 맥락 불이행 | `/compile`로 재생성 |
 
 ## Fix Strategy Templates
 
 > **스키마 SSOT**: 수정안은 반드시 스키마 템플릿을 준수해야 합니다.
-> - CLAUDE.md: `templates/claude-md-schema.md`
-> - DEVELOPERS.md: `templates/developers-md-schema.md`
+> - CLAUDE.md: `references/shared/claude-md-schema.md`
+> - DEVELOPERS.md: `references/shared/developers-md-schema.md`
 > debugger agent가 Phase 7.1에서 해당 스키마를 로드합니다.
 
 ### L1 Fix (CLAUDE.md)
@@ -92,7 +92,7 @@ Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상�
 ## L1 Fix: {root_cause_type}
 
 **대상 파일:** {claude_md_path}
-**대상 섹션:** {Constraints | Domain Context}
+**대상 섹션:** {Requirements | Domain Context}
 
 **현재:**
 {current_content}
@@ -109,7 +109,7 @@ Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상�
 ## L2 Fix: {root_cause_type}
 
 **대상 파일:** {developers_md_path}
-**대상 섹션:** {File Map | Invariants | Decision Log | Operations}
+**대상 섹션:** {Constraints | Technical Context | Decision Log | Operations}
 
 **현재:**
 {current_content}
@@ -121,10 +121,10 @@ Code-First 모델에서 L3 finding은 **코드가 계약을 위반**하는 상�
 **후속 조치:** bugfix SKILL이 /compile 자동 실행
 ```
 
-### L3 Fix (코드가 계약 위반 — `/compile`로 재생성)
+### L3 Fix (코드가 요구사항 위반 — `/compile`로 재생성)
 
-L3 finding은 코드가 계약을 위반하는 상태. 계약이 올바르면 `/compile`로 재생성한다.
-계약 보강이 필요한 경우(CODE_LOGIC_ERROR, CODE_GUARD_MISSING) CLAUDE.md 수정 후 `/compile`.
+L3 finding은 코드가 요구사항을 위반하는 상태. 요구사항이 올바르면 `/compile`로 재생성한다.
+요구사항 보강이 필요한 경우(CODE_LOGIC_ERROR, CODE_GUARD_MISSING) CLAUDE.md 수정 후 `/compile`.
 
 ```markdown
 ## L3 Finding → L1/L2 Fix: {root_cause_type}
@@ -135,7 +135,7 @@ L3 finding은 코드가 계약을 위반하는 상태. 계약이 올바르면 `/
 **근본 원인:** {L1 또는 L2 어느 문서의 어느 섹션이 부족/불일치}
 
 **수정 대상:** {claude_md_path 또는 developers_md_path}
-**수정 섹션:** {Constraints | Domain Context | Invariants | Decision Log | Operations}
+**수정 섹션:** {Requirements | Domain Context | Constraints | Technical Context | Decision Log | Operations}
 
 **수정안:**
 {proposed_doc_content}
@@ -183,14 +183,14 @@ L3 finding은 코드가 계약을 위반하는 상태. 계약이 올바르면 `/
 ```bash
 $CLI_PATH scan-claude-md --root {project_root} --output ${TMP_DIR}debug-scan-index.json
 ```
-결과: `[{dir, purpose, constraints}]` — 각 모듈의 목적과 제약.
+결과: `[{dir, purpose, requirements}]` — 각 모듈의 목적과 요구사항.
 기능 설명의 키워드와 의미적 매칭하여 관련 모듈 특정.
 
 ### parse-claude-md (L1: 스펙 교차 검증)
 ```bash
 $CLI_PATH parse-claude-md --file {claude_md_path}
 ```
-결과: 구조화된 JSON — purpose, constraints, domain_context.
+결과: 구조화된 JSON — purpose, requirements, domain_context.
 L1 검증에서 에러와 관련된 스펙 요소 교차 검증에 사용.
 
 ### analyze-code (L3: 코드 분석)
@@ -223,13 +223,13 @@ INV-1 위반이 버그 원인일 수 있음.
 
 ## CLI Output JSON Structures
 
-### parse-claude-md 출력 (v6 schema)
+### parse-claude-md 출력 (v7 schema)
 
 ```json
 {
   "name": "auth",
   "purpose": "User authentication module",
-  "constraints": ["토큰 만료 최대 7일", "동시 세션 최대 5개"],
+  "requirements": ["토큰 만료 최대 7일", "동시 세션 최대 5개"],
   "domain_context": "JWT 토큰은 PCI-DSS 준수를 위해 7일 만료 정책 적용"
 }
 ```
@@ -287,14 +287,14 @@ INV-1 위반이 버그 원인일 수 있음.
 
 ### L1: CLAUDE.md (Spec)
 
-- **Constraints 검증:** MATCH | MISMATCH | GAP
+- **Requirements 검증:** MATCH | MISMATCH | GAP
 - **Domain Context 적합성:** RELEVANT | STALE | NOT_FOUND
 
 ### L2: DEVELOPERS.md (Context)
 
-- **File Map:** MATCH | MISMATCH | NOT_FOUND
+- **Constraints:** MATCH | MISMATCH | NOT_FOUND
+- **Technical Context:** RELEVANT | STALE | NOT_FOUND
 - **Decision Log:** RELEVANT | OUTDATED | NOT_FOUND
-- **Invariants:** MATCH | MISMATCH | N/A
 - **Operations:** RELEVANT | OUTDATED | N/A
 
 ## Root Cause
@@ -376,22 +376,22 @@ Bug Report (에러 메시지 / 테스트 실패 / 잘못된 동작)
     +-- CLAUDE.md 존재?
     |   NO --> /decompile 먼저 실행하여 CLAUDE.md 생성 제안
     |   YES |
-    |       +-- 코드가 Constraints를 따르는가? [L3 우선 분석]
-    |       |   NO (코드가 제약 위반) --> L3 root cause
-    |       |       +-- Constraints가 올바른가?
+    |       +-- 코드가 Requirements를 따르는가? [L3 우선 분석]
+    |       |   NO (코드가 요구사항 위반) --> L3 root cause
+    |       |       +-- Requirements가 올바른가?
     |       |       |   YES --> `/compile` 재실행 (CODE_SPEC_DIVERGENCE)
     |       |       |   NO  --> L1 root cause (사용자 승인 필요, Phase 6.5)
     |       |   YES |
-    |       +-- Constraints가 이 시나리오를 커버하는가?
-    |       |   NO --> L1: SPEC_CONSTRAINT_GAP (사용자 승인 필요)
+    |       +-- Requirements가 이 시나리오를 커버하는가?
+    |       |   NO --> L1: SPEC_REQUIREMENTS_GAP (사용자 승인 필요)
     |       |   YES |
     |       +-- DEVELOPERS.md 존재?
     |       |   NO --> L3 분석 (L2 스킵)
     |       |   YES |
-    |       +-- 코드가 DEVELOPERS.md 맥락대로 구현되어 있는가?
+    |       +-- 코드가 DEVELOPERS.md Constraints대로 구현되어 있는가?
     |           NO --> `/compile`로 재생성 (CODE_IMPLEMENTATION_BUG)
-    |           YES --> CLAUDE.md Constraints 보강 후 `/compile` (CODE_LOGIC_ERROR)
+    |           YES --> CLAUDE.md Requirements 보강 후 `/compile` (CODE_LOGIC_ERROR)
     |
     +-- L3 root cause: bugfix SKILL이 /compile 자동 실행 → 검증
-    +-- L1 root cause: Phase 6.5에서 사용자 선택 → Constraints 수정 또는 /compile 재실행
+    +-- L1 root cause: Phase 6.5에서 사용자 선택 → Requirements 수정 또는 /compile 재실행
 ```

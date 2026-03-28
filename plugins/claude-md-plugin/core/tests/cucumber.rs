@@ -1470,19 +1470,19 @@ fn spec_should_have_purpose(world: &mut TestWorld, expected: String) {
     assert_eq!(spec.purpose, expected, "Purpose mismatch");
 }
 
-#[then(expr = "the spec should have constraints count {int}")]
-fn spec_should_have_constraints_count(world: &mut TestWorld, count: usize) {
+#[then(expr = "the spec should have requirements count {int}")]
+fn spec_should_have_requirements_count(world: &mut TestWorld, count: usize) {
     let result = world.parser_result.as_ref().expect("No parser result");
     let spec = result.as_ref().expect("Parsing failed");
-    let constraints = spec.constraints.as_ref().expect("No constraints");
-    assert_eq!(constraints.len(), count, "Constraints count mismatch");
+    let requirements = spec.requirements.as_ref().expect("No requirements");
+    assert_eq!(requirements.len(), count, "Requirements count mismatch");
 }
 
-#[then("the spec should have no constraints")]
-fn spec_should_have_no_constraints(world: &mut TestWorld) {
+#[then("the spec should have no requirements")]
+fn spec_should_have_no_requirements(world: &mut TestWorld) {
     let result = world.parser_result.as_ref().expect("No parser result");
     let spec = result.as_ref().expect("Parsing failed");
-    assert!(spec.constraints.is_none(), "Expected no constraints, got: {:?}", spec.constraints);
+    assert!(spec.requirements.is_none(), "Expected no requirements, got: {:?}", spec.requirements);
 }
 
 #[then(expr = "the spec should have domain context containing {string}")]
@@ -1565,9 +1565,9 @@ fn create_spec_file(world: &mut TestWorld, path: String) {
     let full_path = get_temp_path(world).join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = if path.ends_with("CLAUDE.md") {
-        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nNone\n"
+        "# Module\n\n## Purpose\nTest module\n\n## Requirements\nNone\n\n## Domain Context\nNone\n"
     } else {
-        "# DEVELOPERS\n\n## Domain Context\nNone\n\n## Invariants\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n\n## File Map\nNone\n"
+        "# DEVELOPERS\n\n## Constraints\nNone\n\n## Technical Context\nNone\n"
     };
     let mut f = File::create(&full_path).expect("create file failed");
     write!(f, "{}", content).expect("write failed");
@@ -1701,7 +1701,7 @@ fn create_committed_spec_with_dep(world: &mut TestWorld, path: String, dep: Stri
     let full_path = root.join(&path);
     fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
     let content = format!(
-        "# Module\n\n## Purpose\nTest module\n\n## Constraints\nNone\n\n## Domain Context\nDepends on `{}`.\n",
+        "# Module\n\n## Purpose\nTest module\n\n## Requirements\nNone\n\n## Domain Context\nDepends on `{}`.\n",
         dep
     );
     let mut f = File::create(&full_path).expect("create file failed");

@@ -1,7 +1,7 @@
 Feature: Compile Target Resolution (Incremental Diff)
 
   As a developer using /compile,
-  I want only changed CLAUDE.md files to be recompiled,
+  I want only changed CLAUDE.md or DEVELOPERS.md files to be recompiled,
   So that I save time and cost on large projects.
 
   Background:
@@ -13,13 +13,13 @@ Feature: Compile Target Resolution (Incremental Diff)
     When I resolve compile targets
     Then "src/auth" should be a compile target with reason "staged"
 
-  Scenario: Staged DEVELOPERS.md alone does not trigger compile
+  Scenario: Staged DEVELOPERS.md triggers compile
     Given a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/handler.ts" after the spec
     And a spec file "src/auth/DEVELOPERS.md" with basic content
     And I stage "src/auth/DEVELOPERS.md"
     When I resolve compile targets
-    Then "src/auth" should be skipped with reason "up-to-date"
+    Then "src/auth" should be a compile target with reason "staged"
 
   Scenario: Untracked CLAUDE.md is a compile target
     Given an untracked spec file "src/utils/CLAUDE.md" with basic content

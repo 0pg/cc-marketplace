@@ -9,9 +9,9 @@ Feature: Schema Rules SSOT
   Scenario: Required sections are defined from YAML SSOT
     When I check the required sections
     Then required sections should include:
-      | Constraints    |
       | Domain Context |
       | Purpose        |
+      | Requirements   |
 
   Scenario: Valid CLAUDE.md with all required sections passes validation
     Given a CLAUDE.md file with content:
@@ -21,7 +21,7 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -35,7 +35,7 @@ Feature: Schema Rules SSOT
       """
       # Test Module
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -45,7 +45,7 @@ Feature: Schema Rules SSOT
     Then validation should fail with error "MissingSection"
     And the error should mention "Purpose"
 
-  Scenario: Missing Constraints section fails validation
+  Scenario: Missing Requirements section fails validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -58,7 +58,7 @@ Feature: Schema Rules SSOT
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
-    And the error should mention "Constraints"
+    And the error should mention "Requirements"
 
   Scenario: Missing Domain Context section fails validation
     Given a CLAUDE.md file with content:
@@ -68,14 +68,14 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Constraints
+      ## Requirements
       None
       """
     When I validate the file
     Then validation should fail with error "MissingSection"
     And the error should mention "Domain Context"
 
-  Scenario: Constraints section with "None" passes validation
+  Scenario: Requirements section with "None" passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -83,7 +83,7 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -100,7 +100,7 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Constraints
+      ## Requirements
       N/A
 
       ## Domain Context
@@ -109,7 +109,7 @@ Feature: Schema Rules SSOT
     When I validate the file
     Then validation should pass
 
-  Scenario: Constraints section with actual content passes validation
+  Scenario: Requirements section with actual content passes validation
     Given a CLAUDE.md file with content:
       """
       # Test Module
@@ -117,7 +117,7 @@ Feature: Schema Rules SSOT
       ## Purpose
       This module handles authentication.
 
-      ## Constraints
+      ## Requirements
       - Password reset must be within 90 days
       - Maximum 5 concurrent sessions
 
@@ -135,7 +135,7 @@ Feature: Schema Rules SSOT
       ## Purpose
       None
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context

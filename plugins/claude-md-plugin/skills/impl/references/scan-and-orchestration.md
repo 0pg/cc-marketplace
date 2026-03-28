@@ -30,14 +30,14 @@ $CLI_PATH scan-claude-md --root {project_root} --output .claude/extract-results/
 
 | Phase | 요약 |
 |-------|------|
-| 0 | Scope Assessment — 3차원 증거 기반 완성도 분류 (D1: Purpose, D2: Constraints, D3: Domain Context) |
-| 1 | Requirements Analysis — 4개 스펙 요소 추출 (Purpose, Constraints, Domain Context, Location) |
+| 0 | Scope Assessment — 3차원 증거 기반 완성도 분류 (D1: Purpose, D2: Requirements, D3: Domain Context) |
+| 1 | Requirements Analysis — 4개 스펙 요소 추출 (Purpose, Requirements, Domain Context, Location) |
 | 1.5 | dep-explorer 위임 — 의존성 탐색 |
 | 2 | Tiered Clarification — 최대 2라운드, 라운드당 최대 4질문 |
 | 3 | 대상 위치 결정 — 명시적 경로 > 모듈명 추론 > 사용자 선택 |
-| 4 | 기존 CLAUDE.md 존재시 병합 — Purpose/Constraints/Domain Context smart merge |
-| 5 | CLAUDE.md 생성 — v6 스키마 (Purpose, Constraints, Domain Context) |
-| 5.25 | DEVELOPERS.md 생성 — WHY 맥락 |
+| 4 | 기존 CLAUDE.md 존재시 병합 — Purpose/Requirements/Domain Context smart merge |
+| 5 | CLAUDE.md 생성 — v7 스키마 (Purpose, Requirements, Domain Context) |
+| 5.25 | DEVELOPERS.md 생성 — Derived Spec (Constraints + Technical Context) |
 | 5.5 | compile-context 생성 — Dependencies Direction, Implementation Approach |
 | 6 | 스키마 검증 (1회) — validate-schema CLI |
 | 6.5 | Plan Preview — 사용자 승인/범위조정/위치변경/취소 |

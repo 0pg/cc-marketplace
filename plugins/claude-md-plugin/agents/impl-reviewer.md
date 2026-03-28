@@ -103,7 +103,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 **CLI 경로:**
 ```bash
-CLI_PATH="${CLAUDE_PLUGIN_ROOT}/core/target/release/claude-md-core"
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 ## 입력
@@ -147,7 +147,7 @@ Read: {claude_md_path}
 **Step 2.2: 매핑 검증**
 각 추출 항목을 CLAUDE.md 섹션과 대조:
 - 핵심 기능 → Purpose
-- 제약/규칙 → Constraints
+- 제약/규칙 → Requirements
 - 맥락/근거 → Domain Context
 - 도메인 용어 → 문서 전체
 
@@ -156,26 +156,26 @@ D1-1 ~ D1-5 체크를 수행하고 finding 생성.
 ### Phase 3: D2 — CLAUDE.md Quality
 
 **Step 3.1: 구조 검증**
-- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인 (3 always-required + conditional)
+- D2-1: CLI 파싱 결과로 필수 섹션 존재 확인 (Purpose, Requirements, Domain Context) + conditional
 - D2-9: "None"으로 표시된 섹션 확인 (WARNING severity)
 
 **Step 3.2: Purpose 품질**
 - D2-6: Purpose 1-2문장, 구체적 (anti-pattern 참조)
 
-**Step 3.3: Constraints 품질**
-- D2-2: Constraints가 구체적이고 검증 가능한지
-- D2-3: 각 constraint에 근거/이유가 명시되어 있는지
+**Step 3.3: Requirements 품질**
+- D2-2: Requirements가 구체적이고 검증 가능한지
+- D2-3: 각 requirement에 근거/이유가 명시되어 있는지
 
 **Step 3.4: Domain Context 품질**
 - D2-8: Domain Context에 비자명 결정 근거
 
 ### Phase 4-5: D3 — Internal Consistency
 
-**Step 4.1: Purpose ↔ Constraints 정렬**
-- D3-1: Constraints가 Purpose에서 논리적으로 도출 가능한지
+**Step 4.1: Purpose ↔ Requirements 정렬**
+- D3-1: Requirements가 Purpose에서 논리적으로 도출 가능한지
 
-**Step 4.2: Domain Context ↔ Constraints 정렬**
-- D3-2: Domain Context의 결정 근거가 Constraints에 반영되는지
+**Step 4.2: Domain Context ↔ Requirements 정렬**
+- D3-2: Domain Context의 결정 근거가 Requirements에 반영되는지
 
 **Step 4.3: Instructions ↔ Purpose 정렬 (project root only)**
 - D3-3: Instructions가 Purpose와 일관되는지

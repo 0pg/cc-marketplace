@@ -194,7 +194,7 @@ impl SchemaValidator {
 
         // Warn about unrecognized sections (v3: only known sections expected)
         let known_sections = [
-            "purpose", "constraints", "domain context", "instructions",
+            "purpose", "requirements", "domain context", "instructions",
             "conventions",
         ];
         for section in &sections {
@@ -463,8 +463,9 @@ mod tests {
     /// Helper: Appends always-required allow-none sections if missing
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
-        if !content.contains("## Constraints") {
-            content.push_str("\n## Constraints\nNone\n");
+        // v4 schema: Requirements (not Constraints) is the always-required allow-none section
+        if !content.contains("## Requirements") {
+            content.push_str("\n## Requirements\nNone\n");
         }
         if !content.contains("## Domain Context") {
             content.push_str("\n## Domain Context\nNone\n");
@@ -491,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_constraints_fails() {
+    fn test_missing_requirements_fails() {
         let content = r#"# Test Module
 
 ## Purpose
@@ -509,7 +510,7 @@ None
         assert!(result
             .errors
             .iter()
-            .any(|e| e.message.contains("Constraints")));
+            .any(|e| e.message.contains("Requirements")));
     }
 
     #[test]
@@ -519,7 +520,7 @@ None
 ## Purpose
 Validates tokens.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -534,13 +535,13 @@ None
     }
 
     #[test]
-    fn test_constraints_with_content() {
+    fn test_requirements_with_content() {
         let content = r#"# Test Module
 
 ## Purpose
 Validates tokens.
 
-## Constraints
+## Requirements
 - 비밀번호 재설정 90일 제한
 - 동시 세션 최대 5개
 
@@ -562,7 +563,7 @@ None
 ## Purpose
 None
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -587,7 +588,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -609,7 +610,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -639,7 +640,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -691,8 +692,8 @@ Test module.
         let validator = SchemaValidator::new();
         let (fixed, added) = validator.fix_missing_sections(content);
 
-        // Should add Constraints and Domain Context (always-required allow_none sections)
-        assert!(added.contains(&"Constraints".to_string()));
+        // Should add Requirements and Domain Context (always-required allow_none sections)
+        assert!(added.contains(&"Requirements".to_string()));
         assert!(added.contains(&"Domain Context".to_string()));
 
         // Fixed content should pass validation
@@ -708,7 +709,7 @@ Test module.
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -731,7 +732,7 @@ None
         // Purpose is required but does NOT allow none — should not be added
         assert!(!added.contains(&"Purpose".to_string()));
         // But allow_none sections should be added
-        assert!(added.contains(&"Constraints".to_string()));
+        assert!(added.contains(&"Requirements".to_string()));
     }
 
     // DEVELOPERS.md validation tests
@@ -747,19 +748,16 @@ None
     fn test_developers_valid_all_sections() {
         let content = r#"# Test Module
 
-## Domain Context
+## Constraints
 None
 
-## Invariants
+## Technical Context
 None
 
 ## Decision Log
 None
 
 ## Operations
-None
-
-## File Map
 None
 "#;
         let temp = TempDir::new().unwrap();
@@ -772,13 +770,10 @@ None
     }
 
     #[test]
-    fn test_developers_missing_file_map_fails() {
+    fn test_developers_missing_constraints_fails() {
         let content = r#"# Test Module
 
-## Domain Context
-None
-
-## Invariants
+## Technical Context
 None
 
 ## Decision Log
@@ -794,51 +789,20 @@ None
         let result = validator.validate_developers(&path);
 
         assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.message.contains("File Map")));
+        assert!(result.errors.iter().any(|e| e.message.contains("Constraints")));
     }
 
     #[test]
-    fn test_developers_file_map_none_allowed() {
+    fn test_developers_missing_technical_context_fails() {
         let content = r#"# Test Module
 
-## Domain Context
-None
-
-## Invariants
+## Constraints
 None
 
 ## Decision Log
 None
 
 ## Operations
-None
-
-## File Map
-None
-"#;
-        let temp = TempDir::new().unwrap();
-        let path = create_developers_file(temp.path(), content);
-
-        let validator = SchemaValidator::new();
-        let result = validator.validate_developers(&path);
-
-        assert!(result.valid, "File Map should allow None: {:?}", result.errors);
-    }
-
-    #[test]
-    fn test_developers_missing_invariants_fails() {
-        let content = r#"# Test Module
-
-## Domain Context
-None
-
-## Decision Log
-None
-
-## Operations
-None
-
-## File Map
 None
 "#;
         let temp = TempDir::new().unwrap();
@@ -848,7 +812,27 @@ None
         let result = validator.validate_developers(&path);
 
         assert!(!result.valid);
-        assert!(result.errors.iter().any(|e| e.message.contains("Invariants")));
+        assert!(result.errors.iter().any(|e| e.message.contains("Technical Context")));
+    }
+
+    #[test]
+    fn test_developers_minimal_required_sections_only() {
+        // Decision Log and Operations are optional in v7 — only Constraints + Technical Context required
+        let content = r#"# Test Module
+
+## Constraints
+None
+
+## Technical Context
+None
+"#;
+        let temp = TempDir::new().unwrap();
+        let path = create_developers_file(temp.path(), content);
+
+        let validator = SchemaValidator::new();
+        let result = validator.validate_developers(&path);
+
+        assert!(result.valid, "Minimal DEVELOPERS.md should pass: {:?}", result.errors);
     }
 
     #[test]
@@ -858,7 +842,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -880,7 +864,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -893,19 +877,10 @@ None
 
         let dev_content = r#"# Test Module
 
-## Domain Context
+## Constraints
 None
 
-## Invariants
-None
-
-## Decision Log
-None
-
-## Operations
-None
-
-## File Map
+## Technical Context
 None
 "#;
         create_developers_file(temp.path(), dev_content);
@@ -925,7 +900,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 - some constraint
 
 ## Domain Context
@@ -945,7 +920,7 @@ Some important context.
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context

@@ -15,7 +15,7 @@ completeness: medium
 scope: multi-module
 evidence:
   D1_purpose: 있음 — "결제 시스템" (명확한 도메인)
-  D2_constraints: 추론 가능 — "카드 결제, 정산, 환불" (구체적 제약 없음)
+  D2_requirements: 추론 가능 — "카드 결제, 정산, 환불" (구체적 요구사항 없음)
   D3_domain_context: 없음 — 결정 근거/배경 미언급
 next_phase: Phase 2 Tier 2
 ---end-scope-assessment---
@@ -49,7 +49,7 @@ next_phase: Phase 2 Tier 2
 
 ### Phase 1: Requirements Analysis
 - Purpose: 카드 결제 처리
-- Constraints: 추론 가능 (구체적 제약 미언급)
+- Requirements: 추론 가능 (구체적 요구사항 미언급)
 
 ### Phase 1.5: dep-explorer
 - Internal: 0개
@@ -61,10 +61,10 @@ next_phase: Phase 2 Tier 2
 
 AskUserQuestion (3개):
 
-1. **CONSTRAINTS** (Tier 2): "카드 결제에서 어떤 제약/규칙이 있나요?"
+1. **REQUIREMENTS** (Tier 2): "카드 결제에서 어떤 요구사항/규칙이 있나요?"
    - 사용자 답변: 결제 성공 시 트랜잭션 ID 반환, 잔액부족/카드만료/한도초과 시 에러
 
-2. **CONSTRAINTS 추가** (Tier 2): "결제 취소/상태 조회 기능도 필요한가요?"
+2. **REQUIREMENTS 추가** (Tier 2): "결제 취소/상태 조회 기능도 필요한가요?"
    - 사용자 답변: 예, cancelPayment + getPaymentStatus 필요
 
 3. **DOMAIN_CONTEXT** (Tier 3): "결제 타임아웃 기준이 있나요?"
@@ -83,7 +83,7 @@ AskUserQuestion (3개):
 액션: created
 
 Purpose: 카드 결제 처리 모듈
-Constraints: 6개 — 결제 성공 시 트랜잭션 ID 반환, 잔액부족 에러, 카드만료 에러, ...
+Requirements: 6개 — 결제 성공 시 트랜잭션 ID 반환, 잔액부족 에러, 카드만료 에러, ...
 Domain Context: 있음 (30초 타임아웃, PG사 API)
 Dependencies: Internal 0개, External 1개 (payments-sdk)
 ```
@@ -100,7 +100,7 @@ compile_context_file: .claude/tmp/compile-context-src-payment.md
 status: success
 action: created
 validation: passed
-constraints_count: 6
+requirements_count: 6
 domain_context: present
 dependencies_count: 1
 tech_choices_count: 1

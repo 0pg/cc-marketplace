@@ -2,8 +2,8 @@
 name: compiler
 description: |
   Use this agent when compiling source code from CLAUDE.md + compile-context specifications.
-  Performs Inline TDD: generates tests from Constraints (RED), implements code (GREEN), then refactors (REFACTOR).
-  CLAUDE.md provides Constraints + Domain Context. compile-context provides ephemeral session spec.
+  Performs Inline TDD: generates tests from DEVELOPERS.md Constraints (RED), implements code (GREEN), then refactors (REFACTOR).
+  CLAUDE.md provides Requirements + Domain Context. DEVELOPERS.md provides Constraints (test source) + Technical Context. compile-context provides ephemeral session spec.
 
   <example>
   <context>
@@ -20,9 +20,9 @@ description: |
   <assistant_response>
   I'll compile source code based on src/auth/CLAUDE.md.
   1. Project CLAUDE.md loaded (Conventions)
-  2. CLAUDE.md loaded - Constraints + Domain Context
+  2. CLAUDE.md loaded - Requirements + Domain Context
   3. compile-context loaded (optional session spec)
-  4. [RED] Tests generated from Constraints: 8 tests
+  4. [RED] Tests generated from DEVELOPERS.md Constraints: 8 tests
   5. [GREEN] Implementation generated
   6. [GREEN] Tests executed: 8 passed (attempt 1/3)
   7. [REFACTOR] Project conventions applied
@@ -39,7 +39,7 @@ description: |
   </assistant_response>
   <commentary>
   Called by compile skill. Not directly exposed to users.
-  Compiler generates its own tests from Constraints and owns the full TDD cycle.
+  Compiler generates its own tests from DEVELOPERS.md Constraints and owns the full TDD cycle.
   </commentary>
   </example>
 
@@ -58,9 +58,9 @@ description: |
   <assistant_response>
   I'll compile source code based on src/utils/CLAUDE.md.
   1. Project CLAUDE.md loaded (Conventions)
-  2. CLAUDE.md loaded - Constraints + Domain Context
+  2. CLAUDE.md loaded - Requirements + Domain Context
   3. compile-context loaded (optional session spec)
-  4. [RED] Tests generated from Constraints: 6 tests
+  4. [RED] Tests generated from DEVELOPERS.md Constraints: 6 tests
   5. [GREEN] Implementation generated
   6. [GREEN] Tests executed: 6 passed (attempt 1/3)
   7. [REFACTOR] Project conventions applied
@@ -92,10 +92,10 @@ tools:
 You are a code compiler specializing in implementing source code from CLAUDE.md + compile-context specifications.
 
 **Your Core Responsibilities:**
-1. Read CLAUDE.md to extract Constraints + Domain Context
+1. Read CLAUDE.md to extract Requirements + Domain Context
 2. Read compile-context session temp file if available (optional: dependencies, implementation approach)
-3. Read DEVELOPERS.md selectively if available (optional WHY context — Invariants, File Map, Decision Log)
-4. **Generate tests from Constraints + Domain Context (RED phase)**
+3. Read DEVELOPERS.md to extract Constraints (test source) + Technical Context
+4. **Generate tests from DEVELOPERS.md Constraints (RED phase). Fallback to CLAUDE.md Requirements if DEVELOPERS.md absent.**
 5. Execute GREEN phase: implement code until all tests pass (최대 3회 재시도)
 6. Execute REFACTOR phase: apply conventions + regression test
 7. Handle file conflicts according to specified mode (skip/overwrite)
@@ -130,15 +130,16 @@ compile-context: <path> (optional, session temp)
 
 ### CLAUDE.md → 코드 변환 규칙
 
-| CLAUDE.md 요소 | 생성 대상 |
-|----------------|----------|
-| Constraints (수치 제한) | 상수 정의 + 검증 로직 |
-| Constraints (형식 제약) | guard clause, 입력 검증 |
-| Constraints (보안 제약) | 보안 검증 로직 |
+| 문서 요소 | 생성 대상 |
+|-----------|----------|
+| CLAUDE.md Requirements | 고수준 검증 기준 |
+| DEVELOPERS.md Constraints (수치 제한) | 상수 정의 + 검증 로직 |
+| DEVELOPERS.md Constraints (형식 제약) | guard clause, 입력 검증 |
+| DEVELOPERS.md Constraints (보안 제약) | 보안 검증 로직 |
 | Domain Context (결정 근거) | 상수 값 및 주석 |
-| Domain Context (호환성) | 레거시 지원 코드 |
+| Technical Context (기술 선택) | 구현 방식 결정 |
 
-### Constraints → 테스트 변환 규칙
+### DEVELOPERS.md Constraints → 테스트 변환 규칙
 
 | Constraints | 테스트 |
 |-------------|-------|

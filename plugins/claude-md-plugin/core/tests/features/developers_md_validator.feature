@@ -15,7 +15,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -26,7 +26,7 @@ Feature: DEVELOPERS.md Schema Validation
     And validation should have warnings
     And warning should mention "INV-3"
 
-  Scenario: DEVELOPERS.md with all required sections passes strict validation
+  Scenario: DEVELOPERS.md with all sections passes strict validation
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -34,7 +34,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -44,25 +44,22 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Domain Context
+      ## Constraints
       None
 
-      ## Invariants
+      ## Technical Context
       None
 
       ## Decision Log
       None
 
       ## Operations
-      None
-
-      ## File Map
       None
       """
     When I validate the schema with strict mode
     Then validation should pass
 
-  Scenario: DEVELOPERS.md missing File Map fails validation
+  Scenario: DEVELOPERS.md with only required sections passes strict validation
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -70,7 +67,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -80,23 +77,41 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
+      ## Constraints
+      None
+
+      ## Technical Context
+      None
+      """
+    When I validate the schema with strict mode
+    Then validation should pass
+
+  Scenario: DEVELOPERS.md missing Constraints fails validation
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
       ## Domain Context
       None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
 
-      ## Invariants
-      None
-
-      ## Decision Log
-      None
-
-      ## Operations
+      ## Technical Context
       None
       """
     When I validate the schema with strict mode
     Then validation should fail
-    And error should mention "Missing required section: File Map"
+    And error should mention "Missing required section: Constraints"
 
-  Scenario: File Map allows None
+  Scenario: DEVELOPERS.md missing Technical Context fails validation
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -104,7 +119,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -114,25 +129,41 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
+      ## Constraints
+      None
+      """
+    When I validate the schema with strict mode
+    Then validation should fail
+    And error should mention "Missing required section: Technical Context"
+
+  Scenario: Constraints allows None
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
       ## Domain Context
       None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
 
-      ## Invariants
+      ## Constraints
       None
 
-      ## Decision Log
-      None
-
-      ## Operations
-      None
-
-      ## File Map
+      ## Technical Context
       None
       """
     When I validate the schema with strict mode
     Then validation should pass
 
-  Scenario: Domain Context allows None
+  Scenario: Technical Context allows None
     Given CLAUDE.md with content:
       """
       # Test Module
@@ -140,7 +171,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -150,55 +181,10 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Domain Context
-      None
-
-      ## Invariants
-      None
-
-      ## Decision Log
-      None
-
-      ## Operations
-      None
-
-      ## File Map
-      None
-      """
-    When I validate the schema with strict mode
-    Then validation should pass
-
-  Scenario: Invariants allows None
-    Given CLAUDE.md with content:
-      """
-      # Test Module
-
-      ## Purpose
-      Test module.
-
       ## Constraints
       None
 
-      ## Domain Context
-      None
-      """
-    And DEVELOPERS.md with content:
-      """
-      # Test Module
-
-      ## Domain Context
-      None
-
-      ## Invariants
-      None
-
-      ## Decision Log
-      None
-
-      ## Operations
-      None
-
-      ## File Map
+      ## Technical Context
       None
       """
     When I validate the schema with strict mode
@@ -212,7 +198,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -222,19 +208,13 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Domain Context
+      ## Constraints
       None
 
-      ## Invariants
+      ## Technical Context
       None
 
       ## Decision Log
-      None
-
-      ## Operations
-      None
-
-      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -248,7 +228,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -258,19 +238,13 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Domain Context
+      ## Constraints
       None
 
-      ## Invariants
-      None
-
-      ## Decision Log
+      ## Technical Context
       None
 
       ## Operations
-      None
-
-      ## File Map
       None
       """
     When I validate the schema with strict mode
@@ -284,7 +258,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -292,40 +266,6 @@ Feature: DEVELOPERS.md Schema Validation
       """
     When I validate the schema
     Then validation should pass
-
-  Scenario: DEVELOPERS.md missing Invariants fails validation
-    Given CLAUDE.md with content:
-      """
-      # Test Module
-
-      ## Purpose
-      Test module.
-
-      ## Constraints
-      None
-
-      ## Domain Context
-      None
-      """
-    And DEVELOPERS.md with content:
-      """
-      # Test Module
-
-      ## Domain Context
-      None
-
-      ## Decision Log
-      None
-
-      ## Operations
-      None
-
-      ## File Map
-      None
-      """
-    When I validate the schema with strict mode
-    Then validation should fail
-    And error should mention "Missing required section: Invariants"
 
   Scenario: Decision Log with valid ADR entries passes
     Given CLAUDE.md with content:
@@ -335,7 +275,7 @@ Feature: DEVELOPERS.md Schema Validation
       ## Purpose
       Test module.
 
-      ## Constraints
+      ## Requirements
       None
 
       ## Domain Context
@@ -345,10 +285,10 @@ Feature: DEVELOPERS.md Schema Validation
       """
       # Test Module
 
-      ## Domain Context
+      ## Constraints
       None
 
-      ## Invariants
+      ## Technical Context
       None
 
       ## Decision Log
@@ -359,9 +299,6 @@ Feature: DEVELOPERS.md Schema Validation
       - **근거**: 내부 서비스라 RSA 키 관리 복잡성 불필요
 
       ## Operations
-      None
-
-      ## File Map
       None
       """
     When I validate the schema with strict mode

@@ -6,7 +6,7 @@ description: |
   This skill should be used when the user asks to "compare CLAUDE.md versions",
   "show spec changes", "diff specification", "what changed in the contract",
   or uses "/diff-spec".
-  Shows semantic diff between two versions of a CLAUDE.md, comparing Purpose, Constraints, Domain Context, and Conventions.
+  Shows semantic diff between two versions of a CLAUDE.md, comparing Purpose, Requirements, Domain Context, and Conventions.
   Trigger keywords: 스펙 변경, 문서 비교, 문서 diff, 명세 변경
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write]
@@ -58,76 +58,11 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 
 두 파싱 결과 JSON을 Read하여 섹션별로 비교합니다:
 
-#### Purpose 비교
-- 텍스트 변경 여부: CHANGED / UNCHANGED
-
-#### Constraints 비교 (항목 단위)
-
-각 constraint를 매칭하여 변경 분류:
-
-| 변경 유형 | 조건 |
-|-----------|------|
-| **ADDED** | 현재에만 존재 |
-| **REMOVED** | 이전에만 존재 |
-| **MODIFIED** | 양쪽에 유사 항목 존재, 내용 다름 |
-| **UNCHANGED** | 양쪽 동일 |
-
-#### Domain Context 비교
-
-항목별 변경 분류 (ADDED / REMOVED / MODIFIED / UNCHANGED)
-
-#### Conventions 비교 (서브섹션 단위)
-
-각 서브섹션별 변경 여부:
-- Project Structure, Module Boundaries, Naming Conventions
-- Language & Runtime, Coding Rules, Naming Rules
+섹션별 비교 분류 규칙 (ADDED/REMOVED/MODIFIED/UNCHANGED)은 `references/diff-spec-templates.md` 참조.
 
 ### 3. 시맨틱 Diff 보고서 생성
 
-```markdown
-# 시맨틱 Diff: {path}
-
-**비교:** {ref} → 현재 (working copy)
-
-## 요약
-
-| 섹션 | 추가 | 제거 | 변경 | 상태 |
-|------|------|------|------|------|
-| Purpose | - | - | 1 | CHANGED |
-| Constraints | 2 | 1 | 1 | BREAKING |
-| Domain Context | 1 | 0 | 0 | MODIFIED |
-| Conventions | 0 | 0 | 1 | MODIFIED |
-
-## Purpose 변경
-
-- 이전: "JWT 기반 인증 모듈"
-+ 현재: "JWT 및 OAuth2 기반 인증 모듈"
-
-## Constraints 변경
-
-### ADDED
-- `+ 동시 세션 최대 5개`
-- `+ OAuth2 PKCE 필수`
-
-### REMOVED
-- `- 레거시 MD5 해시 지원` [BREAKING]
-
-### MODIFIED
-- `토큰 만료 최대 7일` → `토큰 만료 최대 14일`
-
-### UNCHANGED
-- `UTF-8 인코딩만 허용`
-
-## Domain Context 변경
-
-### ADDED
-- `+ OAuth2 IdP: Google, GitHub 지원`
-
-## Conventions 변경
-
-### MODIFIED
-- `Coding Rules`: 린트 규칙 추가
-```
+보고서 포맷은 `references/diff-spec-templates.md`의 보고서 템플릿 참조.
 
 ### 4. 결과 출력
 
@@ -138,8 +73,8 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 
 **DO:**
 - parse-claude-md CLI로 두 버전을 구조적으로 파싱
-- Constraints를 항목 단위로 ADDED/REMOVED/MODIFIED 비교
-- BREAKING 변경(Constraints 제거/수정)을 명확히 표시
+- Requirements를 항목 단위로 ADDED/REMOVED/MODIFIED 비교
+- BREAKING 변경(Requirements 제거/수정)을 명확히 표시
 - `/impact` 연계 안내
 
 **DON'T:**
@@ -169,9 +104,9 @@ $CLI_PATH parse-claude-md --file "${TMP_DIR}diff-spec-prev.md" > "${TMP_DIR}diff
 ----
 | 섹션 | 추가 | 제거 | 변경 | 상태 |
 |------|------|------|------|------|
-| Constraints | 1 | 0 | 1 | MODIFIED |
+| Requirements | 1 | 0 | 1 | MODIFIED |
 
-Constraints 변경
+Requirements 변경
 -----------
 + 동시 세션 최대 5개
 ~ 토큰 만료: 7일 → 14일

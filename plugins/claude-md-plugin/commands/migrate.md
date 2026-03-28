@@ -2,19 +2,21 @@
 name: migrate
 description: |
   claude-md-plugin 버전 업그레이드 시 기존 프로젝트를 새 버전에 맞게 마이그레이션합니다.
-  레거시 IMPLEMENTS.md 정리, CLAUDE.md 스키마 누락 섹션 추가, 불필요한 conditional "None" 섹션 제거, 검증 연계.
+  v6→v7 스키마 전환 (Constraints→Requirements, DEVELOPERS.md 4섹션), 레거시 IMPLEMENTS.md 정리,
+  CLAUDE.md 스키마 누락 섹션 추가, 불필요한 conditional "None" 섹션 제거, 검증 연계.
 argument-hint: "[project_root_path]"
-allowed-tools: [Bash, Read, Glob, Grep, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, Skill, AskUserQuestion]
 ---
 
 # /migrate
 
 기존 프로젝트를 현재 플러그인 버전에 맞게 마이그레이션합니다.
 
-세 가지 마이그레이션을 자동 감지하여 처리합니다:
+네 가지 마이그레이션을 자동 감지하여 처리합니다:
 1. **레거시 정리**: IMPLEMENTS.md 삭제 (v2.x → v3.0+)
 2. **스키마 업그레이드**: CLAUDE.md 누락 필수 섹션 추가 (v3.x → v4.0+)
 3. **조건부 정리**: 불필요한 conditional "None" 섹션 제거 + Decision Log 언어 정규화 (v4.x → v5.0+)
+4. **v6→v7 전환**: CLAUDE.md Constraints→Requirements, DEVELOPERS.md 4섹션 스키마, .claude/index.md 정리 (v6.x → v7.0+)
 
 ## Triggers
 
@@ -43,6 +45,7 @@ CLI 빌드 실패 시 에러 출력 후 종료.
 ```
 Glob("**/CLAUDE.md", path={project_root_path})
 Glob("**/IMPLEMENTS.md", path={project_root_path})
+Glob("**/DEVELOPERS.md", path={project_root_path})
 ```
 
 CLAUDE.md가 없으면:
@@ -53,12 +56,25 @@ CLAUDE.md가 없으면:
 | 감지 조건 | 마이그레이션 유형 | 설명 |
 |-----------|-----------------|------|
 | IMPLEMENTS.md 존재 | **LEGACY_CLEANUP** | 폐기된 IMPLEMENTS.md 삭제 |
-| CLAUDE.md 스키마 검증 FAIL | **SCHEMA_UPGRADE** | 누락 필수 섹션 추가 |
+| CLAUDE.md에 `## Constraints` 섹션 존재 | **V6_TO_V7** | v6→v7 스키마 전환 |
+| CLAUDE.md 스키마 검증 FAIL (v7 기준) | **SCHEMA_UPGRADE** | 누락 필수 섹션 추가 |
 | Protocol/Async Contract/Concurrency Model이 "None"이고 해당 패턴 미감지 | **CONDITIONAL_CLEANUP** | 불필요한 conditional "None" 섹션 제거 |
-| Decision Log에 Korean 필드명(맥락/결정/근거) 사용 | **CONDITIONAL_CLEANUP** | 언어 정규화 (Context/Decision/Rationale alias 지원 추가) |
+| Decision Log에 Korean 필드명(맥락/결정/근거) 사용 | **CONDITIONAL_CLEANUP** | 언어 정규화 |
 | 위 해당 없음 | **UP_TO_DATE** | 마이그레이션 불필요 |
 
-스키마 검증:
+**V6_TO_V7 감지 로직:**
+
+```bash
+for claude_md in ${targets}; do
+  content=$(cat "$claude_md")
+  if echo "$content" | grep -q "^## Constraints"; then
+    # v6 문서 — Constraints 섹션은 v7에서 Requirements로 변경됨
+    v6_targets+=("$claude_md")
+  fi
+done
+```
+
+스키마 검증 (V6_TO_V7 이후에 실행):
 ```bash
 for claude_md in ${targets}; do
   $CLI_PATH validate-schema --file "$claude_md" 2>&1
@@ -81,21 +97,23 @@ done
 | 파일 | 작업 |
 |------|------|
 | src/auth/IMPLEMENTS.md | 삭제 |
-| src/utils/IMPLEMENTS.md | 삭제 |
 
   ⓘ IMPLEMENTS.md는 v3.0에서 폐기되었습니다.
     DEVELOPERS.md가 필요하면 마이그레이션 후 /decompile을 실행하세요.
 
-[2] 스키마 업그레이드 (누락 섹션 추가): {M}개 파일
-| 파일 | 누락 섹션 |
-|------|----------|
-| src/auth/CLAUDE.md | Async Contract, Error Taxonomy, Concurrency Model |
-
-[3] 조건부 정리 (v4→v5): {K}개 파일
+[2] v6→v7 전환: {M}개 CLAUDE.md + {K}개 DEVELOPERS.md
 | 파일 | 작업 |
 |------|------|
-| src/utils/CLAUDE.md | Protocol(None) 제거, Concurrency Model(None) 제거 |
-| src/utils/DEVELOPERS.md | Decision Log 필드명 alias 정규화 |
+| src/auth/CLAUDE.md | ## Constraints → ## Requirements |
+| src/auth/DEVELOPERS.md | ## Domain Context → ## Technical Context, ## Invariants → ## Constraints, ## File Map 삭제 |
+
+  ⓘ v7에서 CLAUDE.md는 Primary SSOT (PM 요구사항), DEVELOPERS.md는 Derived Spec (개발자 명세)입니다.
+
+[3] 스키마 업그레이드: {P}개 파일
+...
+
+[4] 조건부 정리: {Q}개 파일
+...
 ```
 
 ```
@@ -113,13 +131,81 @@ for impl_md in ${implements_files}; do
 done
 ```
 
-삭제 결과 출력:
-```
-  ✓ src/auth/IMPLEMENTS.md 삭제
-  ✓ src/utils/IMPLEMENTS.md 삭제
+### 5. v6→v7 전환
+
+V6_TO_V7가 감지된 경우 실행합니다.
+
+#### 5.1. CLAUDE.md 결정적 변환
+
+각 v6 CLAUDE.md에 대해:
+
+```bash
+# ## Constraints → ## Requirements 리네임
+Edit: old_string="## Constraints", new_string="## Requirements"
 ```
 
-### 5. 스키마 업그레이드 (CLAUDE.md 섹션 추가)
+#### 5.2. DEVELOPERS.md 결정적 변환
+
+각 v6 DEVELOPERS.md에 대해:
+
+1. `## Domain Context` → `## Technical Context` 리네임
+2. `## Invariants` → `## Constraints` 리네임 (내용 이동)
+3. `## File Map` 섹션 삭제
+
+```bash
+Edit: old_string="## Domain Context", new_string="## Technical Context"
+Edit: old_string="## Invariants", new_string="## Constraints"
+# ## File Map 섹션 전체 삭제 (헤더부터 다음 ## 또는 EOF까지)
+```
+
+#### 5.3. .claude/index.md 정리
+
+```bash
+# auto-generated 파일이므로 안전하게 삭제
+for dir in ${project_dirs}; do
+  if [ -f "$dir/.claude/index.md" ]; then
+    rm "$dir/.claude/index.md"
+  fi
+done
+```
+
+#### 5.4. compile-context.md 정리
+
+```bash
+# ephemeral session file이므로 안전하게 삭제
+for dir in ${project_dirs}; do
+  if [ -f "$dir/compile-context.md" ]; then
+    rm "$dir/compile-context.md"
+  fi
+done
+```
+
+#### 5.5. LLM 보조 분류 (선택적)
+
+결정적 변환 후, 사용자에게 LLM 보조 분류를 제안합니다:
+
+```
+AskUserQuestion: "LLM 보조 분류를 실행하시겠습니까? (요구사항 수준 분류)"
+옵션:
+  - "실행": Requirements 내용을 PM-level과 developer-level로 분류
+  - "건너뛰기": 결정적 변환만으로 완료
+```
+
+"실행" 선택 시:
+1. CLAUDE.md Requirements에서 developer-level 항목(정확한 수치, I/O 계약 등)을 식별
+2. 해당 항목을 DEVELOPERS.md Constraints로 이동 제안
+3. CLAUDE.md Domain Context에서 기술 선택 항목을 Technical Context로 이동 제안
+4. 각 이동에 대해 AskUserQuestion으로 확인
+
+#### 5.6. 스키마 검증
+
+```bash
+for claude_md in ${v6_targets}; do
+  $CLI_PATH validate-schema --file "$claude_md"
+done
+```
+
+### 6. 스키마 업그레이드 (CLAUDE.md 섹션 추가)
 
 SCHEMA_UPGRADE가 감지된 경우 실행합니다.
 
@@ -129,11 +215,11 @@ for claude_md in ${failed_targets}; do
 done
 ```
 
-### 5.5. 조건부 정리 (CONDITIONAL_CLEANUP)
+### 6.5. 조건부 정리 (CONDITIONAL_CLEANUP)
 
 CONDITIONAL_CLEANUP이 감지된 경우 실행합니다.
 
-**5.5a. 불필요한 conditional "None" 섹션 제거:**
+**6.5a. 불필요한 conditional "None" 섹션 제거:**
 
 Protocol, Async Contract, Concurrency Model 섹션이 "None"이고 코드에 해당 패턴이 없는 경우 섹션을 제거합니다:
 
@@ -142,7 +228,6 @@ for claude_md in ${conditional_cleanup_targets}; do
   dir=$(dirname "$claude_md")
   analysis=$($CLI_PATH analyze-code --dir "$dir" --format json 2>&1)
 
-  # JSON에서 패턴 감지 결과 추출
   has_stateful=$(echo "$analysis" | grep -o '"has_stateful_patterns":[a-z]*' | cut -d: -f2)
   has_async=$(echo "$analysis" | grep -o '"has_async_patterns":[a-z]*' | cut -d: -f2)
   has_concurrency=$(echo "$analysis" | grep -o '"has_concurrency_patterns":[a-z]*' | cut -d: -f2)
@@ -150,20 +235,17 @@ done
 ```
 
 각 conditional 섹션에 대해:
-- 패턴 미감지 + 섹션 내용이 "None" → `Edit`으로 섹션 제거 (## 헤더 + None 행)
+- 패턴 미감지 + 섹션 내용이 "None" → `Edit`으로 섹션 제거
 - 패턴 감지 또는 내용이 "None"이 아님 → 유지
 
-**5.5b. Decision Log 언어 정규화:**
+**6.5b. Decision Log 언어 정규화:**
 
 DEVELOPERS.md의 Decision Log에서 Korean 필드명을 감지하고 alias 지원을 확인합니다:
 - `맥락` → `Context|맥락` (양쪽 허용)
 - `결정` → `Decision|결정` (양쪽 허용)
 - `근거` → `Rationale|근거` (양쪽 허용)
 
-> 기존 Korean 필드명은 유효한 alias로 인정되므로 강제 변환하지 않습니다.
-> 단, 검증 시 양쪽 모두 인식하도록 정규화합니다.
-
-### 6. 재검증 + Diff 표시
+### 7. 재검증 + Diff 표시
 
 ```bash
 fail_count=0
@@ -177,7 +259,7 @@ done
 ```
 
 ```bash
-git diff -- "**/CLAUDE.md"
+git diff -- "**/CLAUDE.md" "**/DEVELOPERS.md"
 git status -- "**/IMPLEMENTS.md"
 ```
 
@@ -187,7 +269,47 @@ git status -- "**/IMPLEMENTS.md"
 **일부 FAIL:**
 > "⚠ {fail_count}개 파일이 여전히 검증 실패합니다. 수동 확인이 필요합니다."
 
-### 7. 후속 액션 안내
+### 7.5. Conventions 부재 감지
+
+v7에서 project/module root에 `## Conventions` (6개 필수 서브섹션)가 필수입니다.
+마이그레이션만으로는 Conventions가 자동 생성되지 않으므로, 부재를 감지하고 안내합니다.
+
+**7.5a. project root 검증:**
+
+```bash
+$CLI_PATH validate-convention --project-root {project_root_path}
+```
+
+실패 시 (Conventions 부재 또는 서브섹션 누락):
+
+```
+AskUserQuestion: "project root CLAUDE.md에 ## Conventions 섹션이 없거나 불완전합니다.
+v7에서 이 섹션은 /compile의 REFACTOR 단계에 필요합니다.
+
+/project-setup을 실행하여 기존 코드에서 컨벤션을 추출하시겠습니까?"
+옵션: [실행, 나중에 수동 추가]
+```
+
+"실행" 선택 시:
+```
+Skill("claude-md-plugin:project-setup", args: "{project_root_path}")
+```
+
+**7.5b. module root 검증 (선택):**
+
+project root와 다른 module root가 존재하는 경우, 각 module root에서:
+```
+Grep: pattern="^## Conventions" path={module_root}/CLAUDE.md
+```
+
+module root에 override Conventions가 없으면 project root에서 상속하므로 **경고만** 출력:
+> "ⓘ {module_root}/CLAUDE.md에 ## Conventions가 없습니다. project root에서 상속됩니다.
+> override가 필요하면 /convention-update를 실행하세요."
+
+성공 시 (Conventions 존재 + 6개 서브섹션 완전):
+> 별도 출력 없이 다음 단계로 진행.
+
+### 8. 후속 액션 안내
 
 마이그레이션 결과에 따라 다음 단계를 안내합니다:
 
@@ -196,8 +318,9 @@ git status -- "**/IMPLEMENTS.md"
 ================
 
 레거시 정리: {deleted}개 IMPLEMENTS.md 삭제
+v6→v7 전환: {converted}개 CLAUDE.md + {dev_converted}개 DEVELOPERS.md 전환
 스키마 업그레이드: {fixed}개 CLAUDE.md 섹션 추가
-조건부 정리: {cleaned}개 파일 정리 (conditional None 제거 + 언어 정규화)
+조건부 정리: {cleaned}개 파일 정리
 스키마 검증: {pass}/{total} PASS
 
 다음 단계:
@@ -208,13 +331,20 @@ IMPLEMENTS.md가 삭제된 경우:
   - DEVELOPERS.md 생성이 필요하면: /decompile
 ```
 
-스키마 업그레이드가 수행된 경우:
+v6→v7 전환이 수행된 경우:
 ```
+  - 품질 검증: /impl-review
   - 계약-코드 일치 확인: /validate
   - 코드 재생성이 필요하면: /compile --all --conflict overwrite
 ```
 
-### 8. 계약 검증 (선택)
+Conventions가 없거나 불완전한 경우:
+```
+  - Conventions 생성: /project-setup
+  - Conventions 업데이트: /convention-update
+```
+
+### 9. 계약 검증 (선택)
 
 ```
 AskUserQuestion: "계약-코드 일치 검증(/validate)을 실행하시겠습니까?"
@@ -226,7 +356,7 @@ AskUserQuestion: "계약-코드 일치 검증(/validate)을 실행하시겠습�
 Skill("claude-md-plugin:validate")
 ```
 
-### 9. 코드 재생성 (선택)
+### 10. 코드 재생성 (선택)
 
 /validate에서 위반이 발견된 경우에만 질문:
 
@@ -245,21 +375,23 @@ Skill("claude-md-plugin:compile", args: "--all --conflict overwrite")
 **DO:**
 - 마이그레이션 유형을 자동 감지
 - 계획 표시 후 1회 승인으로 전체 진행
-- IMPLEMENTS.md는 삭제만 (DEVELOPERS.md 생성은 /decompile 책임)
-- fix-schema CLI로 결정론적 섹션 추가 (Error Taxonomy를 포함한 모든 always-required allow-none 섹션을 자동 추가)
+- v6→v7 결정적 변환은 안전한 리네임 (내용 보존)
+- LLM 보조 분류는 선택적 (사용자 승인 필요)
+- .claude/index.md, compile-context.md는 auto-generated이므로 안전하게 삭제
 - /validate, /compile은 선택적 실행
 
 **DON'T:**
 - 사용자 승인 없이 파일 삭제
-- IMPLEMENTS.md 내용을 DEVELOPERS.md로 변환 (구조/목적이 다름, INV-4 위반)
-- 기존 CLAUDE.md 섹션 내용 변경 (누락 섹션 추가만)
+- IMPLEMENTS.md 내용을 DEVELOPERS.md로 변환 (구조/목적이 다름)
+- 기존 CLAUDE.md 섹션 내용 변경 (헤더 리네임만)
 - 파일마다 개별 승인 요청 (1회 승인으로 일괄 처리)
+- LLM 보조 분류를 강제 (항상 선택적)
 
 ## Examples
 
 <example>
 <context>
-v2.x에서 v4.1로 업그레이드하는 프로젝트 (IMPLEMENTS.md 존재 + 스키마 누락)
+v6에서 v7로 업그레이드하는 프로젝트
 </context>
 <user_request>/migrate</user_request>
 <assistant_response>
@@ -267,49 +399,50 @@ CLI 빌드 확인... OK
 
 문서 파일 수집:
   CLAUDE.md: 3개
-  IMPLEMENTS.md: 2개
+  DEVELOPERS.md: 2개
+  IMPLEMENTS.md: 0개
 
 마이그레이션 유형 감지:
-  [1] 레거시 정리: 2개 IMPLEMENTS.md
-  [2] 스키마 업그레이드: 3개 CLAUDE.md
+  [1] v6→v7 전환: 3개 CLAUDE.md + 2개 DEVELOPERS.md
 
 마이그레이션 계획
 ================
 
-[1] 레거시 정리 (IMPLEMENTS.md 삭제): 2개
-  - src/auth/IMPLEMENTS.md
-  - src/utils/IMPLEMENTS.md
+[1] v6→v7 전환: 3개 CLAUDE.md + 2개 DEVELOPERS.md
+| 파일 | 작업 |
+|------|------|
+| src/auth/CLAUDE.md | ## Constraints → ## Requirements |
+| src/api/CLAUDE.md | ## Constraints → ## Requirements |
+| src/utils/CLAUDE.md | ## Constraints → ## Requirements |
+| src/auth/DEVELOPERS.md | ## Domain Context → ## Technical Context, ## Invariants → ## Constraints, ## File Map 삭제 |
+| src/api/DEVELOPERS.md | ## Domain Context → ## Technical Context, ## Invariants → ## Constraints, ## File Map 삭제 |
 
-  ⓘ IMPLEMENTS.md는 v3.0에서 폐기되었습니다.
-    DEVELOPERS.md가 필요하면 마이그레이션 후 /decompile을 실행하세요.
-
-[2] 스키마 업그레이드: 3개
-  - src/auth/CLAUDE.md — Async Contract, Error Taxonomy, Concurrency Model
-  - src/api/CLAUDE.md — Async Contract, Error Taxonomy, Concurrency Model
-  - src/utils/CLAUDE.md — Async Contract, Error Taxonomy, Concurrency Model
+  + .claude/index.md 삭제 (auto-generated)
+  + compile-context.md 삭제 (ephemeral)
 
 진행하시겠습니까? [진행/취소]
 → 진행
 
-=== 레거시 정리 ===
-  ✓ src/auth/IMPLEMENTS.md 삭제
-  ✓ src/utils/IMPLEMENTS.md 삭제
+=== v6→v7 전환 ===
+  ✓ src/auth/CLAUDE.md — Constraints → Requirements
+  ✓ src/api/CLAUDE.md — Constraints → Requirements
+  ✓ src/utils/CLAUDE.md — Constraints → Requirements
+  ✓ src/auth/DEVELOPERS.md — 3개 섹션 전환
+  ✓ src/api/DEVELOPERS.md — 3개 섹션 전환
+  ✓ .claude/index.md 삭제
 
-=== 스키마 업그레이드 ===
-  ✓ src/auth/CLAUDE.md — 3개 섹션 추가
-  ✓ src/api/CLAUDE.md — 3개 섹션 추가
-  ✓ src/utils/CLAUDE.md — 3개 섹션 추가
+LLM 보조 분류를 실행하시겠습니까? [실행/건너뛰기]
+→ 건너뛰기
 
 스키마 검증: 3/3 PASS
 
 마이그레이션 결과
 ================
-레거시 정리: 2개 삭제
-스키마 업그레이드: 3개 파일
+v6→v7 전환: 3개 CLAUDE.md + 2개 DEVELOPERS.md
 스키마 검증: 3/3 PASS
 
 다음 단계:
-  - DEVELOPERS.md 생성: /decompile
+  - 품질 검증: /impl-review
   - 계약-코드 일치 확인: /validate
 
 계약 검증을 실행하시겠습니까? [실행/건너뛰기]
@@ -321,35 +454,7 @@ CLI 빌드 확인... OK
 
 <example>
 <context>
-v3.1에서 v4.1로 업그레이드하는 프로젝트 (스키마 누락만)
-</context>
-<user_request>/migrate</user_request>
-<assistant_response>
-CLI 빌드 확인... OK
-
-문서 파일 수집:
-  CLAUDE.md: 5개
-  IMPLEMENTS.md: 0개
-
-마이그레이션 유형 감지:
-  [1] 레거시 정리: 해당 없음
-  [2] 스키마 업그레이드: 5개
-
-진행하시겠습니까? [진행/취소]
-→ 진행
-
-스키마 업그레이드:
-  ✓ 5개 파일 — 각 3개 섹션 추가
-
-스키마 검증: 5/5 PASS
-
-마이그레이션 완료.
-</assistant_response>
-</example>
-
-<example>
-<context>
-v4.1에서 v5.0으로 업그레이드하는 프로젝트 (conditional "None" 섹션 존재)
+v2.x에서 v7로 업그레이드하는 프로젝트 (IMPLEMENTS.md 존재 + v6 스키마)
 </context>
 <user_request>/migrate</user_request>
 <assistant_response>
@@ -357,34 +462,36 @@ CLI 빌드 확인... OK
 
 문서 파일 수집:
   CLAUDE.md: 3개
-  IMPLEMENTS.md: 0개
+  DEVELOPERS.md: 0개
+  IMPLEMENTS.md: 2개
 
 마이그레이션 유형 감지:
-  [1] 레거시 정리: 해당 없음
-  [2] 스키마 업그레이드: 해당 없음
-  [3] 조건부 정리: 2개 파일
+  [1] 레거시 정리: 2개 IMPLEMENTS.md
+  [2] v6→v7 전환: 3개 CLAUDE.md
 
 마이그레이션 계획
 ================
 
-[3] 조건부 정리 (v4→v5): 2개 파일
-| 파일 | 작업 |
-|------|------|
-| src/auth/CLAUDE.md | Protocol(None) 제거, Concurrency Model(None) 제거 |
-| src/utils/CLAUDE.md | Async Contract(None) 제거 |
+[1] 레거시 정리 (IMPLEMENTS.md 삭제): 2개
+  - src/auth/IMPLEMENTS.md
+  - src/utils/IMPLEMENTS.md
+
+  ⓘ IMPLEMENTS.md는 v3.0에서 폐기되었습니다.
+
+[2] v6→v7 전환: 3개 CLAUDE.md
+  - src/auth/CLAUDE.md — ## Constraints → ## Requirements
+  - src/api/CLAUDE.md — ## Constraints → ## Requirements
+  - src/utils/CLAUDE.md — ## Constraints → ## Requirements
 
 진행하시겠습니까? [진행/취소]
 → 진행
 
-=== 조건부 정리 ===
-  ✓ src/auth/CLAUDE.md — 2개 섹션 제거 (Protocol, Concurrency Model)
-  ✓ src/utils/CLAUDE.md — 1개 섹션 제거 (Async Contract)
+=== 레거시 정리 ===
+  ✓ 2개 IMPLEMENTS.md 삭제
 
-스키마 검증: 3/3 PASS
+=== v6→v7 전환 ===
+  ✓ 3개 CLAUDE.md — Constraints → Requirements
 
-마이그레이션 결과
-================
-조건부 정리: 2개 파일 정리 (3개 conditional None 섹션 제거)
 스키마 검증: 3/3 PASS
 
 마이그레이션 완료.
@@ -393,7 +500,7 @@ CLI 빌드 확인... OK
 
 <example>
 <context>
-이미 최신 버전인 프로젝트
+이미 v7 최신 버전인 프로젝트
 </context>
 <user_request>/migrate</user_request>
 <assistant_response>
@@ -401,6 +508,7 @@ CLI 빌드 확인... OK
 
 문서 파일 수집:
   CLAUDE.md: 3개
+  DEVELOPERS.md: 3개
   IMPLEMENTS.md: 0개
 
 모든 문서가 현재 버전과 호환됩니다. 마이그레이션이 필요 없습니다.

@@ -1,11 +1,13 @@
 ---
 name: decompile
 version: 2.0.0
-aliases: [decom]
+aliases: [decom, extract, document]
 description: |
   This skill should be used when the user asks to "decompile code to CLAUDE.md", "extract CLAUDE.md from code",
-  "document existing codebase", "reverse engineer spec", or uses "/decompile" or "/decom".
+  "document existing codebase", "reverse engineer spec", "extract documentation from source",
+  or uses "/decompile" or "/decom".
   Analyzes existing source code and creates CLAUDE.md + DEVELOPERS.md documentation for each directory.
+  Uses tree-parse for directory discovery, then runs decompiler agent per directory in leaf-first order.
   Trigger keywords: 디컴파일, 코드에서 문서 추출, 기존 코드 문서화
 user_invocable: true
 allowed-tools: [Bash, Read, Write, Glob, Task, Skill]
@@ -65,7 +67,17 @@ jq '[.needs_claude_md | sort_by(-.depth)]' .claude/extract-tree.json
    대상: {path}  tree: .claude/extract-tree.json
    자식 CLAUDE.md: [{children_list}]
    ```
+
+   **decompiler agent 입출력:**
+   - **입력**: 대상 경로, tree.json, 자식 CLAUDE.md 경로 목록
+   - **처리**: `resolve-boundary` → `analyze-code` → `format-exports`/`format-analysis` → CLAUDE.md + DEVELOPERS.md 생성 → `validate-schema`
+   - **출력**: 생성된 CLAUDE.md/DEVELOPERS.md 경로 + status (success/failed)
+
 3. 결과 블록에서 `status` 확인
+
+**기존 CLAUDE.md 병합 동작**: 대상 디렉토리에 이미 CLAUDE.md가 존재하는 경우,
+decompiler agent가 기존 문서를 Read하여 소스 분석 결과와 병합합니다.
+기존 Purpose/Domain Context는 보존하고, Requirements는 코드 분석 결과로 보완합니다.
 
 ### 4. 변경사항 표시
 
@@ -106,6 +118,11 @@ git diff --stat
 | tree-parse 실패 | 에러 메시지 출력, 종료 |
 | decompiler 실패 (단일 디렉토리) | 경고 출력, 나머지 계속 |
 | CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
+
+## References
+
+- `references/decompile-templates.md`: decompiler agent 워크플로우, 스키마, 규칙 통합 템플릿
+- `examples/final-report.md`: decompile 최종 보고서 예시
 
 ## Examples
 

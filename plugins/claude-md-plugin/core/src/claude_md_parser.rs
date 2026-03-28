@@ -21,19 +21,19 @@ pub enum ParseError {
     InvalidSectionFormat { section: String, details: String },
 }
 
-/// Complete specification parsed from CLAUDE.md (v3 schema)
+/// Complete specification parsed from CLAUDE.md (v4 schema)
 ///
-/// Compact pre-learning index: Purpose, Constraints, Domain Context, Instructions.
-/// Exports/Behavior/Contract/Protocol moved to .claude/index.md (auto-generated).
+/// Primary SSOT: Purpose, Requirements, Domain Context, Instructions.
+/// Requirements are PM-level business requirements (user-facing, verifiable).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClaudeMdSpec {
     /// Module name (from H1 header)
     pub name: String,
     /// Purpose description
     pub purpose: String,
-    /// Constraints: rules the code must follow (bullet list, None if "None")
+    /// Requirements: business requirements from PM perspective (bullet list, None if "None")
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub constraints: Option<Vec<String>>,
+    pub requirements: Option<Vec<String>>,
     /// Domain Context: key context summary (raw text, None if "None")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_context: Option<String>,
@@ -45,7 +45,7 @@ pub struct ClaudeMdSpec {
     pub warnings: Vec<String>,
 }
 
-/// CLAUDE.md Parser (v3 schema)
+/// CLAUDE.md Parser (v4 schema)
 pub struct ClaudeMdParser {
     section_pattern: Regex,
 }
@@ -116,10 +116,10 @@ impl ClaudeMdParser {
             spec.purpose = purpose_section.content.join("\n").trim().to_string();
         }
 
-        // Parse Constraints section
-        if let Some(constraints_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Constraints")) {
-            if !self.is_none_marker(constraints_section) {
-                spec.constraints = Some(self.parse_bullet_list(&constraints_section.content));
+        // Parse Requirements section
+        if let Some(requirements_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Requirements")) {
+            if !self.is_none_marker(requirements_section) {
+                spec.requirements = Some(self.parse_bullet_list(&requirements_section.content));
             }
         }
 
@@ -143,7 +143,7 @@ impl ClaudeMdParser {
 
         // Warn about unrecognized sections
         let known_sections = [
-            "purpose", "constraints", "domain context", "instructions",
+            "purpose", "requirements", "domain context", "instructions",
             "conventions",
         ];
         for section in &sections {
@@ -238,8 +238,8 @@ mod tests {
     /// Helper: Returns minimal always-required sections with allow-none as None
     fn with_required_sections(base: &str) -> String {
         let mut content = base.to_string();
-        if !content.contains("## Constraints") {
-            content.push_str("\n## Constraints\nNone\n");
+        if !content.contains("## Requirements") {
+            content.push_str("\n## Requirements\nNone\n");
         }
         if !content.contains("## Domain Context") {
             content.push_str("\n## Domain Context\nNone\n");
@@ -262,14 +262,14 @@ Handles user authentication.
     }
 
     #[test]
-    fn test_parse_constraints() {
+    fn test_parse_requirements() {
         let parser = ClaudeMdParser::new();
         let content = r#"# test
 
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 - 비밀번호 재설정 90일 제한
 - 동시 세션 최대 5개
 
@@ -277,28 +277,28 @@ Test module.
 None
 "#;
         let spec = parser.parse_content(content).unwrap();
-        let constraints = spec.constraints.expect("constraints should be Some");
-        assert_eq!(constraints.len(), 2);
-        assert!(constraints[0].contains("90일"));
-        assert!(constraints[1].contains("5개"));
+        let requirements = spec.requirements.expect("requirements should be Some");
+        assert_eq!(requirements.len(), 2);
+        assert!(requirements[0].contains("90일"));
+        assert!(requirements[1].contains("5개"));
     }
 
     #[test]
-    fn test_parse_constraints_none() {
+    fn test_parse_requirements_none() {
         let parser = ClaudeMdParser::new();
         let content = r#"# test
 
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
 None
 "#;
         let spec = parser.parse_content(content).unwrap();
-        assert!(spec.constraints.is_none());
+        assert!(spec.requirements.is_none());
     }
 
     #[test]
@@ -309,7 +309,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -344,7 +344,7 @@ Test module.
 ## Purpose
 My project root.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -365,7 +365,7 @@ Follow the team's code review process.
         let content = with_required_sections(
             r#"# test
 
-## Constraints
+## Requirements
 - some rule
 "#,
         );
@@ -376,7 +376,7 @@ Follow the team's code review process.
     }
 
     #[test]
-    fn test_fail_fast_missing_constraints() {
+    fn test_fail_fast_missing_requirements() {
         let parser = ClaudeMdParser::new();
         let content = r#"# test
 
@@ -389,7 +389,7 @@ None
         let result = parser.parse_content(content);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Constraints"));
+        assert!(matches!(err, ParseError::MissingRequiredSection { section } if section == "Requirements"));
     }
 
     #[test]
@@ -400,7 +400,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 "#;
         let result = parser.parse_content(content);
@@ -417,7 +417,7 @@ None
 ## Purpose
 None
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -437,7 +437,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -459,7 +459,7 @@ None
 ## Purpose
 Test module.
 
-## Constraints
+## Requirements
 None
 
 ## Domain Context
@@ -468,7 +468,7 @@ None
         let spec = parser.parse_content(content).unwrap();
         assert_eq!(spec.name, "test");
         assert_eq!(spec.purpose, "Test module.");
-        assert!(spec.constraints.is_none());
+        assert!(spec.requirements.is_none());
         assert!(spec.domain_context.is_none());
         assert!(spec.instructions.is_none());
     }
