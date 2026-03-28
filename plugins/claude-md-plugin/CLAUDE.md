@@ -201,12 +201,12 @@ User: /validate [path] [--strict]
 │    2a. validate-schema + fix-schema         │
 │    2b. validate-convention → 구조 검증      │
 │    2c. resolve-boundary → INV-1 검증        │
+│    2d. DEVELOPERS.md 존재 확인 (INV-3)      │
 │ 3. Semantic 검증 (validator agent)          │
 │    Task(validator) 배치 병렬                │
-│    (3 카테고리: Requirements,               │
-│     Convention CODE_VIOLATION,              │
-│     DEVELOPERS.md)                          │
-│ 4. 통합 보고서 (Phase 2 + 3 병합)          │
+│    (조건부: --report-only 시 스킵)          │
+│ 4. Auto-fix (Interactive, 조건부)           │
+│ 5. 통합 보고서                              │
 └─────────────────────────────────────────────┘
 ```
 
@@ -281,7 +281,7 @@ User: /dev "request"
 │     안내 메시지 출력 → 종료)                │
 │ 1. 인자 파싱 (request + --path)             │
 │ 2. 의도 분류 (FEATURE/BUGFIX/COMPILE/       │
-│    DECOMPILE/VALIDATE/RESOLVE/              │
+│    DECOMPILE/VALIDATE/                      │
 │    IMPACT/DIFF/STATUS/REFACTOR/AMBIGUOUS)   │
 │ 3. CLAUDE.md 존재 확인                       │
 │    (FEATURE+DECOMPILE 제외)                 │
@@ -329,13 +329,12 @@ User: /dev "request"
 | `/impl` | active | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
 | `/decompile` | active | 소스코드 → CLAUDE.md + DEVELOPERS.md |
 | `/compile` | active | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
-| `/validate` | active | 문서-코드 일치 검증 (Deterministic CLI + 3 semantic drift) |
+| `/validate` | active | 문서-코드 일치 검증 + 대화형 해소 (Deterministic CLI + semantic drift + auto-fix) |
 | `/bugfix` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
 | `/impl-review` | active | CLAUDE.md 품질 리뷰 |
 | `/status` | active | 프로젝트 건강도 대시보드 |
 | `/impact` | active | 문서 변경 → 영향받는 모듈 분석 (Requirements 기반) |
 | `/diff-spec` | active | 문서 버전 간 시맨틱 diff |
-| `/resolve` | active | /validate 위반 대화형 해소 |
 | `/refactor` | active | 모듈 분할/병합 (Requirements 그루핑 기반) |
 
 ### Internal Skills & CLI Subcommands
@@ -381,8 +380,7 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 /decompile → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) (코드에서 문서 추출)
 /bugfix → Source Code 재생성 (기본) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)
 /impl-review → CLAUDE.md (사용자 승인 후 fix patch)
-/validate → 위반 보고 (문서 수정 안 함)
-/resolve → CLAUDE.md 또는 Source Code (사용자 선택에 따라 drift 해소)
+/validate → 위반 보고 + 대화형 해소 (사용자 승인)
 /impact → 분석 보고 (문서 수정 안 함)
 /diff-spec → 분석 보고 (문서 수정 안 함)
 /status → 분석 보고 (문서 수정 안 함)

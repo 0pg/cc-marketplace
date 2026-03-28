@@ -109,8 +109,7 @@ Routes natural language requests to the appropriate skill:
 | BUGFIX | fix, bug, error, 버그, 에러 | `/bugfix` |
 | COMPILE | compile, generate, build | `/compile` |
 | DECOMPILE | decompile, extract, document existing | `/decompile` |
-| VALIDATE | validate, check, verify, drift | `/validate` |
-| RESOLVE | resolve, fix-drift, handle violation | `/resolve` |
+| VALIDATE | validate, check, verify, drift, resolve, fix drift | `/validate` |
 | IMPACT | impact, affected, breaking, depends | `/impact` |
 | DIFF | diff, compare, what changed | `/diff-spec` |
 | STATUS | status, health, dashboard | `/status` |
@@ -143,17 +142,20 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 /decompile
 ```
 
-### `/validate` — Document-Code Consistency
+### `/validate` — Document-Code Consistency + Auto-fix
 
-Validates drift between CLAUDE.md and actual code:
+Validates drift between CLAUDE.md and actual code, then interactively resolves issues:
 - **Requirements Drift**: Code violates documented requirements
-- **Convention Drift**: Code violates coding conventions
-- **DEVELOPERS.md Drift**: Missing DEVELOPERS.md, Constraints/Technical Context stale
+- **Convention Drift**: Code violates architectural conventions (syntactic rules → linter)
+- **DEVELOPERS.md Drift**: Missing DEVELOPERS.md, Constraints/Technical Context stale (`--strict`)
 - **Boundary Violations**: Tree dependency violations
+- **Auto-fix**: Per-issue interactive resolution (Fix Code, Fix Doc, Skip)
 
 ```bash
 /validate
 /validate src/auth
+/validate --strict              # DEVELOPERS.md content drift included
+/validate --report-only         # No auto-fix (used by /compile --validate)
 ```
 
 ### `/bugfix` — Runtime Bug → 3-Layer Trace → Fix
@@ -189,22 +191,6 @@ Shows project-wide CLAUDE.md health: schema validity, compile freshness, convent
 ```
 
 Output includes health grade (HEALTHY / GOOD / WARNING / CRITICAL) and recommended actions.
-
-### `/resolve` — Interactive Drift Resolution
-
-Reads `/validate` results and interactively resolves each drift issue with per-issue options:
-
-| Drift Type | Options |
-|------------|---------|
-| Requirements VIOLATED | Fix Code (`/compile`) / Fix Doc / Skip |
-| Requirements STALE | Remove / Keep / Update |
-| Convention violation | Fix Code / Update Convention |
-| DEVELOPERS.md MISSING | Generate (`/decompile`) / Skip |
-
-```bash
-/resolve                  # Resolve all recent /validate issues
-/resolve src/auth         # Resolve issues for specific path
-```
 
 ### `/impact` — Change Impact Analysis
 
@@ -253,7 +239,7 @@ Document-level refactoring: split one CLAUDE.md into multiple modules, or merge 
 ### B. Legacy Code Documentation
 
 ```
-/decompile → /validate → /resolve → /validate
+/decompile → /validate
 ```
 
 ### C. Runtime Bug Fix
@@ -274,10 +260,10 @@ Document-level refactoring: split one CLAUDE.md into multiple modules, or merge 
 /diff-spec src/auth → /impact src/auth → /compile
 ```
 
-### F. Validate → Resolve → Verify
+### F. Validate → Fix → Verify
 
 ```
-/validate → /resolve → /validate
+/validate → (interactive auto-fix) → /validate --report-only
 ```
 
 ### G. Module Restructuring

@@ -2,7 +2,8 @@
   validator-templates.md
   Consolidated reference for the validator agent.
   Contains: Drift type definitions (v7 schema),
-  Convention CODE_VIOLATION, DEVELOPERS.md drift,
+  Convention CODE_VIOLATION (architectural only),
+  DEVELOPERS.md content drift (--strict only),
   result template format, and CLI output JSON structures.
 
   Loaded at runtime by the validator agent via:
@@ -40,21 +41,26 @@ Requirements: "동시 세션은 최대 5개"
 
 ### 2. Convention CODE_VIOLATION
 
-코드가 CLAUDE.md Conventions 섹션의 규칙을 위반.
+코드가 CLAUDE.md Conventions 섹션의 **architectural 규칙**을 위반.
+syntactic 규칙(네이밍 컨벤션, 코드 포맷팅 등)은 린터 영역이므로 검증하지 않습니다.
 
 | 유형 | 설명 | 검증 방법 |
 |------|------|----------|
-| **CODE_VIOLATION** | 코드가 Convention 규칙 위반 | 샘플 기반 Grep 검증 (신뢰도: MEDIUM) |
+| **CODE_VIOLATION** | 코드가 Convention의 architectural 규칙 위반 | 샘플 기반 Grep 검증 (신뢰도: MEDIUM) |
+
+**검증 대상 예시:**
+- 의존성 방향 규칙 (Module Boundaries)
+- 패턴 준수 (Coding Rules 중 architectural 패턴)
+- 레이어 분리 규칙
 
 **Note:** Convention 구조 검증(MISSING_CONVENTION, MISSING_SUBSECTION)은 validate SKILL Phase 2b에서 CLI로 처리됩니다.
 
-### 3. DEVELOPERS.md Drift
+### 3. DEVELOPERS.md Content Drift (`--strict` only)
 
-DEVELOPERS.md의 존재 여부와 내용 일치성 검증.
+**이 섹션은 `--strict` 모드에서만 실행됩니다.** DEVELOPERS.md 존재 확인은 validate SKILL Phase 2d에서 deterministic으로 처리합니다.
 
 | 유형 | 설명 | 검증 방법 |
 |------|------|----------|
-| **MISSING_DEVELOPERS_MD** | CLAUDE.md가 있는데 DEVELOPERS.md 없음 | INV-3 검증 |
 | **CONSTRAINTS_STALE** | DEVELOPERS.md Constraints와 코드 불일치 | 키워드 기반 매칭 |
 | **TECHNICAL_CONTEXT_STALE** | Technical Context가 현재 코드와 맞지 않음 | 키워드 기반 코드 매칭 |
 
@@ -68,7 +74,7 @@ DEVELOPERS.md의 존재 여부와 내용 일치성 검증.
 - 전체 이슈: {N}개
 - Requirements Drift: {n1}개
 - Convention CODE_VIOLATION: {n2}개
-- DEVELOPERS.md Drift: {n3}개
+- DEVELOPERS.md Content Drift: {n3}개 (strict only)
 
 ## 상세
 
@@ -81,12 +87,9 @@ DEVELOPERS.md의 존재 여부와 내용 일치성 검증.
 - "Redis 캐시 TTL은 토큰 만료보다 짧아야 함": Redis 관련 코드 없음
 
 ### Convention CODE_VIOLATION
-- Naming Rules 위반: `myFunc` → Convention에서 `snake_case` 요구 (샘플: `utils.py:15`)
+- Module Boundaries 위반: domain 레이어에서 infrastructure 직접 import (샘플: `auth/domain.ts:15`)
 
-### DEVELOPERS.md Drift
-
-#### MISSING_DEVELOPERS_MD
-- src/auth/CLAUDE.md 존재하나 DEVELOPERS.md 없음 (INV-3 위반)
+### DEVELOPERS.md Content Drift (strict only)
 
 #### CONSTRAINTS_STALE
 - DEVELOPERS.md Constraints의 "입력 최대 1MB" vs 코드 `MAX_INPUT_SIZE = 10MB` (불일치)

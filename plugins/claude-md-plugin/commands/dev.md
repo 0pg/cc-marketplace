@@ -41,17 +41,16 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | FEATURE | add, create, implement, new, change, update, feature, requirement | 추가, 생성, 구현, 새, 변경, 수정, 기능, 요구사항 | `/impl` | active |
 | BUGFIX | fix, bug, error, fail, broken, crash, debug, trace | 수정, 버그, 에러, 실패, 오류, 크래시, 진단, 추적 | `/bugfix` | active |
 | COMPILE | compile, generate, build, code generation | 컴파일, 코드 생성, 빌드 | `/compile` | active |
-| VALIDATE | validate, check, verify, drift, lint | 검증, 확인, 드리프트, 린트 | `/validate` | active |
+| VALIDATE | validate, check, verify, drift, lint, resolve, fix drift, handle violation | 검증, 확인, 드리프트, 린트, drift 해소, 위반 해소 | `/validate` | active |
 | IMPACT | impact, affected, breaking, depends, dependency, influence | 영향, 영향 분석, 의존, 의존 모듈, breaking change | `/impact` | active |
 | DIFF | diff, compare, changes, what changed, spec diff | 비교, 변경사항, 뭐가 바뀌었, 스펙 변경, 계약 비교 | `/diff-spec` | active |
 | STATUS | status, health, dashboard, overview, coverage | 상태, 건강도, 대시보드, 현황, 커버리지 | `/status` | active |
-| RESOLVE | resolve, handle violation, resolve drift | drift 해소, 위반 해소, 결과 처리 | `/resolve` | active |
 | REFACTOR | refactor, split, merge, restructure, reorganize | 리팩토링, 분할, 병합, 재구성, 구조 변경 | `/refactor` | active |
 | DECOMPILE | decompile, extract, document existing, reverse-engineer | 디컴파일, 추출, 기존 코드 문서화, 역추출 | `/decompile` | active |
 
 **분류 규칙:**
 1. 키워드 매칭은 대소문자 무시
-2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > DECOMPILE > VALIDATE > RESOLVE > IMPACT > DIFF > STATUS > REFACTOR)
+2. 여러 카테고리에 해당하면 **첫 번째 매칭** 우선 (FEATURE > BUGFIX > COMPILE > DECOMPILE > VALIDATE > IMPACT > DIFF > STATUS > REFACTOR)
 3. 어느 카테고리에도 해당하지 않으면 **AMBIGUOUS** → AskUserQuestion으로 명확화:
    - "요청을 다음 중 어느 작업으로 분류해야 할까요?"
    - 선택지: 기능 추가(/impl), 버그 수정(/bugfix), 코드 생성(/compile), 검증(/validate), 영향 분석(/impact), 기타(구체적 설명 요청)
@@ -60,7 +59,7 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 
 **FEATURE(→ /impl), DECOMPILE(→ /decompile) 카테고리는 이 단계를 건너뜁니다** — /impl은 새 CLAUDE.md를 생성, /decompile은 소스코드에서 직접 생성하므로.
 
-나머지 카테고리(BUGFIX, COMPILE, VALIDATE, IMPACT, DIFF, STATUS, RESOLVE, REFACTOR):
+나머지 카테고리(BUGFIX, COMPILE, VALIDATE, IMPACT, DIFF, STATUS, REFACTOR):
 1. `--path` 경로에서 CLAUDE.md를 Glob으로 검색
 2. CLAUDE.md가 없으면:
    - 메시지 출력: "대상 경로에 CLAUDE.md가 없습니다. `/decompile`로 기존 코드에서 CLAUDE.md를 생성하거나, 소스코드를 직접 작업하세요."
@@ -77,7 +76,6 @@ request의 키워드를 분석하여 다음 카테고리로 분류합니다:
 | COMPILE | `Skill("claude-md-plugin:compile", args: "[--path]")` |
 | DECOMPILE | `Skill("claude-md-plugin:decompile", args: "[--path]")` |
 | VALIDATE | `Skill("claude-md-plugin:validate", args: "[path]")` |
-| RESOLVE | `Skill("claude-md-plugin:resolve", args: "[path]")` |
 | IMPACT | `Skill("claude-md-plugin:impact", args: "[path]")` |
 | DIFF | `Skill("claude-md-plugin:diff-spec", args: "{path}")` |
 | STATUS | `Skill("claude-md-plugin:status", args: "[path]")` |

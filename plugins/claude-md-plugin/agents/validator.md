@@ -2,32 +2,36 @@
 name: validator
 description: |
   Use this agent when validating consistency between CLAUDE.md and actual code.
-  Detects semantic drift in Requirements, Convention CODE_VIOLATION, and DEVELOPERS.md.
+  Detects semantic drift in Requirements, Convention CODE_VIOLATION, and DEVELOPERS.md content.
 
   <example>
-  <user_request>검증 대상: src/auth</user_request>
+  <user_request>검증 대상: src/auth
+  strict: false</user_request>
   <assistant_response>
-  1. Parse CLAUDE.md 2. Requirements/Convention/DEVELOPERS.md Drift 3. Save to ${TMP_DIR}
+  1. Parse CLAUDE.md 2. Requirements/Convention Drift 3. Save to ${TMP_DIR}
 
   ---validate-result---
   status: success
   result_file: ${TMP_DIR}validate-src-auth.md
   directory: src/auth
   issues_count: 3
+  strict: false
   ---end-validate-result---
   </assistant_response>
   </example>
 
   <example>
-  <user_request>검증 대상: src/legacy</user_request>
+  <user_request>검증 대상: src/legacy
+  strict: true</user_request>
   <assistant_response>
-  1. Parse CLAUDE.md 2. Requirements/Convention/DEVELOPERS.md Drift 3. Save to ${TMP_DIR}
+  1. Parse CLAUDE.md 2. Requirements/Convention/DEVELOPERS.md Content Drift 3. Save to ${TMP_DIR}
 
   ---validate-result---
   status: success
   result_file: ${TMP_DIR}validate-src-legacy.md
   directory: src/legacy
   issues_count: 7
+  strict: true
   ---end-validate-result---
   </assistant_response>
   </example>
@@ -52,10 +56,10 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/validate/references/validator-templates.md"
 
 **Your Core Responsibilities:**
 1. Parse CLAUDE.md using CLI to extract structured sections (Purpose, Requirements, Domain Context)
-2. Detect semantic drift across 3 categories: Requirements, Convention CODE_VIOLATION, DEVELOPERS.md
+2. Detect semantic drift across categories: Requirements, Convention CODE_VIOLATION, and optionally DEVELOPERS.md content drift
 3. Save validation results to `${TMP_DIR}` and return structured result block
 
-**Note:** Convention 구조 검증(MISSING_CONVENTION, MISSING_SUBSECTION)과 Boundary 검증은
+**Note:** Convention 구조 검증(MISSING_CONVENTION, MISSING_SUBSECTION), Boundary 검증, DEVELOPERS.md 존재 확인은
 validate SKILL의 Phase 2에서 CLI로 직접 처리합니다. 이 agent는 semantic drift만 담당합니다.
 
 **임시 디렉토리 경로:**
@@ -102,11 +106,16 @@ CLAUDE.md Requirements와 실제 코드 동작의 불일치를 검증합니다.
 
 #### Convention CODE_VIOLATION
 
-코드가 Convention 규칙을 위반하는지 검증합니다 (semantic 검증).
+**architectural 규칙만 검증**합니다. syntactic 규칙(네이밍 컨벤션, 코드 포맷팅 등)은 린터 영역이므로 검증하지 않습니다.
+
+**검증 대상 예시:**
+- 의존성 방향 규칙 (e.g., "controller → service만 허용, service → controller 금지")
+- 패턴 준수 (e.g., "repository 패턴 사용 필수", "retry wrapper 적용")
+- 레이어 분리 규칙 (e.g., "domain 레이어에서 infrastructure import 금지")
 
 **검증 방법:**
 1. CLAUDE.md에서 Conventions 섹션 Read (project_root 또는 module_root)
-2. Coding Rules / Naming Rules에서 구체적 규칙 추출
+2. Module Boundaries / Coding Rules에서 architectural 규칙 추출
 3. Grep으로 코드 샘플 검색
 4. 위반 여부 판정 (confidence: MEDIUM)
 
@@ -114,20 +123,21 @@ CLAUDE.md Requirements와 실제 코드 동작의 불일치를 검증합니다.
 
 | 유형 | 설명 |
 |------|------|
-| **CODE_VIOLATION** | 코드가 Convention 규칙 위반 (샘플 기반 Grep 검증, 신뢰도: MEDIUM) |
+| **CODE_VIOLATION** | 코드가 Convention의 architectural 규칙 위반 (샘플 기반 Grep 검증, 신뢰도: MEDIUM) |
 
-#### DEVELOPERS.md Drift (INV-3)
+#### DEVELOPERS.md Content Drift
 
-DEVELOPERS.md의 존재와 Constraints/Technical Context 일치 여부를 검증합니다.
+**이 섹션은 `--strict` 모드에서만 실행합니다.** 호출 시 프롬프트에 `strict: true/false`가 포함됩니다.
+`strict: false`이면 이 섹션을 건너뜁니다.
 
-**INV-3 검증**: CLAUDE.md가 있는 디렉토리에 DEVELOPERS.md가 존재하는지 확인합니다.
-- DEVELOPERS.md 부재 → `MISSING_DEVELOPERS_MD` 이슈 생성
+DEVELOPERS.md가 존재하면 Constraints/Technical Context와 실제 코드 동작을 비교합니다.
 
-**DEVELOPERS.md Constraints Drift**: DEVELOPERS.md가 존재하면 Constraints 섹션과 실제 코드 동작을 비교합니다.
-- Constraints가 코드와 불일치 → `CONSTRAINTS_STALE`
+**DEVELOPERS.md Content Drift 유형:**
 
-**DEVELOPERS.md Technical Context Drift**: Technical Context의 기술 선택이 실제 코드와 일치하는지 확인합니다.
-- Technical Context가 코드와 불일치 → `TECHNICAL_CONTEXT_STALE`
+| 유형 | 설명 | 검증 방법 |
+|------|------|----------|
+| **CONSTRAINTS_STALE** | DEVELOPERS.md Constraints와 코드 불일치 | 키워드 기반 매칭 |
+| **TECHNICAL_CONTEXT_STALE** | Technical Context가 현재 코드와 맞지 않음 | 키워드 기반 코드 매칭 |
 
 ### 3. 결과 저장
 
@@ -143,13 +153,15 @@ status: success | failed
 result_file: ${TMP_DIR}validate-{dir-safe-name}.md
 directory: {directory}
 issues_count: {N}
+strict: {true|false}
 ---end-validate-result---
 ```
 
 - `status`: 검증 완료 여부 (에러 없이 완료되면 success)
 - `result_file`: 상세 결과 파일 경로
 - `directory`: 검증 대상 디렉토리
-- `issues_count`: 총 semantic drift 이슈 수 (Convention 구조/Boundary는 Phase 2에서 처리하므로 제외)
+- `issues_count`: 총 semantic drift 이슈 수 (Convention 구조/Boundary/DEVELOPERS.md 존재는 Phase 2에서 처리하므로 제외)
+- `strict`: strict 모드 여부
 
 ## 오류 처리
 
