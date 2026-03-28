@@ -93,9 +93,29 @@ AskUserQuestion 시퀀스로 컨벤션 정보를 수집합니다:
 
 **Q3. 코딩 스타일**: "코딩 스타일 기본 규칙을 선택해주세요." 옵션: Strict(엄격한 타입/린트), Moderate(일반적 규칙), Minimal(최소한의 규칙)
 
-### 6. project_root CLAUDE.md에 `## Conventions` 섹션 추가
+### 6. project_root CLAUDE.md에 `## Instructions` + `## Conventions` 섹션 추가
 
 CLAUDE.md가 없으면 생성합니다. 있으면 끝에 섹션을 append합니다.
+
+#### 6-A. `## Instructions` 섹션 생성 (superpowers 조합 설정)
+
+project root CLAUDE.md에 `## Instructions`가 없으면 생성합니다. 이미 존재하면 skip.
+
+```markdown
+## Instructions
+
+- CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
+- When code disagrees with CLAUDE.md, regenerate code via /compile (not modify docs).
+- To change requirements, update CLAUDE.md first, then code follows.
+- Derive tests from DEVELOPERS.md Constraints.
+- 소스코드는 /compile로 생성. Write tool로 직접 소스 파일 생성 금지.
+- 완료 선언 전 /validate --strict 실행 필수.
+```
+
+> 이 Instructions는 superpowers가 활성일 때 "문서 기반 개발" 패러다임을 안내합니다.
+> Claude Code가 project root CLAUDE.md를 자동 로드하므로, 별도 hook 없이 매 세션 적용됩니다.
+
+#### 6-B. `## Conventions` 섹션 생성
 
 project_root에 통합 Conventions 섹션을 작성합니다 (DRY canonical source).
 

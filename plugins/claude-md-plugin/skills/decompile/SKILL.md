@@ -39,6 +39,23 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
+### 0.5. `## Instructions` 존재 확인 (fallback)
+
+project root CLAUDE.md에 `## Instructions` 섹션이 없으면 자동 생성합니다:
+
+```markdown
+## Instructions
+
+- CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
+- When code disagrees with CLAUDE.md, regenerate code via /compile (not modify docs).
+- To change requirements, update CLAUDE.md first, then code follows.
+- Derive tests from DEVELOPERS.md Constraints.
+- 소스코드는 /compile로 생성. Write tool로 직접 소스 파일 생성 금지.
+- 완료 선언 전 /validate --strict 실행 필수.
+```
+
+이미 존재하면 skip. `/project-setup`이 primary entry point이지만, `/decompile`이 먼저 실행되는 경우를 위한 fallback.
+
 ### 1. 디렉토리 트리 파싱
 
 `Skill("claude-md-plugin:tree-parse")`로 대상 디렉토리 구조를 분석합니다.
@@ -85,18 +102,16 @@ decompiler agent가 기존 문서를 Read하여 소스 분석 결과와 병합�
 git diff --stat
 ```
 
-### 5. 최종 보고
+### 5. 결과 반환
 
 ```
-=== Decompile 완료 ===
-총 디렉토리: {total}개
-성공: {success}개
-실패: {failed}개
-
-생성된 문서:
-  - {path}/CLAUDE.md
-  - {path}/DEVELOPERS.md
-  ...
+---decompile-result---
+status: success | partial
+total: {n}
+success: {n}
+failed: {n}
+files: [{list}]
+---end-decompile-result---
 ```
 
 ## DO / DON'T
@@ -129,6 +144,7 @@ git diff --stat
 <example>
 <user_request>/decompile src</user_request>
 <assistant_response>
+Instructions 확인: 존재 (skip)
 트리 파싱 중... 4개 디렉토리 감지
 
 Decompile 진행:
@@ -137,14 +153,12 @@ Decompile 진행:
   • src/utils (depth=2) — 완료
   • src (depth=1) — 완료
 
-=== Decompile 완료 ===
-총 디렉토리: 4개
-성공: 4개
-
-생성된 문서:
-  - src/auth/jwt/CLAUDE.md + DEVELOPERS.md
-  - src/auth/CLAUDE.md + DEVELOPERS.md
-  - src/utils/CLAUDE.md + DEVELOPERS.md
-  - src/CLAUDE.md + DEVELOPERS.md
+---decompile-result---
+status: success
+total: 4
+success: 4
+failed: 0
+files: [src/auth/jwt/CLAUDE.md, src/auth/CLAUDE.md, src/utils/CLAUDE.md, src/CLAUDE.md]
+---end-decompile-result---
 </assistant_response>
 </example>
