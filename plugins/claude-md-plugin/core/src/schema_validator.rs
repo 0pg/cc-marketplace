@@ -430,12 +430,150 @@ impl SchemaValidator {
 
         (fixed, added)
     }
+
+    /// Converge a document to the current schema by applying renames, removals, then adding missing sections.
+    /// `doc_type` is "claude_md" or "developers_md".
+    /// Returns (fixed_content, changes_applied, warnings).
+    pub fn converge_schema(&self, content: &str, doc_type: &str) -> ConvergeResult {
+        let mut result = ConvergeResult::default();
+        let mut output = content.to_string();
+
+        // Step 1: Renames
+        for &(from, to, document) in MIGRATION_RENAMES {
+            if document != doc_type {
+                continue;
+            }
+            let sections = self.parse_sections(&output);
+            let has_from = sections.iter().any(|s| s.name.eq_ignore_ascii_case(from));
+            let has_to = sections.iter().any(|s| s.name.eq_ignore_ascii_case(to));
+
+            if has_from && !has_to {
+                // Rename: replace the heading
+                output = Self::rename_section(&output, from, to);
+                result.changes.push(format!("renamed: ## {} → ## {}", from, to));
+            } else if has_from && has_to {
+                result.warnings.push(format!(
+                    "conflict: both '## {}' and '## {}' exist — skipped rename, manual merge needed",
+                    from, to
+                ));
+            }
+        }
+
+        // Step 2: Removals
+        for &(name, document) in MIGRATION_REMOVALS {
+            if document != doc_type {
+                continue;
+            }
+            let sections = self.parse_sections(&output);
+            if sections.iter().any(|s| s.name.eq_ignore_ascii_case(name)) {
+                output = Self::remove_section(&output, name);
+                result.changes.push(format!("removed: ## {}", name));
+            }
+        }
+
+        // Step 3: Add missing sections (reuse existing logic)
+        let required_sections = if doc_type == "developers_md" {
+            DEVELOPERS_REQUIRED_SECTIONS
+        } else {
+            REQUIRED_SECTIONS
+        };
+        let allow_none_sections = if doc_type == "developers_md" {
+            DEVELOPERS_ALLOW_NONE_SECTIONS
+        } else {
+            ALLOW_NONE_SECTIONS
+        };
+
+        let sections = self.parse_sections(&output);
+        for required in required_sections {
+            let found = sections.iter().any(|s| s.name.eq_ignore_ascii_case(required));
+            if found {
+                continue;
+            }
+            let allows_none = allow_none_sections.iter().any(|s| s.eq_ignore_ascii_case(required));
+            if allows_none {
+                if !output.ends_with('\n') {
+                    output.push('\n');
+                }
+                output.push_str(&format!("\n## {}\nNone\n", required));
+                result.changes.push(format!("added: ## {} (None)", required));
+            }
+        }
+
+        result.content = output;
+        result
+    }
+
+    /// Rename an H2 section heading in markdown content.
+    fn rename_section(content: &str, from: &str, to: &str) -> String {
+        let mut output = String::with_capacity(content.len());
+        for line in content.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("## ") {
+                let section_name = trimmed.trim_start_matches("## ").trim();
+                if section_name.eq_ignore_ascii_case(from) {
+                    output.push_str(&format!("## {}", to));
+                    output.push('\n');
+                    continue;
+                }
+            }
+            output.push_str(line);
+            output.push('\n');
+        }
+        // Remove trailing extra newline if original didn't end with one
+        if !content.ends_with('\n') && output.ends_with('\n') {
+            output.pop();
+        }
+        output
+    }
+
+    /// Remove an H2 section (heading + all content until next H2 or end).
+    fn remove_section(content: &str, name: &str) -> String {
+        let mut output = String::with_capacity(content.len());
+        let mut skipping = false;
+        for line in content.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("## ") {
+                let section_name = trimmed.trim_start_matches("## ").trim();
+                if section_name.eq_ignore_ascii_case(name) {
+                    skipping = true;
+                    continue;
+                } else {
+                    skipping = false;
+                }
+            }
+            if !skipping {
+                output.push_str(line);
+                output.push('\n');
+            }
+        }
+        // Clean up double blank lines that may result from removal
+        while output.contains("\n\n\n") {
+            output = output.replace("\n\n\n", "\n\n");
+        }
+        // Remove trailing extra newline if original didn't end with one
+        if !content.ends_with('\n') && output.ends_with('\n') {
+            output.pop();
+        }
+        output
+    }
 }
 
 impl Default for SchemaValidator {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Result of converge_schema operation
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct ConvergeResult {
+    /// The converged content
+    #[serde(skip)]
+    pub content: String,
+    /// List of changes applied (e.g., "renamed: ## X → ## Y", "removed: ## Z", "added: ## W (None)")
+    pub changes: Vec<String>,
+    /// Warnings (e.g., conflict: both old and new section exist)
+    pub warnings: Vec<String>,
 }
 
 /// Section representation for schema validation, tracking line numbers for error reporting.
@@ -951,5 +1089,163 @@ None
         let ctx = SchemaValidator::evaluate_conditions(temp.path());
         assert!(!ctx.is_project_root);
         assert!(ctx.is_module_root);
+    }
+
+    // converge_schema tests
+
+    #[test]
+    fn test_converge_renames_constraints_to_requirements() {
+        // v6-style CLAUDE.md with ## Constraints → should rename to ## Requirements
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Constraints
+- Password reset limit 90 days
+
+## Domain Context
+None
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "claude_md");
+
+        assert!(result.content.contains("## Requirements"));
+        assert!(!result.content.contains("## Constraints"));
+        assert!(result.content.contains("Password reset limit 90 days"));
+        assert!(result.changes.iter().any(|c| c.contains("renamed")));
+    }
+
+    #[test]
+    fn test_converge_idempotent_on_current_schema() {
+        // Already v4-compliant CLAUDE.md → no changes
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Requirements
+None
+
+## Domain Context
+None
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "claude_md");
+
+        assert!(result.changes.is_empty(), "Expected no changes: {:?}", result.changes);
+        assert!(result.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_converge_adds_missing_sections() {
+        // CLAUDE.md missing Requirements and Domain Context
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "claude_md");
+
+        assert!(result.content.contains("## Requirements"));
+        assert!(result.content.contains("## Domain Context"));
+        assert!(result.changes.iter().any(|c| c.contains("added")));
+    }
+
+    #[test]
+    fn test_converge_conflict_both_exist_warns() {
+        // Both ## Constraints and ## Requirements exist → should warn, not rename
+        let content = r#"# Test Module
+
+## Purpose
+Validates tokens.
+
+## Constraints
+Old constraints here.
+
+## Requirements
+New requirements here.
+
+## Domain Context
+None
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "claude_md");
+
+        assert!(result.warnings.iter().any(|w| w.contains("conflict")),
+            "Expected conflict warning: {:?}", result.warnings);
+        // Both sections should still exist (unchanged)
+        assert!(result.content.contains("## Constraints"));
+        assert!(result.content.contains("## Requirements"));
+    }
+
+    #[test]
+    fn test_converge_developers_md_renames() {
+        // v6-style DEVELOPERS.md: Domain Context → Technical Context, Invariants → Constraints
+        let content = r#"# Test Module
+
+## Domain Context
+Uses RS256.
+
+## Invariants
+Token must not exceed 7 days.
+
+## Decision Log
+None
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "developers_md");
+
+        assert!(result.content.contains("## Technical Context"), "Missing Technical Context");
+        assert!(result.content.contains("## Constraints"), "Missing Constraints");
+        assert!(!result.content.contains("## Domain Context"), "Domain Context should be renamed");
+        assert!(!result.content.contains("## Invariants"), "Invariants should be renamed");
+        assert!(result.content.contains("Uses RS256."));
+        assert!(result.content.contains("Token must not exceed 7 days."));
+    }
+
+    #[test]
+    fn test_converge_developers_md_removes_file_map() {
+        let content = r#"# Test Module
+
+## Constraints
+None
+
+## Technical Context
+None
+
+## File Map
+src/auth.ts — auth module
+src/utils.ts — utilities
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "developers_md");
+
+        assert!(!result.content.contains("## File Map"), "File Map should be removed");
+        assert!(!result.content.contains("auth module"), "File Map content should be removed");
+        assert!(result.changes.iter().any(|c| c.contains("removed")));
+    }
+
+    #[test]
+    fn test_converge_dry_run_data() {
+        // Verify ConvergeResult has correct data for dry-run JSON output
+        let content = r#"# Test Module
+
+## Purpose
+Test.
+
+## Constraints
+Old data.
+"#;
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "claude_md");
+
+        // Should have rename + add changes
+        assert!(!result.changes.is_empty());
+        // Serializable to JSON
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("changes"));
+        assert!(json.contains("warnings"));
     }
 }

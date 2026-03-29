@@ -109,6 +109,21 @@ developers_sections:
       - "Deployment|배포"
       - "Monitoring|모니터링"
 
+migrations:
+  renames:
+    - from: "Constraints"
+      to: "Requirements"
+      document: "claude_md"
+    - from: "Domain Context"
+      to: "Technical Context"
+      document: "developers_md"
+    - from: "Invariants"
+      to: "Constraints"
+      document: "developers_md"
+  removals:
+    - name: "File Map"
+      document: "developers_md"
+
 none_marker:
   values:
     - "None"

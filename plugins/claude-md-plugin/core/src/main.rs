@@ -174,15 +174,23 @@ enum Commands {
         file: PathBuf,
     },
 
-    /// Fix missing allow-none sections in CLAUDE.md by appending "## Section\nNone\n"
+    /// Converge CLAUDE.md/DEVELOPERS.md to current schema: rename, remove, add missing sections
     FixSchema {
-        /// CLAUDE.md file to fix
+        /// File to fix
         #[arg(short, long)]
         file: PathBuf,
 
         /// Output file path (defaults to overwriting the input file)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Document type: claude_md (default) or developers_md
+        #[arg(short = 't', long = "type", default_value = "claude_md")]
+        doc_type: String,
+
+        /// Dry-run: show changes without modifying files (JSON output)
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
     },
 }
 
@@ -352,24 +360,41 @@ fn main() {
                 ).into()),
             }
         }
-        Commands::FixSchema { file, output } => {
+        Commands::FixSchema { file, output, doc_type, dry_run } => {
             match std::fs::read_to_string(&file) {
                 Ok(content) => {
                     let validator = SchemaValidator::new();
-                    let (fixed, added) = validator.fix_missing_sections(&content);
-                    if added.is_empty() {
-                        println!("No missing sections to fix.");
+                    let converge_result = validator.converge_schema(&content, doc_type);
+
+                    if converge_result.changes.is_empty() && converge_result.warnings.is_empty() {
+                        if *dry_run {
+                            println!("{{\"changes\":[],\"warnings\":[]}}");
+                        } else {
+                            println!("No changes needed.");
+                        }
+                        Ok(())
+                    } else if *dry_run {
+                        let json = serde_json::json!({
+                            "changes": converge_result.changes,
+                            "warnings": converge_result.warnings,
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json).unwrap());
                         Ok(())
                     } else {
                         let target = output.as_ref().unwrap_or(&file);
-                        match std::fs::write(target, &fixed) {
+                        match std::fs::write(target, &converge_result.content) {
                             Ok(()) => {
-                                println!("Fixed {} section(s): {}", added.len(), added.join(", "));
-                                println!("Output written to: {}", target.display());
+                                for change in &converge_result.changes {
+                                    println!("  {}", change);
+                                }
+                                for warning in &converge_result.warnings {
+                                    println!("  ⚠ {}", warning);
+                                }
+                                println!("Applied {} change(s) to: {}", converge_result.changes.len(), target.display());
                                 Ok(())
                             }
                             Err(e) => Err(format!(
-                                "Failed to write fixed CLAUDE.md to '{}': {}",
+                                "Failed to write fixed file to '{}': {}",
                                 target.display(), e
                             ).into()),
                         }
