@@ -26,10 +26,11 @@ description: |
   7. [REFACTOR] Conventions applied
   8. [REFACTOR] Regression test: 8 passed
   9. File conflicts: 0 skipped, 4 compiled
+
   ---compiler-result---
   result_file: ${TMP_DIR}compile-src-auth.json
   status: success
-  compiled_files: [...]
+  compiled_files: [src/auth/index.ts, src/auth/types.ts, src/auth/auth.test.ts]
   skipped_files: []
   tests_passed: 8
   tests_failed: 0
@@ -64,30 +65,6 @@ Follow superpowers:tdd's Red-Green-Refactor cycle with these domain-specific rul
 - Import/path errors in generated tests: may fix
 - Max 3 retry attempts for GREEN phase
 
-## Workflow
-
-1. **Load superpowers:tdd** (above)
-2. **Read compile session file** — all specs pre-extracted by SKILL:
-   - Requirements, Constraints (test source), Technical Context
-   - Conventions (hierarchy already resolved), Dependencies
-   - Verification Contract
-3. **RED**: Derive tests from Constraints section of session file
-4. **Verify RED**: Run tests, confirm all fail (superpowers:tdd "Verify RED" procedure)
-5. **GREEN**: Implement from Requirements + Constraints mapping rules
-6. **Verify GREEN**: Run tests, confirm all pass. Max 3 retries.
-7. **REFACTOR**: Apply Conventions from session file. Regression test. Rollback if tests fail.
-8. **File conflicts**: Follow session file's conflict mode (skip/overwrite)
-
-**임시 디렉토리 경로:**
-```bash
-TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
-```
-
-**Load detailed workflow reference:**
-```bash
-cat "${CLAUDE_PLUGIN_ROOT}/skills/compile/references/compiler-workflow.md"
-```
-
 ## 입력
 
 ```
@@ -97,11 +74,45 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/compile/references/compiler-workflow.md"
 결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
+## 임시 디렉토리
+
+```bash
+TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+```
+
+## Workflow
+
+### 1. Load superpowers:tdd
+
+위의 Skill() 호출로 TDD 규율을 로드합니다.
+
+### 2. Read Compile Session File
+
+세션 파일에 모든 스펙이 사전 추출되어 있습니다:
+- **Requirements** (from CLAUDE.md) — 고수준 검증 기준
+- **Constraints** (from DEVELOPERS.md) — 테스트 생성 원천
+- **Technical Context** — 구현 방식 결정
+- **Conventions** (hierarchy resolved) — 코드 스타일
+- **Dependencies** — 외부/내부 의존성
+- **Verification Contract** — 완료 조건
+
 세션 파일에 모호한 스펙이 있으면 `## Origin` 섹션의 원본 문서 경로를 참조하여 Read합니다.
 
-## 코드 생성 원칙
+### 3. RED — Generate Tests from Constraints
 
-### 스펙 → 코드 변환 규칙
+| Constraints 유형 | 테스트 유형 |
+|-----------------|-----------|
+| 수치 제한 (e.g., "최대 7일") | 경계값 테스트 (7일 OK, 8일 실패) |
+| 형식 제약 (e.g., "UTF-8만 허용") | 유효/무효 입력 테스트 |
+| 보안 제약 (e.g., "secure storage") | 보안 검증 테스트 |
+| 비즈니스 규칙 | 규칙 준수/위반 시나리오 테스트 |
+
+### 4. Verify RED
+
+모든 테스트가 실패하는지 확인합니다 (superpowers:tdd "Verify RED" 절차).
+구현이 이미 존재하여 일부 통과하면 해당 테스트는 기존 구현 커버리지로 기록합니다.
+
+### 5. GREEN — Implement
 
 | 세션 파일 요소 | 생성 대상 |
 |---------------|----------|
@@ -112,26 +123,39 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/compile/references/compiler-workflow.md"
 | Domain Context | 상수 값 및 주석 |
 | Technical Context | 구현 방식 결정 |
 
-### Constraints → 테스트 변환 규칙
+### 6. Verify GREEN
 
-| Constraints | 테스트 |
-|-------------|-------|
-| 수치 제한 (e.g., "최대 7일") | 경계값 테스트 (7일 OK, 8일 실패) |
-| 형식 제약 (e.g., "UTF-8만 허용") | 유효/무효 입력 테스트 |
-| 보안 제약 (e.g., "secure storage") | 보안 검증 테스트 |
-| 비즈니스 규칙 | 규칙 준수/위반 시나리오 테스트 |
+모든 테스트 통과 확인. 실패 시 최대 3회 재시도.
+3회 실패 시 경고와 함께 partial 상태 반환.
 
-## 오류 처리
+### 7. REFACTOR
 
-| 상황 | 대응 |
-|------|------|
-| 세션 파일 파싱 실패 | 에러 로그, Agent 실패 반환 |
-| 테스트 3회 재시도 실패 | 경고와 함께 진행, 수동 수정 필요 표시 |
-| 파일 쓰기 실패 | 에러 로그, 해당 파일 건너뛰기 |
+Conventions 섹션의 코딩 규칙 적용:
+- 네이밍 규칙, 프로젝트 구조, 모듈 바운더리
+- 회귀 테스트 실행 — 실패 시 REFACTOR 롤백
 
-## 병렬 실행 시 주의사항
+### 8. File Conflicts
 
-- **AskUserQuestion 블로킹**: 이 Agent가 병렬로 여러 개 실행될 때, AskUserQuestion 호출은 다른 Agent의 진행을 블로킹합니다. 사용자 입력이 필요한 경우를 최소화합니다.
+세션 파일의 conflict 모드에 따라 처리:
+- `skip`: 기존 파일 유지
+- `overwrite`: 덮어쓰기
+
+### 9. Result
+
+```
+---compiler-result---
+result_file: {TMP_DIR path}
+status: success | partial | failed
+compiled_files: [...]
+skipped_files: [...]
+tests_passed: N
+tests_failed: N
+---end-compiler-result---
+```
+
+## 병렬 실행 주의
+
+이 Agent는 병렬 배치로 실행됩니다. **AskUserQuestion 사용 금지** — 다른 Agent의 진행을 블로킹합니다.
 
 ## Context 효율성
 
