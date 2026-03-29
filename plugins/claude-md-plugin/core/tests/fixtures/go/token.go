@@ -3,6 +3,7 @@ package token
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -69,3 +70,8 @@ func GenerateToken(userID, role string, config Config) (string, error) {
 func internalHelper(data map[string]interface{}) bool {
 	return len(data) > 0
 }
+
+
+// configFromEnv loads configuration from environment variables.
+var _ = os.Getenv("JWT_SECRET")
+var _ = os.Getenv("DATABASE_URL")

@@ -229,9 +229,9 @@ impl SchemaValidator {
         self.validate_developers_with_context(developers_path, None)
     }
 
-    /// Validate DEVELOPERS.md schema with optional directory context.
-    /// v3.1: All 5 sections are always required, all allow None.
-    pub fn validate_developers_with_context(&self, developers_path: &Path, _dir_path: Option<&Path>) -> ValidationResult {
+    /// Validate DEVELOPERS.md schema with optional validation context.
+    /// v4.1: checks required sections + conditional sections (e.g., Flows at project root only).
+    pub fn validate_developers_with_context(&self, developers_path: &Path, ctx: Option<&ValidationContext>) -> ValidationResult {
         let file_str = developers_path.to_string_lossy().to_string();
 
         let content = match std::fs::read_to_string(developers_path) {
@@ -253,7 +253,7 @@ impl SchemaValidator {
         };
 
         let mut errors = Vec::new();
-        let warnings = Vec::new();
+        let mut warnings = Vec::new();
 
         let sections = self.parse_sections(&content);
 
@@ -291,6 +291,22 @@ impl SchemaValidator {
             }
         }
 
+        // Check conditional sections: warn if section exists but condition is not met
+        if let Some(ctx) = ctx {
+            for (name, condition) in DEVELOPERS_CONDITIONAL_SECTIONS {
+                let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(name));
+                if let Some(_section) = section_found {
+                    if !Self::condition_met(condition, ctx) {
+                        warnings.push(format!(
+                            "Flows section is only expected at project root (condition: {}). \
+                             Move to project root DEVELOPERS.md or remove.",
+                            condition
+                        ));
+                    }
+                }
+            }
+        }
+
         ValidationResult {
             file: file_str,
             valid: errors.is_empty(),
@@ -319,16 +335,14 @@ impl SchemaValidator {
             .map(|p| p.join("DEVELOPERS.md"))
             .unwrap_or_else(|| std::path::PathBuf::from("DEVELOPERS.md"));
 
-        let dir_path = claude_md_path.parent();
-
         if !developers_path.exists() {
             result.warnings.push(format!(
                 "INV-3: DEVELOPERS.md not found at {}",
                 developers_path.display()
             ));
         } else {
-            // Validate DEVELOPERS.md schema with directory context
-            let dev_result = self.validate_developers_with_context(&developers_path, dir_path);
+            // Validate DEVELOPERS.md schema, passing same ValidationContext for conditional checks
+            let dev_result = self.validate_developers_with_context(&developers_path, ctx);
             if !dev_result.valid {
                 for err in dev_result.errors {
                     result.errors.push(ValidationError {
@@ -339,6 +353,10 @@ impl SchemaValidator {
                     });
                 }
                 result.valid = false;
+            }
+            // Propagate DEVELOPERS.md warnings (e.g., conditional section violations)
+            for w in dev_result.warnings {
+                result.warnings.push(format!("DEVELOPERS.md: {}", w));
             }
         }
 

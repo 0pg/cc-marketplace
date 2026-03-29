@@ -5,7 +5,7 @@
 #   - Documentation (references/shared/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "4.0.0"
+version: "4.1.0"
 description: "CLAUDE.md 스키마 검증 규칙 - v4.0 (Primary SSOT — PM 요구사항)"
 
 sections:
@@ -85,6 +85,11 @@ developers_sections:
     required: true
     allow_none: true
     description: "정밀한 입출력 계약 — 테스트 변환 가능해야 함"
+  data_schemas:
+    name: "Data Schemas"
+    required: false
+    allow_none: true
+    description: "모듈의 공개 타입 정의 (다른 모듈이 참조하는 타입들)"
   technical_context:
     name: "Technical Context"
     required: true
@@ -105,9 +110,17 @@ developers_sections:
     allow_none: true
     description: "배포, 모니터링, 트러블슈팅"
     subsections:
+      - "Configuration|설정"
       - "Gotchas"
       - "Deployment|배포"
       - "Monitoring|모니터링"
+  flows:
+    name: "Flows"
+    required: false
+    condition: "is_project_root"
+    condition_type: "dynamic"
+    allow_none: true
+    description: "시스템 수준 use case 실행 흐름 (project root only)"
 
 migrations:
   renames:

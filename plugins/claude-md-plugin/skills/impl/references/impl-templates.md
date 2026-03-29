@@ -10,14 +10,16 @@
 | `## Conventions` | project/module root 필수 | X | 6개 필수 서브섹션 |
 | `## Instructions` | project root only | X | AI 행동 지시 |
 
-## DEVELOPERS.md Schema
+## DEVELOPERS.md Schema (v4.1)
 
 | 섹션 | 필수 | None 허용 | 내용 |
 |------|------|----------|------|
 | `## Constraints` | O | O | 정밀한 입출력 계약 — 테스트 변환 가능 |
+| `## Data Schemas` | X | O | 모듈 공개 타입 정의 — Constraints가 참조하는 타입 |
 | `## Technical Context` | O | O | 기술 선택과 근거 |
 | `## Decision Log` | X | O | ADR 스타일 |
-| `## Operations` | X | O | Gotchas, 배포 |
+| `## Operations` | X | O | Gotchas, 배포, 모니터링, Configuration(env vars) |
+| `## Flows` | X (project root only) | O | 시스템 수준 use case 실행 흐름 |
 
 ## Scope Assessment 기준
 

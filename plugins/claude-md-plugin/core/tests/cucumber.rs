@@ -387,6 +387,18 @@ fn validate_schema_strict(world: &mut TestWorld) {
     world.validation_result = Some(validator.validate_strict(claude_md_path));
 }
 
+#[when("I validate the schema with strict mode in non-project-root")]
+fn validate_schema_strict_non_root(world: &mut TestWorld) {
+    use claude_md_core::schema_validator::ValidationContext;
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let ctx = ValidationContext {
+        is_project_root: false,
+        is_module_root: false,
+    };
+    let validator = SchemaValidator::new();
+    world.validation_result = Some(validator.validate_strict_with_context(claude_md_path, Some(&ctx)));
+}
+
 #[then("validation should pass")]
 fn validation_should_pass(world: &mut TestWorld) {
     let result = world.validation_result.as_ref().expect("No validation result");
@@ -417,6 +429,22 @@ fn warning_should_mention(world: &mut TestWorld, text: String) {
     let result = world.validation_result.as_ref().expect("No validation result");
     let found = result.warnings.iter().any(|w| w.contains(&text));
     assert!(found, "Expected warning mentioning '{}', got: {:?}", text, result.warnings);
+}
+
+#[then("I should find environment variables:")]
+fn should_find_env_vars(world: &mut TestWorld, step: &cucumber::gherkin::Step) {
+    let result = world.analysis_result.as_ref().expect("No analysis result");
+    if let Some(table) = step.table.as_ref() {
+        for row in table.rows.iter().skip(1) {
+            let expected_name = &row[0];
+            assert!(
+                result.env_vars.iter().any(|v| v == expected_name),
+                "Expected env var '{}' not found in {:?}",
+                expected_name,
+                result.env_vars
+            );
+        }
+    }
 }
 
 // ============== Fix Schema Steps ==============
@@ -925,6 +953,12 @@ fn should_find_contract_for(world: &mut TestWorld, function_name: String, step: 
 #[when("I analyze the file for protocol")]
 fn analyze_file_for_protocol(world: &mut TestWorld) {
     // Same as exports - we analyze everything including protocol
+    analyze_file_for_exports(world);
+}
+
+#[when("I analyze the file for environment variables")]
+fn analyze_file_for_env_vars(world: &mut TestWorld) {
+    // Same as exports - we analyze everything including env_vars
     analyze_file_for_exports(world);
 }
 

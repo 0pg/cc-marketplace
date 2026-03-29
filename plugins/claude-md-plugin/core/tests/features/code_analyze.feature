@@ -73,6 +73,13 @@ Feature: Code Analyze Skill
       | Claims        | ./auth    |
       | createApp     | ./app     |
 
+  Scenario: Extract TypeScript environment variable references
+    Given a TypeScript file "fixtures/typescript/index.ts"
+    When I analyze the file for environment variables
+    Then I should find environment variables:
+      | name       |
+      | JWT_SECRET |
+
   # =============================================================================
   # Python Analysis
   # =============================================================================
@@ -107,6 +114,14 @@ Feature: Code Analyze Skill
     And I should find internal dependencies:
       | path   |
       | .types |
+
+  Scenario: Extract Python environment variable references
+    Given a Python file "fixtures/python/auth.py"
+    When I analyze the file for environment variables
+    Then I should find environment variables:
+      | name         |
+      | DATABASE_URL |
+      | JWT_SECRET   |
 
   # =============================================================================
   # Go Analysis
@@ -145,6 +160,14 @@ Feature: Code Analyze Skill
     Then I should find external dependencies:
       | package                      |
       | github.com/golang-jwt/jwt/v5 |
+
+  Scenario: Extract Go environment variable references
+    Given a Go file "fixtures/go/token.go"
+    When I analyze the file for environment variables
+    Then I should find environment variables:
+      | name         |
+      | DATABASE_URL |
+      | JWT_SECRET   |
 
   # =============================================================================
   # Rust Analysis

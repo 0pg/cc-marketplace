@@ -50,6 +50,8 @@ Technical Context:
 |------|----------|------|
 | CONSTRAINT_NOT_ENFORCED | WARNING | Constraint가 코드에 미반영 |
 | TECH_CONTEXT_STALE | INFO | 명시된 기술이 실제와 불일치 |
+| DATA_SCHEMA_STALE | WARNING | Data Schemas에 정의된 타입이 코드와 불일치 |
+| FLOWS_MISPLACED | WARNING | Flows 섹션이 project root가 아닌 DEVELOPERS.md에 존재 |
 
 ## Validation Report Format
 

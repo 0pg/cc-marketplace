@@ -78,6 +78,10 @@ struct DevelopersSectionDef {
     required: bool,
     #[serde(default)]
     allow_none: bool,
+    #[serde(default)]
+    condition: String,
+    #[serde(default)]
+    condition_type: String,
 }
 
 /// Schema rules structure
@@ -191,6 +195,15 @@ fn main() {
         .collect();
     developers_allow_none_sections.sort();
 
+    // Extract DEVELOPERS.md conditional sections (optional with dynamic conditions, e.g., Flows)
+    let mut developers_conditional_sections: Vec<(&str, &str)> = rules
+        .developers_sections
+        .values()
+        .filter(|s| !s.condition.is_empty() && s.condition_type == "dynamic")
+        .map(|s| (s.name.as_str(), s.condition.as_str()))
+        .collect();
+    developers_conditional_sections.sort_by_key(|(name, _)| *name);
+
     // Extract migration renames: (from, to, document)
     let migration_renames: Vec<(&str, &str, &str)> = rules
         .migrations
@@ -257,6 +270,11 @@ pub const DEVELOPERS_REQUIRED_SECTIONS: &[&str] = &{:?};
 #[allow(dead_code)]
 pub const DEVELOPERS_ALLOW_NONE_SECTIONS: &[&str] = &{:?};
 
+/// DEVELOPERS.md conditional sections: (name, condition)
+/// Sections only expected under specific conditions (e.g., Flows requires is_project_root)
+#[allow(dead_code)]
+pub const DEVELOPERS_CONDITIONAL_SECTIONS: &[(&str, &str)] = &{:?};
+
 /// Migration renames: (from_section, to_section, document_type)
 /// document_type: "claude_md" or "developers_md"
 #[allow(dead_code)]
@@ -275,6 +293,7 @@ pub const MIGRATION_REMOVALS: &[(&str, &str)] = &{:?};
         forbidden_ref_patterns,
         developers_required_sections,
         developers_allow_none_sections,
+        developers_conditional_sections,
         migration_renames,
         migration_removals
     );

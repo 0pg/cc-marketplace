@@ -303,3 +303,102 @@ Feature: DEVELOPERS.md Schema Validation
       """
     When I validate the schema with strict mode
     Then validation should pass
+
+  Scenario: DEVELOPERS.md with Data Schemas section passes validation
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Constraints
+      None
+
+      ## Data Schemas
+      None
+
+      ## Technical Context
+      None
+      """
+    When I validate the schema with strict mode
+    Then validation should pass
+
+  Scenario: DEVELOPERS.md with Operations Configuration subsection passes validation
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Constraints
+      None
+
+      ## Technical Context
+      None
+
+      ## Operations
+
+      ### Configuration
+      - JWT_SECRET: string (required) — JWT 서명 키
+
+      ### Deployment
+      - 환경변수 필수 설정
+      """
+    When I validate the schema with strict mode
+    Then validation should pass
+
+  Scenario: Flows section in non-project-root DEVELOPERS.md generates warning
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Constraints
+      None
+
+      ## Technical Context
+      None
+
+      ## Flows
+
+      ### Login
+      1. api/auth — POST /login
+      """
+    When I validate the schema with strict mode in non-project-root
+    Then validation should pass
+    And validation should have warnings
+    And warning should mention "Flows"

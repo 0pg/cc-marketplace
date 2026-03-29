@@ -45,6 +45,11 @@ pub fn format_analysis(analysis: &AnalysisResult) -> String {
         sections.push(s);
     }
 
+    // Environment Variables (detected from source code)
+    if let Some(s) = format_env_vars(&analysis.env_vars) {
+        sections.push(s);
+    }
+
     // Analyzed Files
     if !analysis.analyzed_files.is_empty() {
         sections.push(format!(
@@ -54,6 +59,29 @@ pub fn format_analysis(analysis: &AnalysisResult) -> String {
     }
 
     sections.join("\n\n")
+}
+
+/// Formats environment variables as a Configuration table for LLM consumption.
+/// The "(Detected)" prefix signals that this is auto-extracted from source code.
+/// The decompiler agent maps this to Operations > Configuration in DEVELOPERS.md.
+fn format_env_vars(env_vars: &[String]) -> Option<String> {
+    if env_vars.is_empty() {
+        return None;
+    }
+
+    let mut lines = vec![
+        "## Environment Variables (Detected)".to_string(),
+        String::new(),
+        "| Variable | Notes |".to_string(),
+        "|----------|-------|".to_string(),
+    ];
+    for var in env_vars {
+        lines.push(format!(
+            "| `{}` | required — verify type/default in Configuration |",
+            var
+        ));
+    }
+    Some(lines.join("\n"))
 }
 
 /// Formats behaviors grouped by category (Success/Error).
@@ -271,6 +299,7 @@ mod tests {
             contracts: Vec::new(),
             protocol: None,
             analyzed_files: Vec::new(),
+            env_vars: Vec::new(),
         }
     }
 
