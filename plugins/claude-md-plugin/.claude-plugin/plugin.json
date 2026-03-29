@@ -1,7 +1,7 @@
 {
   "name": "claude-md-plugin",
-  "version": "9.0.0",
-  "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. superpowers domain component를 조합하는 business layer. /impl로 스펙 정의, /compile로 코드 생성, /validate로 검증, /bugfix로 문서-코드 추적.",
+  "version": "10.0.0",
+  "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. superpowers domain component를 조합하는 business layer. /impl로 스펙 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출.",
   "author": {
     "name": "jhk"
   },
@@ -19,29 +19,16 @@
     "./skills/impl",
     "./skills/compile",
     "./skills/decompile",
-    "./skills/validate",
-    "./skills/bugfix",
-    "./skills/impl-review",
-    "./skills/impact",
-    "./skills/diff-spec",
-    "./skills/status",
-    "./skills/refactor",
-    "./skills/tree-parse"
+    "./skills/validate"
   ],
   "agents": [
-    "./agents/compiler.md",
-    "./agents/debug-layer-analyzer.md",
-    "./agents/debugger.md",
-    "./agents/decompiler.md",
-    "./agents/dep-explorer.md",
     "./agents/impl.md",
-    "./agents/impl-reviewer.md",
-    "./agents/validator.md"
+    "./agents/compiler.md",
+    "./agents/validator.md",
+    "./agents/decompiler.md"
   ],
   "commands": [
-    "./commands/dev.md",
     "./commands/project-setup.md",
-    "./commands/convention-update.md",
     "./commands/migrate.md"
   ],
   "hooks": []

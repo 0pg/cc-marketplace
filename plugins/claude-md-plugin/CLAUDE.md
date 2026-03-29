@@ -11,22 +11,20 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v7                        │
+│                    claude-md-plugin v10                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM 요구사항)                     │
 │         │                                                    │
 │         ├──── /impl ──→     요구사항 → CLAUDE.md 정의        │
 │         ├──── /compile ──→  CLAUDE.md 기반 코드 생성         │
 │         ├──── /validate ──→ 문서-코드 일치 검증              │
-│         └──── /bugfix ──→   3계층 추적 → 수정               │
+│         └──── /decompile ──→ 소스코드 → CLAUDE.md 추출       │
 │                                                              │
 │   DEVELOPERS.md (Derived Spec — 개발자 명세)                 │
 │         │                                                    │
 │         └──── Constraints = 테스트 생성 원천                 │
 │                                                              │
 │   Source Code (Derived Artifact)                             │
-│         │                                                    │
-│         └──── /decompile ──→ CLAUDE.md + DEVELOPERS.md 추출  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,21 +83,33 @@ module/
 **DRY 원칙**: Claude Code는 CLAUDE.md를 계층적으로 로드하므로, project_root Conventions는
 하위 모듈에서 자동 참조됩니다. module_root에는 project_root와 다른 내용만 작성합니다.
 
-**컨벤션 우선순위** (module_root != project_root인 경우):
-1. module_root CLAUDE.md `## Conventions` (override)
-2. project_root CLAUDE.md `## Conventions` (default)
-3. project_root CLAUDE.md 일반 내용 (최종 fallback)
-
 ### 트리 구조 의존성
 - **부모 → 자식**: 참조 가능
 - **자식 → 부모**: 참조 불가
 - **형제 ↔ 형제**: 참조 불가
 
-각 CLAUDE.md는 자신의 바운더리 내에서 self-contained여야 합니다.
-
 ## Architecture
 
-### Active Workflows
+### Session File Pattern
+
+v10의 핵심 인터페이스: SKILL이 문서에서 정보를 추출하여 세션 파일을 생성하고, Agent가 세션 파일을 소비.
+
+```
+SKILL (Entry Point)
+  │
+  ├── CLI 호출 (결정론적 검증/분석)
+  ├── CLAUDE.md + DEVELOPERS.md 읽기
+  ├── 세션 파일 Write (${TMP_DIR}{type}-session-{dir-safe}.md)
+  │
+  └── Task(Agent)
+        │
+        ├── Skill("superpowers:{component}") 로드
+        ├── 세션 파일 Read (사전 추출된 스펙)
+        ├── 비즈니스 로직 실행
+        └── 결과 파일 저장 + result block 반환
+```
+
+### Active Workflows (Core 4)
 
 #### /impl (요구사항 → CLAUDE.md)
 
@@ -108,55 +118,24 @@ User: /impl "요구사항"
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl SKILL (Entry Point)                    │
+│ impl SKILL                                  │
 │                                             │
-│ 1. Bash(scan-claude-md) → 기존 CLAUDE.md    │
-│    인덱스 생성                              │
-│ 2. Task(impl) + claude_md_index_file        │
-│    → CLAUDE.md + DEVELOPERS.md 작성         │
-│ 3. git diff → 변경사항 Diff 표시            │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│ impl AGENT                                  │
-│                                             │
-│ 1. 요구사항 분석                            │
-│ 2. Task(dep-explorer) → 의존성 탐색         │
-│ 3. AskUserQuestion → 모호한 부분 명확화     │
-│ 4. 대상 경로 결정                           │
-│ 5. 기존 CLAUDE.md 병합 (필요시)             │
-│ 6. CLAUDE.md 생성 (Requirements)            │
-│ 7. DEVELOPERS.md 생성 (Constraints)         │
-│ 8. Bash(claude-md-core validate-schema) → 검증│
+│ 1. Bash(scan-claude-md) → 인덱스 생성       │
+│ 2. 세션 파일 생성 (요구사항 + 인덱스)        │
+│ 3. Task(impl agent)                        │
+│ 4. git diff 표시                            │
 └─────────────────────────────────────────────┘
-```
-
-#### /decompile (소스코드 → CLAUDE.md)
-
-```
-User: /decompile
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ decompile SKILL (Entry Point)               │
+│ impl AGENT                                  │
+│ ⚡ Skill("superpowers:brainstorming")       │
 │                                             │
-│ 1. Skill("tree-parse") → 대상 목록          │
-│ 2. For each directory (leaf-first):         │
-│    Task(decompiler) 호출                    │
-│    git diff → 추출 문서 Diff 표시           │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│ decompiler AGENT                            │
-│                                             │
-│ Bash(claude-md-core resolve-boundary)       │
-│ Bash(claude-md-core analyze-code)           │
-│ AskUserQuestion → 불명확한 부분 질문        │
-│ CLAUDE.md 생성 (Requirements)               │
-│ DEVELOPERS.md 생성 (Constraints)            │
-│ Bash(claude-md-core validate-schema)        │
+│ 1. 요구사항 분석 + 스코프 평가              │
+│ 2. 의존성 탐색 (inline, 인덱스 기반)        │
+│ 3. AskUserQuestion → 명확화                 │
+│ 4. CLAUDE.md + DEVELOPERS.md 생성           │
+│ 5. validate-schema 검증                     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -167,126 +146,80 @@ User: /compile [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ compile SKILL (Entry Point)                 │
+│ compile SKILL                               │
 │                                             │
-│ 0. --all 분기                               │
-│    ├─ YES → 모든 CLAUDE.md 검색             │
-│    └─ NO  → Bash(diff-compile-targets)      │
-│             변경 감지 (CLAUDE.md +           │
-│             DEVELOPERS.md 모두 트리거)       │
-│             targets = 0 → 종료              │
-│ 1. 대상 CLAUDE.md 필터                      │
-│ 2. compile-context 존재 확인 (optional)     │
-│ 3. 언어 자동 감지                           │
-│ 4. 의존성 그래프 기반 실행 (leaf-first)     │
-│    같은 depth 독립 모듈은 병렬,             │
-│    의존 관계는 순차 처리                    │
-│    Task(compiler) — Inline TDD             │
-│    (DEVELOPERS.md Constraints → 테스트 →   │
-│     GREEN → REFACTOR)                       │
+│ 1. 대상 결정 (--all 또는 incremental)       │
+│ 2. 대상별 세션 파일 생성                    │
+│    (Requirements + Constraints + Conventions)│
+│ 3. leaf-first 정렬, 병렬 배치 (최대 3)     │
+│ 4. Task(compiler) per target               │
+│ 5. git diff --stat                         │
+└─────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│ compiler AGENT                              │
+│ ⚡ Skill("superpowers:tdd")                 │
+│                                             │
+│ RED: Constraints → 테스트 생성              │
+│ GREEN: 구현, 최대 3회 재시도                │
+│ REFACTOR: Conventions 적용 + 회귀 테스트    │
 └─────────────────────────────────────────────┘
 ```
 
 #### /validate (문서-코드 일치 검증)
 
 ```
-User: /validate [path] [--strict]
+User: /validate [path] [--strict] [--report-only]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ validate SKILL (Entry Point)                │
+│ validate SKILL                              │
 │                                             │
 │ 1. Glob → CLAUDE.md 수집                    │
-│ 2. Deterministic 검증 (CLI only)            │
-│    2a. validate-schema + fix-schema         │
-│    2b. validate-convention → 구조 검증      │
-│    2c. resolve-boundary → INV-1 검증        │
-│    2d. DEVELOPERS.md 존재 확인 (INV-3)      │
-│ 3. Semantic 검증 (validator agent)          │
-│    Task(validator) 배치 병렬                │
-│    (조건부: --report-only 시 스킵)          │
-│ 4. Auto-fix (Interactive, 조건부)           │
-│ 5. 통합 보고서                              │
+│ 2. Deterministic CLI 검증                   │
+│    (schema, convention, boundary, INV-3)    │
+│ 3. 세션 파일 생성 (문서 내용 + CLI 결과)    │
+│ 4. Task(validator) 병렬 배치 (최대 3)      │
+│ 5. Auto-fix (Interactive)                  │
+│ 6. 통합 보고서                              │
 └─────────────────────────────────────────────┘
-```
-
-#### /bugfix (소스코드 버그 → 3계층 추적 → 수정)
-
-```
-User: /bugfix [--error "..."] [--test "..."]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ bugfix SKILL (Entry Point)                  │
+│ validator AGENT                             │
+│ ⚡ Skill("superpowers:verification")        │
 │                                             │
-│ 1. Bug Report 수집 (에러/테스트 정보)       │
-│ 2. 입력 타입 분류 (기술적 에러/테스트/기능) │
-│ 3. CLAUDE.md + DEVELOPERS.md 존재 확인      │
-│ 4. 사전 검증 (스키마/미컴파일 변경)         │
-│ 5. Task(debugger) → 진단                   │
-│    ├─ L3 root cause → /compile 재실행      │
-│    └─ L1 root cause → 사용자 승인 후       │
-│       문서 수정 → /compile 재실행           │
-│ 6.5. git diff → 수정사항 Diff 표시         │
-│ 7. Skill("claude-md-plugin:compile")        │
-│ 8. 검증 (원본 테스트 재실행)                │
-│ 9. 결과 보고                                │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│ debugger AGENT (Orchestrator)               │
-│                                             │
-│ Phase 1-2: 에러 재현 + 파싱 (inline)        │
-│ Phase 2.5: CLI → 파일 저장 (context 0)      │
-│ Phase 3: Task(debug-layer-analyzer, L1)     │
-│          L1 = CLAUDE.md Requirements        │
-│ Phase 4: Task(debug-layer-analyzer, L2)     │
-│          L2 = DEVELOPERS.md Constraints     │
-│ Phase 5: Task(debug-layer-analyzer, L3)     │
-│          L3 = Source Code                   │
-│ Phase 6: Findings Read → 교차 분석          │
-│ Phase 6.5: L1 root cause → 사용자 승인      │
-│ Phase 7: Fix 제안 + 사용자 승인 + Edit      │
+│ 1. Requirements Drift 검출                  │
+│ 2. Convention CODE_VIOLATION 검출           │
+│ 3. DEVELOPERS.md Content Drift (strict)    │
 └─────────────────────────────────────────────┘
 ```
 
-#### /impl-review (CLAUDE.md 품질 리뷰)
+#### /decompile (소스코드 → CLAUDE.md)
 
 ```
-User: /impl-review [path]
+User: /decompile [path]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl-review SKILL (Entry Point)             │
+│ decompile SKILL                             │
 │                                             │
-│ 1. 인자 파싱 & 대상 해석                    │
-│ 2. Bash(claude-md-core validate-schema)     │
-│ 3. Task(impl-reviewer) → 3차원 리뷰        │
-│ 3.5. git diff → 수정 제안 Diff 표시        │
+│ 1. Bash(parse-tree) → 디렉토리 구조        │
+│ 2. leaf-first 정렬                          │
+│ 3. 대상별 세션 파일 생성 + Task(decompiler) │
+│ 4. git diff --stat                         │
 └─────────────────────────────────────────────┘
-```
-
-### /dev (자연어 → 스킬 라우팅)
-
-```
-User: /dev "request"
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ dev COMMAND                                 │
+│ decompiler AGENT                            │
+│ (superpowers 조합 없음 — 추출 작업)         │
 │                                             │
-│ 0. superpowers 공존 확인                    │
-│    (superpowers:brainstorming 존재 시       │
-│     안내 메시지 출력 → 종료)                │
-│ 1. 인자 파싱 (request + --path)             │
-│ 2. 의도 분류 (FEATURE/BUGFIX/COMPILE/       │
-│    DECOMPILE/VALIDATE/                      │
-│    IMPACT/DIFF/STATUS/REFACTOR/AMBIGUOUS)   │
-│ 3. CLAUDE.md 존재 확인                       │
-│    (FEATURE+DECOMPILE 제외)                 │
-│    없으면 → 안내 후 종료                    │
-│ 4. Skill(target) 호출                       │
+│ 1. resolve-boundary + analyze-code          │
+│ 2. format-analysis → 요약                  │
+│ 3. CLAUDE.md + DEVELOPERS.md 생성           │
+│ 4. validate-schema 검증                     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -294,65 +227,64 @@ User: /dev "request"
 
 | 컴포넌트 | 역할 | 오케스트레이션 |
 |----------|------|---------------|
-| **Entry Point Skill** | 사용자 진입점 | 간단 (파일 검색, 반복, Agent 호출) |
-| **Internal Skill** | 단일 기능 (SRP) | 없음, Stateless |
-| **Agent** | 비즈니스 로직 | 복잡 (N개 Skill, 재시도, 상태) |
+| **Entry Point Skill** | 사용자 진입점 | CLI 호출 + 세션 파일 생성 + Agent 디스패치 |
+| **Agent** | 비즈니스 로직 | superpowers 조합 + 세션 파일 소비 + 결과 반환 |
+| **Session File** | SKILL↔Agent 인터페이스 | 사전 추출된 스펙, 디버깅 가능한 중간 산출물 |
 
 ## Agents
 
-| Agent | 상태 | 역할 |
-|-------|------|------|
-| `impl` | active | 요구사항 분석 및 CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) 생성 |
-| `dep-explorer` | active | 의존성 탐색 (requirement 모드: 새 모듈 의존성, module 모드: 기존 모듈 의존자) |
-| `decompiler` | active | 소스코드에서 CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) 추출 |
-| `compiler` | active | DEVELOPERS.md Constraints 기반 Inline TDD (테스트 생성 → GREEN → REFACTOR) |
-| `debug-layer-analyzer` | active | 단일 계층(L1/L2/L3) 진단 분석 (debugger의 sub-agent) |
-| `debugger` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 (orchestrator) |
-| `impl-reviewer` | active | CLAUDE.md 품질 리뷰 및 요구사항 커버리지 검증 |
-| `validator` | active | CLAUDE.md Requirements/Convention CODE_VIOLATION/DEVELOPERS.md semantic drift 검증 |
+| Agent | Superpowers 조합 | 역할 |
+|-------|-----------------|------|
+| `impl` | brainstorming | 요구사항 분석 + 의존성 탐색 + CLAUDE.md/DEVELOPERS.md 생성 |
+| `compiler` | test-driven-development | Inline TDD (Constraints → 테스트 → 구현 → 리팩토링) |
+| `validator` | verification-before-completion | semantic drift 검출 (Requirements, Convention, DEVELOPERS.md) |
+| `decompiler` | (없음) | 소스코드 → CLAUDE.md/DEVELOPERS.md 추출 |
 
 ## Commands
 
 | Command | 역할 |
 |---------|------|
-| `/dev` | 자연어 요청 분류 → 스킬 라우팅 |
-| `/project-setup` | CLAUDE.md에 Conventions 섹션 생성 |
-| `/convention-update` | CLAUDE.md Conventions 섹션 업데이트 |
-| `/migrate` | 버전 업그레이드 시 CLAUDE.md 스키마 마이그레이션 (v6→v7 포함) |
+| `/project-setup` | CLAUDE.md에 Instructions + Conventions 생성/업데이트 (convention-update 흡수) |
+| `/migrate` | 버전 업그레이드 마이그레이션 (v6→v7, v9→v10 등) |
 
 ## Skills
 
-### Entry Point Skills
+### Core Skills (v10)
 
-| Skill | 상태 | 역할 |
-|-------|------|------|
-| `/impl` | active | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
-| `/decompile` | active | 소스코드 → CLAUDE.md + DEVELOPERS.md |
-| `/compile` | active | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
-| `/validate` | active | 문서-코드 일치 검증 + 대화형 해소 (Deterministic CLI + semantic drift + auto-fix) |
-| `/bugfix` | active | 소스코드 런타임 버그 → 3계층 추적 → 수정 |
-| `/impl-review` | active | CLAUDE.md 품질 리뷰 |
-| `/status` | active | 프로젝트 건강도 대시보드 |
-| `/impact` | active | 문서 변경 → 영향받는 모듈 분석 (Requirements 기반) |
-| `/diff-spec` | active | 문서 버전 간 시맨틱 diff |
-| `/refactor` | active | 모듈 분할/병합 (Requirements 그루핑 기반) |
+| Skill | 역할 |
+|-------|------|
+| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
+| `/compile` | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
+| `/validate` | 문서-코드 일치 검증 (Deterministic CLI + semantic drift + auto-fix) |
+| `/decompile` | 소스코드 → CLAUDE.md + DEVELOPERS.md 추출 |
 
-### Internal Skills & CLI Subcommands
+### Phase 2 (Core 안정 후 추가 예정)
 
-| Skill | 타입 | 역할 |
-|-------|------|------|
-| `tree-parse` | Internal | 디렉토리 구조 분석 |
-| `scan-claude-md` | CLI | 기존 CLAUDE.md 인덱스 생성 |
-| `diff-compile-targets` | CLI | 변경된 CLAUDE.md/DEVELOPERS.md 감지 (incremental compile) |
-| `resolve-boundary` | CLI | 바운더리 결정 |
-| `analyze-code` | CLI | 코드 분석 |
-| `parse-claude-md` | CLI | CLAUDE.md 파싱 |
-| `validate-schema` | CLI | 스키마 검증 |
-| `format-exports` | CLI | analyze-code JSON → Exports 마크다운 생성 |
-| `format-analysis` | CLI | analyze-code JSON → 분석 요약 마크다운 생성 |
-| `validate-convention` | CLI | Conventions 섹션 검증 |
-| `fix-schema` | CLI | 누락된 allow-none 섹션 자동 추가 |
-| `contract-hash` | CLI | CLAUDE.md 전체 파일 SHA-256 해시 (변경 감지용) |
+| Skill | 역할 |
+|-------|------|
+| `/bugfix` | 소스코드 버그 → 3계층 추적 → 수정 |
+| `/impl-review` | CLAUDE.md 품질 리뷰 |
+| `/impact` | 문서 변경 → 영향 모듈 분석 |
+| `/diff-spec` | 문서 버전 간 시맨틱 diff |
+| `/status` | 프로젝트 건강도 대시보드 |
+| `/refactor` | 모듈 분할/병합 |
+
+### CLI Subcommands (Rust Core)
+
+| CLI | 역할 |
+|-----|------|
+| `scan-claude-md` | 기존 CLAUDE.md 인덱스 생성 |
+| `diff-compile-targets` | 변경된 CLAUDE.md/DEVELOPERS.md 감지 |
+| `resolve-boundary` | 바운더리 결정 |
+| `analyze-code` | 코드 분석 (6개 언어) |
+| `parse-claude-md` | CLAUDE.md 파싱 |
+| `validate-schema` | 스키마 검증 |
+| `format-exports` | Exports 마크다운 생성 |
+| `format-analysis` | 분석 요약 마크다운 생성 |
+| `validate-convention` | Conventions 섹션 검증 |
+| `fix-schema` | 누락 섹션 자동 추가 |
+| `contract-hash` | SHA-256 해시 (변경 감지) |
+| `parse-tree` | 디렉토리 구조 파싱 |
 
 ## Invariants
 
@@ -369,29 +301,21 @@ validate(node) = validate(node.claude_md, node.direct_files)
 ### INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍
 ```
 ∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
-path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 --strict 모드에서 DEVELOPERS.md 부재를 warning으로 보고
 ```
 
 ### INV-4: 업데이트 책임
 ```
-/impl → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) (문서 정의)
-/compile → Source Code (CLAUDE.md + DEVELOPERS.md 기반 코드 생성, 문서 읽기 전용)
-/decompile → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) (코드에서 문서 추출)
-/bugfix → Source Code 재생성 (기본) / CLAUDE.md 수정 (사용자 승인 필수, L1 root cause)
-/impl-review → CLAUDE.md (사용자 승인 후 fix patch)
+/impl → CLAUDE.md + DEVELOPERS.md (문서 정의)
+/compile → Source Code (문서 기반 코드 생성, 문서 읽기 전용)
+/decompile → CLAUDE.md + DEVELOPERS.md (코드에서 문서 추출)
 /validate → 위반 보고 + 대화형 해소 (사용자 승인)
-/impact → 분석 보고 (문서 수정 안 함)
-/diff-spec → 분석 보고 (문서 수정 안 함)
-/status → 분석 보고 (문서 수정 안 함)
-/refactor → CLAUDE.md + DEVELOPERS.md (문서 분할/병합)
 ```
 
 ### INV-5: Conventions 섹션 배치 규칙
 ```
 project_root/CLAUDE.md MUST contain ## Conventions (6 required subsections)
 module_root/CLAUDE.md MAY contain ## Conventions (override; 없으면 project_root에서 상속)
-싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 배치
 ```
 
 ## Development Principles
@@ -405,13 +329,12 @@ module_root/CLAUDE.md MAY contain ## Conventions (override; 없으면 project_ro
 ## Superpowers Coexistence
 
 claude-md는 superpowers의 domain component들을 조합하여 "문서 기반 개발" 비즈니스를 만든다.
-claude-md가 문서(SSOT)를 정의·확정하면, superpowers가 해당 문서를 기반으로 코드를 쓴다.
 
 ### 역할 분담
 
 | 레이어 | 담당 | 도구 |
 |--------|------|------|
-| 스펙 정의·검증·추적 | claude-md | /impl, /validate, /bugfix, /decompile 등 |
+| 스펙 정의·검증·추적 | claude-md | /impl, /validate, /decompile |
 | 일괄 코드 재생성 | claude-md | /compile (batch) |
 | 점진적 코드 작성 | superpowers | TDD (CLAUDE.md/DEVELOPERS.md 기반) |
 | 프로세스 규율 | superpowers | brainstorming, plans, debugging, verification |
@@ -421,14 +344,14 @@ claude-md가 문서(SSOT)를 정의·확정하면, superpowers가 해당 문서�
 | Layer | 역할 | 구현 |
 |-------|------|------|
 | Layer 0 | 조합 설정 | /project-setup → `## Instructions` 자동 생성 (Claude Code 자동 로드) |
-| Layer 1 | 스펙 추출 + Task/Verification 정의 | SKILL → 세션 파일 생성 → Worker dispatch |
-| Layer 2 | 순수 실행 | Worker가 세션 파일 + superpowers component 조합으로 실행 |
+| Layer 1 | 스펙 추출 | SKILL → 세션 파일 생성 → Agent dispatch |
+| Layer 2 | 순수 실행 | Agent가 세션 파일 + Skill(superpowers:xxx) 조합으로 실행 |
 
 ### Agent-Level 조합
 
-- compiler: Skill("superpowers:tdd") 로드 + 세션 파일 기반 Constraints→테스트 매핑
-- debugger: Skill("superpowers:systematic-debugging") 로드 + L1/L2/L3 도메인 매핑
-
-### /dev 라우터
-
-superpowers 활성 시 deprecated (superpowers가 직접 claude-md 스킬 호출).
+| Agent | Superpowers Component | 조합 방식 |
+|-------|----------------------|----------|
+| impl | brainstorming | 요구사항 탐색/설계 전 brainstorming 로드 |
+| compiler | test-driven-development | Constraints → TDD Red-Green-Refactor |
+| validator | verification-before-completion | 증거 기반 검증 규율 |
+| decompiler | (없음) | 추출 작업, 프로세스 규율 불필요 |

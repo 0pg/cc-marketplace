@@ -1,4 +1,4 @@
-# claude-md-plugin (v8)
+# claude-md-plugin (v10)
 
 > CLAUDE.md = Primary SSOT (PM Requirements), Source Code = Derived Artifact
 
@@ -8,20 +8,19 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v8                        │
+│                    claude-md-plugin v10                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
 │         ├──── /impl ──→     요구사항 → CLAUDE.md 정의        │
 │         ├──── /compile ──→  CLAUDE.md 기반 코드 생성         │
 │         ├──── /validate ──→ 문서-코드 일치 검증              │
-│         └──── /bugfix ──→   3계층 추적 → 수정               │
+│         └──── /decompile ──→ 소스코드 → CLAUDE.md 추출       │
 │                                                              │
 │   DEVELOPERS.md (Derived Spec — Developer Constraints)       │
 │         └──── Constraints = test generation source           │
 │                                                              │
 │   Source Code (Derived Artifact)                             │
-│         └──── /decompile ──→ CLAUDE.md + DEVELOPERS.md 추출  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,13 +46,10 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 | Situation | Command | Result |
 |-----------|---------|--------|
-| Natural language request | `/dev "request"` | Routes to appropriate skill |
 | Define requirements | `/impl "requirements"` | CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
-| Document existing code | `/decompile` | CLAUDE.md + DEVELOPERS.md |
 | Generate code from spec | `/compile` | Source code + tests (from DEVELOPERS.md Constraints) |
-| Check doc-code consistency | `/validate` | Drift report |
-| Fix runtime bug | `/bugfix --error "error"` | 3-layer trace → code regeneration |
-| Review spec quality | `/impl-review` | Quality report |
+| Check doc-code consistency | `/validate` | Drift report + interactive auto-fix |
+| Document existing code | `/decompile` | CLAUDE.md + DEVELOPERS.md extraction |
 
 ## 2-Document System
 
@@ -97,23 +93,7 @@ module/
 - `### Coding Rules` — Coding rules not enforceable by linters
 - `### Naming Rules` — Variable/function/class/constant naming
 
-## Commands
-
-### `/dev` — Natural Language Routing
-
-Routes natural language requests to the appropriate skill:
-
-| Category | Keywords | Target |
-|----------|----------|--------|
-| FEATURE | add, create, new, 추가, 생성 | `/impl` |
-| BUGFIX | fix, bug, error, 버그, 에러 | `/bugfix` |
-| COMPILE | compile, generate, build | `/compile` |
-| DECOMPILE | decompile, extract, document existing | `/decompile` |
-| VALIDATE | validate, check, verify, drift, resolve, fix drift | `/validate` |
-| IMPACT | impact, affected, breaking, depends | `/impact` |
-| DIFF | diff, compare, what changed | `/diff-spec` |
-| STATUS | status, health, dashboard | `/status` |
-| REFACTOR | refactor, split, merge, restructure | `/refactor` |
+## Core Skills (v10)
 
 ### `/impl` — Requirements → CLAUDE.md + DEVELOPERS.md
 
@@ -132,6 +112,34 @@ Generates source code via Inline TDD (tests from DEVELOPERS.md Constraints, then
 /compile --all                    # All CLAUDE.md files
 /compile --path src/auth          # Specific path
 /compile --conflict overwrite     # Overwrite existing files
+/compile --validate               # Post-compile validation
+/compile --dry-run                # Show targets only
+```
+
+### `/validate` — Document-Code Consistency + Auto-fix
+
+Two-phase validation: deterministic CLI checks, then semantic drift detection with interactive resolution.
+
+**Phase 1 — Deterministic (CLI):**
+- Schema validation + auto-fix
+- Convention structure validation
+- Boundary validation (tree dependency)
+- DEVELOPERS.md existence (INV-3)
+
+**Phase 2 — Semantic (validator agent):**
+- Requirements drift detection
+- Convention CODE_VIOLATION detection
+- DEVELOPERS.md content drift (`--strict` only)
+
+**Phase 3 — Auto-fix (Interactive):**
+- Drift-type-specific resolution with user approval
+- SSOT principle: code fixes for code drift, doc updates for doc drift
+
+```bash
+/validate
+/validate src/auth
+/validate --strict              # DEVELOPERS.md content drift included
+/validate --report-only         # No auto-fix
 ```
 
 ### `/decompile` — Source Code → CLAUDE.md
@@ -140,93 +148,26 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 
 ```bash
 /decompile
+/decompile src/auth
 ```
 
-### `/validate` — Document-Code Consistency + Auto-fix
-
-Validates drift between CLAUDE.md and actual code, then interactively resolves issues:
-- **Requirements Drift**: Code violates documented requirements
-- **Convention Drift**: Code violates architectural conventions (syntactic rules → linter)
-- **DEVELOPERS.md Drift**: Missing DEVELOPERS.md, Constraints/Technical Context stale (`--strict`)
-- **Boundary Violations**: Tree dependency violations
-- **Auto-fix**: Per-issue interactive resolution (Fix Code, Fix Doc, Skip)
-
-```bash
-/validate
-/validate src/auth
-/validate --strict              # DEVELOPERS.md content drift included
-/validate --report-only         # No auto-fix (used by /compile --validate)
-```
-
-### `/bugfix` — Runtime Bug → 3-Layer Trace → Fix
-
-Traces root cause through 3 layers:
-- **L1** (CLAUDE.md): Requirements gaps or mismatches
-- **L2** (DEVELOPERS.md): Constraint violations, algorithm flaws
-- **L3** (Source Code): Logic errors, spec divergence
-
-```bash
-/bugfix --error "TypeError: validateToken is not a function" --path src/auth
-/bugfix --test "should return empty array for no results"
-```
-
-### `/impl-review` — CLAUDE.md Quality Review
-
-Reviews CLAUDE.md quality across 3 dimensions:
-- **D1**: Requirements coverage
-- **D2**: CLAUDE.md quality (requirements specificity, purpose clarity)
-- **D3**: Internal consistency
-
-```bash
-/impl-review src/auth
-```
-
-### `/status` — Project Health Dashboard
-
-Shows project-wide CLAUDE.md health: schema validity, compile freshness, convention health, and DEVELOPERS.md pairing.
-
-```bash
-/status                   # Project-wide dashboard
-/status src/auth          # Specific path
-```
-
-Output includes health grade (HEALTHY / GOOD / WARNING / CRITICAL) and recommended actions.
-
-### `/impact` — Change Impact Analysis
-
-Analyzes which modules are affected by CLAUDE.md changes. Classifies impact level (HIGH/MEDIUM/LOW) per section type and suggests follow-up actions.
-
-```bash
-/impact                   # Analyze changes in current directory
-/impact src/auth          # Analyze specific module's changes
-```
-
-### `/diff-spec` — Semantic Diff
-
-Shows structured, section-by-section comparison between CLAUDE.md versions. Each requirement is classified as ADDED / REMOVED / MODIFIED / UNCHANGED.
-
-```bash
-/diff-spec src/auth               # Compare HEAD vs working copy
-/diff-spec src/auth --ref v2.0.0  # Compare specific git ref vs working copy
-```
-
-### `/refactor` — Module Split/Merge
-
-Document-level refactoring: split one CLAUDE.md into multiple modules, or merge multiple into one. Uses Requirements grouping for split decisions and runs `/impact` before execution.
-
-```bash
-/refactor src/auth                # Interactive mode selection
-/refactor src/auth --mode split   # Split module by Requirements groups
-/refactor src/auth --mode merge   # Merge with other modules
-```
-
-### Other Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/project-setup` | Initialize Conventions section in project CLAUDE.md |
-| `/convention-update` | Update Conventions section |
-| `/migrate` | Migrate CLAUDE.md to new schema version (v6→v7 supported) |
+| `/project-setup` | Initialize/update Instructions + Conventions in project CLAUDE.md |
+| `/migrate` | Migrate to new schema version (v6→v7, v9→v10 supported) |
+
+## Phase 2 Skills (planned)
+
+| Skill | Role |
+|-------|------|
+| `/bugfix` | Runtime bug → 3-layer trace → fix |
+| `/impl-review` | CLAUDE.md quality review |
+| `/impact` | Change impact analysis |
+| `/diff-spec` | Semantic diff between spec versions |
+| `/status` | Project health dashboard |
+| `/refactor` | Module split/merge |
 
 ## Workflow Examples
 
@@ -239,53 +180,51 @@ Document-level refactoring: split one CLAUDE.md into multiple modules, or merge 
 ### B. Legacy Code Documentation
 
 ```
-/decompile → /validate
+/decompile → /project-setup → /validate
 ```
 
-### C. Runtime Bug Fix
+### C. Incremental Changes
 
 ```
-/bugfix --error "error" → (auto /compile) → /validate
-```
-
-### D. Spec Quality Review
-
-```
-/impl-review → (apply fixes) → /compile
-```
-
-### E. Spec Change → Impact Check → Recompile
-
-```
-/diff-spec src/auth → /impact src/auth → /compile
-```
-
-### F. Validate → Fix → Verify
-
-```
-/validate → (interactive auto-fix) → /validate --report-only
-```
-
-### G. Module Restructuring
-
-```
-/refactor src/auth --mode split → /compile --all → /validate
+Edit CLAUDE.md → /compile → /validate
 ```
 
 ## Architecture
 
+### Session File Pattern
+
+v10's core interface: Skills extract context into session files, Agents consume them.
+
+```
+SKILL (Entry Point)
+  │
+  ├── CLI calls (deterministic validation/analysis)
+  ├── Read CLAUDE.md + DEVELOPERS.md
+  ├── Write session file (${TMP_DIR}{type}-session-{dir-safe}.md)
+  │
+  └── Task(Agent)
+        ├── Load Skill("superpowers:{component}")
+        ├── Read session file (pre-extracted specs)
+        ├── Execute business logic
+        └── Save result file + return result block
+```
+
 ### Agents
 
-| Agent | Status | Role |
-|-------|--------|------|
-| `impl` | active | Requirements analysis → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
-| `dep-explorer` | active | Dependency exploration (requirement/module modes) |
-| `decompiler` | active | Source code → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) extraction |
-| `compiler` | active | DEVELOPERS.md Constraints → Inline TDD → source code (GREEN + REFACTOR) |
-| `debugger` | active | 3-layer bug trace orchestrator (L1=Requirements, L2=Constraints, L3=Code) |
-| `debug-layer-analyzer` | active | Single layer (L1/L2/L3) analysis (sub-agent) |
-| `impl-reviewer` | active | CLAUDE.md quality review + requirements coverage |
-| `validator` | active | Requirements/Convention/DEVELOPERS.md/Boundary drift detection |
+| Agent | Superpowers Composition | Role |
+|-------|------------------------|------|
+| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
+| `compiler` | test-driven-development | Inline TDD (Constraints → tests → implementation → refactor) |
+| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
+| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
+
+### Design Principles
+
+| Component | Role | Orchestration |
+|-----------|------|---------------|
+| **Entry Point Skill** | User entry point | CLI calls + session file creation + Agent dispatch |
+| **Agent** | Business logic | superpowers composition + session file consumption + result return |
+| **Session File** | SKILL↔Agent interface | Pre-extracted specs, debuggable intermediate artifact |
 
 ### Tree Dependency
 
@@ -295,21 +234,29 @@ Document-level refactoring: split one CLAUDE.md into multiple modules, or merge 
 
 Each CLAUDE.md must be self-contained within its boundary.
 
+### Invariants
+
+- **INV-1**: `node.dependencies ⊆ node.children`
+- **INV-2**: `validate(node) = validate(node.claude_md, node.direct_files)`
+- **INV-3**: Every CLAUDE.md has a corresponding DEVELOPERS.md (1:1)
+- **INV-4**: /impl → docs, /compile → code, /validate → report + resolve, /decompile → extract
+- **INV-5**: project_root CLAUDE.md MUST have Conventions; module_root MAY override
+
 ## CLI Tools
 
 ```bash
-claude-md-core parse-tree --root .                    # Directory tree analysis
-claude-md-core resolve-boundary --path src/auth       # Boundary resolution
-claude-md-core analyze-code --path src/auth           # Code analysis
-claude-md-core parse-claude-md --file CLAUDE.md       # CLAUDE.md → JSON
-claude-md-core validate-schema --file CLAUDE.md       # Schema validation
-claude-md-core validate-convention --project-root .   # Convention validation
-claude-md-core scan-claude-md --root .                # Project-wide CLAUDE.md index
-claude-md-core diff-compile-targets --root .          # Changed CLAUDE.md/DEVELOPERS.md detection
-claude-md-core format-exports --input analysis.json   # Exports markdown generation
-claude-md-core format-analysis --input analysis.json  # Analysis summary generation
-claude-md-core fix-schema --file CLAUDE.md            # Auto-add missing sections
-claude-md-core contract-hash --file CLAUDE.md         # CLAUDE.md SHA-256 hash for change detection
+claude-md-core scan-claude-md --root .                    # Project-wide CLAUDE.md index
+claude-md-core diff-compile-targets --root .              # Changed CLAUDE.md/DEVELOPERS.md detection
+claude-md-core parse-tree --root .                        # Directory tree analysis
+claude-md-core resolve-boundary --path src/auth           # Boundary resolution
+claude-md-core analyze-code --path src/auth               # Code analysis (6 languages)
+claude-md-core parse-claude-md --file CLAUDE.md           # CLAUDE.md → JSON
+claude-md-core validate-schema --file CLAUDE.md           # Schema validation
+claude-md-core validate-convention --project-root .       # Convention validation
+claude-md-core fix-schema --file CLAUDE.md                # Auto-add missing sections
+claude-md-core contract-hash --file CLAUDE.md             # SHA-256 hash for change detection
+claude-md-core format-exports --input analysis.json       # Exports markdown generation
+claude-md-core format-analysis --input analysis.json      # Analysis summary generation
 ```
 
 ## License

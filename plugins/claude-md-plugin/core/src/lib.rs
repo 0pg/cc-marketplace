@@ -71,7 +71,7 @@ pub mod contract_hasher;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;
-pub use schema_validator::SchemaValidator;
+pub use schema_validator::{SchemaValidator, ConvergeResult};
 pub use code_analyzer::CodeAnalyzer;
 pub use claude_md_parser::ClaudeMdParser;
 pub use convention_validator::ConventionValidator;
