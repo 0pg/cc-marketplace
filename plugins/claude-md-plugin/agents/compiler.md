@@ -94,7 +94,6 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 - **Technical Context** — 구현 방식 결정
 - **Conventions** (hierarchy resolved) — 코드 스타일
 - **Dependencies** — 외부/내부 의존성
-- **Verification Contract** — 완료 조건
 
 세션 파일에 모호한 스펙이 있으면 `## Origin` 섹션의 원본 문서 경로를 참조하여 Read합니다.
 

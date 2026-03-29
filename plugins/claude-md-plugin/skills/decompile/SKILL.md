@@ -39,22 +39,13 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 0.5. `## Instructions` 존재 확인 (fallback)
+### 0.5. `## Instructions` 존재 확인
 
-project root CLAUDE.md에 `## Instructions` 섹션이 없으면 자동 생성:
-
-```markdown
-## Instructions
-
-- CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
-- When code disagrees with CLAUDE.md, regenerate code via /compile (not modify docs).
-- To change requirements, update CLAUDE.md first, then code follows.
-- Derive tests from DEVELOPERS.md Constraints.
-- 소스코드는 /compile로 생성. Write tool로 직접 소스 파일 생성 금지.
-- 완료 선언 전 /validate --strict 실행 필수.
+project root CLAUDE.md에 `## Instructions` 섹션이 없으면:
 ```
-
-이미 존재하면 skip. `/project-setup`이 primary entry point.
+⚠ Instructions 섹션 미설정. decompile 완료 후 `/project-setup`으로 설정을 권장합니다.
+```
+경고 출력 후 decompile 계속 진행. Instructions 생성은 `/project-setup`의 역할.
 
 ### 1. 디렉토리 트리 파싱 (inline)
 
@@ -119,6 +110,7 @@ status: success | partial | failed
 total: {n}
 generated: {n}
 failed: {n}
+warnings: {Instructions 미설정 등, 없으면 생략}
 ---end-decompile-result---
 ```
 

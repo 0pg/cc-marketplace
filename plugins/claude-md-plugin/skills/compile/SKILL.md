@@ -122,10 +122,6 @@ project_conventions: {project_root}/CLAUDE.md#Conventions
 ## Dependencies
 {compile-context 또는 탐색 결과}
 
-## Verification Contract
-- All Constraints → corresponding tests exist
-- All tests pass
-- /validate --strict {path}
 ```
 
 ### 7. 컴파일 실행
