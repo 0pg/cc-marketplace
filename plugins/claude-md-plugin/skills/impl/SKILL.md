@@ -214,7 +214,6 @@ for depth in sorted_depths:  # 0, 1, 2, ...
 
 ```bash
 git diff --stat
-git diff
 ```
 
 ### 8. 결과

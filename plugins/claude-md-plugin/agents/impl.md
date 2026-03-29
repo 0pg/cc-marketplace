@@ -101,7 +101,9 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 ```
 Skill("superpowers:brainstorming")
 ```
-brainstorming 로드 후 Phase 1을 진행한다.
+brainstorming의 clarification discipline을 로드하여 요구사항 탐색과 설계 검토를 수행한다.
+단, brainstorming의 Step 6(design doc 저장) 이후는 실행하지 않는다 —
+impl agent의 Phase 5(Document Generation)가 문서 생성을 담당한다.
 
 ---
 
