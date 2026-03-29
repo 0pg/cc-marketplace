@@ -215,6 +215,19 @@ Phase 2 (Deterministic) 결과와 Phase 3 (Semantic) 결과, Phase 4 (Auto-fix) 
 
 보고서를 `${TMP_DIR}validate-report.md`에 저장하고 사용자에게 출력합니다.
 
+결과 블록:
+```
+---validate-result---
+status: clean | issues_found | issues_resolved
+modules: {total}
+schema_pass: {n}/{total}
+drift_free: {n}/{schema_pass}
+total_issues: {n}
+auto_fixed: {n}
+detail_file: ${TMP_DIR}validate-report.md
+---end-validate-result---
+```
+
 ## DO / DON'T
 
 **DO:**

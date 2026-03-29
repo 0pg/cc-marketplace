@@ -1,8 +1,9 @@
 ---
 name: dev
 description: |
-  자연어 요청을 분류하여 적절한 claude-md-plugin 스킬로 라우팅합니다.
-  /dev "로그인 기능 추가" → /impl, /dev "토큰 에러" → /bugfix 등.
+  **Deprecated**: superpowers 활성 환경에서는 superpowers brainstorming → writing-plans를 사용하세요.
+  claude-md 스킬은 직접 호출(/impl, /compile 등)하세요.
+  (fallback) 자연어 요청을 분류하여 적절한 claude-md-plugin 스킬로 라우팅합니다.
 argument-hint: "<request> [--path <target_path>]"
 allowed-tools: [Read, Glob, Skill, AskUserQuestion]
 ---
@@ -17,10 +18,8 @@ allowed-tools: [Read, Glob, Skill, AskUserQuestion]
 
 superpowers 활성 시:
 - 메시지 출력:
-  "superpowers 플러그인이 활성 상태입니다.
-  자연어 요청은 superpowers의 brainstorming → writing-plans 프로세스를 사용하세요.
-  claude-md 스킬은 직접 호출(/impl, /compile, /validate 등)하거나
-  superpowers plan의 태스크 단계에서 사용할 수 있습니다."
+  "superpowers가 활성 상태입니다. 자연어 요청은 superpowers 프로세스를 사용하세요.
+  claude-md 스킬은 직접 호출(/impl, /compile 등)하세요."
 - **라우팅하지 않고 종료**
 
 superpowers 비활성 시: Step 1로 진행.

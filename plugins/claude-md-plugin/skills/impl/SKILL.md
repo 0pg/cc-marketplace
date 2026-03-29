@@ -153,39 +153,23 @@ Bash: git diff HEAD -- {target_path}/CLAUDE.md
 표시 후 안내:
 > "변경사항을 확인하세요. /compile로 코드를 생성하기 전에 커밋을 권장합니다."
 
-### 4. 최종 결과 보고
+### 4. 결과 반환
 
 ```
-=== /impl 완료 ===
-
-생성/업데이트된 파일:
-  ✓ {target_path}/CLAUDE.md (PM 요구사항)
-
-요약:
-  - Purpose: {purpose}
-  - Requirements: {requirements_count}개
-  - Domain Context: {domain_context_count}개
-
-검증 결과: 스키마 검증 통과
-
-다음 단계:
-  - /compile로 코드 구현 가능
-  - /validate로 문서-코드 일치 검증 가능
+---impl-result---
+status: success | cancelled_by_user
+files: [{target_path}/CLAUDE.md]
+purpose: {purpose}
+requirements_count: {n}
+domain_context_count: {n}
+review: {score}/100 ({grade}) (리뷰 실행 시)
+---end-impl-result---
 ```
 
-리뷰를 실행한 경우, 최종 결과에 리뷰 결과 블록 추가:
-```
-리뷰 결과:
-  전체 점수: {overall_score}/100 ({grade})
-  이슈: {issues_count}개 (수정 적용: {fixes_applied}개)
-```
+안내: "/compile로 코드 구현, /validate로 검증 가능"
 
 사용자가 Plan Preview에서 취소한 경우:
 ```
-=== /impl 취소 ===
-
-사용자 요청으로 파일 생성이 취소되었습니다.
-
 ---impl-result---
 status: cancelled_by_user
 ---end-impl-result---

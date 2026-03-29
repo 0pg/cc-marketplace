@@ -404,32 +404,31 @@ module_root/CLAUDE.md MAY contain ## Conventions (override; 없으면 project_ro
 
 ## Superpowers Coexistence
 
-claude-md-plugin은 superpowers 플러그인(v4.x)과 프로세스/도메인 레이어로 공존할 수 있다.
+claude-md는 superpowers의 domain component들을 조합하여 "문서 기반 개발" 비즈니스를 만든다.
+claude-md가 문서(SSOT)를 정의·확정하면, superpowers가 해당 문서를 기반으로 코드를 쓴다.
 
 ### 역할 분담
 
-| 관심사 | 담당 |
-|--------|------|
-| 프로세스 강제 (HARD-GATE, Iron Laws) | superpowers |
-| Worktree 격리 | superpowers |
-| 2-stage 리뷰 | superpowers |
-| 문서 SSOT, 코드 생성 | claude-md |
-| 문서-코드 동기화 검증 | claude-md |
-| 도메인 특화 디버깅 | claude-md |
+| 레이어 | 담당 | 도구 |
+|--------|------|------|
+| 스펙 정의·검증·추적 | claude-md | /impl, /validate, /bugfix, /decompile 등 |
+| 일괄 코드 재생성 | claude-md | /compile (batch) |
+| 점진적 코드 작성 | superpowers | TDD (CLAUDE.md/DEVELOPERS.md 기반) |
+| 프로세스 규율 | superpowers | brainstorming, plans, debugging, verification |
 
-### 감지 메커니즘
+### 3-Layer 조합 구조
 
-`/dev` 라우터가 로드된 스킬 목록에서 `superpowers:brainstorming` 존재를 확인.
-활성 시 라우팅을 비활성화하고 superpowers 프로세스 흐름으로 안내.
+| Layer | 역할 | 구현 |
+|-------|------|------|
+| Layer 0 | 조합 설정 | /project-setup → `## Instructions` 자동 생성 (Claude Code 자동 로드) |
+| Layer 1 | 스펙 추출 + Task/Verification 정의 | SKILL → 세션 파일 생성 → Worker dispatch |
+| Layer 2 | 순수 실행 | Worker가 세션 파일 + superpowers component 조합으로 실행 |
 
-### 소비자 프로젝트 권장 Instructions
+### Agent-Level 조합
 
-superpowers + claude-md를 함께 사용하는 프로젝트의 `## Instructions`에 권장:
+- compiler: Skill("superpowers:tdd") 로드 + 세션 파일 기반 Constraints→테스트 매핑
+- debugger: Skill("superpowers:systematic-debugging") 로드 + L1/L2/L3 도메인 매핑
 
-```markdown
-## Instructions
-- 소스코드는 /compile로만 생성. Write tool로 직접 소스 파일 생성 금지.
-- 모든 코드 변경은 CLAUDE.md 수정 → /compile 순서.
-- writing-plans의 태스크는 Skill 호출 단위로 작성 (/impl, /compile, /validate).
-- 완료 선언 전 /validate --strict 실행 필수.
-```
+### /dev 라우터
+
+superpowers 활성 시 deprecated (superpowers가 직접 claude-md 스킬 호출).

@@ -87,20 +87,58 @@ Compile 대상:
   • src/utils (depth=2, typescript)
 ```
 
+### 5.5. compile 세션 파일 생성
+
+각 대상에 대해 CLAUDE.md + DEVELOPERS.md + Convention 계층을 읽고 세션 파일 생성:
+
+1. 대상 CLAUDE.md Read → Requirements, Domain Context 추출
+2. 대상 DEVELOPERS.md Read → Constraints, Technical Context 추출
+3. Convention 계층 해소 (module > project > general)
+4. compile-context.md Read (optional) → Dependencies, approach 추출
+5. 세션 파일 Write → `${TMP_DIR}compile-session-{dir-safe}.md`
+
+세션 파일 형식:
+```markdown
+# Compile Task: {path}
+type: compile | target: {path} | language: {lang} | conflict: {mode}
+
+## Origin
+claude_md: {path}/CLAUDE.md
+developers_md: {path}/DEVELOPERS.md
+project_conventions: {project_root}/CLAUDE.md#Conventions
+
+## Requirements (from CLAUDE.md)
+{추출된 Requirements}
+
+## Constraints (from DEVELOPERS.md)
+{추출된 Constraints}
+
+## Technical Context
+{추출된 Technical Context}
+
+## Conventions (resolved)
+{계층 해소된 Conventions}
+
+## Dependencies
+{compile-context 또는 탐색 결과}
+
+## Verification Contract
+- All Constraints → corresponding tests exist
+- All tests pass
+- /validate --strict {path}
+```
+
 ### 6. 컴파일 실행
 
-각 대상에 대해 `Task(compiler)` 호출:
+각 대상에 대해 `Task(compiler)` 호출 (세션 파일 전달):
 ```
-CLAUDE.md 경로: {path}/CLAUDE.md
-compile-context: {path}/compile-context.md (optional)
+세션 파일: ${TMP_DIR}compile-session-{dir-safe}.md
 대상 디렉토리: {path}
 감지된 언어: {language}
-충돌 처리: {conflict_mode}
 결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
-> **Inline TDD**: compiler agent가 DEVELOPERS.md Constraints에서 테스트를 생성하고
-> 구현까지 단일 워크플로우로 수행합니다 (Phase 2: 테스트 생성 → Phase 3: GREEN → Phase 4: REFACTOR).
+compiler agent가 superpowers:tdd를 조합하여 세션 파일 기반 TDD 실행.
 
 compiler 결과에서 status 확인:
 - `success`: 다음 모듈로
@@ -122,28 +160,29 @@ Skill("claude-md-plugin:validate", args: "{path}")
 
 검증 결과를 최종 보고에 포함합니다.
 
-### 8. 최종 보고
+### 8. 결과 반환
 
-```
-=== Compile 완료 ===
-총 CLAUDE.md: {total}개
-생성된 파일: {generated}개
-건너뛴 파일: {skipped}개
-테스트: {passed} passed, {failed} failed
-검증: {validate_status} (--validate 사용 시)
-```
+---compile-result---
+status: success | partial | failed
+total: {n}
+generated: {n}
+skipped: {n}
+tests: {passed} passed, {failed} failed
+validate: {status} (--validate 사용 시)
+---end-compile-result---
 
 ## DO / DON'T
 
 **DO:**
 - leaf-first 순서 준수 (의존 모듈 먼저)
 - 언어 자동 감지 후 compile
-- compiler agent에게 Inline TDD 위임
+- 세션 파일 생성 시 Convention 계층 해소 완료
+- compiler agent에게 세션 파일 + superpowers:tdd 조합 위임
 
 **DON'T:**
 - CLAUDE.md 수정 (읽기 전용)
 - 사용자에게 compiler agent 내부 진행 상황 중계
-- 별도 테스트 생성 agent 호출 (compiler가 Inline TDD로 테스트 생성도 수행)
+- compiler agent에 CLAUDE.md 경로 직접 전달 (세션 파일로 전달)
 
 ## 오류 처리
 
@@ -168,15 +207,19 @@ Incremental 대상 감지:
   • src/auth — staged
   • src/utils — spec-newer
 
+세션 파일 생성: 2개
+
 Compile 진행:
   • src/auth (typescript) — 성공 (tests: 5 passed)
   • src/utils (typescript) — 성공 (tests: 3 passed)
 
-=== Compile 완료 ===
-총 CLAUDE.md: 2개
-생성된 파일: 6개
-건너뛴 파일: 0개
-테스트: 8 passed, 0 failed
+---compile-result---
+status: success
+total: 2
+generated: 6
+skipped: 0
+tests: 8 passed, 0 failed
+---end-compile-result---
 </assistant_response>
 </example>
 
@@ -184,17 +227,20 @@ Compile 진행:
 <user_request>/compile --all --conflict overwrite</user_request>
 <assistant_response>
 전체 CLAUDE.md 3개 수집.
+세션 파일 생성: 3개
 
 Compile 진행:
   • src/auth/jwt (depth=3) — 성공
   • src/auth (depth=2) — 성공 (2 overwritten)
   • src/utils (depth=2) — 성공
 
-=== Compile 완료 ===
-총 CLAUDE.md: 3개
-생성된 파일: 9개
-건너뛴 파일: 0개
-테스트: 12 passed, 0 failed
+---compile-result---
+status: success
+total: 3
+generated: 9
+skipped: 0
+tests: 12 passed, 0 failed
+---end-compile-result---
 </assistant_response>
 </example>
 
@@ -204,17 +250,19 @@ Compile 진행:
 Incremental 대상 감지:
   • src/auth — modified
 
-Compile 진행:
-  • src/auth (typescript) — 성공 (tests: 4 passed)
+세션 파일 생성: 1개
 
-Post-compile 검증:
+Compile + Post-compile 검증:
+  • src/auth (typescript) — 성공 (tests: 4 passed)
   • /validate src/auth — PASS (0 violations)
 
-=== Compile 완료 ===
-총 CLAUDE.md: 1개
-생성된 파일: 3개
-건너뛴 파일: 0개
-테스트: 4 passed, 0 failed
-검증: PASS (0 violations)
+---compile-result---
+status: success
+total: 1
+generated: 3
+skipped: 0
+tests: 4 passed, 0 failed
+validate: PASS (0 violations)
+---end-compile-result---
 </assistant_response>
 </example>

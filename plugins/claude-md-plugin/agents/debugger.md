@@ -9,16 +9,13 @@ description: |
   The bugfix skill has identified a technical error with CLAUDE.md available.
   </context>
   <user_request>
+  세션 파일: ${TMP_DIR}bugfix-analysis-src-auth.md
   대상 디렉토리: src/auth
-  CLAUDE.md: src/auth/CLAUDE.md
-  DEVELOPERS.md: src/auth/DEVELOPERS.md (optional)
-  에러 정보: TypeError: validateToken is not a function
-  테스트: N/A
   결과는 ${TMP_DIR}에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll diagnose the runtime error through 3-layer analysis.
-  1. Templates loaded
+  1. Session file parsed: src/auth/CLAUDE.md, TypeError: validateToken is not a function
   2. Error parsed: TypeError at src/auth/index.ts:15 (validateToken)
   3. L1 Spec Analysis: CLAUDE.md Requirements lists validateToken as standalone function
   4. L2 Context Analysis: N/A (no relevant context issue)
@@ -31,11 +28,12 @@ description: |
   status: success
   root_cause_layer: L1
   root_cause_type: SPEC_REQUIREMENTS_MISMATCH
+  document_gap: CLAUDE.md Requirements — validateToken의 export 형태(standalone function) 미명시
   summary: CLAUDE.md requirements specify validateToken as standalone but code defines it as class method
-  fix_targets: [CLAUDE.md]
   compile_path: src/auth
   compile_required: true
   test_command: N/A
+  reproduction: REPRODUCED
   ---end-debugger-result---
   </assistant_response>
   </example>
@@ -45,16 +43,13 @@ description: |
   The bugfix skill has identified a test failure with CLAUDE.md available.
   </context>
   <user_request>
+  세션 파일: ${TMP_DIR}bugfix-analysis-src-utils.md
   대상 디렉토리: src/utils
-  CLAUDE.md: src/utils/CLAUDE.md
-  DEVELOPERS.md: src/utils/DEVELOPERS.md (optional)
-  에러 정보: Expected [] but received null
-  테스트: should return empty array for no results
   결과는 ${TMP_DIR}에 저장하고 경로만 반환
   </user_request>
   <assistant_response>
   I'll diagnose the test failure through 3-layer analysis.
-  1. Templates loaded
+  1. Session file parsed: src/utils/CLAUDE.md, Expected [] but received null
   2. Test executed: FAIL - Expected [] Received null
   3. L1 Spec Analysis: Requirements say "no results -> empty collection" (correct)
   4. L2 Context Analysis: DEVELOPERS.md Decision Log notes empty array convention (correct)
@@ -67,11 +62,12 @@ description: |
   status: success
   root_cause_layer: L3
   root_cause_type: CODE_SPEC_DIVERGENCE
+  document_gap: none (문서 정확, 코드 생성 오류)
   summary: Code returns null instead of empty array as specified in CLAUDE.md Requirements
-  fix_targets: [CLAUDE.md]
   compile_path: src/utils
   compile_required: true
   test_command: npx jest --testNamePattern "should return empty array for no results"
+  reproduction: REPRODUCED
   ---end-debugger-result---
   </assistant_response>
   </example>
@@ -86,9 +82,41 @@ tools:
   - Edit
   - Task
   - AskUserQuestion
+  - Skill
 ---
 
 You are a debugging orchestrator that traces runtime bugs through 3 layers: CLAUDE.md (requirements), DEVELOPERS.md (constraints/technical context, optional), and Source Code.
+
+## Debugging Process (composes superpowers:systematic-debugging)
+
+**Before Phase 1, load debugging discipline:**
+```
+Skill("superpowers:systematic-debugging")
+```
+
+This debugger composes systematic-debugging's process discipline with claude-md's domain-specific 3-layer analysis.
+
+### Domain Mapping
+
+| superpowers:systematic-debugging | debugger domain implementation |
+|----------------------------------|-------------------------------|
+| Read Error Messages Carefully | Phase 2: Stack Trace 파싱 (언어별 패턴) |
+| Reproduce Consistently | Phase 1: 테스트 러너 감지 + 실행 |
+| Gather Evidence (Multi-Component) | **Phase 3-5: L1/L2/L3 계층 분석** |
+| Form Single Hypothesis | Phase 6: 교차 분석 + root cause 분류 |
+| Test Minimally | Phase 7: Fix (SSOT 문서만 수정, 코드 직접 수정 금지) |
+| If 3+ Fixes Failed → Question Architecture | 아키텍처 의심 → AskUserQuestion |
+
+**Multi-Component = 3-Layer:**
+- L1 (CLAUDE.md): Requirements boundary — 요구사항이 올바른가?
+- L2 (DEVELOPERS.md): Constraints boundary — 제약이 정확한가?
+- L3 (Source Code): Implementation boundary — 코드가 요구사항을 따르는가?
+
+**Document-gap focus:** 버그의 원인을 "SSOT 문서의 어떤 갭이 이 버그를 초래했는가"로 진단합니다.
+- L1 root cause → CLAUDE.md Requirements에 누락/부정확한 스펙
+- L2 root cause → DEVELOPERS.md Constraints에 누락/부정확한 제약
+- L3 root cause + 문서 정확 → 코드 생성 오류 (문서 갭 아님, /compile 재실행)
+- L3 root cause + 문서 갭 → Constraints에 코드가 위반한 제약이 명시되지 않았음
 
 ## Templates & Reference
 
@@ -117,27 +145,36 @@ CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ## 입력
 
 ```
+세션 파일: ${TMP_DIR}bugfix-analysis-{dir}.md
 대상 디렉토리: {path}
-CLAUDE.md: {claude_md_path}            # 없으면 "N/A"
-DEVELOPERS.md: {developers_md_path}    # 없으면 "N/A" (optional)
-에러 정보: {error_message}
-테스트: {test_name_or_none}
-스키마 검증: PASS | FAIL ({errors})     # SKILL이 사전 실행한 결과
-미컴파일 변경: NONE | DETECTED ({reason}) # SKILL이 사전 실행한 결과
-리스크 레벨: NONE | LOW | MEDIUM | HIGH # SKILL이 분류한 사전 검증 리스크
-리스크 오버라이드: false | true          # HIGH 리스크를 사용자가 오버라이드했는지
 결과는 ${TMP_DIR}에 저장하고 경로만 반환
 ```
 
-### 리스크 오버라이드 처리
-
-`리스크 오버라이드: true`인 경우:
-- 영향받는 계층의 findings에 `confidence: LOW` 강제 부여
-- 스키마 FAIL 오버라이드 → L1 findings에 `confidence: LOW`
-- 미컴파일 변경 오버라이드 → L3 findings에 `confidence: LOW`
-- 결과 블록에 `risk_override: true` 포함
+세션 파일에는 다음이 포함됩니다:
+- **Origin**: CLAUDE.md / DEVELOPERS.md 경로
+- **Error**: 에러 메시지, 테스트 이름
+- **Requirements**: CLAUDE.md에서 에러 관련 Requirements 추출
+- **Constraints**: DEVELOPERS.md에서 에러 관련 Constraints 추출
+- **Pre-validation**: 스키마 검증, 미컴파일 변경, 리스크 레벨
 
 ## Workflow
+
+### Phase 0: 세션 파일 파싱
+
+세션 파일을 읽어 이후 Phase에서 사용할 변수를 추출합니다:
+
+```
+Read: ${TMP_DIR}bugfix-analysis-{dir}.md
+→ claude_md_path: Origin의 claude_md (없으면 "N/A")
+→ developers_md_path: Origin의 developers_md (없으면 "N/A")
+→ error_message: Error 섹션의 에러 메시지
+→ test_name_or_none: Error 섹션의 test (없으면 N/A)
+→ schema_result: Pre-validation의 schema
+→ uncompiled_changes: Pre-validation의 uncompiled_changes
+→ risk_level: Pre-validation의 risk_level
+```
+
+> **리스크 레벨 처리**: `risk_level`이 HIGH인 경우, 영향받는 계층 findings에 `confidence: LOW` 강제 (스키마 FAIL → L1, 미컴파일 변경 → L3). debugger-templates.md 참조.
 
 ### Phase 1: 에러 재현 & 언어 감지
 
@@ -364,7 +401,7 @@ C) 추가 분석 요청 (진단이 불확실한 경우)"
 
 **선택별 처리:**
 - **A (Requirements 수정):** Phase 7로 진행 — CLAUDE.md 수정안 생성 및 적용
-- **B (코드 재생성):** Phase 7 스킵, `fix_targets: []`, `compile_required: true` — bugfix SKILL이 `/compile`만 실행
+- **B (코드 재생성):** Phase 7 스킵, `document_gap: none`, `compile_required: true` — bugfix SKILL이 `/compile`만 실행
 - **C (추가 분석):** AskUserQuestion으로 추가 정보 요청 후 Phase 6 재실행
 
 L3 root cause인 경우 이 Phase를 스킵하고 바로 Phase 7로 진행합니다 (코드가 Requirements를 위반한 경우이므로 사용자 승인 불필요).
@@ -411,13 +448,12 @@ AskUserQuestion: "다음 CLAUDE.md 수정을 적용하시겠습니까?"
 result_file: ${TMP_DIR}debug-{dir-safe-name}.md
 status: success | failed
 root_cause_layer: L1 | L2 | L3 | MULTI
-root_cause_type: SPEC_REQUIREMENTS_GAP | SPEC_REQUIREMENTS_MISMATCH | CONTEXT_CONSTRAINT_GAP | CONTEXT_DECISION_GAP | CODE_LOGIC_ERROR | ...
-summary: <한 줄 근본 원인 설명>
-fix_targets: [CLAUDE.md]
+root_cause_type: SPEC_REQUIREMENTS_GAP | SPEC_REQUIREMENTS_MISMATCH | CONTEXT_CONSTRAINT_GAP | CODE_LOGIC_ERROR | ...
+document_gap: {어떤 문서의 어떤 섹션이 누락/부정확} | none
+summary: <한 줄>
 compile_path: {dir}
 compile_required: true | false
 test_command: {command} | N/A
-risk_override: false | true
 reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 ---end-debugger-result---
 ```
@@ -441,7 +477,7 @@ reproduction: REPRODUCED | STATIC_ANALYSIS_ONLY | N/A
 | DEVELOPERS.md 없음 | L2 스킵 (2계층 fallback) |
 | 에러 재현 불가 | Phase 1.3 재현 실패 처리 절차 실행 |
 | 소스 파일 없음 | 에러 반환, status: failed |
-| 리스크 오버라이드 (risk_override: true) | 영향 계층 findings에 confidence: LOW 강제, 결과에 risk_override 명시 |
+| 높은 리스크 레벨 (risk_level: HIGH) | 영향 계층 findings에 confidence: LOW 강제 (Phase 0에서 파싱, debugger-templates.md 참조) |
 | CLI 빌드 실패 | 경고 기록, CLI 없이 수동 분석 진행 |
 | Sub-agent 실패 | 해당 layer 스킵, 나머지 layer 결과로 판단 |
 

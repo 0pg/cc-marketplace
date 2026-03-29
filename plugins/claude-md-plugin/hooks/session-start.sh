@@ -19,9 +19,4 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${session_id:-}" ]; then
   echo "export CLAUDE_SESSION_ID=\"${session_id}\"" >> "$CLAUDE_ENV_FILE"
 fi
 
-# Philosophy prompt injection (single tier — plugin CLAUDE.md is not loaded in consumer projects)
-if [ -n "$source" ]; then
-  cat "$SCRIPT_DIR/philosophy-prompt.md"
-fi
-
 exit 0

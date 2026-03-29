@@ -275,7 +275,6 @@ INV-1 위반이 버그 원인일 수 있음.
 - **미컴파일 변경:** NONE | DETECTED ({reason})
 - **바운더리 위반:** NONE | DETECTED ({violations})
 - **리스크 레벨:** NONE | LOW | MEDIUM | HIGH
-- **리스크 오버라이드:** false | true
 
 ## 3-Layer 분석
 
@@ -309,15 +308,15 @@ INV-1 위반이 버그 원인일 수 있음.
 
 ## 리스크 & 신뢰도 영향
 
-- **리스크 오버라이드 시:** 영향받는 계층 findings에 `confidence: LOW` 강제
-  - 스키마 FAIL 오버라이드 → L1 findings confidence: LOW
-  - 미컴파일 변경 오버라이드 → L3 findings confidence: LOW
+- **높은 리스크 레벨 (HIGH) 시:** 영향받는 계층 findings에 `confidence: LOW` 강제
+  - 스키마 FAIL → L1 findings confidence: LOW
+  - 미컴파일 변경 DETECTED → L3 findings confidence: LOW
 - **confidence: LOW findings:** Root cause 판정 시 가중치 낮춤, 사용자 확인 필수
 
 ### Confidence 결정 우선순위
 
 복수 조건이 동시에 적용될 경우, 낮은 쪽이 우선합니다:
-- `risk_override: true` + `reproduction: STATIC_ANALYSIS_ONLY` → `confidence: LOW` 적용 (LOW < MEDIUM)
+- `risk_level: HIGH` + `reproduction: STATIC_ANALYSIS_ONLY` → `confidence: LOW` 적용 (LOW < MEDIUM)
 - 원칙: confidence는 항상 하향만 가능 (상향 불가)
 
 ### LOW Confidence Root Cause 판정
