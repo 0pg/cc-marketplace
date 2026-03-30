@@ -134,7 +134,7 @@ Task(impl):
 ```bash
 WORKFLOW_DIR=".claude/workflows/{dir-safe}"
 mkdir -p "$WORKFLOW_DIR"
-cp "${TMP_DIR}impl-plan-{dir-safe}.md" "$WORKFLOW_DIR/impl-plan.md"
+cp "{plan_file}" "$WORKFLOW_DIR/impl-plan.md"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
 {
@@ -147,7 +147,7 @@ cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
   "plan_file": ".claude/workflows/{dir-safe}/impl-plan.md",
   "last_reviewer_result": "",
   "project_root": "{project_root}",
-  "user_requirement": "{사용자 요구사항 텍스트 최초 500자}",
+  "user_requirement": "{사용자 요구사항 텍스트 최초 500자 — JSON 특수문자(\" \\ 개행) escape 필수}",
   "created_at": "TIMESTAMP_PLACEHOLDER",
   "updated_at": "TIMESTAMP_PLACEHOLDER"
 }
