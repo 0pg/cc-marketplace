@@ -42,6 +42,11 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash, Skill]
 | max_iter 기본값 | 3 | 5 |
 | 사용법 | `/impl --auto "..."` | `/autodev "..."` |
 
+> **주의:** compile은 소스 파일 확장자로 언어를 자동 감지합니다.
+> 소스 파일이 없는 신규 프로젝트에서 compile 언어 감지 실패 시 자율 실행이 중단될 수 있습니다.
+> 빈 프로젝트에서는 `/autodev` 실행 전에 언어를 나타내는 파일
+> (package.json, go.mod, Cargo.toml 등)을 추가하거나 `/compile`을 먼저 실행하세요.
+
 ## Workflow
 
 ### Step 1: 요구사항 확인 (최대 1회)
@@ -104,11 +109,15 @@ decompose result에서 `scope` 및 `modules[]` 확인.
 
 #### scope = single
 
+scan-claude-md 인덱스에서 `{impl_path}/CLAUDE.md` 존재 확인:
+- 있으면 → `action: update`
+- 없으면 → `action: create`
+
 `${TMP_DIR}impl-session.md` 생성:
 
 ```markdown
 # Impl Session
-type: impl | project_root: {impl_path} | parallel: true
+type: impl | project_root: {impl_path} | target_path: {impl_path} | action: {action} | parallel: true
 
 ## User Requirement
 {original_requirement}
@@ -144,6 +153,9 @@ depth 루프 (0, 1, 2, ... 순서):
 
    ## Purpose Hint
    {module.purpose_hint}
+
+   ## Source Concept
+   {module.source_concept}
 
    ## Existing Modules Index
    {최신 scan-claude-md 결과}
@@ -184,11 +196,19 @@ total_violations = schema_errors + convention_issues + boundary_issues + semanti
 
 **위반 상세 추출:**
 
-validate-result의 `result_files` 목록 → 각 파일 Read:
-- `## Summary: Total issues: N > 0`인 파일 → 해당 모듈 impl update 대상
-- `## Issues` 섹션 → 모듈별 위반 상세 수집
+validate-result의 `result_files` 목록을 확인:
 
-`result_files` 없거나 모든 파일이 issues=0이면: Phase 3 생략, `auto_iter++` → Auto Phase 1로.
+**케이스 A: `result_files` 없음 (모든 모듈 스키마 실패)**
+→ 루프 종료:
+  "스키마 오류로 semantic 검증 불가. /validate로 수동 해소 후 재시도하세요."
+
+**케이스 B: `result_files` 있고 모든 파일이 issues=0 (CLI 이슈만 존재)**
+→ `${TMP_DIR}validate-session-{dir-safe}.md`의 `## Deterministic Results` 섹션을 Violations Detail로 사용하여 Phase 3 실행
+  (convention/boundary 이슈는 impl update로 CLAUDE.md 수정 가능)
+
+**케이스 C: `result_files` 있고 일부 issues > 0 (semantic drift 존재)**
+→ 각 result_file 중 `## Summary: Total issues: N > 0`인 파일 → 해당 모듈 impl update 대상
+   `## Issues` 섹션 → 모듈별 위반 상세 수집 → Phase 3 실행
 
 #### Auto Phase 3: Impl Update
 
@@ -220,7 +240,9 @@ Requirements와 Constraints를 구체화·보완하세요.
 CLAUDE.md는 SSOT이므로 요구사항을 더 명확하게 기술하는 방향으로 개선합니다.
 
 ## Violations Detail
-{result_file의 ## Issues 섹션 내용}
+{아래 중 해당하는 것:}
+  - semantic drift가 있을 때: result_file의 ## Issues 섹션 내용
+  - CLI 이슈만 있을 때: validate-session-{dir-safe}.md의 ## Deterministic Results 섹션 내용
 
 ## Existing Modules Index
 {최신 scan-claude-md 결과}
@@ -244,7 +266,11 @@ Task(impl) 병렬 디스패치 (최대 3개). AskUserQuestion 금지.
   validate: 모든 검증 통과
 ```
 
-**실패 종료 (max_iter 도달 | compile 실패):**
+```bash
+git diff --stat
+```
+
+**실패 종료 (max_iter 도달 | compile 실패 | schema 오류):**
 
 ```
 ⚠ autodev 종료 (이유: {사유})
@@ -265,5 +291,6 @@ git diff --stat
 | decompose 실패 | 에러 보고 후 종료 |
 | impl agent 실패 (단일 모듈) | 경고, 나머지 계속 |
 | compile failed | 루프 종료, 오류 보고 |
-| result_files 없거나 모두 issues=0 | Phase 3 생략, compile 재시도 |
+| result_files 없음 (모든 모듈 스키마 실패) | 루프 종료, /validate 수동 해소 안내 |
+| result_files 있고 모두 issues=0 (CLI 이슈만) | validate-session Deterministic Results로 Phase 3 실행 |
 | max_iter 초과 | 루프 종료, 남은 이슈 보고 |
