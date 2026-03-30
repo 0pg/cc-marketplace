@@ -402,3 +402,95 @@ Feature: DEVELOPERS.md Schema Validation
     Then validation should pass
     And validation should have warnings
     And warning should mention "Flows"
+
+  Scenario: Flows section in project-root DEVELOPERS.md does not generate warning
+    Given CLAUDE.md with content:
+      """
+      # Project Root
+
+      ## Purpose
+      Project root module.
+
+      ## Requirements
+      None
+
+      ## Domain Context
+      None
+
+      ## Instructions
+      Follow project conventions.
+
+      ## Conventions
+
+      ### Project Structure
+      Layered architecture.
+
+      ### Module Boundaries
+      Each module owns its data.
+
+      ### Naming Conventions
+      kebab-case directories.
+
+      ### Language & Runtime
+      TypeScript, Node.js 18+
+
+      ### Coding Rules
+      - Use async/await
+
+      ### Naming Rules
+      camelCase for variables.
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Project Root
+
+      ## Constraints
+      None
+
+      ## Technical Context
+      None
+
+      ## Flows
+
+      ### User Login
+      1. api/auth — POST /login
+      2. domain/auth — validateCredentials() → Session
+      """
+    When I validate the schema with strict mode in project-root
+    Then validation should pass
+    And validation should have no warnings about "Flows"
+
+  Scenario: Flows warning message mentions section name not hardcoded string
+    Given CLAUDE.md with content:
+      """
+      # Test Module
+
+      ## Purpose
+      Test module.
+
+      ## Requirements
+      None
+
+      ## Domain Context
+      None
+      """
+    And DEVELOPERS.md with content:
+      """
+      # Test Module
+
+      ## Constraints
+      None
+
+      ## Technical Context
+      None
+
+      ## Flows
+
+      ### Login
+      1. api/auth — POST /login
+      """
+    When I validate the schema with strict mode in non-project-root
+    Then validation should pass
+    And validation should have warnings
+    And warning should mention "Flows"
+    And warning should mention "is_project_root"

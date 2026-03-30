@@ -399,6 +399,30 @@ fn validate_schema_strict_non_root(world: &mut TestWorld) {
     world.validation_result = Some(validator.validate_strict_with_context(claude_md_path, Some(&ctx)));
 }
 
+#[when("I validate the schema with strict mode in project-root")]
+fn validate_schema_strict_project_root(world: &mut TestWorld) {
+    use claude_md_core::schema_validator::ValidationContext;
+    let claude_md_path = world.claude_md_paths.get("root").expect("No CLAUDE.md path");
+    let ctx = ValidationContext {
+        is_project_root: true,
+        is_module_root: false,
+    };
+    let validator = SchemaValidator::new();
+    world.validation_result = Some(validator.validate_strict_with_context(claude_md_path, Some(&ctx)));
+}
+
+#[then(regex = r#"validation should have no warnings about "(.+)""#)]
+fn validation_no_warnings_about(world: &mut TestWorld, keyword: String) {
+    let result = world.validation_result.as_ref().expect("No validation result");
+    let matching: Vec<&String> = result.warnings.iter()
+        .filter(|w| w.contains(&keyword))
+        .collect();
+    assert!(
+        matching.is_empty(),
+        "Expected no warnings about '{}', but found: {:?}", keyword, matching
+    );
+}
+
 #[then("validation should pass")]
 fn validation_should_pass(world: &mut TestWorld) {
     let result = world.validation_result.as_ref().expect("No validation result");
