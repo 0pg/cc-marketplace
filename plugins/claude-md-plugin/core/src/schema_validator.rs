@@ -297,9 +297,9 @@ impl SchemaValidator {
                 if let Some(_section) = section_found {
                     if !Self::condition_met(condition, ctx) {
                         warnings.push(format!(
-                            "Flows section is only expected at project root (condition: {}). \
+                            "'{}' section is only expected under condition '{}'. \
                              Move to project root DEVELOPERS.md or remove.",
-                            condition
+                            name, condition
                         ));
                     }
                 }
