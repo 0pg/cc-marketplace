@@ -386,7 +386,22 @@ completeness에 따라 질문 라운드 결정 (최대 2회 AskUserQuestion):
 
 → Phase 4로 진행 (Phase 0, 2, 3 생략).
 
-## 공통 Phase (Single + Parallel 공유)
+## Workflow — Execute 모드 (mode=execute)
+
+**AskUserQuestion 사용 금지.**
+
+세션 파일에서 추출:
+- `plan_file` 경로 → Read → `target_path`, `action`, `## Proposed Requirements`, `## Proposed Constraints` 추출
+- `target_path`, `action` (세션 파일 헤더에도 중복 명시됨 — 헤더에서 읽어도 무방)
+
+plan.md의 `## Proposed Requirements`와 `## Proposed Constraints`를
+CLAUDE.md/DEVELOPERS.md 생성 시 입력으로 사용.
+→ Phase 4로 진행.
+
+## 공통 Phase (Execute 모드 + 기존 Single/Parallel 공유)
+
+> **mode=execute**: plan.md의 Requirements/Constraints를 입력으로 사용.
+> **기존 Single/Parallel 모드**: Phase 1~3에서 도출된 내용을 입력으로 사용.
 
 ### Phase 4: Smart Merge (기존 CLAUDE.md가 있을 때, action=update)
 
