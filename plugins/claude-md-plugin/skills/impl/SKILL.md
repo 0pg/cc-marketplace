@@ -97,7 +97,7 @@ impl 완료 후 직접 추가하거나 다시 /impl을 실행하세요.
 
 **6a. Plan 세션 파일 생성**
 
-`${TMP_DIR}impl-plan-session.md`:
+`${TMP_DIR}impl-plan-session-{dir-safe}.md`:
 
 ```markdown
 # Impl Plan Session
@@ -119,13 +119,13 @@ action: TBD
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}impl-plan-session.md
+  세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
   프로젝트 루트: {project_root}
 
   세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
 ```
 
-결과 block에서 `plan_file`, `target_path`, `action`, `dir_safe` 추출.
+결과 block에서 `plan_file`, `target_path`, `action`, `dir-safe` 추출.
 
 > `dir_safe`: target_path의 슬래시를 하이픈으로 치환 (예: `src/auth` → `src-auth`)
 
@@ -136,14 +136,14 @@ Task(impl):
 ```
 loop:
   1. Reviewer 세션 파일 생성:
-     ${TMP_DIR}impl-reviewer-session-{dir_safe}-v{round}.md:
+     ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md:
        # Impl Reviewer Session
        type: impl-reviewer | round: {round}
        plan_file: {plan_file}
-       dir_safe: {dir_safe}
+       dir_safe: {dir-safe}
 
   2. Task(impl-reviewer) 디스패치:
-       세션 파일: ${TMP_DIR}impl-reviewer-session-{dir_safe}-v{round}.md
+       세션 파일: ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md
        결과는 ${TMP_DIR}에 저장하고 경로만 반환
 
      result block에서 verdict 추출.
@@ -157,7 +157,7 @@ loop:
        break
 
   5. Revise 세션 파일 생성:
-     ${TMP_DIR}impl-plan-session.md (덮어쓰기):
+     ${TMP_DIR}impl-plan-session-{dir-safe}.md (덮어쓰기):
        # Impl Plan Session
        type: impl-plan | mode: revise | round: {round+1} | project_root: {project_root}
        target_path: {target_path}
@@ -167,7 +167,7 @@ loop:
        {사용자 요구사항 텍스트 전체}
 
        ## Reviewer Feedback File
-       feedback_file: ${TMP_DIR}impl-reviewer-result-{dir_safe}-v{round}.md
+       feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md
 
        ## Existing Plan File
        existing_plan_file: {plan_file}
@@ -179,7 +179,7 @@ loop:
        {project root Conventions 또는 "None"}
 
   6. Task(impl, mode=revise) 디스패치:
-       세션 파일: ${TMP_DIR}impl-plan-session.md
+       세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
        프로젝트 루트: {project_root}
 
        세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
@@ -196,7 +196,7 @@ loop:
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-exec.json"
 ```
 
-`${TMP_DIR}impl-execute-session.md`:
+`${TMP_DIR}impl-execute-session-{dir-safe}.md`:
 
 ```markdown
 # Impl Execute Session
@@ -221,7 +221,7 @@ plan_file: {plan_file}
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}impl-execute-session.md
+  세션 파일: ${TMP_DIR}impl-execute-session-{dir-safe}.md
   프로젝트 루트: {project_root}
 
   세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.

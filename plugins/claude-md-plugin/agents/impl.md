@@ -76,7 +76,7 @@ CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 ## 세션 파일 형식
 
-### mode=plan 세션 파일 (SKILL 생성)
+### mode=plan 세션 파일 (SKILL 생성, `impl-plan-session-{dir-safe}.md`)
 
 ```
 # Impl Plan Session
@@ -94,7 +94,7 @@ action: create | update | TBD
 {Conventions 또는 "None"}
 ```
 
-### mode=revise 세션 파일 (SKILL 생성)
+### mode=revise 세션 파일 (SKILL 생성, `impl-plan-session-{dir-safe}.md`)
 
 ```
 # Impl Plan Session
@@ -118,7 +118,7 @@ existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
 {Conventions 또는 "None"}
 ```
 
-### mode=execute 세션 파일 (SKILL 생성)
+### mode=execute 세션 파일 (SKILL 생성, `impl-execute-session-{dir-safe}.md`)
 
 ```
 # Impl Execute Session
@@ -295,10 +295,13 @@ result block 반환:
 plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
 status: success
 round: {N}
+revised: true
 target_path: {path}
 action: create | update
 ---end-impl-plan-result---
 ```
+
+> mode=revise는 성공 시 항상 `revised: true`를 반환한다. Critical Questions를 하나도 반영하지 못한 경우에는 `revised: false`, `status: partial`을 반환한다.
 
 ---
 
@@ -432,14 +435,14 @@ $CLI_PATH validate-schema --file {developers_md_path} --strict
 
 검증 실패 시 자동 수정 1회 시도.
 
-### Phase 7: Plan Preview (Single 모드만)
+### Phase 7: Plan Preview (mode=execute + scope=single 시만; parallel=true 시 생략)
 
 AskUserQuestion으로 생성 결과 요약을 보여주고 승인 요청:
 - Purpose, Requirements 수, Constraints 수, action (created/updated)
 - 승인 → 파일 저장
 - 거절 → 범위 조정 1회 루프백 또는 취소
 
-Parallel 모드에서는 이 Phase를 생략하고 즉시 Phase 8로 진행.
+parallel=true이거나 mode=execute에서 scope=multi로 호출된 경우 이 Phase를 생략하고 즉시 Phase 8로 진행.
 
 ### Phase 8: Save & Result
 
