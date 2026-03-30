@@ -175,12 +175,41 @@ loop:
 
      result block에서 verdict 추출.
 
+     2-1. Artifact promote + state.json 갱신 (verdict 반영):
+     ```bash
+     cp "${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md" \
+        ".claude/workflows/{dir-safe}/reviewer-v{round}.md"
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'approved' if '{verdict}' == 'approved' else 'awaiting-revise'
+     s['last_reviewer_result'] = '.claude/workflows/{dir-safe}/reviewer-v{round}.md'
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
+
   3. if verdict == "approved":
        break
 
   4. if round >= max_safety:
        ⚠ Socratic loop가 {max_safety}회 반복 후 종료됩니다.
          최선의 계획으로 진행합니다.
+     ```bash
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'max-safety-exceeded'
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
        break
 
   5. Revise 세션 파일 생성:
@@ -212,6 +241,22 @@ loop:
        세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
 
      결과 block에서 plan_file 업데이트 확인.
+
+     6-1. Revise artifact promote + state.json 갱신:
+     ```bash
+     cp "${TMP_DIR}impl-plan-{dir-safe}.md" ".claude/workflows/{dir-safe}/impl-plan.md"
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'awaiting-review'
+     s['round'] = {round} + 1
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
 
   7. round++
   → 1로 돌아감
