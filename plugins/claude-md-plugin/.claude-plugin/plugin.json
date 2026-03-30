@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "10.3.0",
+  "version": "10.4.0",
   "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. superpowers domain component를 조합하는 business layer. /impl로 스펙 정의, /compile로 코드 생성, /validate로 검증, /decompile로 추출.",
   "author": {
     "name": "jhk"
@@ -30,7 +30,8 @@
   ],
   "commands": [
     "./commands/project-setup.md",
-    "./commands/migrate.md"
+    "./commands/migrate.md",
+    "./commands/autodev.md"
   ],
   "hooks": []
 }

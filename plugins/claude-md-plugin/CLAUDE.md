@@ -67,6 +67,7 @@ module/
 | `## Technical Context` | O | O | 기술 선택과 근거 (라이브러리, 알고리즘, 패턴) |
 | `## Decision Log` | X | O | ADR 스타일: 맥락/결정/근거 |
 | `## Operations` | X | O | Gotchas, 배포, 모니터링 |
+| `## Public API` | X | O | 외부 export 함수/타입 목록 (cross-module 계약) |
 
 ### Conventions Section
 
@@ -276,6 +277,7 @@ User: /decompile [path]
 |---------|------|
 | `/project-setup` | CLAUDE.md에 Instructions + Conventions 생성/업데이트 (convention-update 흡수) |
 | `/migrate` | 버전 업그레이드 마이그레이션 (v6→v7, v9→v10 등) |
+| `/autodev` | 요구사항 → 코드까지 자율 완료. impl+compile+validate 루프를 사람 개입 없이 실행 |
 
 ## Skills
 
