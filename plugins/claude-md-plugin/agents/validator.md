@@ -90,22 +90,34 @@ CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 - **Conventions** (hierarchy resolved): 아키텍처 규칙
 - **DEVELOPERS.md Content** (strict only): Constraints, Technical Context
 - **Deterministic Results**: SKILL Phase 2에서 CLI로 수행한 스키마/컨벤션/바운더리 결과
+- **Changed Requirements**: diff-spec-range 결과 (`all_requirements`, `source_changed`, 변경 목록)
+- **Test Coverage Map**: SKILL Phase 2.5b에서 Grep으로 구성한 소스 파일별 테스트 커버리지
 
 > 결정론적 검증(스키마, 컨벤션 구조, 바운더리, DEVELOPERS.md 존재)은 validate SKILL에서 이미 처리됨.
-> 이 agent는 **semantic drift만** 담당.
+> Requirements Drift 판정은 Test Coverage Map만 참조. 이 agent는 **semantic drift만** 담당.
 
-### 2. Requirements Drift Detection
+### 2. Requirements Drift Detection (Test Coverage Map 기반)
 
-각 Requirement에 대해:
-1. Grep으로 관련 코드 검색 (키워드, 함수명, 패턴)
-2. 코드가 Requirement를 충족하는지 판단
-3. Drift 유형 분류:
+세션 파일의 `## Test Coverage Map`과 `## Changed Requirements`에서 읽어 판정.
+**Grep/Read로 코드를 직접 탐색하지 않는다 — Map만 참조.**
 
-| Drift Type | 설명 | Severity |
-|-----------|------|----------|
-| REQUIREMENTS_NOT_IMPLEMENTED | 코드에서 구현 흔적 없음 | ERROR |
-| REQUIREMENTS_PARTIALLY_IMPLEMENTED | 일부만 구현됨 | WARNING |
-| REQUIREMENTS_VIOLATED | 코드가 Requirements와 모순 | ERROR |
+검증 대상 결정:
+- `all_requirements=true` → 전체 Requirements 검증
+- `all_requirements=false` → `changed_requirements`에 나열된 항목만 검증
+- `changed_requirements` 비어있고 `source_changed=false` → 변경 없음, Requirements Drift 스킵
+
+각 검증 대상 Requirement에 대해 Test Coverage Map에서 판정:
+
+| 조건 | 판정 | Severity |
+|------|------|----------|
+| Map에 `test_files_found=0`인 source_file 있음 | TEST_MISSING | WARNING |
+| 테스트 있으나 `calls[]` 비어있음 | TEST_NOT_CALLING_IMPL | WARNING |
+| 테스트 있고 `calls[]` 있음 | 커버됨, 이슈 없음 | — |
+| Map에 해당 source_file 없음 | "검증 범위 외" 표시, 판정 없음 | — |
+| `source_changed=false` AND Requirements 추가됨 | REQUIREMENTS_NOT_IMPLEMENTED | ERROR |
+
+> **금지**: Requirements Drift 판정을 위해 Test Coverage Map 외부에서 Grep/Read하지 않는다.
+> Map에 없는 파일 = "검증 범위 외". 자체 코드 탐색으로 증거를 생성하지 않는다.
 
 ### 3. Convention CODE_VIOLATION Detection
 
@@ -148,8 +160,17 @@ Conventions의 아키텍처 규칙만 검증 (린터 영역 제외):
 
 ### [ERROR] REQUIREMENTS_NOT_IMPLEMENTED
 - Requirement: "{requirement text}"
-- Evidence: No matching code found for keywords: [...]
-- Searched: {files searched}
+- Coverage Map: test_files_found=0 for {source_file}  ← or →
+- Test: "{test_case_name}" at {file:line} — does not cover this requirement
+
+### [WARNING] TEST_MISSING
+- Requirement: "{requirement text}"
+- Coverage Map: test_files_found=0 for {source_file}
+
+### [WARNING] TEST_NOT_CALLING_IMPL
+- Requirement: "{requirement text}"
+- Test: "{test_case_name}" at {file:line}
+- Calls: [] (구현 함수 호출 없음)
 
 ### [WARNING] CONVENTION_STRUCTURE_VIOLATION
 - Rule: "{convention rule}"

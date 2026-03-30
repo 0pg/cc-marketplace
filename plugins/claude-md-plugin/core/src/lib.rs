@@ -68,6 +68,7 @@ pub mod compile_target_resolver;
 pub mod exports_formatter;
 pub mod analysis_formatter;
 pub mod contract_hasher;
+pub mod spec_diff;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;

@@ -67,6 +67,7 @@ module/
 | `## Technical Context` | O | O | 기술 선택과 근거 (라이브러리, 알고리즘, 패턴) |
 | `## Decision Log` | X | O | ADR 스타일: 맥락/결정/근거 |
 | `## Operations` | X | O | Gotchas, 배포, 모니터링 |
+| `## Public API` | X | O | 외부 export 함수/타입 목록 (cross-module 계약) |
 
 ### Conventions Section
 
@@ -121,21 +122,50 @@ User: /impl "요구사항"
 │ impl SKILL                                  │
 │                                             │
 │ 1. Bash(scan-claude-md) → 인덱스 생성       │
-│ 2. 세션 파일 생성 (요구사항 + 인덱스)        │
-│ 3. Task(impl agent)                        │
-│ 4. git diff 표시                            │
+│ 2. decompose 세션 파일 생성                 │
+│ 3. Task(decompose agent) → 분해 계획        │
+│ 4. scope 분기:                             │
+│    single → Task(impl agent) 1개           │
+│    multi  → 승인 → Task(impl agent) × N    │
+│             root-first, 병렬 최대 3         │
+│ 5. git diff 표시                            │
 └─────────────────────────────────────────────┘
+        │
+        ├─ scope=single ──────────────────────┐
+        │                                     ▼
+        │                    ┌─────────────────────────────────────┐
+        │                    │ decompose AGENT                     │
+        │                    │                                     │
+        │                    │ 1. Scope Classification             │
+        │                    │    single → 조기 종료               │
+        │                    │    multi  → Phase 2-4 실행          │
+        │                    │ 2. Module Identification             │
+        │                    │ 3. Requirement Distribution         │
+        │                    │ 4. Tree Validation (INV-1)          │
+        │                    │ 5. decompose-result.json 저장       │
+        │                    └─────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl AGENT                                  │
+│ impl AGENT (single 모드)                    │
 │ ⚡ Skill("superpowers:brainstorming")       │
 │                                             │
-│ 1. 요구사항 분석 + 스코프 평가              │
+│ 1. 요구사항 추출 + completeness 평가        │
 │ 2. 의존성 탐색 (inline, 인덱스 기반)        │
-│ 3. AskUserQuestion → 명확화                 │
+│ 3. AskUserQuestion → 명확화 (최대 2회)      │
 │ 4. CLAUDE.md + DEVELOPERS.md 생성           │
 │ 5. validate-schema 검증                     │
+│ 6. Plan Preview → 사용자 승인               │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ impl AGENT (parallel 모드, scope=multi)     │
+│ (brainstorming 생략)                        │
+│                                             │
+│ 1. 세션 파일에서 target_path 확인           │
+│ 2. CLAUDE.md + DEVELOPERS.md 생성           │
+│ 3. validate-schema 검증                     │
+│ AskUserQuestion 금지 — best-effort 처리     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -235,7 +265,8 @@ User: /decompile [path]
 
 | Agent | Superpowers 조합 | 역할 |
 |-------|-----------------|------|
-| `impl` | brainstorming | 요구사항 분석 + 의존성 탐색 + CLAUDE.md/DEVELOPERS.md 생성 |
+| `decompose` | (없음) | 대규모 스펙 → 모듈 분해 계획 (scope 판정 + path + req 분배) |
+| `impl` | brainstorming (single 모드만) | 요구사항 분석 + CLAUDE.md/DEVELOPERS.md 생성 |
 | `compiler` | test-driven-development | Inline TDD (Constraints → 테스트 → 구현 → 리팩토링) |
 | `validator` | verification-before-completion | semantic drift 검출 (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (없음) | 소스코드 → CLAUDE.md/DEVELOPERS.md 추출 |
@@ -246,6 +277,7 @@ User: /decompile [path]
 |---------|------|
 | `/project-setup` | CLAUDE.md에 Instructions + Conventions 생성/업데이트 (convention-update 흡수) |
 | `/migrate` | 버전 업그레이드 마이그레이션 (v6→v7, v9→v10 등) |
+| `/autodev` | 요구사항 → 코드까지 자율 완료. impl+compile+validate 루프를 사람 개입 없이 실행 |
 
 ## Skills
 
@@ -253,7 +285,7 @@ User: /decompile [path]
 
 | Skill | 역할 |
 |-------|------|
-| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
+| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). `--auto`로 impl→compile→validate 자율 루프 실행 |
 | `/compile` | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
 | `/validate` | 문서-코드 일치 검증 (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | 소스코드 → CLAUDE.md + DEVELOPERS.md 추출 |

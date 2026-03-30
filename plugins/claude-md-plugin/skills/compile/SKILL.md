@@ -139,6 +139,32 @@ compiler 결과 status 확인:
 - `partial`: 경고 수집, 다음 모듈로
 - `failed`: 에러 보고, 다음 모듈로
 
+### 7.5. 빌드 검증
+
+모든 모듈 컴파일 완료 후, 감지된 언어에 따라 타입 체크 실행:
+
+| 언어 | 명령 |
+|------|------|
+| Rust | `cargo check --workspace 2>&1` |
+| TypeScript/JavaScript | `tsc --noEmit 2>&1` (tsconfig.json 있을 때만) |
+| Python | `python -m py_compile $(find src -name "*.py") 2>&1` |
+| 기타 | 스킵 (경고만) |
+
+성공: 계속 진행.
+
+실패:
+1. 에러 메시지에서 영향 파일 추출
+2. 보고:
+   ```
+   [BUILD FAILED] {error summary}
+   영향 파일: {file list}
+   권장 조치: 해당 모듈 DEVELOPERS.md Constraints 검토 후 /compile 재실행
+   ```
+3. compile status = `failed` 반환, 이후 Step 건너뜀
+
+> **한계**: 새 파일이 `mod.rs`/`lib.rs`에 선언되지 않은 경우 cargo check가 해당 파일을 검사하지 않음.
+> compiler agent는 새 파일 생성 시 반드시 mod 선언을 함께 추가해야 함.
+
 ### 8. 변경사항 표시
 
 ```bash
@@ -183,4 +209,5 @@ validate: {status} (--validate 사용 시)
 | CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
 | CLAUDE.md 없음 | 안내 메시지, 종료 |
 | compiler agent 실패 (단일 모듈) | 경고, 나머지 계속 |
+| 빌드 검증 실패 (Step 7.5) | 에러 보고, status=failed 반환 |
 | 언어 감지 실패 | AskUserQuestion |

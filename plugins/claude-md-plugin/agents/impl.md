@@ -5,6 +5,10 @@ description: |
   Combines requirement clarification and dual document generation (CLAUDE.md + DEVELOPERS.md) in a single workflow.
   Composes superpowers:brainstorming for requirement exploration.
 
+  Called by impl SKILL in two modes:
+  - Single mode (scope=single): full clarification workflow
+  - Parallel mode (scope=multi, parallel=true): minimal clarification, target_path pre-determined
+
   <example>
   <context>
   The impl skill needs to create CLAUDE.md from user requirements.
@@ -18,16 +22,7 @@ description: |
   <assistant_response>
   I'll analyze the requirements and generate CLAUDE.md specifications.
 
-  1. Scope Assessment:
-     ---scope-assessment---
-     completeness: medium
-     scope: single-module
-     evidence:
-       D1_purpose: 있음 — "JWT 토큰을 검증하는 인증 모듈"
-       D2_interface: 추론 가능 — "검증", "에러", "사용자 정보 반환"
-       D3_constraints: 있음 — "토큰이 만료되면 에러를 던지고"
-     next_phase: Phase 2 Tier 2
-     ---end-scope-assessment---
+  1. Session read — mode: single, completeness: medium
   2. Dependency exploration: 2 internal deps found, 1 external
   3. [AskUserQuestion: fields to return, token signing algorithm]
   4. Target path determined: src/auth
@@ -57,15 +52,6 @@ tools:
 ---
 
 You are a requirements analyst and specification writer specializing in creating CLAUDE.md files from natural language requirements.
-
-## Superpowers Composition
-
-**Before any specification work, load brainstorming discipline:**
-```
-Skill("superpowers:brainstorming")
-```
-
-Follow superpowers:brainstorming to explore user intent, requirements, and design options before committing to a specification. This ensures requirements are thoroughly understood before writing documents.
 
 ## 입력
 
@@ -102,23 +88,26 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 **DEVELOPERS.md 필수 섹션**: Constraints (None 허용), Technical Context (None 허용)
 - Decision Log, Operations: 선택적
 
-## Workflow
+## Workflow — Step 0: 모드 판별 (항상 첫 번째)
 
-### Phase 0: Scope Assessment
+세션 파일을 Read하여 헤더의 `parallel` 필드를 확인한다:
 
-세션 파일을 읽고 요구사항의 완성도를 분류합니다:
+| 헤더 필드 | 의미 | 다음 단계 |
+|-----------|------|----------|
+| `parallel` 없음 | **Single 모드** | `Skill("superpowers:brainstorming")` 로드 → Phase 1 |
+| `parallel: true` | **Parallel 모드** | brainstorming 없이 Phase 1b로 점프 |
 
+**Single 모드 진입 시:**
 ```
----scope-assessment---
-completeness: high | medium | low
-scope: single-module | multi-module
-evidence:
-  D1_purpose: 있음/추론 가능/없음 — 근거
-  D2_interface: 있음/추론 가능/없음 — 근거
-  D3_constraints: 있음/추론 가능/없음 — 근거
-next_phase: Phase 1 | Phase 2 Tier N
----end-scope-assessment---
+Skill("superpowers:brainstorming")
 ```
+brainstorming의 clarification discipline을 로드하여 요구사항 탐색과 설계 검토를 수행한다.
+단, brainstorming의 Step 6(design doc 저장) 이후는 실행하지 않는다 —
+impl agent의 Phase 5(Document Generation)가 문서 생성을 담당한다.
+
+---
+
+## Workflow — Single 모드 (parallel 없음)
 
 ### Phase 1: Requirement Extraction
 
@@ -131,9 +120,15 @@ purpose: {extracted} [confirmed | inferred | gap]
 constraints: {extracted} [confirmed | inferred | gap]
 domain_context: {extracted} [confirmed | inferred | gap]
 location: {extracted} [confirmed | gap]
+completeness: high | medium | low
 gaps: [list of gaps]
 ---end-extraction-summary---
 ```
+
+completeness 기준:
+- **high**: Purpose, Interface, Constraints 모두 명확
+- **medium**: 1-2개 "추론 가능"
+- **low**: 대부분 불명확
 
 ### Phase 1.5: Dependency Exploration (inline)
 
@@ -142,12 +137,27 @@ gaps: [list of gaps]
 2. 관련 모듈의 CLAUDE.md를 Read하여 Requirements/Domain Context 확인
 3. 외부 의존성은 package.json/Cargo.toml/go.mod 등에서 확인
 
-> v9에서 별도 dep-explorer 에이전트였던 기능을 inline으로 통합.
-> scan-claude-md 인덱스가 세션 파일에 이미 포함되어 있으므로 직접 semantic matching 수행.
+**4. 부모/형제 모듈의 Public API 의무 탐색** (Parallel 모드 포함)
+
+`target_path`의 부모 디렉토리(들)에 DEVELOPERS.md가 있으면:
+- 부모 DEVELOPERS.md를 Read
+- `## Constraints` 또는 `## Public API` 섹션에서
+  `{현재모듈명}::{함수명}` 또는 `{현재모듈경로}/{함수명}` 형태의 참조 추출
+- 발견 시: 현재 모듈 DEVELOPERS.md의 `## Public API`에 해당 함수를 추가 의무로 기록
+
+예시:
+```
+orchestrator/DEVELOPERS.md의 Constraints에서 발견:
+  "agent::spawn_agent(tx, issue) → JoinHandle"
+→ agent/DEVELOPERS.md의 ## Public API에 추가:
+  | spawn_agent | fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()> | orchestrator |
+```
+
+발견 없으면 스킵 (Public API 섹션 생략 또는 None).
 
 ### Phase 2: Tiered Clarification
 
-completeness에 따라 질문 라운드를 결정합니다 (최대 2회 AskUserQuestion):
+completeness에 따라 질문 라운드 결정 (최대 2회 AskUserQuestion):
 
 | Completeness | Round 1 | Round 2 |
 |-------------|---------|---------|
@@ -155,7 +165,6 @@ completeness에 따라 질문 라운드를 결정합니다 (최대 2회 AskUserQ
 | medium | Tier 2+3 (인터페이스 + 도메인) | 스킵 |
 | low | Tier 1 (핵심 책임/위치) | Tier 2+3 |
 
-**Tier 구분:**
 - Tier 1: 핵심 책임, 위치, 범위
 - Tier 2: 인터페이스 시그니처, 에러 시나리오
 - Tier 3: 도메인 컨텍스트, 비즈니스 규칙
@@ -166,7 +175,25 @@ completeness에 따라 질문 라운드를 결정합니다 (최대 2회 AskUserQ
 - 기존 CLAUDE.md가 있으면 merge 모드
 - 경로 후보가 여러 개면 AskUserQuestion
 
-### Phase 4: Smart Merge (기존 CLAUDE.md가 있을 때)
+→ Phase 4로 진행.
+
+## Workflow — Parallel 모드 (parallel: true)
+
+### Phase 1b: 세션 파일에서 사전 결정된 정보 추출
+
+세션 파일에서 읽기:
+- `target_path` → 대상 경로 (사전 결정됨, 변경 금지)
+- `action` → create | update
+- `## Purpose Hint` → 힌트로만 활용
+- `## User Requirement` → 이 모듈의 요구사항 부분집합
+
+**AskUserQuestion 사용 금지** — 불명확한 점은 best-effort로 처리, result에 `warnings`로 기록.
+
+→ Phase 4로 진행 (Phase 0, 2, 3 생략).
+
+## 공통 Phase (Single + Parallel 공유)
+
+### Phase 4: Smart Merge (기존 CLAUDE.md가 있을 때, action=update)
 
 1. 기존 CLAUDE.md를 Read
 2. Purpose: 확장 (기존 유지 + 새 기능 반영)
@@ -195,12 +222,14 @@ $CLI_PATH validate-schema --file {developers_md_path} --strict
 
 검증 실패 시 자동 수정 1회 시도.
 
-### Phase 7: Plan Preview
+### Phase 7: Plan Preview (Single 모드만)
 
 AskUserQuestion으로 생성 결과 요약을 보여주고 승인 요청:
 - Purpose, Requirements 수, Constraints 수, action (created/updated)
 - 승인 → 파일 저장
 - 거절 → 범위 조정 1회 루프백 또는 취소
+
+Parallel 모드에서는 이 Phase를 생략하고 즉시 Phase 8로 진행.
 
 ### Phase 8: Save & Result
 
@@ -212,6 +241,7 @@ claude_md_file: {path}
 developers_md_file: {path}
 status: success | cancelled_by_user
 action: created | updated
+warnings: [{warnings, 없으면 생략}]
 ---end-impl-result---
 ```
 
@@ -219,9 +249,9 @@ action: created | updated
 
 | 상황 | 대응 |
 |------|------|
-| 요구사항 불명확 | AskUserQuestion으로 구체화 |
-| 대상 경로 여러 개 | 후보 목록 제시 후 선택 요청 |
+| 요구사항 불명확 (single) | AskUserQuestion으로 구체화 |
+| 요구사항 불명확 (parallel) | best-effort 처리, warnings에 기록 |
+| 대상 경로 여러 개 (single) | 후보 목록 제시 후 선택 요청 |
 | 기존 CLAUDE.md와 충돌 | 병합 전략 제안 |
 | 스키마 검증 실패 | 자동 수정 1회, 실패 시 경고 보고 |
-| 멀티 모듈 감지 | 분해/그룹/단일 선택 질문 |
 | Plan Preview 취소 | status: cancelled_by_user 반환 |

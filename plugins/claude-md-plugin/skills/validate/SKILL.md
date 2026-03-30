@@ -89,6 +89,87 @@ $CLI_PATH resolve-boundary --path {dir} --claude-md {dir}/CLAUDE.md --output "${
 각 CLAUDE.md 디렉토리에 DEVELOPERS.md 존재 확인:
 - 부재 시: `--strict`면 ERROR, 아니면 WARNING
 
+### 2.5 변경 스펙 + 테스트 커버리지 맵 구성
+
+스키마 통과한 각 대상에 대해:
+
+#### 2.5a. 변경 스펙 탐지
+
+```bash
+$CLI_PATH diff-spec-range --file {dir}/CLAUDE.md --root {project_root} \
+  --output "${TMP_DIR}spec-diff-${dir_safe}.json"
+```
+
+결과 필드: `changed_requirements[]`, `source_changed_files[]`, `source_changed`, `all_requirements`
+
+- `all_requirements=true`: git 저장소 아님 또는 첫 커밋 → 전체 Requirements 검증 대상
+- `source_changed=false` AND `changed_requirements` 비어 있음 → 변경 없음, semantic 검증 스킵 가능
+
+#### 2.5b. 테스트 커버리지 맵 구성
+
+**Step 1: target_dir 범위 필터링 + source_changed 재판정**
+
+`spec-diff-${dir_safe}.json`의 `source_changed_files`에서 `{target_dir}` 하위 파일만 필터:
+```
+target_source_files = source_changed_files.filter(f => f.startsWith({target_dir}))
+```
+- `all_requirements=true`이면: `target_source_files` = Glob(`{target_dir}/**/*.{rs,ts,js,py}`) 전체
+- `target_source_files` 비어있고 `changed_requirements` 비어있음 → **semantic 검증 스킵** (모듈 내 실제 변경 없음)
+
+**Step 2: 소스 파일별 공개 함수 추출**
+
+각 `target_source_file`에 대해 언어별 패턴으로 공개 함수 목록 추출:
+
+| 언어 | Grep 패턴 | 추출 대상 |
+|------|----------|---------|
+| Rust | `^pub fn \|^    pub fn ` in {source_file} | fn 이름 |
+| TypeScript/JS | `^export (function\|const\|async function) ` in {source_file} | 심볼 이름 |
+| Python | `^def [^_]\|^    def [^_]` in {source_file} | fn 이름 (private _ 제외) |
+
+결과: `public_fns = [fn_name, ...]` per source_file
+
+**Step 3: 테스트 파일 탐색**
+
+언어별 탐색 경로 (target_dir 내부 + project_root/tests/ 통합 테스트 포함):
+
+| 언어 | 탐색 경로 | 테스트 식별 패턴 |
+|------|----------|--------------|
+| Rust | `{target_dir}/**/*.rs` + `{project_root}/tests/**/*.rs` | `#[test]` (-A 1 → fn 이름) |
+| TypeScript/JS | `{target_dir}/**/*.{test,spec}.{ts,js}` + `{project_root}/**/__tests__/**` | `it\(\|test\(\|describe\(` (-A 1 → 이름) |
+| Python | `{target_dir}/**/{test_*.py,*_test.py}` + `{project_root}/tests/**/*.py` | `^def test_` (-A 1 → fn 이름) |
+
+`test_files_found` = 탐색된 테스트 파일 수
+
+**Step 4: 함수 참조 확인 (calls[] 채우기)**
+
+각 테스트 케이스 fn 내에서 Step 2의 `public_fns` 항목을 Grep:
+```
+for each test_fn in test_cases:
+  calls = [fn for fn in public_fns if Grep(fn, in test_fn body)]
+```
+
+결과 구조 (모듈별 JSON):
+```json
+[
+  {
+    "source_file": "src/agent/mod.rs",
+    "public_fns": ["spawn_agent", "AgentResult"],
+    "test_files_found": 1,
+    "test_cases": [
+      { "name": "test_spawn_agent_success", "calls": ["spawn_agent"], "line": "tests/agent_test.rs:15" }
+    ]
+  },
+  {
+    "source_file": "src/tracker/linear.rs",
+    "public_fns": ["update_issue"],
+    "test_files_found": 0,
+    "test_cases": []
+  }
+]
+```
+
+테스트 파일 없으면: `test_files_found: 0` 기록 (TEST_MISSING 신호).
+
 ### 3. 세션 파일 생성 + Semantic 검증 (validator agent)
 
 스키마 통과한 각 대상에 대해:
@@ -125,6 +206,16 @@ Technical Context:
 
 ## Deterministic Results
 {Phase 2에서 발견된 CLI 이슈 요약}
+
+## Changed Requirements (diff-spec-range 결과)
+all_requirements: {true|false}
+source_changed: {true|false}  ← target_dir 범위로 필터링된 값
+추가/변경: {changed_requirements list — action + text}
+변경된 소스 파일 (target_dir 내): {target_source_files list}
+
+## Test Coverage Map
+{2.5b에서 Grep으로 구성한 JSON 배열}
+모듈 범위 한정: {target directory}만 포함
 ```
 
 5. `Task(validator)` 디스패치 (병렬 배치, 최대 3개):
@@ -162,6 +253,8 @@ strict: {true|false}
 
 ### 5. 통합 보고서
 
+Task(validator) 결과 block에서 `result_file` 경로를 수집하여 목록으로 포함:
+
 ```
 ---validate-result---
 status: clean | issues_found | fixed
@@ -171,6 +264,10 @@ convention_issues: {n}
 boundary_issues: {n}
 semantic_drift: {n}
 auto_fixed: {n}
+result_files:
+  - {TMP_DIR}validate-{dir-safe}.md
+  - {TMP_DIR}validate-{dir-safe-2}.md
+  (스키마 통과하여 semantic 검증이 실행된 모듈만. 없으면 생략)
 ---end-validate-result---
 ```
 

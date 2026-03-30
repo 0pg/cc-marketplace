@@ -49,6 +49,9 @@ pub struct AnalysisResult {
     pub protocol: Option<Protocol>,
     /// List of files that were analyzed
     pub analyzed_files: Vec<String>,
+    /// Environment variables referenced in the code (e.g., process.env.VAR, os.environ["VAR"])
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env_vars: Vec<String>,
 }
 
 /// Exported symbols from code.
@@ -257,6 +260,7 @@ pub struct PartialAnalysis {
     pub external_deps: Vec<String>,
     pub internal_deps: Vec<String>,
     pub behaviors: Vec<Behavior>,
+    pub env_vars: Vec<String>,
 }
 
 /// Main code analyzer that delegates to language-specific analyzers.
@@ -321,6 +325,7 @@ impl CodeAnalyzer {
             contracts: partial.contracts,
             protocol: partial.protocol,
             analyzed_files: vec![file_name],
+            env_vars: partial.env_vars,
         })
     }
 
@@ -349,6 +354,10 @@ impl CodeAnalyzer {
                 self.merge_results(&mut result, file_result);
             }
         }
+
+        // Deduplicate env_vars collected across multiple files
+        result.env_vars.sort();
+        result.env_vars.dedup();
 
         Ok(result)
     }
@@ -432,6 +441,7 @@ impl CodeAnalyzer {
         }
 
         target.analyzed_files.extend(source.analyzed_files);
+        target.env_vars.extend(source.env_vars);
     }
 }
 

@@ -58,9 +58,11 @@ $CLI_PATH fix-schema --file {claude_md_path}
 ### DEVELOPERS.md (Derived Spec)
 
 - **Constraints**: 코드의 입출력 계약을 정밀하게 기술 (테스트 변환 가능하도록)
+- **Data Schemas**: `analyze-code` ExportedType(interface/type/struct/enum)에서 자동 추출 — 공개 타입 정의
 - **Technical Context**: 사용된 기술과 그 이유
 - **Decision Log**: 코드에서 유추되는 설계 결정 (선택적)
-- **Operations**: 배포/모니터링 관련 (선택적)
+- **Operations**: 배포/모니터링 관련 (선택적); `### Configuration`은 `analyze-code` env_vars에서 자동 추출
+- **Flows**: project root DEVELOPERS.md에만 작성 — 시스템 수준 use case 실행 흐름 (선택적)
 
 ### Smart Merge (기존 CLAUDE.md가 있을 때)
 

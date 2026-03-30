@@ -33,6 +33,9 @@ pub struct PythonAnalyzer {
     // Export candidates patterns
     upper_case_const_re: Regex,
     type_alias_re: Regex,
+    // Environment variable patterns
+    env_var_environ_re: Regex,
+    env_var_getenv_re: Regex,
 }
 
 impl PythonAnalyzer {
@@ -121,6 +124,16 @@ impl PythonAnalyzer {
             // Captures PascalCase names assigned to type constructs
             type_alias_re: Regex::new(
                 r"(?m)^([A-Z][a-zA-Z0-9]+)\s*=\s*(Union\[|Optional\[|List\[|Dict\[|Tuple\[|Set\[|Type\[|Callable\[|Literal\[|TypeVar\(|NewType\()"
+            ).unwrap(),
+
+            // os.environ["VAR_NAME"] or os.environ['VAR_NAME']
+            env_var_environ_re: Regex::new(
+                r#"os\.environ\[['"]([A-Z_][A-Z0-9_]*)['"]"#
+            ).unwrap(),
+
+            // os.getenv("VAR_NAME") or os.getenv('VAR_NAME', ...)
+            env_var_getenv_re: Regex::new(
+                r#"os\.getenv\(['"]([A-Z_][A-Z0-9_]*)['"]"#
             ).unwrap(),
         }
     }
@@ -455,6 +468,20 @@ impl LanguageAnalyzer for PythonAnalyzer {
                 });
             }
         }
+
+        // Extract environment variable references
+        for cap in self.env_var_environ_re.captures_iter(content) {
+            if let Some(name) = cap.get(1) {
+                analysis.env_vars.push(name.as_str().to_string());
+            }
+        }
+        for cap in self.env_var_getenv_re.captures_iter(content) {
+            if let Some(name) = cap.get(1) {
+                analysis.env_vars.push(name.as_str().to_string());
+            }
+        }
+        analysis.env_vars.sort();
+        analysis.env_vars.dedup();
 
         Ok(analysis)
     }

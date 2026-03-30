@@ -30,6 +30,8 @@ pub struct GoAnalyzer {
     iota_const_re: Regex,
     state_const_re: Regex,
     lifecycle_re: Regex,
+    // Environment variable patterns
+    env_var_re: Regex,
 }
 
 impl GoAnalyzer {
@@ -114,6 +116,11 @@ impl GoAnalyzer {
             // @lifecycle N in comment
             lifecycle_re: Regex::new(
                 r"@lifecycle\s+(\d+)"
+            ).unwrap(),
+
+            // os.Getenv("VAR_NAME")
+            env_var_re: Regex::new(
+                r#"os\.Getenv\(["']([A-Z_][A-Z0-9_]*)["']"#
             ).unwrap(),
         }
     }
@@ -405,6 +412,15 @@ impl LanguageAnalyzer for GoAnalyzer {
                 category: BehaviorCategory::Success,
             });
         }
+
+        // Extract environment variable references
+        for cap in self.env_var_re.captures_iter(content) {
+            if let Some(name) = cap.get(1) {
+                analysis.env_vars.push(name.as_str().to_string());
+            }
+        }
+        analysis.env_vars.sort();
+        analysis.env_vars.dedup();
 
         Ok(analysis)
     }

@@ -17,6 +17,9 @@ project_conventions: {project_root}/CLAUDE.md#Conventions
 ## Constraints (from DEVELOPERS.md)
 {Constraints 섹션 전체 — 테스트 생성 원천}
 
+## Data Schemas (from DEVELOPERS.md, reference only)
+{Data Schemas 섹션 — 타입 참조용, 테스트 생성 원천 아님}
+
 ## Technical Context
 {Technical Context 섹션 전체}
 

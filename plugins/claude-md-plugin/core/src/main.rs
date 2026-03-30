@@ -12,6 +12,7 @@ use claude_md_core::claude_md_scanner::ClaudeMdScanner;
 use claude_md_core::compile_target_resolver::CompileTargetResolver;
 use claude_md_core::exports_formatter;
 use claude_md_core::analysis_formatter;
+use claude_md_core::spec_diff::SpecDiffer;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -174,6 +175,22 @@ enum Commands {
         file: PathBuf,
     },
 
+    /// Detect Requirements changes in CLAUDE.md since its last git commit,
+    /// and report which source files changed since then
+    DiffSpecRange {
+        /// CLAUDE.md file to analyze
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Project root directory (git repo root)
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output JSON file path (stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Converge CLAUDE.md/DEVELOPERS.md to current schema: rename, remove, add missing sections
     FixSchema {
         /// File to fix
@@ -312,6 +329,11 @@ fn main() {
             let result = resolver.resolve(root);
             output_result(&result, output.as_ref(), "diff-compile-targets")
         }
+        Commands::DiffSpecRange { file, root, output } => {
+            let differ = SpecDiffer::new(root);
+            let result = differ.diff(file);
+            output_result(&result, output.as_ref(), "diff-spec-range")
+        }
         Commands::FormatExports { input, output } => {
             match std::fs::read_to_string(input) {
                 Ok(json) => match serde_json::from_str::<code_analyzer::AnalysisResult>(&json) {
@@ -364,7 +386,10 @@ fn main() {
             match std::fs::read_to_string(&file) {
                 Ok(content) => {
                     let validator = SchemaValidator::new();
-                    let converge_result = validator.converge_schema(&content, doc_type);
+                    let ctx = file.parent().map(|d| {
+                        claude_md_core::schema_validator::SchemaValidator::evaluate_conditions(d)
+                    });
+                    let converge_result = validator.converge_schema_with_context(&content, doc_type, ctx.as_ref());
 
                     if converge_result.changes.is_empty() && converge_result.warnings.is_empty() {
                         if *dry_run {
@@ -420,6 +445,7 @@ fn main() {
 
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
+            Commands::DiffSpecRange { .. } => "diff-spec-range",
             Commands::ContractHash { .. } => "contract-hash",
             Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",

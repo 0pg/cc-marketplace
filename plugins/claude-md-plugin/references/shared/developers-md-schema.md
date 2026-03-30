@@ -32,7 +32,7 @@ CLAUDE.md (Primary SSOT) → DEVELOPERS.md (Derived Spec) → Source Code (Deriv
 | CLAUDE.md | Requirements (PM의 요구사항) | PM, AI 에이전트 |
 | DEVELOPERS.md | Constraints + Technical Context (개발자 명세) | 개발자, /compile |
 
-## 섹션 (2 필수 + 2 선택, 모두 None 허용)
+## 섹션 (2 필수 + 4 선택, 모두 None 허용)
 
 ### ## Constraints (필수, None 허용)
 
@@ -62,6 +62,29 @@ CLAUDE.md Requirements를 시스템 레벨로 구체화한 정밀한 입출력 �
 [입력/조건] → [결과/출력]           (동작)
 [위반 조건] → [에러 타입]{세부정보}  (에러)
 [속성] [비교연산자] [값]             (제한)
+```
+
+### ## Data Schemas (선택, None 허용)
+
+모듈의 공개 타입 정의. **Constraints가 참조하는 타입들을 중앙화**한다.
+Constraints는 행동(`f(x) → Claims`)에 집중하고, Data Schemas는 타입 구조 정의에 집중한다.
+`/decompile`이 `analyze-code`의 ExportedType(interface/type/struct/enum)에서 자동 추출.
+
+```markdown
+## Data Schemas
+
+### Claims
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| userId | string | 사용자 식별자 |
+| exp | number | 만료 시각 (Unix timestamp, UTC) |
+| permissions | string[] | 권한 목록 |
+
+### AuthError
+| 필드 | 타입 | 값 |
+|------|------|-----|
+| code | AUTH_ERROR_CODE | EXPIRED \| INVALID_SIGNATURE \| SESSION_LIMIT |
+| message | string | 사람 읽기용 메시지 |
 ```
 
 ### ## Technical Context (필수, None 허용)
@@ -101,16 +124,23 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 
 ### ## Operations (선택, None 허용)
 
-3개 서브섹션 (bilingual 허용): Gotchas, Deployment|배포, Monitoring|모니터링.
+4개 서브섹션 (bilingual 허용): Configuration|설정, Gotchas, Deployment|배포, Monitoring|모니터링.
+`/decompile`이 `analyze-code`의 env_vars에서 `### Configuration`을 자동 추출.
 
 ```markdown
 ## Operations
+
+### Configuration
+| 환경변수 | 타입 | 필수/기본값 | 설명 |
+|----------|------|-----------|------|
+| JWT_PUBLIC_KEY | string | required | RS256 공개키 (PEM 형식) |
+| TOKEN_TTL_HOURS | number | default: 168 | access token 유효 시간 |
+| MAX_SESSIONS | number | default: 5 | 최대 동시 세션 수 |
 
 ### Gotchas
 - 토큰 만료 시간은 UTC 기준
 
 ### 배포
-- SECRET_KEY 환경변수 필수
 - 배포 시 캐시 워밍업 5분 필요
 
 ### 모니터링
@@ -118,14 +148,62 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 - 에러율 > 5% 시 알람
 ```
 
+### ## Public API (선택, None 허용)
+
+이 모듈이 외부(부모 또는 형제 모듈)에 export하는 함수/타입 목록.
+`/impl` agent가 부모 모듈 DEVELOPERS.md에서 현재 모듈 함수 참조를 발견할 때 자동 추가.
+cross-module interface 계약을 명시적으로 문서화하여 `diff-spec-range` 기반 validate에서 활용.
+
+```markdown
+## Public API
+
+| Symbol | Signature | Called by |
+|--------|-----------|-----------|
+| spawn_agent | `fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()>` | orchestrator |
+| AgentResult | `enum AgentResult { Success(Output), Failed(AgentError) }` | orchestrator |
+
+None
+```
+
+**작성 원칙:**
+- 외부에서 호출/참조하는 심볼만 기록 (내부 함수 제외)
+- Signature는 실제 언어 문법 그대로 (타입 별칭 사용 가능)
+- Called by는 모듈 경로 (상대 경로 또는 crate 이름)
+- 외부 노출이 없으면 `None` 허용
+
+### ## Flows (선택, is_project_root only, None 허용)
+
+**project root DEVELOPERS.md에만 허용.** 시스템 수준 use case 실행 흐름.
+Cross-module 호출 순서와 데이터 타입을 기술한다. non-project-root에 작성하면 경고.
+
+```markdown
+## Flows
+
+### 사용자 로그인
+1. `api/auth` ← POST /login { email, password }
+2. `domain/auth` — validateCredentials(email, password) → Session | AuthError
+3. `domain/session` — createSession(userId) → SessionToken
+4. `api/auth` → Response 200 { token: SessionToken } | Response 401
+
+### JWT 검증 (매 요청)
+1. `middleware/auth` — extractToken(headers.Authorization) → JWT | null
+2. `domain/auth` — validateToken(JWT) → Claims | AuthError
+3. `middleware/auth` — req.user = Claims 주입 | Response 401
+```
+
+**형식 규칙:**
+- 각 단계: `` `모듈/경로` — 함수명(입력) → 출력 ``
+- 모듈 경로는 project root 상대 경로
+- 타입은 Data Schemas 또는 Constraints에서 정의된 타입 참조
+
 ## 스킬별 활용
 
 | 스킬 | DEVELOPERS.md 활용 | 상세 |
 |------|-------------------|------|
-| `/impl` | Constraints + Technical Context 생성 | CLAUDE.md Requirements를 구체화 |
-| `/decompile` | 전체 생성 | 소스코드에서 4섹션 추출 |
-| `/compile` | 테스트 생성 원천 | Constraints에서 테스트 케이스 생성 |
-| `/validate` | drift 검증 | Constraints ↔ Source Code 일치 검증 |
+| `/impl` | Constraints + Data Schemas + Technical Context 생성 | CLAUDE.md Requirements를 구체화 |
+| `/decompile` | 전체 생성 | 소스코드에서 6섹션 추출 (Data Schemas, Configuration 자동 추출 포함) |
+| `/compile` | 테스트 생성 원천 | Constraints에서 테스트 케이스 생성 (Data Schemas는 타입 참조용) |
+| `/validate` | drift 검증 | Constraints + Data Schemas drift 검출 (--strict); Public API로 cross-module 계약 확인 |
 | `/bugfix` | L2 진단 | 3-layer 분석의 L2 계층 (Constraints) |
 
 ## 생명주기

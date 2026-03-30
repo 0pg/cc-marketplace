@@ -38,6 +38,9 @@ pub struct TypeScriptAnalyzer {
     export_enum_re: Regex,
     export_const_var_re: Regex,
     export_let_var_re: Regex,
+    // Environment variable patterns
+    env_var_dot_re: Regex,
+    env_var_bracket_re: Regex,
 }
 
 impl TypeScriptAnalyzer {
@@ -152,6 +155,16 @@ impl TypeScriptAnalyzer {
             // export let NAME: Type
             export_let_var_re: Regex::new(
                 r"export\s+let\s+(\w+)\s*(?::\s*(\S+))?"
+            ).unwrap(),
+
+            // process.env.VAR_NAME
+            env_var_dot_re: Regex::new(
+                r"process\.env\.([A-Z_][A-Z0-9_]*)"
+            ).unwrap(),
+
+            // process.env["VAR_NAME"] or process.env['VAR_NAME']
+            env_var_bracket_re: Regex::new(
+                r#"process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]"#
             ).unwrap(),
         }
     }
@@ -601,6 +614,20 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
                 category: BehaviorCategory::Success,
             });
         }
+
+        // Extract environment variable references
+        for cap in self.env_var_dot_re.captures_iter(content) {
+            if let Some(name) = cap.get(1) {
+                analysis.env_vars.push(name.as_str().to_string());
+            }
+        }
+        for cap in self.env_var_bracket_re.captures_iter(content) {
+            if let Some(name) = cap.get(1) {
+                analysis.env_vars.push(name.as_str().to_string());
+            }
+        }
+        analysis.env_vars.sort();
+        analysis.env_vars.dedup();
 
         Ok(analysis)
     }

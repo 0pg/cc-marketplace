@@ -65,3 +65,8 @@ class TokenManager:
     def verify(self, token: str) -> Claims:
         """Verify and decode a token."""
         return validate_token(token, self.config.secret)
+
+
+import os as _os
+_JWT_SECRET = _os.environ["JWT_SECRET"]
+_DB_URL = _os.getenv("DATABASE_URL", "sqlite://")

@@ -52,12 +52,11 @@ impl SchemaValidator {
 
     /// Evaluate conditions by scanning the given directory.
     /// Detects module root by presence of build system markers (Cargo.toml, package.json, etc.).
-    /// `is_project_root` must be set by the caller.
+    /// Detects project root by presence of `.git` directory.
     pub fn evaluate_conditions(dir: &Path) -> ValidationContext {
         let mut ctx = ValidationContext::default();
-
         ctx.is_module_root = MODULE_ROOT_MARKERS.iter().any(|m| dir.join(m).exists());
-
+        ctx.is_project_root = dir.join(".git").exists();
         ctx
     }
 
@@ -229,9 +228,9 @@ impl SchemaValidator {
         self.validate_developers_with_context(developers_path, None)
     }
 
-    /// Validate DEVELOPERS.md schema with optional directory context.
-    /// v3.1: All 5 sections are always required, all allow None.
-    pub fn validate_developers_with_context(&self, developers_path: &Path, _dir_path: Option<&Path>) -> ValidationResult {
+    /// Validate DEVELOPERS.md schema with optional validation context.
+    /// v4.1: checks required sections + conditional sections (e.g., Flows at project root only).
+    pub fn validate_developers_with_context(&self, developers_path: &Path, ctx: Option<&ValidationContext>) -> ValidationResult {
         let file_str = developers_path.to_string_lossy().to_string();
 
         let content = match std::fs::read_to_string(developers_path) {
@@ -253,7 +252,7 @@ impl SchemaValidator {
         };
 
         let mut errors = Vec::new();
-        let warnings = Vec::new();
+        let mut warnings = Vec::new();
 
         let sections = self.parse_sections(&content);
 
@@ -291,6 +290,22 @@ impl SchemaValidator {
             }
         }
 
+        // Check conditional sections: warn if section exists but condition is not met
+        if let Some(ctx) = ctx {
+            for (name, condition) in DEVELOPERS_CONDITIONAL_SECTIONS {
+                let section_found = sections.iter().find(|s| s.name.eq_ignore_ascii_case(name));
+                if let Some(_section) = section_found {
+                    if !Self::condition_met(condition, ctx) {
+                        warnings.push(format!(
+                            "'{}' section is only expected under condition '{}'. \
+                             Move to project root DEVELOPERS.md or remove.",
+                            name, condition
+                        ));
+                    }
+                }
+            }
+        }
+
         ValidationResult {
             file: file_str,
             valid: errors.is_empty(),
@@ -319,16 +334,14 @@ impl SchemaValidator {
             .map(|p| p.join("DEVELOPERS.md"))
             .unwrap_or_else(|| std::path::PathBuf::from("DEVELOPERS.md"));
 
-        let dir_path = claude_md_path.parent();
-
         if !developers_path.exists() {
             result.warnings.push(format!(
                 "INV-3: DEVELOPERS.md not found at {}",
                 developers_path.display()
             ));
         } else {
-            // Validate DEVELOPERS.md schema with directory context
-            let dev_result = self.validate_developers_with_context(&developers_path, dir_path);
+            // Validate DEVELOPERS.md schema, passing same ValidationContext for conditional checks
+            let dev_result = self.validate_developers_with_context(&developers_path, ctx);
             if !dev_result.valid {
                 for err in dev_result.errors {
                     result.errors.push(ValidationError {
@@ -339,6 +352,10 @@ impl SchemaValidator {
                     });
                 }
                 result.valid = false;
+            }
+            // Propagate DEVELOPERS.md warnings (e.g., conditional section violations)
+            for w in dev_result.warnings {
+                result.warnings.push(format!("DEVELOPERS.md: {}", w));
             }
         }
 
@@ -431,10 +448,21 @@ impl SchemaValidator {
         (fixed, added)
     }
 
-    /// Converge a document to the current schema by applying renames, removals, then adding missing sections.
-    /// `doc_type` is "claude_md" or "developers_md".
-    /// Returns (fixed_content, changes_applied, warnings).
+    /// Converge schema (no context — backward compatible, calls with_context(None)).
     pub fn converge_schema(&self, content: &str, doc_type: &str) -> ConvergeResult {
+        self.converge_schema_with_context(content, doc_type, None)
+    }
+
+    /// Converge schema with optional context for conditional section handling.
+    /// - required sections: always added if missing (with None placeholder)
+    /// - optional allow_none sections (e.g. Data Schemas): added if missing
+    /// - conditional sections (e.g. Flows): added only when context condition is met
+    pub fn converge_schema_with_context(
+        &self,
+        content: &str,
+        doc_type: &str,
+        ctx: Option<&ValidationContext>,
+    ) -> ConvergeResult {
         let mut result = ConvergeResult::default();
         let mut output = content.to_string();
 
@@ -448,7 +476,6 @@ impl SchemaValidator {
             let has_to = sections.iter().any(|s| s.name.eq_ignore_ascii_case(to));
 
             if has_from && !has_to {
-                // Rename: replace the heading
                 output = Self::rename_section(&output, from, to);
                 result.changes.push(format!("renamed: ## {} → ## {}", from, to));
             } else if has_from && has_to {
@@ -471,16 +498,11 @@ impl SchemaValidator {
             }
         }
 
-        // Step 3: Add missing sections (reuse existing logic)
-        let required_sections = if doc_type == "developers_md" {
-            DEVELOPERS_REQUIRED_SECTIONS
+        // Step 3: Add missing required sections
+        let (required_sections, allow_none_sections) = if doc_type == "developers_md" {
+            (DEVELOPERS_REQUIRED_SECTIONS, DEVELOPERS_ALLOW_NONE_SECTIONS)
         } else {
-            REQUIRED_SECTIONS
-        };
-        let allow_none_sections = if doc_type == "developers_md" {
-            DEVELOPERS_ALLOW_NONE_SECTIONS
-        } else {
-            ALLOW_NONE_SECTIONS
+            (REQUIRED_SECTIONS, ALLOW_NONE_SECTIONS)
         };
 
         let sections = self.parse_sections(&output);
@@ -496,6 +518,49 @@ impl SchemaValidator {
                 }
                 output.push_str(&format!("\n## {}\nNone\n", required));
                 result.changes.push(format!("added: ## {} (None)", required));
+            }
+        }
+
+        // Step 4: Add missing optional allow_none sections (not required, not conditional)
+        // Conditional sections are handled separately in Step 5 with context check.
+        if doc_type == "developers_md" {
+            let sections = self.parse_sections(&output);
+            for optional in DEVELOPERS_ALLOW_NONE_SECTIONS {
+                if DEVELOPERS_REQUIRED_SECTIONS.iter().any(|r| r.eq_ignore_ascii_case(optional)) {
+                    continue; // already handled in Step 3
+                }
+                // Skip conditional sections — their addition is context-dependent (Step 5)
+                if DEVELOPERS_CONDITIONAL_SECTIONS.iter().any(|(name, _)| name.eq_ignore_ascii_case(optional)) {
+                    continue;
+                }
+                let found = sections.iter().any(|s| s.name.eq_ignore_ascii_case(optional));
+                if !found {
+                    if !output.ends_with('\n') {
+                        output.push('\n');
+                    }
+                    output.push_str(&format!("\n## {}\nNone\n", optional));
+                    result.changes.push(format!("added: ## {} (None)", optional));
+                }
+            }
+        }
+
+        // Step 5: Add conditional sections when context condition is met
+        if doc_type == "developers_md" {
+            if let Some(ctx) = ctx {
+                let sections = self.parse_sections(&output);
+                for (name, condition) in DEVELOPERS_CONDITIONAL_SECTIONS {
+                    let found = sections.iter().any(|s| s.name.eq_ignore_ascii_case(name));
+                    if found {
+                        continue;
+                    }
+                    if Self::condition_met(condition, ctx) {
+                        if !output.ends_with('\n') {
+                            output.push('\n');
+                        }
+                        output.push_str(&format!("\n## {}\nNone\n", name));
+                        result.changes.push(format!("added: ## {} (None, condition: {})", name, condition));
+                    }
+                }
             }
         }
 
@@ -1091,6 +1156,25 @@ None
         assert!(ctx.is_module_root);
     }
 
+    #[test]
+    fn test_evaluate_conditions_project_root() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.is_project_root);
+        assert!(!ctx.is_module_root);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_project_and_module_root() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        File::create(temp.path().join("Cargo.toml")).unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.is_project_root);
+        assert!(ctx.is_module_root);
+    }
+
     // converge_schema tests
 
     #[test]
@@ -1247,5 +1331,55 @@ Old data.
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("changes"));
         assert!(json.contains("warnings"));
+    }
+
+    #[test]
+    fn test_converge_developers_md_adds_optional_data_schemas() {
+        let content = "# Test Module\n\n## Constraints\nNone\n\n## Technical Context\nNone\n";
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "developers_md");
+        assert!(
+            result.content.contains("## Data Schemas"),
+            "Expected Data Schemas to be added: {}", result.content
+        );
+        assert!(result.changes.iter().any(|c| c.contains("Data Schemas")));
+    }
+
+    #[test]
+    fn test_converge_developers_md_idempotent_with_data_schemas() {
+        // Content already has all required + optional (non-conditional) sections
+        let content = "# Test Module\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n\n## Technical Context\nNone\n";
+        let validator = SchemaValidator::new();
+        let result = validator.converge_schema(content, "developers_md");
+        assert!(result.changes.is_empty(), "Should be idempotent: {:?}", result.changes);
+    }
+
+    #[test]
+    fn test_converge_developers_md_adds_flows_at_project_root() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        let content = "# Project Root\n\n## Constraints\nNone\n\n## Technical Context\nNone\n";
+        let validator = SchemaValidator::new();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        let result = validator.converge_schema_with_context(content, "developers_md", Some(&ctx));
+        assert!(
+            result.content.contains("## Flows"),
+            "Expected Flows to be added at project root: {}", result.content
+        );
+        assert!(result.changes.iter().any(|c| c.contains("Flows")));
+    }
+
+    #[test]
+    fn test_converge_developers_md_no_flows_at_non_root() {
+        let temp = TempDir::new().unwrap();
+        // no .git → not project root
+        let content = "# Module\n\n## Constraints\nNone\n\n## Technical Context\nNone\n";
+        let validator = SchemaValidator::new();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        let result = validator.converge_schema_with_context(content, "developers_md", Some(&ctx));
+        assert!(
+            !result.content.contains("## Flows"),
+            "Flows should NOT be added at non-root: {}", result.content
+        );
     }
 }
