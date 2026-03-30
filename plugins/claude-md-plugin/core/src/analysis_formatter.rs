@@ -45,6 +45,11 @@ pub fn format_analysis(analysis: &AnalysisResult) -> String {
         sections.push(s);
     }
 
+    // Data Schemas (public types detected from source code)
+    if let Some(s) = format_data_schemas(&analysis.exports.types, &analysis.exports.enums) {
+        sections.push(s);
+    }
+
     // Environment Variables (detected from source code)
     if let Some(s) = format_env_vars(&analysis.env_vars) {
         sections.push(s);
@@ -81,6 +86,57 @@ fn format_env_vars(env_vars: &[String]) -> Option<String> {
             var
         ));
     }
+    Some(lines.join("\n"))
+}
+
+/// Formats exported types and enums as a Data Schemas section for LLM consumption.
+/// The "(Detected)" prefix signals auto-extracted content.
+/// The decompiler agent maps this to ## Data Schemas in DEVELOPERS.md.
+fn format_data_schemas(
+    types: &[crate::code_analyzer::ExportedType],
+    enums: &[crate::code_analyzer::ExportedEnum],
+) -> Option<String> {
+    if types.is_empty() && enums.is_empty() {
+        return None;
+    }
+
+    let mut lines = vec!["## Data Schemas (Detected)".to_string()];
+
+    let mut sorted_types: Vec<&crate::code_analyzer::ExportedType> = types.iter().collect();
+    sorted_types.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for t in sorted_types {
+        let kind_str = format!("{:?}", t.kind).to_lowercase();
+        lines.push(String::new());
+        match &t.definition {
+            Some(def) if !def.is_empty() => {
+                lines.push(format!("### {} ({})", t.name, kind_str));
+                lines.push(String::new());
+                lines.push(format!("```\n{}\n```", def));
+            }
+            _ => {
+                lines.push(format!("### {} ({}) — definition not extracted", t.name, kind_str));
+            }
+        }
+    }
+
+    let mut sorted_enums: Vec<&crate::code_analyzer::ExportedEnum> = enums.iter().collect();
+    sorted_enums.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for e in sorted_enums {
+        lines.push(String::new());
+        match &e.variants {
+            Some(variants) if !variants.is_empty() => {
+                lines.push(format!("### {} (enum)", e.name));
+                lines.push(String::new());
+                lines.push(format!("Variants: {}", variants.join(" | ")));
+            }
+            _ => {
+                lines.push(format!("### {} (enum) — variants not extracted", e.name));
+            }
+        }
+    }
+
     Some(lines.join("\n"))
 }
 
@@ -521,6 +577,54 @@ mod tests {
         assert!(!result.contains("## Contracts"));
         assert!(!result.contains("## Protocol"));
         assert!(!result.contains("## Analyzed Files"));
+    }
+
+    #[test]
+    fn test_format_data_schemas_with_types_and_enums() {
+        use crate::code_analyzer::{ExportedEnum, ExportedType, TypeKind};
+        let mut analysis = empty_analysis();
+        analysis.exports.types.push(ExportedType {
+            name: "Claims".to_string(),
+            kind: TypeKind::Interface,
+            definition: Some("userId: string, exp: number".to_string()),
+            description: None,
+        });
+        analysis.exports.enums.push(ExportedEnum {
+            name: "AuthError".to_string(),
+            variants: Some(vec!["EXPIRED".to_string(), "INVALID_SIGNATURE".to_string()]),
+        });
+
+        let result = format_analysis(&analysis);
+
+        assert!(result.contains("## Data Schemas (Detected)"), "Missing Data Schemas section:\n{}", result);
+        assert!(result.contains("Claims"), "Missing type name");
+        assert!(result.contains("userId: string"), "Missing type definition");
+        assert!(result.contains("AuthError"), "Missing enum name");
+        assert!(result.contains("EXPIRED"), "Missing enum variant");
+    }
+
+    #[test]
+    fn test_format_data_schemas_omitted_when_no_types() {
+        let analysis = empty_analysis();
+        let result = format_analysis(&analysis);
+        assert!(!result.contains("Data Schemas"), "Data Schemas should be omitted when no types:\n{}", result);
+    }
+
+    #[test]
+    fn test_format_data_schemas_type_without_definition() {
+        use crate::code_analyzer::{ExportedType, TypeKind};
+        let mut analysis = empty_analysis();
+        analysis.exports.types.push(ExportedType {
+            name: "TokenPair".to_string(),
+            kind: TypeKind::Type,
+            definition: None,
+            description: None,
+        });
+
+        let result = format_analysis(&analysis);
+
+        assert!(result.contains("## Data Schemas (Detected)"));
+        assert!(result.contains("TokenPair"));
     }
 
     #[test]
