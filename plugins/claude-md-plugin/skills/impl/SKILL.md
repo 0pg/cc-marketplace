@@ -299,6 +299,28 @@ Task(impl):
   세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
 ```
 
+**6e-1. Execute 완료 후 state 갱신 + auto-commit**
+
+```bash
+python3 -c "
+import json
+from datetime import datetime, timezone
+with open('.claude/workflows/{dir-safe}/state.json') as f:
+    s = json.load(f)
+s['status'] = 'executed'
+s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+    json.dump(s, f, indent=2, ensure_ascii=False)
+"
+
+# CLAUDE.md + DEVELOPERS.md만 커밋 (TMP 파일 및 workflow state 제외)
+git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
+git commit -m "feat({target_path}): {action} CLAUDE.md + DEVELOPERS.md
+
+요구사항: {사용자 요구사항 텍스트 최초 150자}
+workflow: .claude/workflows/{dir-safe}/state.json"
+```
+
 #### scope = multi
 
 **6a. 사용자 승인**
