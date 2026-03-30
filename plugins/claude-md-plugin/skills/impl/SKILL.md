@@ -300,18 +300,139 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      {project root Conventions 또는 "None"}
      ---
 
-  2. 현재 depth Task(impl) 병렬 디스패치 (최대 3개):
+  2. 현재 depth 모듈들: Plan 세션 파일 생성 + Task(impl, mode=plan) 병렬 디스패치 (최대 3개)
 
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-A}.md
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-B}.md  (있으면)
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-C}.md  (있으면)
+     각 모듈에 대해 `${TMP_DIR}impl-plan-session-{dir-safe}.md` 생성:
+     ```
+     # Impl Plan Session
+     type: impl-plan | mode: plan | round: 1 | project_root: {project_root} | parallel: true
+     target_path: {module.path}
+     action: {module.action}
+
+     ## User Requirement
+     {module.requirement_refs}
+
+     ## Purpose Hint
+     {module.purpose_hint}
+
+     ## Source Concept
+     {module.source_concept}
+
+     ## Existing Modules Index
+     {최신 scan-claude-md 결과}
+
+     ## Project Conventions
+     {project root Conventions 또는 "None"}
+     ```
+
+     Task(impl, mode=plan) 병렬 디스패치:
+     ```
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-A}.md
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-B}.md  (있으면)
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-C}.md  (있으면)
+     ```
 
      각 Task 지시:
-       세션 파일: ${TMP_DIR}impl-session-{dir-safe}.md
+       세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
        프로젝트 루트: {project_root}
-       세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+       세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
+       (parallel 모드 — AskUserQuestion 금지)
 
-  3. 현재 depth 완료 대기 → 다음 depth로
+  3. 각 모듈 Socratic Loop (모듈별 순차 실행, round=1, max_safety=5):
+
+     각 모듈에 대해 아래를 순서대로 실행:
+
+     ```
+     loop:
+       a. Reviewer 세션 파일 생성:
+          ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md:
+            # Impl Reviewer Session
+            type: impl-reviewer | round: {round}
+            plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+            dir_safe: {dir-safe}
+
+       b. Task(impl-reviewer) 디스패치:
+            세션 파일: ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md
+            결과는 ${TMP_DIR}에 저장하고 경로만 반환
+
+          result block에서 verdict 추출.
+
+       c. if verdict == "approved" → break
+
+       d. if round >= max_safety:
+            ⚠ 모듈 {module.path}: Socratic loop {max_safety}회 반복 후 종료.
+            break
+
+       e. Revise 세션 파일 생성:
+          ${TMP_DIR}impl-plan-session-{dir-safe}.md (덮어쓰기):
+            # Impl Plan Session
+            type: impl-plan | mode: revise | round: {round+1} | project_root: {project_root} | parallel: true
+            target_path: {module.path}
+            action: {module.action}
+
+            ## User Requirement
+            {module.requirement_refs}
+
+            ## Reviewer Feedback File
+            feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md
+
+            ## Existing Plan File
+            existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+            ## Existing Modules Index
+            {scan-claude-md 결과}
+
+            ## Project Conventions
+            {project root Conventions 또는 "None"}
+
+       f. Task(impl, mode=revise) 디스패치:
+            세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
+            세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
+            (parallel 모드 — AskUserQuestion 금지)
+
+       g. round++
+     ```
+
+     > **왜 모듈별 순차인가:** 각 모듈의 reviewer loop iteration이 이전 결과에 의존하므로
+     > loop 내부는 순차 불가피. 단, 모듈간 loop는 독립이므로 병렬 실행 가능하나
+     > SKILL context 보호를 위해 순차 처리.
+
+  4. Execute 세션 파일 생성 + Task(impl, mode=execute) 병렬 디스패치 (최대 3개):
+
+     각 모듈에 대해 `${TMP_DIR}impl-execute-session-{dir-safe}.md` 생성:
+     ```
+     # Impl Execute Session
+     type: impl-execute | mode: execute | project_root: {project_root} | parallel: true
+     target_path: {module.path}
+     action: {module.action}
+
+     ## Approved Plan File
+     plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+     ## User Requirement
+     {module.requirement_refs}
+
+     ## Existing Modules Index
+     {최신 scan-claude-md 결과}
+
+     ## Project Conventions
+     {project root Conventions 또는 "None"}
+     ```
+
+     Task(impl, mode=execute) 병렬 디스패치:
+     ```
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-A}.md
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-B}.md  (있으면)
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-C}.md  (있으면)
+     ```
+
+     각 Task 지시:
+       세션 파일: ${TMP_DIR}impl-execute-session-{dir-safe}.md
+       프로젝트 루트: {project_root}
+       세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+       (parallel 모드 — AskUserQuestion 금지)
+
+  5. 현재 depth 완료 대기 → 다음 depth로
 ```
 
 > **왜 depth별로 나누는가:** depth=1 모듈(자식)의 impl agent는 depth=0 모듈(부모)의 CLAUDE.md를
