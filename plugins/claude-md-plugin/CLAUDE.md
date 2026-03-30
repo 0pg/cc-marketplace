@@ -283,7 +283,7 @@ User: /decompile [path]
 
 | Skill | 역할 |
 |-------|------|
-| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
+| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). `--auto`로 impl→compile→validate 자율 루프 실행 |
 | `/compile` | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
 | `/validate` | 문서-코드 일치 검증 (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | 소스코드 → CLAUDE.md + DEVELOPERS.md 추출 |
