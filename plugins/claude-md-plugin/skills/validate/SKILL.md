@@ -162,6 +162,8 @@ strict: {true|false}
 
 ### 5. 통합 보고서
 
+Task(validator) 결과 block에서 `result_file` 경로를 수집하여 목록으로 포함:
+
 ```
 ---validate-result---
 status: clean | issues_found | fixed
@@ -171,6 +173,10 @@ convention_issues: {n}
 boundary_issues: {n}
 semantic_drift: {n}
 auto_fixed: {n}
+result_files:
+  - {TMP_DIR}validate-{dir-safe}.md
+  - {TMP_DIR}validate-{dir-safe-2}.md
+  (스키마 통과하여 semantic 검증이 실행된 모듈만. 없으면 생략)
 ---end-validate-result---
 ```
 
