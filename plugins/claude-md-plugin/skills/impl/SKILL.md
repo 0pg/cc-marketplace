@@ -129,6 +129,33 @@ Task(impl):
 
 > `dir_safe`: target_path의 슬래시를 하이픈으로 치환 (예: `src/auth` → `src-auth`)
 
+**6b-1. Workflow state 초기화**
+
+```bash
+WORKFLOW_DIR=".claude/workflows/{dir-safe}"
+mkdir -p "$WORKFLOW_DIR"
+cp "${TMP_DIR}impl-plan-{dir-safe}.md" "$WORKFLOW_DIR/impl-plan.md"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
+{
+  "workflow_id": "{dir-safe}-TIMESTAMP_PLACEHOLDER",
+  "target_path": "{target_path}",
+  "dir_safe": "{dir-safe}",
+  "action": "{action}",
+  "status": "awaiting-review",
+  "round": 1,
+  "plan_file": ".claude/workflows/{dir-safe}/impl-plan.md",
+  "last_reviewer_result": "",
+  "project_root": "{project_root}",
+  "user_requirement": "{사용자 요구사항 텍스트 최초 500자}",
+  "created_at": "TIMESTAMP_PLACEHOLDER",
+  "updated_at": "TIMESTAMP_PLACEHOLDER"
+}
+STATEOF
+# Replace TIMESTAMP_PLACEHOLDER with actual timestamp
+sed -i '' "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" "$WORKFLOW_DIR/state.json"
+```
+
 **6c. Socratic Loop**
 
 `round = 1`, `max_safety = 5`
