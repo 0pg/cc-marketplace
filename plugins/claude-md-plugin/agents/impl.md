@@ -137,6 +137,24 @@ completeness 기준:
 2. 관련 모듈의 CLAUDE.md를 Read하여 Requirements/Domain Context 확인
 3. 외부 의존성은 package.json/Cargo.toml/go.mod 등에서 확인
 
+**4. 부모/형제 모듈의 Public API 의무 탐색** (Parallel 모드 포함)
+
+`target_path`의 부모 디렉토리(들)에 DEVELOPERS.md가 있으면:
+- 부모 DEVELOPERS.md를 Read
+- `## Constraints` 또는 `## Public API` 섹션에서
+  `{현재모듈명}::{함수명}` 또는 `{현재모듈경로}/{함수명}` 형태의 참조 추출
+- 발견 시: 현재 모듈 DEVELOPERS.md의 `## Public API`에 해당 함수를 추가 의무로 기록
+
+예시:
+```
+orchestrator/DEVELOPERS.md의 Constraints에서 발견:
+  "agent::spawn_agent(tx, issue) → JoinHandle"
+→ agent/DEVELOPERS.md의 ## Public API에 추가:
+  | spawn_agent | fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()> | orchestrator |
+```
+
+발견 없으면 스킵 (Public API 섹션 생략 또는 None).
+
 ### Phase 2: Tiered Clarification
 
 completeness에 따라 질문 라운드 결정 (최대 2회 AskUserQuestion):

@@ -32,7 +32,7 @@ CLAUDE.md (Primary SSOT) → DEVELOPERS.md (Derived Spec) → Source Code (Deriv
 | CLAUDE.md | Requirements (PM의 요구사항) | PM, AI 에이전트 |
 | DEVELOPERS.md | Constraints + Technical Context (개발자 명세) | 개발자, /compile |
 
-## 섹션 (2 필수 + 3 선택, 모두 None 허용)
+## 섹션 (2 필수 + 4 선택, 모두 None 허용)
 
 ### ## Constraints (필수, None 허용)
 
@@ -148,6 +148,29 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 - 에러율 > 5% 시 알람
 ```
 
+### ## Public API (선택, None 허용)
+
+이 모듈이 외부(부모 또는 형제 모듈)에 export하는 함수/타입 목록.
+`/impl` agent가 부모 모듈 DEVELOPERS.md에서 현재 모듈 함수 참조를 발견할 때 자동 추가.
+cross-module interface 계약을 명시적으로 문서화하여 `diff-spec-range` 기반 validate에서 활용.
+
+```markdown
+## Public API
+
+| Symbol | Signature | Called by |
+|--------|-----------|-----------|
+| spawn_agent | `fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()>` | orchestrator |
+| AgentResult | `enum AgentResult { Success(Output), Failed(AgentError) }` | orchestrator |
+
+None
+```
+
+**작성 원칙:**
+- 외부에서 호출/참조하는 심볼만 기록 (내부 함수 제외)
+- Signature는 실제 언어 문법 그대로 (타입 별칭 사용 가능)
+- Called by는 모듈 경로 (상대 경로 또는 crate 이름)
+- 외부 노출이 없으면 `None` 허용
+
 ### ## Flows (선택, is_project_root only, None 허용)
 
 **project root DEVELOPERS.md에만 허용.** 시스템 수준 use case 실행 흐름.
@@ -180,7 +203,7 @@ Cross-module 호출 순서와 데이터 타입을 기술한다. non-project-root
 | `/impl` | Constraints + Data Schemas + Technical Context 생성 | CLAUDE.md Requirements를 구체화 |
 | `/decompile` | 전체 생성 | 소스코드에서 6섹션 추출 (Data Schemas, Configuration 자동 추출 포함) |
 | `/compile` | 테스트 생성 원천 | Constraints에서 테스트 케이스 생성 (Data Schemas는 타입 참조용) |
-| `/validate` | drift 검증 | Constraints + Data Schemas drift 검출 (--strict) |
+| `/validate` | drift 검증 | Constraints + Data Schemas drift 검출 (--strict); Public API로 cross-module 계약 확인 |
 | `/bugfix` | L2 진단 | 3-layer 분석의 L2 계층 (Constraints) |
 
 ## 생명주기
