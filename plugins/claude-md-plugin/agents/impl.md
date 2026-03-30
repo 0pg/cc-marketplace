@@ -255,6 +255,53 @@ action: create | update
 
 ---
 
+## Workflow — Revise 모드 (mode=revise)
+
+**AskUserQuestion 사용 금지.** 불명확한 점은 best-effort 처리.
+
+### Phase R1: Load Context
+
+세션 파일에서 추출:
+- `feedback_file` 경로 → Read → 이전 라운드 Critical Questions 로드
+- `existing_plan_file` 경로 → Read → 기존 plan.md 로드
+- `round` 값 (세션 파일 헤더에서)
+- `target_path`, `action`
+
+### Phase R2: Address Critical Questions
+
+reviewer의 Critical Questions를 하나씩 처리:
+
+| 문제 유형 | 처리 방법 |
+|----------|----------|
+| Requirements에 측정 불가 표현 | 구체적 수치/조건으로 교체 |
+| Requirements에 빠진 시나리오 | 새 항목 추가 |
+| Constraints에 타입 누락 | 입력/반환/에러 타입 명시 |
+| Requirements ↔ Constraints 미매핑 | 대응 Constraint 추가 |
+| Rationale에 원문 발췌 없음 | 원본 요구사항 원문을 직접 인용 |
+
+### Phase R3: Update plan.md
+
+`existing_plan_file` (= `${TMP_DIR}impl-plan-{dir-safe}.md`)을 수정하여 저장 (동일 경로 덮어쓰기):
+- `round` 값 증가
+- 변경된 항목만 수정 (비변경 항목 보존)
+- `## Revision History`에 이번 라운드 변경 요약 추가:
+  ```
+  - Round {N-1} → Round {N}: {해결한 Critical Questions 요약}
+  ```
+
+result block 반환:
+```
+---impl-plan-result---
+plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+status: success
+round: {N}
+target_path: {path}
+action: create | update
+---end-impl-plan-result---
+```
+
+---
+
 ## Workflow — Single 모드 (parallel 없음)
 
 ### Phase 1: Requirement Extraction
