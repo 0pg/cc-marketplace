@@ -74,6 +74,71 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
+## 세션 파일 형식
+
+### mode=plan 세션 파일 (SKILL 생성)
+
+```
+# Impl Plan Session
+type: impl-plan | mode: plan | round: 1 | project_root: {path}
+target_path: {path 또는 "TBD"}
+action: create | update | TBD
+
+## User Requirement
+{요구사항 텍스트}
+
+## Existing Modules Index
+{scan-claude-md 결과}
+
+## Project Conventions
+{Conventions 또는 "None"}
+```
+
+### mode=revise 세션 파일 (SKILL 생성)
+
+```
+# Impl Plan Session
+type: impl-plan | mode: revise | round: {N} | project_root: {path}
+target_path: {path}
+action: create | update
+
+## User Requirement
+{요구사항 텍스트}
+
+## Reviewer Feedback File
+feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{N-1}.md
+
+## Existing Plan File
+existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+## Existing Modules Index
+{scan-claude-md 결과}
+
+## Project Conventions
+{Conventions 또는 "None"}
+```
+
+### mode=execute 세션 파일 (SKILL 생성)
+
+```
+# Impl Execute Session
+type: impl-execute | mode: execute | project_root: {path}
+target_path: {path}
+action: create | update
+
+## Approved Plan File
+plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+## User Requirement
+{요구사항 텍스트}
+
+## Existing Modules Index
+{scan-claude-md 결과}
+
+## Project Conventions
+{Conventions 또는 "None"}
+```
+
 ## 스키마 참조
 
 ```bash
@@ -90,20 +155,103 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 
 ## Workflow — Step 0: 모드 판별 (항상 첫 번째)
 
-세션 파일을 Read하여 헤더의 `parallel` 필드를 확인한다:
+세션 파일을 Read하여 헤더의 `mode` 필드를 확인한다:
 
-| 헤더 필드 | 의미 | 다음 단계 |
-|-----------|------|----------|
-| `parallel` 없음 | **Single 모드** | `Skill("superpowers:brainstorming")` 로드 → Phase 1 |
-| `parallel: true` | **Parallel 모드** | brainstorming 없이 Phase 1b로 점프 |
+| mode 필드 | 의미 | 다음 단계 |
+|----------|------|----------|
+| `plan`, parallel 없음 | **Plan 모드 (single)** | `Skill("superpowers:brainstorming")` 로드 → Phase 1 |
+| `plan`, `parallel: true` | **Plan 모드 (parallel)** | brainstorming 없이 Phase 1b로 점프 |
+| `revise` | **Revise 모드** | brainstorming 없이 Phase R로 점프 |
+| `execute` | **Execute 모드** | brainstorming 없이 Phase 4로 점프 |
 
-**Single 모드 진입 시:**
+**Plan 모드 (single) 진입 시:**
 ```
 Skill("superpowers:brainstorming")
 ```
 brainstorming의 clarification discipline을 로드하여 요구사항 탐색과 설계 검토를 수행한다.
-단, brainstorming의 Step 6(design doc 저장) 이후는 실행하지 않는다 —
-impl agent의 Phase 5(Document Generation)가 문서 생성을 담당한다.
+단, brainstorming의 Step 6(design doc 저장) 이후는 실행하지 않는다.
+
+---
+
+## Workflow — Plan 모드 (mode=plan)
+
+### Phase 1: Requirement Extraction
+
+세션 파일의 `## User Requirement`에서 추출:
+
+```
+---extraction-summary---
+format: natural-language | user-story | structured
+purpose: {extracted} [confirmed | inferred | gap]
+constraints: {extracted} [confirmed | inferred | gap]
+domain_context: {extracted} [confirmed | inferred | gap]
+location: {extracted} [confirmed | gap]
+completeness: high | medium | low
+gaps: [list of gaps]
+---end-extraction-summary---
+```
+
+completeness 기준:
+- **high**: Purpose, Interface, Constraints 모두 명확
+- **medium**: 1-2개 "추론 가능"
+- **low**: 대부분 불명확
+
+### Phase 1.5: Dependency Exploration (inline)
+
+기존 Phase 1.5와 동일 — Existing Modules Index 기반 의존성 탐색 + 부모/형제 모듈 Public API 탐색.
+
+### Phase 2: Tiered Clarification (single 모드만)
+
+completeness에 따라 최대 2회 AskUserQuestion (parallel 모드에서는 이 Phase 생략).
+
+### Phase 3: Target Path Determination
+
+- 세션 파일 헤더의 `target_path`가 "TBD"이면 → 인덱스 + 요구사항으로 결정
+- target_path가 이미 결정됐으면 → 그대로 사용
+- 후보가 여러 개면 AskUserQuestion (single 모드만)
+
+### Phase P: Write plan.md
+
+승인 전 계획 문서를 `${TMP_DIR}impl-plan-{dir-safe}.md`에 저장:
+
+```markdown
+# Impl Plan
+target_path: {path}
+action: create | update
+round: {N}
+
+## Proposed Requirements
+- REQ-1: {검증 가능한 요구사항}
+- REQ-2: ...
+
+## Proposed Constraints
+- CONST-1: {함수명}({입력 타입}) → {반환 타입} | {에러 타입}
+- CONST-2: ...
+
+## Rationale
+- REQ-1: "{원본 요구사항 원문 발췌}" → 이 항목을 도출한 근거
+- CONST-1: REQ-1의 인터페이스를 구체화
+...
+
+## Revision History
+{Round 1이면 생략 또는 "초안"}
+```
+
+**plan.md 작성 원칙:**
+- Requirements: 측정 가능한 표현만. "적절히", "빠르게" 금지.
+- Constraints: 입력 타입, 반환 타입, 에러 타입 모두 명시. 모호한 타입("any", "object") 금지.
+- Rationale: 각 항목이 원본 요구사항 원문을 직접 발췌하여 연결.
+
+result block 반환:
+```
+---impl-plan-result---
+plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+status: success
+round: {N}
+target_path: {path}
+action: create | update
+---end-impl-plan-result---
+```
 
 ---
 
