@@ -52,12 +52,11 @@ impl SchemaValidator {
 
     /// Evaluate conditions by scanning the given directory.
     /// Detects module root by presence of build system markers (Cargo.toml, package.json, etc.).
-    /// `is_project_root` must be set by the caller.
+    /// Detects project root by presence of `.git` directory.
     pub fn evaluate_conditions(dir: &Path) -> ValidationContext {
         let mut ctx = ValidationContext::default();
-
         ctx.is_module_root = MODULE_ROOT_MARKERS.iter().any(|m| dir.join(m).exists());
-
+        ctx.is_project_root = dir.join(".git").exists();
         ctx
     }
 
@@ -1106,6 +1105,25 @@ None
         File::create(temp.path().join("package.json")).unwrap();
         let ctx = SchemaValidator::evaluate_conditions(temp.path());
         assert!(!ctx.is_project_root);
+        assert!(ctx.is_module_root);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_project_root() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.is_project_root);
+        assert!(!ctx.is_module_root);
+    }
+
+    #[test]
+    fn test_evaluate_conditions_project_and_module_root() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        File::create(temp.path().join("Cargo.toml")).unwrap();
+        let ctx = SchemaValidator::evaluate_conditions(temp.path());
+        assert!(ctx.is_project_root);
         assert!(ctx.is_module_root);
     }
 
