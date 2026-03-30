@@ -254,6 +254,7 @@ round: {round}
 - TMP_DIR에서 이전 세션 artifacts 직접 참조 (state.json의 plan_file, last_reviewer_result 사용)
 - state.json 없이 step 실행
 - AskUserQuestion 사용
+- scope=multi 워크플로우에서 사용
 
 ## 오류 처리
 
@@ -262,3 +263,4 @@ round: {round}
 | state.json 없음 | 안내 메시지 출력 후 종료 |
 | Task 실패 | 오류 보고 후 state.json 갱신 없이 종료 (재실행 가능) |
 | git commit 실패 (staged 파일 없음) | 경고 출력 후 계속 (CLAUDE.md 미생성 시) |
+| multi-scope workflow | state.json은 scope=single에서만 생성됩니다. multi-scope (/impl이 multi로 분류한 경우) 재개는 미지원. |
