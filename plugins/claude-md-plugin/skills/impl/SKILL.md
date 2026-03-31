@@ -301,6 +301,18 @@ Task(impl):
 
 **6e-1. Execute 완료 후 state 갱신 + auto-commit**
 
+**커밋 메시지 구성:**
+
+impl agent는 Execute 완료 후 커밋 메시지를 다음 규칙으로 생성합니다:
+
+1. **summary**: 이번 변경의 핵심을 한 줄로 (예: "OAuth2 인증 추가", "수수료 정책 변경")
+2. **[BREAKING]** (선택): Requirements 삭제 또는 대규모 방향 전환이 있을 때만 포함
+3. **전환 맥락**: 1-2문장. 문서는 "현재 상태"를 기술하지만, 커밋 메시지는 "어디서 어디로 전환하는가"를 기술
+   - 좋은 예: "session 기반 인증에 OAuth2를 추가 경로로 도입. 레거시 클라이언트 지원을 위해 session 유지."
+   - 나쁜 예: "인증 시스템 업데이트" (방향성 없음)
+4. **Changes**: before/after 비교하여 added/modified/removed로 분류
+   - 해당 없는 항목은 생략 (예: removed 없으면 removed 줄 생략)
+
 ```bash
 python3 -c "
 import json
@@ -315,10 +327,14 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
 
 # CLAUDE.md + DEVELOPERS.md만 커밋 (TMP 파일 및 workflow state 제외)
 git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
-git commit -m "feat({target_path}): {action} CLAUDE.md + DEVELOPERS.md
+git commit -m "impl({target_path}): [BREAKING] {summary}
 
-요구사항: {사용자 요구사항 텍스트 최초 150자}
-workflow: .claude/workflows/{dir-safe}/state.json"
+{전환 맥락 — 어디서 어디로, 왜 이 변경을 하는가 1-2문장}
+
+Changes:
+- added: {추가된 Requirements/Constraints 목록}
+- modified: {변경된 Requirements/Constraints 목록}
+- removed: {삭제된 Requirements/Constraints 목록}"
 ```
 
 #### scope = multi
