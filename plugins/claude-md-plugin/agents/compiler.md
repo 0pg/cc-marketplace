@@ -82,7 +82,37 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ## Workflow
 
-### 1. Load superpowers:tdd
+### 0. Phase 0: Task Definition (Spec Changes 있을 때만)
+
+세션 파일에 `## Spec Changes` 섹션이 **없으면** 이 Phase를 건너뛰고 Phase 1(기존 TDD)로 직행합니다.
+
+**`## Spec Changes` 섹션이 있으면:**
+
+⚡ **Skill("superpowers:writing-plans") 로드**
+
+입력 분석:
+1. `### Transition Context` 읽기 — 변경의 방향과 이유 파악
+2. `### Added / Modified / Removed` 분류 읽기 — 변경 범위 파악
+3. `breaking: true` 여부 확인 — BREAKING이면 `--conflict overwrite` 강제
+4. 현재 소스코드 구조 탐색 — 기존 파일/함수 위치 파악
+
+Implementation Tasks 도출:
+
+| 변경 유형 | Task 유형 | 행동 |
+|----------|----------|------|
+| Added | [ADD] | 새 파일/함수 생성 — target path, approach 명시 |
+| Modified | [MODIFY] | 기존 코드 수정 — 기존 파일 위치 + 변경 내용 |
+| Removed | [DELETE] | 코드 제거 — 대상 파일 + 참조 정리 범위 |
+
+특수 판단:
+- Changes에 항목이 없거나 의미적 변경 없음 → **"할 일 없음" → compile 조기 종료**
+  - `---compiler-result---` 블록에 `status: skipped`, `reason: no semantic changes` 반환
+- Constraint만 변경 (Requirements 동일) → 기능 코드 미변경, 테스트/설정만 수정으로 명시
+- BREAKING → 기존 코드 대량 변경 예상, conflict 모드 overwrite 적용
+
+도출된 Tasks를 목록으로 정리한 후 Phase 1에서 Task 단위로 TDD를 실행합니다.
+
+### 1. Phase 1: Load superpowers:tdd
 
 위의 Skill() 호출로 TDD 규율을 로드합니다.
 
@@ -96,6 +126,15 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 - **Dependencies** — 외부/내부 의존성
 
 세션 파일에 모호한 스펙이 있으면 `## Origin` 섹션의 원본 문서 경로를 참조하여 Read합니다.
+
+Phase 0에서 Implementation Tasks가 도출된 경우:
+- Task 단위로 관련 Constraints를 매핑하여 RED-GREEN-REFACTOR 실행
+- [ADD] 태스크: 새 Constraint → 테스트 생성 → 구현
+- [MODIFY] 태스크: 변경된 Constraint → 기존 테스트 수정 → 코드 수정
+- [DELETE] 태스크: 대상 코드 제거 → 참조 정리 → 관련 테스트 제거/수정
+
+Phase 0 없이 진입한 경우 (Spec Changes 없음):
+- 기존 동작 그대로 (전체 Constraints → 전체 TDD)
 
 ### 3. RED — Generate Tests from Constraints
 
@@ -132,6 +171,14 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 Conventions 섹션의 코딩 규칙 적용:
 - 네이밍 규칙, 프로젝트 구조, 모듈 바운더리
 - 회귀 테스트 실행 — 실패 시 REFACTOR 롤백
+
+### 7.5. DELETE 태스크 실행 (Phase 0 있을 때만)
+
+[DELETE] 태스크는 TDD 사이클이 아닌 직접 실행:
+1. 대상 파일/함수 삭제
+2. import, 호출부 등 참조 정리
+3. 관련 테스트 파일 삭제 또는 수정
+4. 삭제 후 전체 테스트 실행 — 회귀 확인
 
 ### 8. File Conflicts
 
