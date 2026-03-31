@@ -29,6 +29,21 @@ project_conventions: {project_root}/CLAUDE.md#Conventions
 ## Dependencies
 {compile-context 또는 탐색 결과}
 
+## Spec Changes (optional — impl 커밋 발견 시에만 포함)
+breaking: {true|false}
+
+### Transition Context
+{전환 맥락 — 어디서 어디로, 왜}
+
+### Added
+{추가된 Requirements/Constraints}
+
+### Modified
+{변경된 Requirements/Constraints}
+
+### Removed
+{삭제된 Requirements/Constraints}
+
 ## Verification Contract
 - All Constraints → corresponding tests exist
 - All tests pass
