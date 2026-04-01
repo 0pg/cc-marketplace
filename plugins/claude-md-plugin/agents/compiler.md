@@ -92,6 +92,9 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 입력 분석:
 1. `### Transition Context` 읽기 — 변경의 방향과 이유 파악
+   - 여러 impl 커밋의 Transition Context가 나열된 경우:
+     시간순으로 읽되, **최종 net effect**를 먼저 판단한 후 태스크를 도출한다.
+     중간 단계의 추가→삭제 같은 상쇄는 최종 결과만 반영한다.
 2. `### Added / Modified / Removed` 분류 읽기 — 변경 범위 파악
 3. `breaking: true` 여부 확인 — BREAKING이면 `--conflict overwrite` 강제
 4. 현재 소스코드 구조 탐색 — 기존 파일/함수 위치 파악

@@ -41,44 +41,6 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 0.5. impl 커밋 탐색 (incremental compile 준비)
-
-`--all` 모드이면 이 단계를 건너뜁니다.
-
-각 대상 디렉토리({path})에 대해:
-
-**Step 1: 마지막 compile 커밋 찾기**
-```bash
-LAST_COMPILE=$(git log -1 --format="%H" --grep="^compile({path}):" 2>/dev/null || echo "")
-```
-
-**Step 2: 그 이후의 impl 커밋 찾기**
-```bash
-if [ -n "$LAST_COMPILE" ]; then
-  IMPL_COMMITS=$(git log --format="%H" --grep="^impl({path}):" ${LAST_COMPILE}..HEAD 2>/dev/null)
-else
-  IMPL_COMMITS=$(git log --format="%H" --grep="^impl({path}):" 2>/dev/null)
-fi
-```
-
-**Step 3: impl 커밋 발견 시 — diff 추출 + 커밋 메시지 파싱**
-
-각 impl 커밋에 대해:
-```bash
-# diff 추출
-git diff {hash}~1..{hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
-
-# 커밋 메시지 추출
-git log -1 --format="%B" {hash}
-```
-
-추출 결과를 변수에 누적하여 Step 6 세션 파일 생성 시 사용.
-
-**Step 3-b: impl 커밋 미발견 시**
-
-기존 `diff-compile-targets` fallback 동작 (Step 1로 진행).
-이 경우 Spec Changes 섹션은 세션 파일에 포함하지 않음.
-
 ### 1. Compile 대상 결정
 
 **`--all` 모드:**
@@ -129,12 +91,39 @@ Compile 대상:
 
 각 대상에 대해 CLAUDE.md + DEVELOPERS.md + Convention 계층을 읽고 세션 파일 생성:
 
+0. (`--all`이 아닌 경우) impl 커밋 탐색 — 대상 디렉토리별로 실행:
+   a. 마지막 compile 커밋 찾기:
+      ```bash
+      LAST_COMPILE=$(git log -1 --format="%H" --grep="^compile({path}):" 2>/dev/null || echo "")
+      ```
+   b. 그 이후의 impl 커밋 찾기:
+      ```bash
+      if [ -n "$LAST_COMPILE" ]; then
+        IMPL_COMMITS=$(git log --format="%H" --grep="^impl({path}):" ${LAST_COMPILE}..HEAD 2>/dev/null)
+      else
+        IMPL_COMMITS=$(git log --format="%H" --grep="^impl({path}):" 2>/dev/null)
+      fi
+      ```
+   c. 발견 시 — 각 impl 커밋의 diff + 메시지 추출:
+      ```bash
+      # diff 추출 (root commit 가드)
+      PARENT=$(git rev-parse --verify {hash}~1 2>/dev/null || echo "")
+      if [ -n "$PARENT" ]; then
+        git diff {hash}~1..{hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
+      else
+        git diff --root {hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
+      fi
+
+      # 커밋 메시지 추출
+      git log -1 --format="%B" {hash}
+      ```
+   d. 미발견 시: Spec Changes 섹션을 세션 파일에 포함하지 않음
 1. 대상 CLAUDE.md Read → Requirements, Domain Context 추출
 2. 대상 DEVELOPERS.md Read → Constraints, Technical Context 추출
 3. Convention 계층 해소 (module > project > general)
 4. compile-context.md Read (optional) → Dependencies, approach 추출
 5. 세션 파일 Write → `${TMP_DIR}compile-session-{dir-safe}.md`
-6. (Step 0.5에서 impl 커밋 발견 시) Spec Changes 섹션 추가:
+6. (sub-step 0에서 impl 커밋 발견 시) Spec Changes 섹션 추가:
    - 커밋 메시지 body에서 전환 맥락 추출 → `### Transition Context`
    - 커밋 메시지 Changes 섹션 파싱 → `### Added`, `### Modified`, `### Removed`
    - BREAKING 플래그 존재 시 → `breaking: true` 메타데이터 추가
@@ -229,9 +218,10 @@ git diff --stat
 
 ### 8.5. Compile 커밋 생성
 
-컴파일이 성공적으로 완료된 경우 (status != failed), 생성된 코드를 커밋합니다:
+컴파일이 성공적으로 완료된 경우 (status != failed), **각 대상 디렉토리별로 개별 커밋합니다** (통합 커밋 금지):
 
 ```bash
+# 각 compile 대상에 대해 반복
 git add {대상 디렉토리의 생성/수정된 파일들}
 git commit -m "compile({path}): {summary}
 
@@ -242,7 +232,8 @@ Changes:
 - tests: {생성된 테스트 파일 목록}"
 ```
 
-이 커밋은 다음 `/compile` 실행 시 `git log --grep="^compile({path}):"` 탐색의 기준점이 됩니다.
+이 커밋이 `git log --grep="^compile({path}):"` 탐색의 기준점이 되므로,
+path별 개별 커밋이 필수입니다.
 
 ### 9. Post-compile 검증 (optional)
 

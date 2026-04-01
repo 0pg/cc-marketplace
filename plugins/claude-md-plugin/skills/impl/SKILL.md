@@ -303,15 +303,20 @@ Task(impl):
 
 **커밋 메시지 구성:**
 
-impl agent는 Execute 완료 후 커밋 메시지를 다음 규칙으로 생성합니다:
+SKILL 실행자는 Execute 완료 후 커밋 메시지를 다음 규칙으로 구성합니다:
 
-1. **summary**: 이번 변경의 핵심을 한 줄로 (예: "OAuth2 인증 추가", "수수료 정책 변경")
+1. **summary**: impl agent가 생성한 CLAUDE.md의 Purpose와 Requirements를 기반으로 한 줄 요약
 2. **[BREAKING]** (선택): Requirements 삭제 또는 대규모 방향 전환이 있을 때만 포함
-3. **전환 맥락**: 1-2문장. 문서는 "현재 상태"를 기술하지만, 커밋 메시지는 "어디서 어디로 전환하는가"를 기술
+3. **전환 맥락**: 1-2문장
+   - `create` action: "신규 모듈 생성" + Purpose 요약
+   - `update` action: `git diff HEAD -- {target_path}/CLAUDE.md`의 Requirements 변경을 기반으로 전환 방향 기술
    - 좋은 예: "session 기반 인증에 OAuth2를 추가 경로로 도입. 레거시 클라이언트 지원을 위해 session 유지."
    - 나쁜 예: "인증 시스템 업데이트" (방향성 없음)
-4. **Changes**: before/after 비교하여 added/modified/removed로 분류
-   - 해당 없는 항목은 생략 (예: removed 없으면 removed 줄 생략)
+4. **Changes**: `git diff HEAD -- {target_path}/CLAUDE.md {target_path}/DEVELOPERS.md`에서 파생
+   - added: 새로 추가된 Requirements/Constraints 항목
+   - modified: 변경된 Requirements/Constraints 항목
+   - removed: 삭제된 Requirements/Constraints 항목
+   - 해당 없는 카테고리는 생략
 
 ```bash
 python3 -c "
