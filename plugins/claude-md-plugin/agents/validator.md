@@ -39,7 +39,7 @@ description: |
   </assistant_response>
   </example>
 model: inherit
-color: yellow
+color: magenta
 tools:
   - Bash
   - Read

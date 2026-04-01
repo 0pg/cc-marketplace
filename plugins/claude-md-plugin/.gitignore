@@ -1,6 +1,6 @@
 core/target/
 .claude/settings.local.json
 .claude/
-.DS_Store
+**/.DS_Store
 .serena/
 v7-spec.md
