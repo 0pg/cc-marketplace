@@ -95,13 +95,15 @@ impl 완료 후 직접 추가하거나 다시 /impl을 실행하세요.
 
 #### scope = single
 
-단일 impl 세션 파일 생성 후 impl agent 1개 디스패치:
+**6a. Plan 세션 파일 생성**
 
-`${TMP_DIR}impl-session.md`:
+`${TMP_DIR}impl-plan-session-{dir-safe}.md`:
 
 ```markdown
-# Impl Session
-type: impl | project_root: {project_root}
+# Impl Plan Session
+type: impl-plan | mode: plan | round: 1 | project_root: {project_root}
+target_path: TBD
+action: TBD
 
 ## User Requirement
 {사용자 요구사항 텍스트 전체}
@@ -113,12 +115,231 @@ type: impl | project_root: {project_root}
 {project root Conventions 또는 "None"}
 ```
 
+**6b. Task(impl, mode=plan) 디스패치**
+
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}impl-session.md
+  세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
   프로젝트 루트: {project_root}
 
-  세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+  세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
+```
+
+결과 block에서 `plan_file`, `target_path`, `action`, `dir-safe` 추출.
+
+> `dir_safe`: target_path의 슬래시를 하이픈으로 치환 (예: `src/auth` → `src-auth`)
+
+**6b-1. Workflow state 초기화**
+
+```bash
+WORKFLOW_DIR=".claude/workflows/{dir-safe}"
+mkdir -p "$WORKFLOW_DIR"
+cp "{plan_file}" "$WORKFLOW_DIR/impl-plan.md"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
+{
+  "workflow_id": "{dir-safe}-TIMESTAMP_PLACEHOLDER",
+  "target_path": "{target_path}",
+  "dir_safe": "{dir-safe}",
+  "action": "{action}",
+  "status": "awaiting-review",
+  "round": 1,
+  "plan_file": ".claude/workflows/{dir-safe}/impl-plan.md",
+  "last_reviewer_result": "",
+  "project_root": "{project_root}",
+  "user_requirement": "{사용자 요구사항 텍스트 최초 500자 — JSON 특수문자(\" \\ 개행) escape 필수}",
+  "created_at": "TIMESTAMP_PLACEHOLDER",
+  "updated_at": "TIMESTAMP_PLACEHOLDER"
+}
+STATEOF
+# Replace TIMESTAMP_PLACEHOLDER with actual timestamp
+sed -i '' "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" "$WORKFLOW_DIR/state.json"
+```
+
+**6c. Socratic Loop**
+
+`round = 1`, `max_safety = 5`
+
+```
+loop:
+  1. Reviewer 세션 파일 생성:
+     ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md:
+       # Impl Reviewer Session
+       type: impl-reviewer | round: {round}
+       plan_file: {plan_file}
+       dir_safe: {dir-safe}
+
+  2. Task(impl-reviewer) 디스패치:
+       세션 파일: ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md
+       결과는 ${TMP_DIR}에 저장하고 경로만 반환
+
+     result block에서 verdict 추출.
+
+     2-1. Artifact promote + state.json 갱신 (verdict 반영):
+     ```bash
+     cp "${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md" \
+        ".claude/workflows/{dir-safe}/reviewer-v{round}.md"
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'approved' if '{verdict}' == 'approved' else 'awaiting-revise'
+     s['last_reviewer_result'] = '.claude/workflows/{dir-safe}/reviewer-v{round}.md'
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
+
+  3. if verdict == "approved":
+       break
+
+  4. if round >= max_safety:
+       ⚠ Socratic loop가 {max_safety}회 반복 후 종료됩니다.
+         최선의 계획으로 진행합니다.
+     ```bash
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'max-safety-exceeded'
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
+       break
+
+  5. Revise 세션 파일 생성:
+     ${TMP_DIR}impl-plan-session-{dir-safe}.md (덮어쓰기):
+       # Impl Plan Session
+       type: impl-plan | mode: revise | round: {round+1} | project_root: {project_root}
+       target_path: {target_path}
+       action: {action}
+
+       ## User Requirement
+       {사용자 요구사항 텍스트 전체}
+
+       ## Reviewer Feedback File
+       feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md
+
+       ## Existing Plan File
+       existing_plan_file: {plan_file}
+
+       ## Existing Modules Index
+       {scan-claude-md 결과}
+
+       ## Project Conventions
+       {project root Conventions 또는 "None"}
+
+  6. Task(impl, mode=revise) 디스패치:
+       세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
+       프로젝트 루트: {project_root}
+
+       세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
+
+     결과 block에서 plan_file 업데이트 확인.
+
+     6-1. Revise artifact promote + state.json 갱신:
+     ```bash
+     cp "${TMP_DIR}impl-plan-{dir-safe}.md" ".claude/workflows/{dir-safe}/impl-plan.md"
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'awaiting-review'
+     s['round'] = {round} + 1
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
+
+  7. round++
+  → 1로 돌아감
+```
+
+**6d. Execute 세션 파일 생성**
+
+```bash
+$CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-exec.json"
+```
+
+`${TMP_DIR}impl-execute-session-{dir-safe}.md`:
+
+```markdown
+# Impl Execute Session
+type: impl-execute | mode: execute | project_root: {project_root}
+target_path: {target_path}
+action: {action}
+
+## Approved Plan File
+plan_file: {plan_file}
+
+## User Requirement
+{사용자 요구사항 텍스트 전체}
+
+## Existing Modules Index
+{최신 scan-claude-md 결과}
+
+## Project Conventions
+{project root Conventions 또는 "None"}
+```
+
+**6e. Task(impl, mode=execute) 디스패치**
+
+```
+Task(impl):
+  세션 파일: ${TMP_DIR}impl-execute-session-{dir-safe}.md
+  프로젝트 루트: {project_root}
+
+  세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+```
+
+**6e-1. Execute 완료 후 state 갱신 + auto-commit**
+
+**커밋 메시지 구성:**
+
+SKILL 실행자는 Execute 완료 후 커밋 메시지를 다음 규칙으로 구성합니다:
+
+1. **summary**: impl agent가 생성한 CLAUDE.md의 Purpose와 Requirements를 기반으로 한 줄 요약
+2. **[BREAKING]** (선택): Requirements 삭제 또는 대규모 방향 전환이 있을 때만 포함
+3. **전환 맥락**: 1-2문장
+   - `create` action: "신규 모듈 생성" + Purpose 요약
+   - `update` action: `git diff HEAD -- {target_path}/CLAUDE.md`의 Requirements 변경을 기반으로 전환 방향 기술
+   - 좋은 예: "session 기반 인증에 OAuth2를 추가 경로로 도입. 레거시 클라이언트 지원을 위해 session 유지."
+   - 나쁜 예: "인증 시스템 업데이트" (방향성 없음)
+4. **Changes**: `git diff HEAD -- {target_path}/CLAUDE.md {target_path}/DEVELOPERS.md`에서 파생
+   - added: 새로 추가된 Requirements/Constraints 항목
+   - modified: 변경된 Requirements/Constraints 항목
+   - removed: 삭제된 Requirements/Constraints 항목
+   - 해당 없는 카테고리는 생략
+
+```bash
+python3 -c "
+import json
+from datetime import datetime, timezone
+with open('.claude/workflows/{dir-safe}/state.json') as f:
+    s = json.load(f)
+s['status'] = 'executed'
+s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+    json.dump(s, f, indent=2, ensure_ascii=False)
+"
+
+# CLAUDE.md + DEVELOPERS.md만 커밋 (TMP 파일 및 workflow state 제외)
+git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
+git commit -m "impl({target_path}): [BREAKING] {summary}
+
+{전환 맥락 — 어디서 어디로, 왜 이 변경을 하는가 1-2문장}
+
+Changes:
+- added: {추가된 Requirements/Constraints 목록}
+- modified: {변경된 Requirements/Constraints 목록}
+- removed: {삭제된 Requirements/Constraints 목록}"
 ```
 
 #### scope = multi
@@ -194,18 +415,139 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      {project root Conventions 또는 "None"}
      ---
 
-  2. 현재 depth Task(impl) 병렬 디스패치 (최대 3개):
+  2. 현재 depth 모듈들: Plan 세션 파일 생성 + Task(impl, mode=plan) 병렬 디스패치 (최대 3개)
 
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-A}.md
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-B}.md  (있으면)
-     Task(impl) — ${TMP_DIR}impl-session-{dir-safe-C}.md  (있으면)
+     각 모듈에 대해 `${TMP_DIR}impl-plan-session-{dir-safe}.md` 생성:
+     ```
+     # Impl Plan Session
+     type: impl-plan | mode: plan | round: 1 | project_root: {project_root} | parallel: true
+     target_path: {module.path}
+     action: {module.action}
+
+     ## User Requirement
+     {module.requirement_refs}
+
+     ## Purpose Hint
+     {module.purpose_hint}
+
+     ## Source Concept
+     {module.source_concept}
+
+     ## Existing Modules Index
+     {최신 scan-claude-md 결과}
+
+     ## Project Conventions
+     {project root Conventions 또는 "None"}
+     ```
+
+     Task(impl, mode=plan) 병렬 디스패치:
+     ```
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-A}.md
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-B}.md  (있으면)
+     Task(impl) — ${TMP_DIR}impl-plan-session-{dir-safe-C}.md  (있으면)
+     ```
 
      각 Task 지시:
-       세션 파일: ${TMP_DIR}impl-session-{dir-safe}.md
+       세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
        프로젝트 루트: {project_root}
-       세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+       세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
+       (parallel 모드 — AskUserQuestion 금지)
 
-  3. 현재 depth 완료 대기 → 다음 depth로
+  3. 각 모듈 Socratic Loop (모듈별 순차 실행, round=1, max_safety=5):
+
+     각 모듈에 대해 아래를 순서대로 실행:
+
+     ```
+     loop:
+       a. Reviewer 세션 파일 생성:
+          ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md:
+            # Impl Reviewer Session
+            type: impl-reviewer | round: {round}
+            plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+            dir_safe: {dir-safe}
+
+       b. Task(impl-reviewer) 디스패치:
+            세션 파일: ${TMP_DIR}impl-reviewer-session-{dir-safe}-v{round}.md
+            결과는 ${TMP_DIR}에 저장하고 경로만 반환
+
+          result block에서 verdict 추출.
+
+       c. if verdict == "approved" → break
+
+       d. if round >= max_safety:
+            ⚠ 모듈 {module.path}: Socratic loop {max_safety}회 반복 후 종료.
+            break
+
+       e. Revise 세션 파일 생성:
+          ${TMP_DIR}impl-plan-session-{dir-safe}.md (덮어쓰기):
+            # Impl Plan Session
+            type: impl-plan | mode: revise | round: {round+1} | project_root: {project_root} | parallel: true
+            target_path: {module.path}
+            action: {module.action}
+
+            ## User Requirement
+            {module.requirement_refs}
+
+            ## Reviewer Feedback File
+            feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{round}.md
+
+            ## Existing Plan File
+            existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+            ## Existing Modules Index
+            {scan-claude-md 결과}
+
+            ## Project Conventions
+            {project root Conventions 또는 "None"}
+
+       f. Task(impl, mode=revise) 디스패치:
+            세션 파일: ${TMP_DIR}impl-plan-session-{dir-safe}.md
+            세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
+            (parallel 모드 — AskUserQuestion 금지)
+
+       g. round++
+     ```
+
+     > **왜 모듈별 순차인가:** 각 모듈의 reviewer loop iteration이 이전 결과에 의존하므로
+     > loop 내부는 순차 불가피. 단, 모듈간 loop는 독립이므로 병렬 실행 가능하나
+     > SKILL context 보호를 위해 순차 처리.
+
+  4. Execute 세션 파일 생성 + Task(impl, mode=execute) 병렬 디스패치 (최대 3개):
+
+     각 모듈에 대해 `${TMP_DIR}impl-execute-session-{dir-safe}.md` 생성:
+     ```
+     # Impl Execute Session
+     type: impl-execute | mode: execute | project_root: {project_root} | parallel: true
+     target_path: {module.path}
+     action: {module.action}
+
+     ## Approved Plan File
+     plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+
+     ## User Requirement
+     {module.requirement_refs}
+
+     ## Existing Modules Index
+     {최신 scan-claude-md 결과}
+
+     ## Project Conventions
+     {project root Conventions 또는 "None"}
+     ```
+
+     Task(impl, mode=execute) 병렬 디스패치:
+     ```
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-A}.md
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-B}.md  (있으면)
+     Task(impl) — ${TMP_DIR}impl-execute-session-{dir-safe-C}.md  (있으면)
+     ```
+
+     각 Task 지시:
+       세션 파일: ${TMP_DIR}impl-execute-session-{dir-safe}.md
+       프로젝트 루트: {project_root}
+       세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+       (parallel 모드 — AskUserQuestion 금지)
+
+  5. 현재 depth 완료 대기 → 다음 depth로
 ```
 
 > **왜 depth별로 나누는가:** depth=1 모듈(자식)의 impl agent는 depth=0 모듈(부모)의 CLAUDE.md를
