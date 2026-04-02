@@ -62,12 +62,12 @@ $CLI_PATH fix-schema --file "$developers_md" --type developers_md --dry-run
 ```
 Glob("**/IMPLEMENTS.md", path={project_root_path})
 Glob(".claude/index.md", path={project_root_path})
-Glob("**/compile-context.md", path={project_root_path})
+Glob("**/dev-context.md", path={project_root_path})
 Glob(".claude/tmp/*/bugfix-analysis-*.md", path={project_root_path})
-Glob(".claude/tmp/*/compile-session-*.md", path={project_root_path})
+Glob(".claude/tmp/*/dev-session-*.md", path={project_root_path})
 Glob(".claude/tmp/*/validate-session-*.md", path={project_root_path})
-Glob(".claude/tmp/*/impl-session.md", path={project_root_path})
-Glob(".claude/tmp/*/decompile-session-*.md", path={project_root_path})
+Glob(".claude/tmp/*/spec-session.md", path={project_root_path})
+Glob(".claude/tmp/*/dedev-session-*.md", path={project_root_path})
 ```
 
 삭제 대상 목록 수집.

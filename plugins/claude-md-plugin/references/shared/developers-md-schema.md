@@ -3,7 +3,7 @@
 ## Purpose
 
 DEVELOPERS.md는 CLAUDE.md와 1:1로 매핑되는 Derived Spec 문서입니다.
-CLAUDE.md Requirements를 시스템 레벨로 구체화하며, /compile이 테스트를 생성하는 원천입니다.
+CLAUDE.md Requirements를 시스템 레벨로 구체화하며, /dev가 테스트를 생성하는 원천입니다.
 
 ## 핵심 원칙
 
@@ -30,7 +30,7 @@ CLAUDE.md (Primary SSOT) → DEVELOPERS.md (Derived Spec) → Source Code (Deriv
 | 문서 | 역할 | 대상 |
 |------|------|------|
 | CLAUDE.md | Requirements (PM의 요구사항) | PM, AI 에이전트 |
-| DEVELOPERS.md | Constraints + Technical Context (개발자 명세) | 개발자, /compile |
+| DEVELOPERS.md | Constraints + Technical Context (개발자 명세) | 개발자, /dev |
 
 ## 섹션 (2 필수 + 4 선택, 모두 None 허용)
 
@@ -151,7 +151,7 @@ ADR(Architecture Decision Record) 스타일. 각 결정을 소제목으로, 고�
 ### ## Public API (선택, None 허용)
 
 이 모듈이 외부(부모 또는 형제 모듈)에 export하는 함수/타입 목록.
-`/impl` agent가 부모 모듈 DEVELOPERS.md에서 현재 모듈 함수 참조를 발견할 때 자동 추가.
+`/spec` agent가 부모 모듈 DEVELOPERS.md에서 현재 모듈 함수 참조를 발견할 때 자동 추가.
 cross-module interface 계약을 명시적으로 문서화하여 `diff-spec-range` 기반 validate에서 활용.
 
 ```markdown
@@ -200,9 +200,9 @@ Cross-module 호출 순서와 데이터 타입을 기술한다. non-project-root
 
 | 스킬 | DEVELOPERS.md 활용 | 상세 |
 |------|-------------------|------|
-| `/impl` | Constraints + Data Schemas + Technical Context 생성 | CLAUDE.md Requirements를 구체화 |
+| `/spec` | Constraints + Data Schemas + Technical Context 생성 | CLAUDE.md Requirements를 구체화 |
 | `/decompile` | 전체 생성 | 소스코드에서 6섹션 추출 (Data Schemas, Configuration 자동 추출 포함) |
-| `/compile` | 테스트 생성 원천 | Constraints에서 테스트 케이스 생성 (Data Schemas는 타입 참조용) |
+| `/dev` | 테스트 생성 원천 | Constraints에서 테스트 케이스 생성 (Data Schemas는 타입 참조용) |
 | `/validate` | drift 검증 | Constraints + Data Schemas drift 검출 (--strict); Public API로 cross-module 계약 확인 |
 | `/bugfix` | L2 진단 | 3-layer 분석의 L2 계층 (Constraints) |
 
@@ -212,8 +212,8 @@ CLAUDE.md와 동일한 생성/수정/삭제 주기를 따릅니다.
 
 | 명령어 | DEVELOPERS.md |
 |--------|---------------|
-| /impl | 생성 (Constraints + Technical Context 필수, 나머지 선택) |
+| /spec | 생성 (Constraints + Technical Context 필수, 나머지 선택) |
 | /decompile | 전체 생성 (4섹션) |
-| /compile | 테스트 생성 원천 (Constraints) |
+| /dev | 테스트 생성 원천 (Constraints) |
 | /bugfix | L2 진단 참조 |
 | /validate | drift 검증 (Constraints ↔ Source Code) |

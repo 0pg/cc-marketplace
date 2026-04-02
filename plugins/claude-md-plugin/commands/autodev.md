@@ -12,7 +12,7 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash, Skill]
 # /autodev
 
 요구사항을 처음부터 끝까지 자율 실행합니다.
-스펙 정의(impl) → 코드 생성(compile) → 검증(validate) 루프를 모두 자율적으로 완료합니다.
+스펙 정의(spec) → 코드 생성(dev) → 검증(validate) 루프를 모두 자율적으로 완료합니다.
 
 **최초 요구사항 확인 1회를 제외하고 사람의 개입 없이 완료.**
 
@@ -29,23 +29,23 @@ allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash, Skill]
 |------|------|--------|------|
 | `requirement` | 예* | - | 구현할 요구사항 텍스트 |
 | `--path` | 아니오 | `.` | 대상 경로 |
-| `--max-iter` | 아니오 | `5` | compile-validate 사이클 최대 횟수 |
+| `--max-iter` | 아니오 | `5` | dev-validate 사이클 최대 횟수 |
 
 \* 요구사항 없으면 AskUserQuestion으로 1회 수집.
 
-## /impl --auto 와의 차이
+## /spec --auto 와의 차이
 
-| 항목 | /impl --auto | /autodev |
+| 항목 | /spec --auto | /autodev |
 |------|-------------|----------|
 | 요구사항 확인 | brainstorming + 최대 2회 질문 | 최대 1회 질문 |
 | 모드 | single=brainstorming, multi=승인 | 항상 자율(parallel) |
 | max_iter 기본값 | 3 | 5 |
-| 사용법 | `/impl --auto "..."` | `/autodev "..."` |
+| 사용법 | `/spec --auto "..."` | `/autodev "..."` |
 
-> **주의:** compile은 소스 파일 확장자로 언어를 자동 감지합니다.
-> 소스 파일이 없는 신규 프로젝트에서 compile 언어 감지 실패 시 자율 실행이 중단될 수 있습니다.
+> **주의:** dev는 소스 파일 확장자로 언어를 자동 감지합니다.
+> 소스 파일이 없는 신규 프로젝트에서 dev 언어 감지 실패 시 자율 실행이 중단될 수 있습니다.
 > 빈 프로젝트에서는 `/autodev` 실행 전에 언어를 나타내는 파일
-> (package.json, go.mod, Cargo.toml 등)을 추가하거나 `/compile`을 먼저 실행하세요.
+> (package.json, go.mod, Cargo.toml 등)을 추가하거나 `/dev`를 먼저 실행하세요.
 
 ## Workflow
 
@@ -103,7 +103,7 @@ Task(decompose):
 
 decompose result에서 `scope` 및 `modules[]` 확인.
 
-### Step 5: Impl (스펙 정의) — AskUserQuestion 금지
+### Step 5: Spec (스펙 정의) — AskUserQuestion 금지
 
 모든 impl agent를 **parallel 모드**로 실행 (single/multi 무관).
 
@@ -113,11 +113,11 @@ scan-claude-md 인덱스에서 `{impl_path}/CLAUDE.md` 존재 확인:
 - 있으면 → `action: update`
 - 없으면 → `action: create`
 
-`${TMP_DIR}impl-session.md` 생성:
+`${TMP_DIR}spec-session.md` 생성:
 
 ```markdown
-# Impl Session
-type: impl | project_root: {impl_path} | target_path: {impl_path} | action: {action} | parallel: true
+# Spec Session
+type: spec | project_root: {impl_path} | target_path: {impl_path} | action: {action} | parallel: true
 
 ## User Requirement
 {original_requirement}
@@ -131,7 +131,7 @@ type: impl | project_root: {impl_path} | target_path: {impl_path} | action: {act
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}impl-session.md
+  세션 파일: ${TMP_DIR}spec-session.md
   프로젝트 루트: {impl_path}
   세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
 ```
@@ -142,11 +142,11 @@ Task(impl):
 
 depth 루프 (0, 1, 2, ... 순서):
 1. scan-claude-md 재실행 → 최신 인덱스
-2. 현재 depth 각 모듈의 세션 파일 생성 (`${TMP_DIR}impl-session-{dir-safe}.md`, `parallel: true`):
+2. 현재 depth 각 모듈의 세션 파일 생성 (`${TMP_DIR}spec-session-{dir-safe}.md`, `parallel: true`):
 
    ```markdown
-   # Impl Session
-   type: impl | project_root: {impl_path} | target_path: {module.path} | action: {module.action} | parallel: true
+   # Spec Session
+   type: spec | project_root: {impl_path} | target_path: {module.path} | action: {module.action} | parallel: true
 
    ## User Requirement
    {module.requirement_refs}
@@ -171,10 +171,10 @@ depth 루프 (0, 1, 2, ... 순서):
 
 `auto_iter = 0`
 
-#### Auto Phase 1: Compile
+#### Auto Phase 1: Dev
 
 ```
-Skill("claude-md-plugin:compile", args: "--conflict overwrite --path {impl_path}")
+Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path}")
 ```
 
 `failed` → 루프 종료, 오류 보고.
@@ -204,24 +204,24 @@ validate-result의 `result_files` 목록을 확인:
 
 **케이스 B: `result_files` 있고 모든 파일이 issues=0 (CLI 이슈만 존재)**
 → `${TMP_DIR}validate-session-{dir-safe}.md`의 `## Deterministic Results` 섹션을 Violations Detail로 사용하여 Phase 3 실행
-  (convention/boundary 이슈는 impl update로 CLAUDE.md 수정 가능)
+  (convention/boundary 이슈는 spec update로 CLAUDE.md 수정 가능)
 
 **케이스 C: `result_files` 있고 일부 issues > 0 (semantic drift 존재)**
-→ 각 result_file 중 `## Summary: Total issues: N > 0`인 파일 → 해당 모듈 impl update 대상
+→ 각 result_file 중 `## Summary: Total issues: N > 0`인 파일 → 해당 모듈 spec update 대상
    `## Issues` 섹션 → 모듈별 위반 상세 수집 → Phase 3 실행
 
-#### Auto Phase 3: Impl Update
+#### Auto Phase 3: Spec Update
 
 ```bash
 $CLI_PATH scan-claude-md --root {impl_path} --output "${TMP_DIR}claude-md-index-auto-{auto_iter}.json"
 ```
 
 위반 모듈별 세션 파일 생성:
-`${TMP_DIR}impl-session-auto-{auto_iter}-{dir-safe}.md`
+`${TMP_DIR}spec-session-auto-{auto_iter}-{dir-safe}.md`
 
 ```markdown
-# Impl Session (Auto Mode)
-type: impl | project_root: {impl_path} | target_path: {path} | action: update | parallel: true
+# Spec Session (Auto Mode)
+type: spec | project_root: {impl_path} | target_path: {path} | action: update | parallel: true
 
 ## User Requirement
 {original_requirement}
@@ -235,7 +235,7 @@ validate_violations:
   semantic_drift: {n}
 
 이 모듈에서 검증 위반이 발견되었습니다.
-기존 CLAUDE.md와 DEVELOPERS.md를 읽고, compile 후 validate가 통과하도록
+기존 CLAUDE.md와 DEVELOPERS.md를 읽고, dev 후 validate가 통과하도록
 Requirements와 Constraints를 구체화·보완하세요.
 CLAUDE.md는 SSOT이므로 요구사항을 더 명확하게 기술하는 방향으로 개선합니다.
 
@@ -261,8 +261,8 @@ Task(impl) 병렬 디스패치 (최대 3개). AskUserQuestion 금지.
 
 ```
 ✓ autodev 완료 ({auto_iter} iteration(s))
-  impl:     CLAUDE.md + DEVELOPERS.md 생성
-  compile:  코드 생성 완료
+  spec:     CLAUDE.md + DEVELOPERS.md 생성
+  dev:      코드 생성 완료
   validate: 모든 검증 통과
 ```
 
@@ -270,13 +270,13 @@ Task(impl) 병렬 디스패치 (최대 3개). AskUserQuestion 금지.
 git diff --stat
 ```
 
-**실패 종료 (max_iter 도달 | compile 실패 | schema 오류):**
+**실패 종료 (max_iter 도달 | dev 실패 | schema 오류):**
 
 ```
 ⚠ autodev 종료 (이유: {사유})
   반복 횟수: {auto_iter}/{max_iter}
   남은 이슈: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
-  /validate 또는 /impl로 수동 해소하세요.
+  /validate 또는 /spec으로 수동 해소하세요.
 ```
 
 ```bash
@@ -290,7 +290,7 @@ git diff --stat
 | 요구사항 없음 | Step 1에서 AskUserQuestion 1회 |
 | decompose 실패 | 에러 보고 후 종료 |
 | impl agent 실패 (단일 모듈) | 경고, 나머지 계속 |
-| compile failed | 루프 종료, 오류 보고 |
+| dev failed | 루프 종료, 오류 보고 |
 | result_files 없음 (모든 모듈 스키마 실패) | 루프 종료, /validate 수동 해소 안내 |
 | result_files 있고 모두 issues=0 (CLI 이슈만) | validate-session Deterministic Results로 Phase 3 실행 |
 | max_iter 초과 | 루프 종료, 남은 이슈 보고 |
