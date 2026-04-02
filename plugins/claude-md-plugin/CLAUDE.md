@@ -15,8 +15,8 @@
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM 요구사항)                     │
 │         │                                                    │
-│         ├──── /impl ──→     요구사항 → CLAUDE.md 정의        │
-│         ├──── /compile ──→  CLAUDE.md 기반 코드 생성         │
+│         ├──── /spec ──→     요구사항 → CLAUDE.md 정의        │
+│         ├──── /dev ──→      CLAUDE.md 기반 코드 생성         │
 │         ├──── /validate ──→ 문서-코드 일치 검증              │
 │         └──── /decompile ──→ 소스코드 → CLAUDE.md 추출       │
 │                                                              │
@@ -46,7 +46,7 @@ module/
 │
 └── DEVELOPERS.md          ← Human-authored / On-demand / 선택적
     Derived Spec. Requirements를 시스템 레벨로 구체화.
-    /compile이 테스트를 생성하는 원천.
+    /dev이 테스트를 생성하는 원천.
 ```
 
 ### CLAUDE.md Schema (v4.0)
@@ -112,14 +112,14 @@ SKILL (Entry Point)
 
 ### Active Workflows (Core 4)
 
-#### /impl (요구사항 → CLAUDE.md)
+#### /spec (요구사항 → CLAUDE.md)
 
 ```
-User: /impl "요구사항"
+User: /spec "요구사항"
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl SKILL                                  │
+│ spec SKILL                                  │
 │                                             │
 │ 1. Bash(scan-claude-md) → 인덱스 생성       │
 │ 2. decompose 세션 파일 생성                 │
@@ -169,32 +169,43 @@ User: /impl "요구사항"
 └─────────────────────────────────────────────┘
 ```
 
-#### /compile (CLAUDE.md → 소스코드)
+#### /dev (CLAUDE.md → 소스코드)
 
 ```
-User: /compile [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
+User: /dev [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ compile SKILL                               │
+│ dev SKILL                                   │
 │                                             │
 │ 1. 대상 결정 (--all 또는 incremental)       │
-│ 2. 대상별 세션 파일 생성                    │
-│    (Requirements + Constraints + Conventions)│
-│ 3. leaf-first 정렬, 병렬 배치 (최대 3)     │
-│ 4. Task(compiler) per target               │
-│ 5. git diff --stat                         │
+│ 2. 언어 감지 + Spec Changes 분석            │
+│ 3. [DELETE] 태스크 SKILL이 직접 실행         │
+│ 4. Test Writing Loop (per target):          │
+│    Task(test-writer) → Task(test-reviewer)  │
+│    → feedback loop (max 5)                  │
+│ 5. TMP → target 복사 + Verify RED           │
+│ 6. Task(green-coder) per target             │
+│ 7. Task(refactorer) per target              │
+│ 8. 빌드 검증 + git diff + dev 커밋          │
 └─────────────────────────────────────────────┘
         │
         ▼
-┌─────────────────────────────────────────────┐
-│ compiler AGENT                              │
-│ ⚡ Skill("superpowers:tdd")                 │
-│                                             │
-│ RED: Constraints → 테스트 생성              │
-│ GREEN: 구현, 최대 3회 재시도                │
-│ REFACTOR: Conventions 적용 + 회귀 테스트    │
-└─────────────────────────────────────────────┘
+┌───────────────────────┐  ┌──────────────────────┐
+│ test-writer AGENT     │  │ test-reviewer AGENT   │
+│                       │  │                       │
+│ Constraints → 테스트  │◄►│ 5-criteria 검증       │
+│ Requirements → accept │  │ verdict: approved     │
+│ mapping.json 생성     │  │         | rejected    │
+└───────────────────────┘  └──────────────────────┘
+        │ approved
+        ▼
+┌───────────────────────┐  ┌──────────────────────┐
+│ green-coder AGENT     │  │ refactorer AGENT      │
+│                       │  │                       │
+│ approved 테스트 기반  │─►│ Conventions 적용      │
+│ 최소 구현 (max 3)    │  │ 회귀 실패 시 롤백     │
+└───────────────────────┘  └──────────────────────┘
 ```
 
 #### /validate (문서-코드 일치 검증)
@@ -267,7 +278,10 @@ User: /decompile [path]
 |-------|-----------------|------|
 | `decompose` | (없음) | 대규모 스펙 → 모듈 분해 계획 (scope 판정 + path + req 분배) |
 | `impl` | brainstorming (single 모드만) | 요구사항 분석 + CLAUDE.md/DEVELOPERS.md 생성 |
-| `compiler` | test-driven-development | Inline TDD (Constraints → 테스트 → 구현 → 리팩토링) |
+| `test-writer` | (없음) | RED — 스펙 → 테스트 + Constraint↔Test 매핑 |
+| `test-reviewer` | (없음) | 스펙 대비 테스트 트레이서빌리티 검증 |
+| `green-coder` | (없음) | GREEN — approved 테스트 통과시키는 최소 구현 |
+| `refactorer` | (없음) | REFACTOR — Conventions 적용 + 회귀 테스트 |
 | `validator` | verification-before-completion | semantic drift 검출 (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (없음) | 소스코드 → CLAUDE.md/DEVELOPERS.md 추출 |
 
@@ -277,7 +291,7 @@ User: /decompile [path]
 |---------|------|
 | `/project-setup` | CLAUDE.md에 Instructions + Conventions 생성/업데이트 (convention-update 흡수) |
 | `/migrate` | 버전 업그레이드 마이그레이션 (v6→v7, v9→v10 등) |
-| `/autodev` | 요구사항 → 코드까지 자율 완료. impl+compile+validate 루프를 사람 개입 없이 실행 |
+| `/autodev` | 요구사항 → 코드까지 자율 완료. spec+dev+validate 루프를 사람 개입 없이 실행 |
 
 ## Skills
 
@@ -285,8 +299,8 @@ User: /decompile [path]
 
 | Skill | 역할 |
 |-------|------|
-| `/impl` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). `--auto`로 impl→compile→validate 자율 루프 실행 |
-| `/compile` | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
+| `/spec` | 요구사항 → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). `--auto`로 spec→dev→validate 자율 루프 실행 |
+| `/dev` | CLAUDE.md + DEVELOPERS.md → 소스코드 (Inline TDD from Constraints) |
 | `/validate` | 문서-코드 일치 검증 (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | 소스코드 → CLAUDE.md + DEVELOPERS.md 추출 |
 
@@ -338,8 +352,8 @@ validate(node) = validate(node.claude_md, node.direct_files)
 
 ### INV-4: 업데이트 책임
 ```
-/impl → CLAUDE.md + DEVELOPERS.md (문서 정의)
-/compile → Source Code (문서 기반 코드 생성, 문서 읽기 전용)
+/spec → CLAUDE.md + DEVELOPERS.md (문서 정의)
+/dev → Source Code (문서 기반 코드 생성, 문서 읽기 전용)
 /decompile → CLAUDE.md + DEVELOPERS.md (코드에서 문서 추출)
 /validate → 위반 보고 + 대화형 해소 (사용자 승인)
 ```
@@ -366,8 +380,8 @@ claude-md는 superpowers의 domain component들을 조합하여 "문서 기반 �
 
 | 레이어 | 담당 | 도구 |
 |--------|------|------|
-| 스펙 정의·검증·추적 | claude-md | /impl, /validate, /decompile |
-| 일괄 코드 재생성 | claude-md | /compile (batch) |
+| 스펙 정의·검증·추적 | claude-md | /spec, /validate, /decompile |
+| 일괄 코드 재생성 | claude-md | /dev (batch) |
 | 점진적 코드 작성 | superpowers | TDD (CLAUDE.md/DEVELOPERS.md 기반) |
 | 프로세스 규율 | superpowers | brainstorming, plans, debugging, verification |
 
@@ -384,6 +398,9 @@ claude-md는 superpowers의 domain component들을 조합하여 "문서 기반 �
 | Agent | Superpowers Component | 조합 방식 |
 |-------|----------------------|----------|
 | impl | brainstorming | 요구사항 탐색/설계 전 brainstorming 로드 |
-| compiler | test-driven-development | Constraints → TDD Red-Green-Refactor |
+| test-writer | (없음) | 스펙에서 테스트 + 매핑 직접 생성 |
+| test-reviewer | (없음) | 트레이서빌리티 검증, verdict 반환 |
+| green-coder | (없음) | approved 테스트 기반 구현 |
+| refactorer | (없음) | Conventions 적용 + 회귀 보호 |
 | validator | verification-before-completion | 증거 기반 검증 규율 |
 | decompiler | (없음) | 추출 작업, 프로세스 규율 불필요 |
