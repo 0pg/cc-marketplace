@@ -12,8 +12,8 @@
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
-│         ├──── /impl ──→     요구사항 → CLAUDE.md 정의        │
-│         ├──── /compile ──→  CLAUDE.md 기반 코드 생성         │
+│         ├──── /spec ──→     요구사항 → CLAUDE.md 정의        │
+│         ├──── /dev ──→      CLAUDE.md 기반 코드 생성         │
 │         ├──── /validate ──→ 문서-코드 일치 검증              │
 │         └──── /decompile ──→ 소스코드 → CLAUDE.md 추출       │
 │                                                              │
@@ -46,8 +46,8 @@ cd plugins/claude-md-plugin/core && cargo build --release
 
 | Situation | Command | Result |
 |-----------|---------|--------|
-| Define requirements | `/impl "requirements"` | CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
-| Generate code from spec | `/compile` | Source code + tests (from DEVELOPERS.md Constraints) |
+| Define requirements | `/spec "requirements"` | CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints) |
+| Generate code from spec | `/dev` | Source code + tests (from DEVELOPERS.md Constraints) |
 | Check doc-code consistency | `/validate` | Drift report + interactive auto-fix |
 | Document existing code | `/decompile` | CLAUDE.md + DEVELOPERS.md extraction |
 
@@ -95,25 +95,25 @@ module/
 
 ## Core Skills (v10)
 
-### `/impl` — Requirements → CLAUDE.md + DEVELOPERS.md
+### `/spec` — Requirements → CLAUDE.md + DEVELOPERS.md
 
 Analyzes requirements and generates CLAUDE.md (Purpose, Requirements, Domain Context) + DEVELOPERS.md (Constraints, Technical Context).
 
 ```bash
-/impl "JWT token validation authentication module"
+/spec "JWT token validation authentication module"
 ```
 
-### `/compile` — CLAUDE.md → Source Code
+### `/dev` — CLAUDE.md → Source Code
 
 Generates source code via Inline TDD (tests from DEVELOPERS.md Constraints, then implements).
 
 ```bash
-/compile                          # Changed CLAUDE.md/DEVELOPERS.md files
-/compile --all                    # All CLAUDE.md files
-/compile --path src/auth          # Specific path
-/compile --conflict overwrite     # Overwrite existing files
-/compile --validate               # Post-compile validation
-/compile --dry-run                # Show targets only
+/dev                          # Changed CLAUDE.md/DEVELOPERS.md files
+/dev --all                    # All CLAUDE.md files
+/dev --path src/auth          # Specific path
+/dev --conflict overwrite     # Overwrite existing files
+/dev --validate               # Post-compile validation
+/dev --dry-run                # Show targets only
 ```
 
 ### `/validate` — Document-Code Consistency + Auto-fix
@@ -163,7 +163,7 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 | Skill | Role |
 |-------|------|
 | `/bugfix` | Runtime bug → 3-layer trace → fix |
-| `/impl-review` | CLAUDE.md quality review |
+| `/spec-review` | CLAUDE.md quality review |
 | `/impact` | Change impact analysis |
 | `/diff-spec` | Semantic diff between spec versions |
 | `/status` | Project health dashboard |
@@ -174,7 +174,7 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 ### A. New Module Development
 
 ```
-/impl "requirements" → /compile → /validate
+/spec "requirements" → /dev → /validate
 ```
 
 ### B. Legacy Code Documentation
@@ -186,7 +186,7 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 ### C. Incremental Changes
 
 ```
-Edit CLAUDE.md → /compile → /validate
+Edit CLAUDE.md → /dev → /validate
 ```
 
 ## Architecture
@@ -213,8 +213,12 @@ SKILL (Entry Point)
 
 | Agent | Superpowers Composition | Role |
 |-------|------------------------|------|
-| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
-| `compiler` | test-driven-development | Inline TDD (Constraints → tests → implementation → refactor) |
+| `decompose` | (none) | Large spec → module decomposition plan (scope判定 + path + req distribution) |
+| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
+| `test-writer` | (none) | RED — spec → tests + Constraint↔Test mapping |
+| `test-reviewer` | (none) | Spec-test traceability verification |
+| `green-coder` | (none) | GREEN — minimal implementation to pass approved tests |
+| `refactorer` | (none) | REFACTOR — conventions application + regression tests |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
 
@@ -239,7 +243,7 @@ Each CLAUDE.md must be self-contained within its boundary.
 - **INV-1**: `node.dependencies ⊆ node.children`
 - **INV-2**: `validate(node) = validate(node.claude_md, node.direct_files)`
 - **INV-3**: Every CLAUDE.md has a corresponding DEVELOPERS.md (1:1)
-- **INV-4**: /impl → docs, /compile → code, /validate → report + resolve, /decompile → extract
+- **INV-4**: /spec → docs, /dev → code, /validate → report + resolve, /decompile → extract
 - **INV-5**: project_root CLAUDE.md MUST have Conventions; module_root MAY override
 
 ## CLI Tools
