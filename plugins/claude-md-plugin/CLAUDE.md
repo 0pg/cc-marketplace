@@ -278,6 +278,7 @@ User: /decompile [path]
 |-------|-----------------|------|
 | `decompose` | (없음) | 대규모 스펙 → 모듈 분해 계획 (scope 판정 + path + req 분배) |
 | `impl` | brainstorming (single 모드만) | 요구사항 분석 + CLAUDE.md/DEVELOPERS.md 생성 |
+| `impl-reviewer` | (없음) | spec plan.md 소크라틱 리뷰 (verdict: approved/rejected) |
 | `test-writer` | (없음) | RED — 스펙 → 테스트 + Constraint↔Test 매핑 |
 | `test-reviewer` | (없음) | 스펙 대비 테스트 트레이서빌리티 검증 |
 | `green-coder` | (없음) | GREEN — approved 테스트 통과시키는 최소 구현 |
@@ -398,6 +399,7 @@ claude-md는 superpowers의 domain component들을 조합하여 "문서 기반 �
 | Agent | Superpowers Component | 조합 방식 |
 |-------|----------------------|----------|
 | impl | brainstorming | 요구사항 탐색/설계 전 brainstorming 로드 |
+| impl-reviewer | (없음) | spec plan.md 소크라틱 리뷰, verdict 반환 |
 | test-writer | (없음) | 스펙에서 테스트 + 매핑 직접 생성 |
 | test-reviewer | (없음) | 트레이서빌리티 검증, verdict 반환 |
 | green-coder | (없음) | approved 테스트 기반 구현 |
