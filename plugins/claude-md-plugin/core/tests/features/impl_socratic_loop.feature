@@ -1,17 +1,17 @@
-Feature: Socratic Feedback Loop for impl Skill
-  As a developer using /impl
+Feature: Socratic Feedback Loop for spec Skill
+  As a developer using /spec
   I want the impl agent's execution plan to be critically reviewed before document generation
   So that CLAUDE.md and DEVELOPERS.md are complete, unambiguous, and test-convertible
 
   Background:
-    Given impl SKILL is invoked with a requirement
+    Given spec SKILL is invoked with a requirement
     And decompose agent returns scope: single
 
   Scenario: Reviewer approves plan on first round
     Given impl agent produces plan.md with complete Requirements and typed Constraints
     When impl-reviewer agent reviews the plan
     Then verdict should be "approved"
-    And impl SKILL proceeds to mode=execute
+    And spec SKILL proceeds to mode=execute
     And CLAUDE.md and DEVELOPERS.md are generated from the approved plan
 
   Scenario: Reviewer rejects plan and impl agent revises
@@ -36,7 +36,7 @@ Feature: Socratic Feedback Loop for impl Skill
     And each round adds only result block (verdict line) to SKILL context
 
   Scenario: Parallel mode disables AskUserQuestion in plan mode
-    Given impl SKILL is invoked with scope: multi
+    Given spec SKILL is invoked with scope: multi
     When impl agent runs in mode=plan with parallel: true
     Then impl agent does not call AskUserQuestion
     And ambiguous items are recorded as warnings in plan.md

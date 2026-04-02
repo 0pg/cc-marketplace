@@ -1,4 +1,4 @@
-# Impl Templates
+# Spec Templates
 
 ## CLAUDE.md Schema (v4)
 

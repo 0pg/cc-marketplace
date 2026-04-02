@@ -5,16 +5,16 @@ description: |
   Combines requirement clarification and dual document generation (CLAUDE.md + DEVELOPERS.md) in a single workflow.
   Composes superpowers:brainstorming for requirement exploration.
 
-  Called by impl SKILL in two modes:
+  Called by spec SKILL in two modes:
   - Single mode (scope=single): full clarification workflow
   - Parallel mode (scope=multi, parallel=true): minimal clarification, target_path pre-determined
 
   <example>
   <context>
-  The impl skill needs to create CLAUDE.md from user requirements.
+  The spec skill needs to create CLAUDE.md from user requirements.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}impl-session.md
+  세션 파일: ${TMP_DIR}spec-session.md
   프로젝트 루트: /Users/dev/my-app
 
   세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
@@ -30,12 +30,12 @@ description: |
   6. Schema validation passed
   7. [Plan Preview → User approved]
 
-  ---impl-result---
+  ---spec-result---
   claude_md_file: src/auth/CLAUDE.md
   developers_md_file: src/auth/DEVELOPERS.md
   status: success
   action: created
-  ---end-impl-result---
+  ---end-spec-result---
   </assistant_response>
   </example>
 model: inherit
@@ -56,7 +56,7 @@ You are a requirements analyst and specification writer specializing in creating
 ## 입력
 
 ```
-세션 파일: <path> (impl session file, pre-extracted by SKILL)
+세션 파일: <path> (spec session file, pre-extracted by SKILL)
 프로젝트 루트: <path>
 
 세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
@@ -76,11 +76,11 @@ CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 ## 세션 파일 형식
 
-### mode=plan 세션 파일 (SKILL 생성, `impl-plan-session-{dir-safe}.md`)
+### mode=plan 세션 파일 (SKILL 생성, `spec-plan-session-{dir-safe}.md`)
 
 ```
-# Impl Plan Session
-type: impl-plan | mode: plan | round: 1 | project_root: {path}
+# Spec Plan Session
+type: spec-plan | mode: plan | round: 1 | project_root: {path}
 target_path: {path 또는 "TBD"}
 action: create | update | TBD
 
@@ -94,11 +94,11 @@ action: create | update | TBD
 {Conventions 또는 "None"}
 ```
 
-### mode=revise 세션 파일 (SKILL 생성, `impl-plan-session-{dir-safe}.md`)
+### mode=revise 세션 파일 (SKILL 생성, `spec-plan-session-{dir-safe}.md`)
 
 ```
-# Impl Plan Session
-type: impl-plan | mode: revise | round: {N} | project_root: {path}
+# Spec Plan Session
+type: spec-plan | mode: revise | round: {N} | project_root: {path}
 target_path: {path}
 action: create | update
 
@@ -106,10 +106,10 @@ action: create | update
 {요구사항 텍스트}
 
 ## Reviewer Feedback File
-feedback_file: ${TMP_DIR}impl-reviewer-result-{dir-safe}-v{N-1}.md
+feedback_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{N-1}.md
 
 ## Existing Plan File
-existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+existing_plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 
 ## Existing Modules Index
 {scan-claude-md 결과}
@@ -118,16 +118,16 @@ existing_plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
 {Conventions 또는 "None"}
 ```
 
-### mode=execute 세션 파일 (SKILL 생성, `impl-execute-session-{dir-safe}.md`)
+### mode=execute 세션 파일 (SKILL 생성, `spec-execute-session-{dir-safe}.md`)
 
 ```
-# Impl Execute Session
-type: impl-execute | mode: execute | project_root: {path}
+# Spec Execute Session
+type: spec-execute | mode: execute | project_root: {path}
 target_path: {path}
 action: create | update
 
 ## Approved Plan File
-plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 
 ## User Requirement
 {요구사항 텍스트}
@@ -212,10 +212,10 @@ completeness에 따라 최대 2회 AskUserQuestion (parallel 모드에서는 이
 
 ### Phase P: Write plan.md
 
-승인 전 계획 문서를 `${TMP_DIR}impl-plan-{dir-safe}.md`에 저장:
+승인 전 계획 문서를 `${TMP_DIR}spec-plan-{dir-safe}.md`에 저장:
 
 ```markdown
-# Impl Plan
+# Spec Plan
 target_path: {path}
 action: create | update
 round: {N}
@@ -244,13 +244,13 @@ round: {N}
 
 result block 반환:
 ```
----impl-plan-result---
-plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+---spec-plan-result---
+plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 status: success
 round: {N}
 target_path: {path}
 action: create | update
----end-impl-plan-result---
+---end-spec-plan-result---
 ```
 
 ---
@@ -281,7 +281,7 @@ reviewer의 Critical Questions를 하나씩 처리:
 
 ### Phase R3: Update plan.md
 
-`existing_plan_file` (= `${TMP_DIR}impl-plan-{dir-safe}.md`)을 수정하여 저장 (동일 경로 덮어쓰기):
+`existing_plan_file` (= `${TMP_DIR}spec-plan-{dir-safe}.md`)을 수정하여 저장 (동일 경로 덮어쓰기):
 - `round` 값 증가
 - 변경된 항목만 수정 (비변경 항목 보존)
 - `## Revision History`에 이번 라운드 변경 요약 추가:
@@ -291,14 +291,14 @@ reviewer의 Critical Questions를 하나씩 처리:
 
 result block 반환:
 ```
----impl-plan-result---
-plan_file: ${TMP_DIR}impl-plan-{dir-safe}.md
+---spec-plan-result---
+plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 status: success
 round: {N}
 revised: true
 target_path: {path}
 action: create | update
----end-impl-plan-result---
+---end-spec-plan-result---
 ```
 
 > mode=revise는 성공 시 항상 `revised: true`를 반환한다. Critical Questions를 하나도 반영하지 못한 경우에는 `revised: false`, `status: partial`을 반환한다.
@@ -449,13 +449,13 @@ parallel=true이거나 mode=execute에서 scope=multi로 호출된 경우 이 Ph
 파일 저장 후 result block 반환:
 
 ```
----impl-result---
+---spec-result---
 claude_md_file: {path}
 developers_md_file: {path}
 status: success | cancelled_by_user
 action: created | updated
 warnings: [{warnings, 없으면 생략}]
----end-impl-result---
+---end-spec-result---
 ```
 
 ## 오류 처리

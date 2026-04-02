@@ -10,7 +10,7 @@ allowed-tools: [Bash, Read, Glob, Grep, Write, AskUserQuestion]
 
 # /project-setup
 
-프로젝트 CLAUDE.md에 Convention 섹션을 추가/업데이트하여 `/compile` REFACTOR 단계에서 참조할 수 있도록 합니다.
+프로젝트 CLAUDE.md에 Convention 섹션을 추가/업데이트하여 `/dev` REFACTOR 단계에서 참조할 수 있도록 합니다.
 
 ## Triggers
 
@@ -110,10 +110,10 @@ project root CLAUDE.md에 `## Instructions`가 없으면 생성:
 ## Instructions
 
 - CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
-- When code disagrees with CLAUDE.md, regenerate code via /compile (not modify docs).
+- When code disagrees with CLAUDE.md, regenerate code via /dev (not modify docs).
 - To change requirements, update CLAUDE.md first, then code follows.
 - Derive tests from DEVELOPERS.md Constraints.
-- 소스코드는 /compile로 생성. Write tool로 직접 소스 파일 생성 금지.
+- 소스코드는 /dev로 생성. Write tool로 직접 소스 파일 생성 금지.
 - 완료 선언 전 /validate --strict 실행 필수.
 ```
 

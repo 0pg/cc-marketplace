@@ -236,16 +236,16 @@ strict: {true|false}
 
    | Drift Type | 기본 해소 | 사용자 선택지 |
    |---|---|---|
-   | REQUIREMENTS_NOT_IMPLEMENTED | /compile 권장 | (a) /compile 재생성 (b) CLAUDE.md에서 요구사항 제거 |
-   | REQUIREMENTS_PARTIALLY_IMPLEMENTED | /compile 권장 | (a) /compile 재생성 (b) 현재 상태에 맞게 CLAUDE.md 조정 |
-   | REQUIREMENTS_VIOLATED | 사용자 판단 필수 | (a) 코드가 틀림 → /compile (b) 요구사항이 바뀜 → CLAUDE.md 업데이트 |
+   | REQUIREMENTS_NOT_IMPLEMENTED | /dev 권장 | (a) /dev 재생성 (b) CLAUDE.md에서 요구사항 제거 |
+   | REQUIREMENTS_PARTIALLY_IMPLEMENTED | /dev 권장 | (a) /dev 재생성 (b) 현재 상태에 맞게 CLAUDE.md 조정 |
+   | REQUIREMENTS_VIOLATED | 사용자 판단 필수 | (a) 코드가 틀림 → /dev (b) 요구사항이 바뀜 → CLAUDE.md 업데이트 |
    | CONVENTION_*_VIOLATION | 코드 수정 | (a) 코드 수정 (b) Convention 규칙 완화 |
    | CONSTRAINT_NOT_ENFORCED | 코드 수정 | (a) 코드 수정 (b) DEVELOPERS.md Constraint 업데이트 |
    | TECH_CONTEXT_STALE | 문서 수정 | DEVELOPERS.md 자동 업데이트 |
 
    **수정 범위 제한:**
    - validate의 직접 Edit: 기존 코드의 수정 (기존 함수/구조체 내 변경)
-   - 신규 코드 생성 (새 파일, 새 함수, 새 모듈): "/compile {path}로 재생성하세요" 안내만 제공, validate 내에서 /compile 자동 호출하지 않음
+   - 신규 코드 생성 (새 파일, 새 함수, 새 모듈): "/dev {path}로 재생성하세요" 안내만 제공, validate 내에서 /dev 자동 호출하지 않음
    - CLAUDE.md/DEVELOPERS.md 수정: 사용자 명시적 승인 후에만
 
 3. 승인된 수정 적용
@@ -281,7 +281,7 @@ result_files:
 **DON'T:**
 - 스키마 실패 모듈에 semantic 검증 수행
 - 사용자 승인 없이 CLAUDE.md/DEVELOPERS.md 수정 (auto-fix는 fix-schema CLI 또는 사용자 명시적 승인 시에만)
-- 신규 코드 생성 (새 파일, 새 함수, 새 모듈 — /compile의 역할)
+- 신규 코드 생성 (새 파일, 새 함수, 새 모듈 — /dev의 역할)
 
 ## 오류 처리
 
