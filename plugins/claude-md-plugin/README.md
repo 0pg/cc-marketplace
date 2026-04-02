@@ -12,10 +12,10 @@
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
-│         ├──── /spec ──→     요구사항 → CLAUDE.md 정의        │
-│         ├──── /dev ──→      CLAUDE.md 기반 코드 생성         │
-│         ├──── /validate ──→ 문서-코드 일치 검증              │
-│         └──── /decompile ──→ 소스코드 → CLAUDE.md 추출       │
+│         ├──── /spec ──→     Requirements → CLAUDE.md        │
+│         ├──── /dev ──→      CLAUDE.md → Code Generation     │
+│         ├──── /validate ──→ Doc-Code Consistency Check      │
+│         └──── /decompile ──→ Source Code → CLAUDE.md        │
 │                                                              │
 │   DEVELOPERS.md (Derived Spec — Developer Constraints)       │
 │         └──── Constraints = test generation source           │
@@ -213,7 +213,7 @@ SKILL (Entry Point)
 
 | Agent | Superpowers Composition | Role |
 |-------|------------------------|------|
-| `decompose` | (none) | Large spec → module decomposition plan (scope判定 + path + req distribution) |
+| `decompose` | (none) | Large spec → module decomposition plan (scope determination + path + req distribution) |
 | `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
 | `test-writer` | (none) | RED — spec → tests + Constraint↔Test mapping |
 | `test-reviewer` | (none) | Spec-test traceability verification |

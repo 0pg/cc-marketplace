@@ -15,7 +15,7 @@ Feature: Socratic Feedback Loop for spec Skill
     And CLAUDE.md and DEVELOPERS.md are generated from the approved plan
 
   Scenario: Reviewer rejects plan and impl agent revises
-    Given impl agent produces plan.md with vague Requirements ("적절히 처리")
+    Given impl agent produces plan.md with vague Requirements ("handle appropriately")
     When impl-reviewer agent reviews the plan
     Then verdict should be "rejected"
     And Critical Questions should reference the specific vague items

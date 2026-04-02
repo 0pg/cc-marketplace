@@ -6,34 +6,34 @@ description: |
   This skill should be used when the user asks to "develop from CLAUDE.md", "generate code from CLAUDE.md", "implement CLAUDE.md",
   "create source files", or uses "/dev". Processes changed CLAUDE.md files in the target path (or all with --all flag).
   Performs 4-agent TDD pipeline: test-writer → test-reviewer loop → green-coder → refactorer.
-  Trigger keywords: 코드 생성, 개발, CLAUDE.md에서 코드
+  Trigger keywords: code generation, develop, code from CLAUDE.md
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
 ---
 
 # /dev
 
-CLAUDE.md를 기반으로 소스코드를 생성합니다.
+Generates source code based on CLAUDE.md.
 
 ## Triggers
 
 - `/dev`
-- `코드 생성`
-- `CLAUDE.md에서 코드`
+- `code generation`
+- `code from CLAUDE.md`
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `--path` | 아니오 | `.` | 대상 경로 |
-| `--all` | 아니오 | false | 전체 CLAUDE.md 대상 (incremental 대신) |
-| `--conflict` | 아니오 | `skip` | 파일 충돌 처리: `skip` \| `overwrite` |
-| `--dry-run` | 아니오 | false | 실제 파일 생성 없이 대상만 표시 |
-| `--validate` | 아니오 | false | 컴파일 후 /validate 자동 실행 |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--path` | No | `.` | Target path |
+| `--all` | No | false | Target all CLAUDE.md files (instead of incremental) |
+| `--conflict` | No | `skip` | File conflict handling: `skip` \| `overwrite` |
+| `--dry-run` | No | false | Display targets only without generating actual files |
+| `--validate` | No | false | Automatically run /validate after compilation |
 
 ## Workflow
 
-### 0. 초기화
+### 0. Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -41,62 +41,62 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 1. Dev 대상 결정
+### 1. Determine dev targets
 
-**`--all` 모드:**
+**`--all` mode:**
 ```
 Glob("{path}/**/CLAUDE.md")
 ```
 
-**Incremental 모드 (기본):**
+**Incremental mode (default):**
 ```bash
 $CLI_PATH diff-compile-targets --root {path}
 ```
 
-결과 분기:
-- git 저장소 아님 → 전체 대상으로 fallback
-- 변경 없음 → "All up-to-date. Use --all for full dev." → 종료
-- 변경 있음 → 대상 목록 + 사유 표시
+Result branching:
+- Not a git repository → fallback to all targets
+- No changes → "All up-to-date. Use --all for full dev." → exit
+- Changes found → display target list + reasons
 
-대상이 없으면 종료.
+Exit if no targets.
 
-### 2. 언어 자동 감지
+### 2. Auto-detect language
 
-각 대상 디렉토리의 파일 확장자를 분석하여 언어를 추론:
-1. 디렉토리 내 소스 파일 확장자 → 언어 결정
-2. 소스 파일 없으면 부모 디렉토리 참조
-3. 모두 실패하면 `AskUserQuestion`으로 질문
+Analyze file extensions in each target directory to infer the language:
+1. Source file extensions in the directory → determine language
+2. If no source files, reference parent directory
+3. If all fail, ask via `AskUserQuestion`
 
-### 3. dev-context 확인 (optional)
+### 3. Check dev-context (optional)
 
-각 CLAUDE.md에 대응하는 `dev-context.md`가 같은 디렉토리에 있으면 참조용으로 사용.
-없어도 정상 진행.
+If a `dev-context.md` exists in the same directory as each CLAUDE.md, use it as reference.
+Normal operation continues even if absent.
 
-### 4. 의존성 순서 결정 (leaf-first)
+### 4. Determine dependency order (leaf-first)
 
-디렉토리 depth 기준 정렬 (깊은 것부터).
-같은 depth의 독립 모듈은 병렬 실행 가능 (최대 3개).
+Sort by directory depth (deepest first).
+Independent modules at the same depth can be executed in parallel (up to 3).
 
-### 5. `--dry-run` 처리
+### 5. `--dry-run` handling
 
-대상 목록만 출력하고 종료:
+Output only the target list and exit:
 ```
-Compile 대상:
+Dev targets:
   • src/auth/jwt (depth=3, typescript)
   • src/auth (depth=2, typescript)
   • src/utils (depth=2, typescript)
 ```
 
-### 6. 세션 파일 생성
+### 6. Create session files
 
-각 대상에 대해 CLAUDE.md + DEVELOPERS.md + Convention 계층을 읽고 세션 파일 생성:
+For each target, read CLAUDE.md + DEVELOPERS.md + Convention hierarchy and create session files:
 
-0. (`--all`이 아닌 경우) spec 커밋 탐색 — 대상 디렉토리별로 실행:
-   a. 마지막 dev 커밋 찾기:
+0. (`--all` excluded) Search for spec commits — execute per target directory:
+   a. Find last dev commit:
       ```bash
       LAST_DEV=$(git log -1 --format="%H" --grep="^dev({path}):" 2>/dev/null || echo "")
       ```
-   b. 그 이후의 spec 커밋 찾기:
+   b. Find spec commits after that:
       ```bash
       if [ -n "$LAST_DEV" ]; then
         SPEC_COMMITS=$(git log --format="%H" --grep="^spec({path}):" ${LAST_DEV}..HEAD 2>/dev/null)
@@ -104,9 +104,9 @@ Compile 대상:
         SPEC_COMMITS=$(git log --format="%H" --grep="^spec({path}):" 2>/dev/null)
       fi
       ```
-   c. 발견 시 — 각 spec 커밋의 diff + 메시지 추출:
+   c. If found — extract diff + message for each spec commit:
       ```bash
-      # diff 추출 (root commit 가드)
+      # Extract diff (root commit guard)
       PARENT=$(git rev-parse --verify {hash}~1 2>/dev/null || echo "")
       if [ -n "$PARENT" ]; then
         git diff {hash}~1..{hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
@@ -114,65 +114,65 @@ Compile 대상:
         git diff --root {hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
       fi
 
-      # 커밋 메시지 추출
+      # Extract commit message
       git log -1 --format="%B" {hash}
       ```
-   d. 미발견 시: Spec Changes 섹션을 세션 파일에 포함하지 않음
-1. 대상 CLAUDE.md Read → Requirements, Domain Context 추출
-2. 대상 DEVELOPERS.md Read → Constraints, Technical Context 추출
-3. Convention 계층 해소 (module > project > general)
-4. dev-context.md Read (optional) → Dependencies, approach 추출
-5. 세션 파일 Write → `${TMP_DIR}dev-session-{dir-safe}.md`
-6. (sub-step 0에서 spec 커밋 발견 시) Spec Changes 섹션 추가:
-   - 커밋 메시지 body에서 전환 맥락 추출 → `### Transition Context`
-   - 커밋 메시지 Changes 섹션 파싱 → `### Added`, `### Modified`, `### Removed`
-   - BREAKING 플래그 존재 시 → `breaking: true` 메타데이터 추가
+   d. If not found: do not include Spec Changes section in the session file
+1. Read target CLAUDE.md → extract Requirements, Domain Context
+2. Read target DEVELOPERS.md → extract Constraints, Technical Context
+3. Resolve Convention hierarchy (module > project > general)
+4. Read dev-context.md (optional) → extract Dependencies, approach
+5. Write session file → `${TMP_DIR}dev-session-{dir-safe}.md`
+6. (If spec commits found in sub-step 0) Add Spec Changes section:
+   - Extract transition context from commit message body → `### Transition Context`
+   - Parse commit message Changes section → `### Added`, `### Modified`, `### Removed`
+   - If BREAKING flag present → add `breaking: true` metadata
 
-세션 파일 형식: dev-templates.md의 "Dev Session File Format" 참조.
+Session file format: see "Dev Session File Format" in dev-templates.md.
 
-**6e. Implementation Tasks 도출 (Spec Changes 있을 때만)**
+**6e. Derive Implementation Tasks (only when Spec Changes present)**
 
-세션 파일에 `## Spec Changes`가 포함된 경우:
-1. Added → `[ADD]` 태스크: 새 Constraint/Requirement에 대한 테스트+구현 필요
-2. Modified → `[MODIFY]` 태스크: 변경된 Constraint/Requirement에 맞게 테스트+구현 수정
-3. Removed → `[DELETE]` 태스크: 삭제된 Constraint/Requirement 관련 코드+테스트 제거
+When the session file contains `## Spec Changes`:
+1. Added → `[ADD]` task: tests+implementation needed for new Constraint/Requirement
+2. Modified → `[MODIFY]` task: modify tests+implementation to match changed Constraint/Requirement
+3. Removed → `[DELETE]` task: remove code+tests related to deleted Constraint/Requirement
 
-`## Implementation Tasks` 섹션을 세션 파일에 추가:
+Add `## Implementation Tasks` section to the session file:
 ```markdown
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
-- [DELETE] CONST-N: {삭제 대상}
+## Implementation Tasks (only when Spec Changes present)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change details}
+- [DELETE] CONST-N: {deletion target}
 ```
 
-**6f. [DELETE] 태스크 실행 (있을 때만)**
+**6f. Execute [DELETE] tasks (only when present)**
 
-SKILL이 DELETE를 TDD 파이프라인 전에 직접 처리:
+SKILL handles DELETE directly before the TDD pipeline:
 
-1. Grep으로 삭제 대상의 import/참조 검색
-2. 참조하는 파일 목록 수집
-3. 대상 파일/함수 삭제 (Bash rm 또는 Edit)
-4. 참조 파일에서 import/호출 제거 (Edit)
-5. 관련 테스트 파일 삭제
-6. 회귀 테스트 실행 → 실패 시 경고 보고
+1. Search for imports/references of deletion targets via Grep
+2. Collect list of referencing files
+3. Delete target files/functions (Bash rm or Edit)
+4. Remove imports/calls from referencing files (Edit)
+5. Delete related test files
+6. Run regression tests → report warning on failure
 
-### 7. Test Writing Loop (per target, 모듈별 순차)
+### 7. Test Writing Loop (per target, sequential per module)
 
 `round = 1`, `max_safety = 5`
 
 ```
 loop:
-  7a. test-writer 세션 파일 생성:
+  7a. Create test-writer session file:
       ${TMP_DIR}test-writer-session-{dir-safe}.md
-      (형식: dev-templates.md의 "Test Writer Session File Format" mode=write 참조)
+      (format: see "Test Writer Session File Format" mode=write in dev-templates.md)
 
-  7b. Task(test-writer) 디스패치:
-      세션 파일: ${TMP_DIR}test-writer-session-{dir-safe}.md
-      결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  7b. Dispatch Task(test-writer):
+      Session file: ${TMP_DIR}test-writer-session-{dir-safe}.md
+      Save results to ${TMP_DIR} and return only the path
 
-      result block에서 test_dir, mapping_file 추출.
+      Extract test_dir, mapping_file from result block.
 
-  7c. test-reviewer 세션 파일 생성:
+  7c. Create test-reviewer session file:
       ${TMP_DIR}test-reviewer-session-{dir-safe}-v{round}.md:
 
       ```markdown
@@ -184,150 +184,150 @@ loop:
       spec_session_file: ${TMP_DIR}dev-session-{dir-safe}.md
       ```
 
-  7d. Task(test-reviewer) 디스패치:
-      세션 파일: ${TMP_DIR}test-reviewer-session-{dir-safe}-v{round}.md
-      결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  7d. Dispatch Task(test-reviewer):
+      Session file: ${TMP_DIR}test-reviewer-session-{dir-safe}-v{round}.md
+      Save results to ${TMP_DIR} and return only the path
 
-      result block에서 verdict 추출.
+      Extract verdict from result block.
 
   7e. if verdict == "approved":
         break → Step 7.5
 
   7f. if round >= max_safety:
-        ⚠ Test review loop가 {max_safety}회 반복 후 종료됩니다.
-          최선의 테스트로 진행합니다.
+        ⚠ Test review loop terminated after {max_safety} iterations.
+          Proceeding with best-effort tests.
         break → Step 7.5
 
-  7g. Revise 세션 파일 생성:
-      ${TMP_DIR}test-writer-session-{dir-safe}.md (덮어쓰기):
-      mode를 revise로 변경, round 증가, feedback_file 추가
-      (형식: dev-templates.md의 "Test Writer Session File Format" mode=revise 참조)
+  7g. Create Revise session file:
+      ${TMP_DIR}test-writer-session-{dir-safe}.md (overwrite):
+      Change mode to revise, increment round, add feedback_file
+      (format: see "Test Writer Session File Format" mode=revise in dev-templates.md)
 
-  7h. Task(test-writer, mode=revise) 디스패치:
-      세션 파일: ${TMP_DIR}test-writer-session-{dir-safe}.md
-      결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  7h. Dispatch Task(test-writer, mode=revise):
+      Session file: ${TMP_DIR}test-writer-session-{dir-safe}.md
+      Save results to ${TMP_DIR} and return only the path
 
-  7i. round++ → 7c로 돌아감
+  7i. round++ → return to 7c
 ```
 
-### 7.5. TMP → target 복사 + Verify RED
+### 7.5. Copy TMP → target + Verify RED
 
 ```
-7.5a. TMP/tests/{dir-safe}/ → target 디렉토리 복사
-      mapping.json의 test_files 경로 기준으로 복사
+7.5a. Copy TMP/tests/{dir-safe}/ → target directory
+      Copy based on test_files paths in mapping.json
 
-7.5b. Verify RED (SKILL이 Bash로 직접 실행):
-      언어별 테스트 실행:
-      | 언어 | 명령 |
+7.5b. Verify RED (SKILL executes directly via Bash):
+      Run tests per language:
+      | Language | Command |
       | TypeScript | npx jest --passWithNoTests 2>&1 |
-      | Rust | cargo test --no-run 2>&1 (컴파일만) |
+      | Rust | cargo test --no-run 2>&1 (compile only) |
       | Python | python -m pytest --collect-only 2>&1 |
-      | Go | go test -run "^$" ./... 2>&1 (컴파일만) |
+      | Go | go test -run "^$" ./... 2>&1 (compile only) |
 
-7.5c. 전부 실패 확인 → Step 8 진입
-7.5d. 일부 통과 → 기존 구현 커버리지로 기록, Step 8 진입
-7.5e. 컴파일 자체 실패 (import 오류 등) → green-coder에 위임 (import fix 허용)
+7.5c. All fail confirmed → proceed to Step 8
+7.5d. Some pass → record as existing implementation coverage, proceed to Step 8
+7.5e. Compilation itself fails (import errors, etc.) → delegate to green-coder (import fix allowed)
 ```
 
 ### 8. Task(green-coder)
 
 ```
-green-coder 세션 파일 생성:
+Create green-coder session file:
 ${TMP_DIR}green-session-{dir-safe}.md
-(형식: dev-templates.md의 "Green Coder Session File Format" 참조)
-conflict 모드는 dev 인자에서 전달받은 값을 세션 파일 헤더에 포함 (기본값: skip)
+(format: see "Green Coder Session File Format" in dev-templates.md)
+Include conflict mode from dev arguments in session file header (default: skip)
 
-Task(green-coder) 디스패치:
-  세션 파일: ${TMP_DIR}green-session-{dir-safe}.md
-  대상 디렉토리: {path}
-  감지된 언어: {language}
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Dispatch Task(green-coder):
+  Session file: ${TMP_DIR}green-session-{dir-safe}.md
+  Target directory: {path}
+  Detected language: {language}
+  Save results to ${TMP_DIR} and return only the path
 
-green-result status 확인:
-- success: Step 9로
-- partial: 경고 수집, Step 9로
-- failed: 에러 보고, 다음 모듈로
+Check green-result status:
+- success: proceed to Step 9
+- partial: collect warnings, proceed to Step 9
+- failed: report error, move to next module
 ```
 
 ### 9. Task(refactorer)
 
 ```
-refactorer 세션 파일 생성:
+Create refactorer session file:
 ${TMP_DIR}refactor-session-{dir-safe}.md
-(형식: dev-templates.md의 "Refactorer Session File Format" 참조)
-Implementation Files: green-result의 implemented_files
+(format: see "Refactorer Session File Format" in dev-templates.md)
+Implementation Files: implemented_files from green-result
 
-Task(refactorer) 디스패치:
-  세션 파일: ${TMP_DIR}refactor-session-{dir-safe}.md
-  대상 디렉토리: {path}
-  감지된 언어: {language}
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Dispatch Task(refactorer):
+  Session file: ${TMP_DIR}refactor-session-{dir-safe}.md
+  Target directory: {path}
+  Detected language: {language}
+  Save results to ${TMP_DIR} and return only the path
 
 refactor-result status:
-- success: 계속
-- rolled_back: 경고 기록 (green-coder 결과는 유지)
-- skipped: 계속
+- success: continue
+- rolled_back: record warning (green-coder results preserved)
+- skipped: continue
 ```
 
-### 10. 빌드 검증
+### 10. Build verification
 
-모든 모듈 완료 후, 감지된 언어에 따라 타입 체크 실행:
+After all modules complete, run type check based on detected language:
 
-| 언어 | 명령 |
-|------|------|
+| Language | Command |
+|----------|---------|
 | Rust | `cargo check --workspace 2>&1` |
-| TypeScript/JavaScript | `tsc --noEmit 2>&1` (tsconfig.json 있을 때만) |
+| TypeScript/JavaScript | `tsc --noEmit 2>&1` (only when tsconfig.json exists) |
 | Python | `python -m py_compile $(find src -name "*.py") 2>&1` |
-| 기타 | 스킵 (경고만) |
+| Other | Skip (warning only) |
 
-성공: 계속 진행.
+Success: proceed.
 
-실패:
-1. 에러 메시지에서 영향 파일 추출
-2. 보고:
+Failure:
+1. Extract affected files from error message
+2. Report:
    ```
    [BUILD FAILED] {error summary}
-   영향 파일: {file list}
-   권장 조치: 해당 모듈 DEVELOPERS.md Constraints 검토 후 /dev 재실행
+   Affected files: {file list}
+   Recommended action: Review DEVELOPERS.md Constraints for the affected module and re-run /dev
    ```
-3. dev status = `failed` 반환, 이후 Step 건너뜀
+3. Return dev status = `failed`, skip subsequent Steps
 
-> **한계**: 새 파일이 `mod.rs`/`lib.rs`에 선언되지 않은 경우 cargo check가 해당 파일을 검사하지 않음.
-> green-coder agent는 새 파일 생성 시 반드시 mod 선언을 함께 추가해야 함.
+> **Limitation**: If new files are not declared in `mod.rs`/`lib.rs`, cargo check will not inspect those files.
+> The green-coder agent must always add mod declarations when creating new files.
 
-### 11. 변경사항 표시
+### 11. Display changes
 
 ```bash
 git diff --stat
 ```
 
-### 12. Dev 커밋 생성
+### 12. Create dev commit
 
-컴파일이 성공적으로 완료된 경우 (status != failed), **각 대상 디렉토리별로 개별 커밋합니다** (통합 커밋 금지):
+If compilation completed successfully (status != failed), **create individual commits per target directory** (no consolidated commits):
 
 ```bash
-# 각 dev 대상에 대해 반복
-git add {대상 디렉토리의 생성/수정된 파일들}
+# Repeat for each dev target
+git add {created/modified files in the target directory}
 git commit -m "dev({path}): {summary}
 
-{컴파일된 내용 요약 1-2문장}
+{1-2 sentence summary of compiled content}
 
 Changes:
-- compiled: {생성된 파일 목록}
-- tests: {생성된 테스트 파일 목록}"
+- compiled: {list of generated files}
+- tests: {list of generated test files}"
 ```
 
-이 커밋이 `git log --grep="^dev({path}):"` 탐색의 기준점이 되므로,
-path별 개별 커밋이 필수입니다.
+This commit becomes the reference point for `git log --grep="^dev({path}):"` searches,
+so individual commits per path are mandatory.
 
-### 13. Post-dev 검증 (optional)
+### 13. Post-dev verification (optional)
 
-`--validate` 플래그가 있으면:
+If `--validate` flag is present:
 ```
 Skill("claude-md-plugin:validate", args: "{path}")
 ```
 
-### 14. 결과
+### 14. Result
 
 ```
 ---dev-result---
@@ -336,33 +336,33 @@ total: {n}
 generated: {n}
 skipped: {n}
 tests: {passed} passed, {failed} failed
-validate: {status} (--validate 사용 시)
+validate: {status} (when --validate is used)
 ---end-dev-result---
 ```
 
 ## DO / DON'T
 
 **DO:**
-- leaf-first 순서 준수
-- 세션 파일 생성 시 Convention 계층 해소 완료
-- test-writer → test-reviewer → green-coder → refactorer 순서 준수
-- DELETE 태스크는 TDD 파이프라인 전에 SKILL이 직접 처리
+- Follow leaf-first order
+- Complete Convention hierarchy resolution when creating session files
+- Follow test-writer → test-reviewer → green-coder → refactorer order
+- Handle DELETE tasks directly via SKILL before the TDD pipeline
 
 **DON'T:**
-- CLAUDE.md 수정 (읽기 전용)
-- Agent에 CLAUDE.md 경로 직접 전달 (세션 파일로 전달)
-- test-reviewer approve 없이 green-coder 진입
-- compiler agent 사용 (폐기됨)
+- Modify CLAUDE.md (read-only)
+- Pass CLAUDE.md path directly to Agent (pass via session file)
+- Enter green-coder without test-reviewer approval
+- Use compiler agent (deprecated)
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
-| CLAUDE.md 없음 | 안내 메시지, 종료 |
-| test-writer 실패 | 경고, 나머지 계속 |
-| test-reviewer max_safety 도달 | best-effort 진행, 경고 |
-| green-coder 실패 (단일 모듈) | 경고, 나머지 계속 |
-| refactorer 회귀 실패 | 롤백, 경고 |
-| 빌드 검증 실패 (Step 10) | 에러 보고, status=failed |
-| 언어 감지 실패 | AskUserQuestion |
+| Situation | Response |
+|-----------|----------|
+| CLI build failure | install-cli.sh handles automatic build |
+| CLAUDE.md not found | guidance message, exit |
+| test-writer failure | warn, continue with the rest |
+| test-reviewer max_safety reached | best-effort proceed, warn |
+| green-coder failure (single module) | warn, continue with the rest |
+| refactorer regression failure | rollback, warn |
+| Build verification failure (Step 10) | report error, status=failed |
+| Language detection failure | AskUserQuestion |

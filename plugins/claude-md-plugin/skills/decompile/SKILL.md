@@ -8,30 +8,30 @@ description: |
   or uses "/decompile" or "/decom".
   Analyzes existing source code and creates CLAUDE.md + DEVELOPERS.md documentation for each directory.
   Uses parse-tree CLI for directory discovery, then runs decompiler agent per directory in leaf-first order.
-  Trigger keywords: 디컴파일, 코드에서 문서 추출, 기존 코드 문서화
+  Trigger keywords: decompile, extract docs from code, document existing code
 user_invocable: true
 allowed-tools: [Bash, Read, Write, Glob, Task, AskUserQuestion]
 ---
 
 # /decompile
 
-소스코드를 분석하여 CLAUDE.md + DEVELOPERS.md를 추출합니다.
+Analyzes source code to extract CLAUDE.md + DEVELOPERS.md.
 
 ## Triggers
 
 - `/decompile`
-- `코드에서 문서 추출`
-- `기존 코드 문서화`
+- `extract docs from code`
+- `document existing code`
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `path` | 아니오 | `.` | 대상 경로 |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `path` | No | `.` | Target path |
 
 ## Workflow
 
-### 0. 초기화
+### 0. Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -39,37 +39,41 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 0.5. `## Instructions` 존재 확인
+### 0.5. Check for `## Instructions` existence and read document language
 
-project root CLAUDE.md에 `## Instructions` 섹션이 없으면:
+If the project root CLAUDE.md does not have a `## Instructions` section:
 ```
-⚠ Instructions 섹션 미설정. decompile 완료 후 `/project-setup`으로 설정을 권장합니다.
+⚠ Instructions section not configured. After decompile is complete, it is recommended to set it up with `/project-setup`.
 ```
-경고 출력 후 decompile 계속 진행. Instructions 생성은 `/project-setup`의 역할.
+Output the warning and continue with decompile. Creating Instructions is the role of `/project-setup`.
 
-### 1. 디렉토리 트리 파싱 (inline)
+Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
+If not found, set `document_language` to empty (the agent will ask the user).
 
-tree-parse를 별도 스킬이 아닌 CLI 직접 호출로 처리:
+### 1. Directory tree parsing (inline)
+
+Handle tree-parse via direct CLI invocation rather than as a separate skill:
 
 ```bash
 $CLI_PATH parse-tree --root {path} --output .claude/extract-tree.json
 ```
 
-### 2. 실행 순서 결정
+### 2. Determine execution order
 
-`needs_claude_md` 배열을 depth DESC 정렬 (leaf-first).
+Sort the `needs_claude_md` array by depth DESC (leaf-first).
 
-### 3. 세션 파일 생성 + decompiler 실행
+### 3. Create session files + run decompiler
 
-정렬된 순서(leaf-first)로 각 디렉토리에 대해:
+For each directory in sorted order (leaf-first):
 
-1. 자식 CLAUDE.md 목록 생성 (하위 디렉토리 중 이미 CLAUDE.md가 생성된 것)
-2. 프로젝트 컨벤션 읽기 (있는 경우)
-3. 세션 파일 Write → `${TMP_DIR}decompile-session-{dir-safe}.md`:
+1. Generate child CLAUDE.md list (subdirectories that already have generated CLAUDE.md)
+2. Read project conventions (if available)
+3. Write session file → `${TMP_DIR}decompile-session-{dir-safe}.md`:
 
 ```markdown
 # Decompile Task: {path}
 type: decompile | target: {path}
+document_language: {document_language or ""}
 
 ## Tree Info
 source_file_count: {n}
@@ -77,32 +81,32 @@ subdir_count: {n}
 depth: {n}
 
 ## Children CLAUDE.md
-{이미 생성된 자식 CLAUDE.md 경로 목록, 없으면 "None"}
+{List of already-generated child CLAUDE.md paths, or "None" if empty}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-4. `Task(decompiler)` 호출:
+4. Invoke `Task(decompiler)`:
 ```
-세션 파일: ${TMP_DIR}decompile-session-{dir-safe}.md
-대상: {path}
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: ${TMP_DIR}decompile-session-{dir-safe}.md
+Target: {path}
+Save results to ${TMP_DIR} and return only the path
 ```
 
-같은 depth의 독립 디렉토리는 병렬 실행 가능 (최대 3개).
+Independent directories at the same depth can be executed in parallel (up to 3).
 
-decompiler 결과 status 확인:
-- `success`: 다음 모듈로
-- `failed_with_warnings`: 경고 수집, 다음 모듈로
+Check decompiler result status:
+- `success`: proceed to next module
+- `failed_with_warnings`: collect warnings, proceed to next module
 
-### 4. 변경사항 표시
+### 4. Display changes
 
 ```bash
 git diff --stat
 ```
 
-### 5. 결과
+### 5. Result
 
 ```
 ---decompile-result---
@@ -110,26 +114,26 @@ status: success | partial | failed
 total: {n}
 generated: {n}
 failed: {n}
-warnings: {Instructions 미설정 등, 없으면 생략}
+warnings: {Instructions not configured, etc. — omit if none}
 ---end-decompile-result---
 ```
 
 ## DO / DON'T
 
 **DO:**
-- leaf-first 순서 준수
-- 자식 CLAUDE.md 목록을 세션 파일에 포함
-- decompiler agent에게 세션 파일로 위임
+- Follow leaf-first order
+- Include child CLAUDE.md list in session files
+- Delegate to decompiler agent via session files
 
 **DON'T:**
-- 코드 수정 (이것은 추출 작업)
-- 생성된 CLAUDE.md에 소스코드 직접 복사
-- decompiler agent에 raw tree.json 전체 전달 (필요한 정보만 세션 파일에)
+- Modify code (this is an extraction task)
+- Copy source code directly into generated CLAUDE.md
+- Pass the entire raw tree.json to the decompiler agent (include only necessary info in session files)
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
-| 소스 파일 없는 디렉토리 | skip |
-| decompiler agent 실패 (단일 모듈) | 경고, 나머지 계속 |
+| Situation | Response |
+|-----------|----------|
+| CLI build failure | install-cli.sh handles automatic build |
+| Directory with no source files | skip |
+| decompiler agent failure (single module) | warn, continue with the rest |

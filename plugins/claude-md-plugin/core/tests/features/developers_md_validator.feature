@@ -293,10 +293,10 @@ Feature: DEVELOPERS.md Schema Validation
 
       ## Decision Log
 
-      ### HMAC-SHA256 선택
-      - **맥락**: 내부 서비스 간 토큰 검증 방식 필요
-      - **결정**: HMAC-SHA256 사용
-      - **근거**: 내부 서비스라 RSA 키 관리 복잡성 불필요
+      ### HMAC-SHA256 Selection
+      - **Context**: Need a token verification method between internal services
+      - **Decision**: Use HMAC-SHA256
+      - **Rationale**: Internal services do not require RSA key management complexity
 
       ## Operations
       None
@@ -361,10 +361,10 @@ Feature: DEVELOPERS.md Schema Validation
       ## Operations
 
       ### Configuration
-      - JWT_SECRET: string (required) — JWT 서명 키
+      - JWT_SECRET: string (required) — JWT signing key
 
       ### Deployment
-      - 환경변수 필수 설정
+      - Environment variables must be configured
       """
     When I validate the schema with strict mode
     Then validation should pass

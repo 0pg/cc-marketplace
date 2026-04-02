@@ -4,24 +4,24 @@ description: |
   Inter-session spec workflow step executor.
   Reads .claude/workflows/{dir-safe}/state.json and executes the next pending step.
   Use when a spec workflow was interrupted, or to run pipeline steps in separate sessions/CI jobs.
-  Trigger keywords: spec 재개, 워크플로우 재개, resume spec
+  Trigger keywords: resume spec, resume workflow, resume spec
 argument-hint: "--target <path>"
 allowed-tools: [Bash, Read, Write, Task, Skill]
 ---
 
 # /spec-step
 
-중단된 spec 워크플로우를 이어서 실행합니다.
+Resumes and continues an interrupted spec workflow.
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `--target` | 예 | - | 재개할 모듈의 target_path (예: `src/auth`) |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--target` | Yes | - | target_path of the module to resume (e.g., `src/auth`) |
 
 ## Workflow
 
-### 1. 초기화
+### 1. Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -29,29 +29,29 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 2. state.json 읽기
+### 2. Read state.json
 
 ```bash
-DIR_SAFE=$(echo "{--target 인자값}" | tr '/' '-')
+DIR_SAFE=$(echo "{--target argument value}" | tr '/' '-')
 STATE_FILE=".claude/workflows/$DIR_SAFE/state.json"
 ```
 
-state.json을 Read하여 다음 필드 추출:
+Read state.json and extract the following fields:
 - `status`, `round`, `plan_file`, `last_reviewer_result`
 - `target_path`, `action`, `project_root`, `user_requirement`
 
-state.json이 없으면:
+If state.json does not exist:
 ```
-⚠ .claude/workflows/{dir-safe}/state.json 없음.
-  /spec을 먼저 실행하거나 --target 경로를 확인하세요.
+⚠ .claude/workflows/{dir-safe}/state.json not found.
+  Run /spec first or verify the --target path.
 ```
-종료.
+Exit.
 
-### 3. status 분기
+### 3. Status Branching
 
 #### status = awaiting-review
 
-Reviewer 세션 파일 생성 `${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md`:
+Create reviewer session file `${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md`:
 ```
 # Spec Reviewer Session
 type: spec-reviewer | round: {round}
@@ -59,13 +59,13 @@ plan_file: {plan_file}
 dir_safe: {dir-safe}
 ```
 
-Task(impl-reviewer) 디스패치:
+Dispatch Task(impl-reviewer):
 ```
-세션 파일: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
+Save results to ${TMP_DIR} and return only the path
 ```
 
-result block에서 verdict 추출 → artifact promote + state 갱신:
+Extract verdict from result block → artifact promote + state update:
 ```bash
 cp "${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md" \
    ".claude/workflows/{dir-safe}/reviewer-v{round}.md"
@@ -82,27 +82,27 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
 "
 ```
 
-완료 후 출력:
+Output after completion:
 ```
 [spec-step] review round {round}: {verdict}
-다음 실행: /spec-step --target {target_path}
+Next run: /spec-step --target {target_path}
 ```
 
 #### status = awaiting-revise
 
-round >= 5 확인:
-- 해당 시: state.json `status` = `max-safety-exceeded` 갱신 후 종료
+Check if round >= 5:
+- If so: update state.json `status` = `max-safety-exceeded` and exit
   ```
-  ⚠ max_safety(5) 도달. /spec-step --target {target_path} 로 execute 단계를 실행하세요.
+  ⚠ max_safety(5) reached. Run /spec-step --target {target_path} to execute the execute step.
   ```
 
-그 외:
+Otherwise:
 
 ```bash
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-step.json"
 ```
 
-Revise 세션 파일 생성 `${TMP_DIR}spec-plan-session-{dir-safe}.md`:
+Create revise session file `${TMP_DIR}spec-plan-session-{dir-safe}.md`:
 ```
 # Spec Plan Session
 type: spec-plan | mode: revise | round: {round+1} | project_root: {project_root}
@@ -119,20 +119,20 @@ feedback_file: {last_reviewer_result}
 existing_plan_file: {plan_file}
 
 ## Existing Modules Index
-{scan-claude-md 결과}
+{scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-Task(impl, mode=revise) 디스패치:
+Dispatch Task(impl, mode=revise):
 ```
-세션 파일: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-프로젝트 루트: {project_root}
-세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
+Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
+Project root: {project_root}
+Read the session file and improve the execution plan with mode=revise.
 ```
 
-완료 후 promote + state 갱신:
+After completion, promote + state update:
 ```bash
 cp "${TMP_DIR}spec-plan-{dir-safe}.md" ".claude/workflows/{dir-safe}/spec-plan.md"
 python3 -c "
@@ -148,24 +148,24 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
 "
 ```
 
-완료 후 출력:
+Output after completion:
 ```
-[spec-step] revise round {round+1} 완료
-다음 실행: /spec-step --target {target_path}
+[spec-step] revise round {round+1} complete
+Next run: /spec-step --target {target_path}
 ```
 
-#### status = approved 또는 max-safety-exceeded
+#### status = approved or max-safety-exceeded
 
-max-safety-exceeded 시 추가 출력:
+Additional output for max-safety-exceeded:
 ```
-⚠ Socratic loop가 max_safety 초과로 종료되었습니다. 생성된 문서를 반드시 검토하세요.
+⚠ Socratic loop terminated due to exceeding max_safety. Please review the generated documents.
 ```
 
 ```bash
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-step.json"
 ```
 
-Execute 세션 파일 생성 `${TMP_DIR}spec-execute-session-{dir-safe}.md`:
+Create execute session file `${TMP_DIR}spec-execute-session-{dir-safe}.md`:
 ```
 # Spec Execute Session
 type: spec-execute | mode: execute | project_root: {project_root}
@@ -179,20 +179,20 @@ plan_file: {plan_file}
 {user_requirement}
 
 ## Existing Modules Index
-{scan-claude-md 결과}
+{scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-Task(impl, mode=execute) 디스패치:
+Dispatch Task(impl, mode=execute):
 ```
-세션 파일: ${TMP_DIR}spec-execute-session-{dir-safe}.md
-프로젝트 루트: {project_root}
-세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+Session file: ${TMP_DIR}spec-execute-session-{dir-safe}.md
+Project root: {project_root}
+Read the session file and generate CLAUDE.md + DEVELOPERS.md with mode=execute.
 ```
 
-완료 후 state 갱신 + auto-commit:
+After completion, state update + auto-commit:
 ```bash
 python3 -c "
 import json
@@ -208,36 +208,36 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
 git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
 git commit -m "feat({target_path}): {action} CLAUDE.md + DEVELOPERS.md
 
-요구사항: {user_requirement 최초 150자}
+requirement: {user_requirement first 150 chars}
 workflow: .claude/workflows/{dir-safe}/state.json"
 ```
 
-완료 후 출력:
+Output after completion:
 ```
-[spec-step] execute 완료 → status: executed
-다음 실행: /dev --path {target_path}
+[spec-step] execute complete → status: executed
+Next run: /dev --path {target_path}
 ```
 
 #### status = executed
 
 ```
-ℹ CLAUDE.md + DEVELOPERS.md 생성 완료.
-  다음 단계: /dev --path {target_path}
+ℹ CLAUDE.md + DEVELOPERS.md generation complete.
+  Next step: /dev --path {target_path}
 ```
 
 #### status = compiled | done
 
 ```
-ℹ 워크플로우가 이미 완료되었습니다 (status: {status}).
+ℹ Workflow already completed (status: {status}).
 ```
 
-### 4. 결과
+### 4. Result
 
 ```
 ---spec-step-result---
 target_path: {target_path}
-status_before: {이전 status}
-status_after: {이후 status}
+status_before: {previous status}
+status_after: {new status}
 round: {round}
 ---end-spec-step-result---
 ```
@@ -245,22 +245,22 @@ round: {round}
 ## DO / DON'T
 
 **DO:**
-- state.json에서만 상태 읽기
-- 각 step 완료 후 즉시 state.json 갱신
-- TMP artifacts를 .claude/workflows/로 promote
-- auto-commit에 CLAUDE.md + DEVELOPERS.md만 포함
+- Read state only from state.json
+- Update state.json immediately after each step completes
+- Promote TMP artifacts to .claude/workflows/
+- Include only CLAUDE.md + DEVELOPERS.md in auto-commit
 
 **DON'T:**
-- TMP_DIR에서 이전 세션 artifacts 직접 참조 (state.json의 plan_file, last_reviewer_result 사용)
-- state.json 없이 step 실행
-- AskUserQuestion 사용
-- scope=multi 워크플로우에서 사용
+- Directly reference previous session artifacts from TMP_DIR (use plan_file, last_reviewer_result from state.json)
+- Execute a step without state.json
+- Use AskUserQuestion
+- Use with scope=multi workflows
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| state.json 없음 | 안내 메시지 출력 후 종료 |
-| Task 실패 | 오류 보고 후 state.json 갱신 없이 종료 (재실행 가능) |
-| git commit 실패 (staged 파일 없음) | 경고 출력 후 계속 (CLAUDE.md 미생성 시) |
-| multi-scope workflow | state.json은 scope=single에서만 생성됩니다. multi-scope (/spec이 multi로 분류한 경우) 재개는 미지원. |
+| Situation | Response |
+|-----------|----------|
+| state.json not found | Print guidance message and exit |
+| Task failed | Report error and exit without updating state.json (can be re-run) |
+| git commit failed (no staged files) | Print warning and continue (when CLAUDE.md was not generated) |
+| multi-scope workflow | state.json is only created for scope=single. Resuming multi-scope workflows (cases where /spec classified as multi) is not supported. |

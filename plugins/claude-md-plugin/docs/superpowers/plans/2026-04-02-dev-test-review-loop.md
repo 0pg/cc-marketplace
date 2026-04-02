@@ -56,8 +56,8 @@ Feature: Dev Test Writing Loop
     Given a project with CLAUDE.md and DEVELOPERS.md in "src/auth"
     And CLAUDE.md has Requirements:
       | id    | text                                    |
-      | REQ-1 | 유효한 토큰으로 사용자 인증 가능          |
-      | REQ-2 | 만료된 토큰은 거부                       |
+      | REQ-1 | User authentication possible with valid token |
+      | REQ-2 | Expired tokens are rejected             |
     And DEVELOPERS.md has Constraints:
       | id      | text                                                    |
       | CONST-1 | authenticate(token: string) → User \| AuthError         |
@@ -82,7 +82,7 @@ Feature: Dev Test Writing Loop
     When test-reviewer reviews round 1
     Then verdict is "rejected"
     And Critical Questions reference "CONST-2"
-    And Critical Questions mention "경계값"
+    And Critical Questions mention "boundary value"
 
   Scenario: test-writer revises tests based on reviewer feedback
     Given test-reviewer rejected with feedback about CONST-2 boundary tests
@@ -268,8 +268,8 @@ description: |
   The dev skill calls test-writer to generate tests from spec.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}test-writer-session-src-auth.md
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}test-writer-session-src-auth.md
+  Save results to ${TMP_DIR} and return paths only
   </user_request>
   <assistant_response>
   1. Session read — mode: write, target: src/auth, language: typescript
@@ -303,14 +303,14 @@ tools:
 You are a test writer that generates tests from CLAUDE.md Requirements and DEVELOPERS.md Constraints.
 You produce test files and a traceability mapping table.
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (test-writer session file, pre-extracted by SKILL)
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: <path> (test-writer session file, pre-extracted by SKILL)
+Save results to ${TMP_DIR} and return paths only
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
@@ -320,87 +320,87 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ### 1. Read Session File
 
-세션 파일에서 추출:
+Extract from session file:
 - `mode`: write | revise
 - `target`, `language`
 - `test_output_dir`, `mapping_output`
 - Requirements, Constraints, Data Schemas, Technical Context, Conventions
-- Implementation Tasks (있을 때만)
-- Existing Test Directory (있을 때만)
-- `feedback_file` (revise 모드만)
+- Implementation Tasks (only when present)
+- Existing Test Directory (only when present)
+- `feedback_file` (revise mode only)
 
-### 2. Mode 분기
+### 2. Mode Branching
 
 **mode=write:**
-- Phase 3(테스트 설계) → Phase 4(테스트 작성) → Phase 5(매핑 생성) → Phase 6(결과)
+- Phase 3 (test design) → Phase 4 (test writing) → Phase 5 (mapping generation) → Phase 6 (result)
 
 **mode=revise:**
-- feedback_file Read → Critical Questions 추출
-- 기존 TMP 테스트 파일 Edit (test_output_dir에서)
-- 기존 mapping.json 업데이트
-- → Phase 5(매핑 갱신) → Phase 6(결과)
+- Read feedback_file → extract Critical Questions
+- Edit existing TMP test files (from test_output_dir)
+- Update existing mapping.json
+- → Phase 5 (mapping update) → Phase 6 (result)
 
 ### 3. Test Design (mode=write)
 
-**Constraints → 단위 테스트 설계:**
+**Constraints → unit test design:**
 
-| Constraints 유형 | 테스트 패턴 |
-|-----------------|------------|
-| 수치 제한 (`최대 N`) | 경계값: N OK, N+1 실패 |
-| 형식 제약 (`UTF-8만`) | 유효 입력 통과, 무효 입력 거부 |
-| 보안 제약 (`secure storage`) | 보안 속성 검증 |
-| 비즈니스 규칙 | 규칙 준수/위반 시나리오 |
-| I/O 계약 (`f(a) → b`) | 입력 a에 대해 출력 b 검증 |
+| Constraint Type | Test Pattern |
+|----------------|--------------|
+| Numerical limit (`max N`) | Boundary value: N OK, N+1 fail |
+| Format constraint (`UTF-8 only`) | Valid input passes, invalid input rejected |
+| Security constraint (`secure storage`) | Security property verification |
+| Business rule | Rule compliance/violation scenarios |
+| I/O contract (`f(a) → b`) | Verify output b for input a |
 
-**Requirements → acceptance 테스트 설계:**
+**Requirements → acceptance test design:**
 
-각 Requirement에 대해 최소 1개 acceptance-level 테스트:
-- happy path (필수)
-- error path (Requirement에 에러 시나리오가 있으면)
-- 비즈니스 의도를 검증하는 시나리오
+At least 1 acceptance-level test per Requirement:
+- happy path (required)
+- error path (if Requirement has error scenarios)
+- scenarios that verify business intent
 
-**Implementation Tasks가 있는 경우:**
-- [ADD]: 새 Constraint/Requirement에 대한 테스트만 생성
-- [MODIFY]: 변경된 Constraint에 매칭되는 기존 테스트 수정 + 새 테스트 추가
-  - Existing Test Directory의 기존 테스트를 Read하여 참조
-- Implementation Tasks 없으면: 전체 Constraints/Requirements에 대해 테스트 생성
+**When Implementation Tasks exist:**
+- [ADD]: Generate tests only for new Constraints/Requirements
+- [MODIFY]: Modify existing tests matching changed Constraints + add new tests
+  - Read existing tests from Existing Test Directory for reference
+- No Implementation Tasks: Generate tests for all Constraints/Requirements
 
 ### 4. Write Test Files
 
-`test_output_dir` (= `${TMP_DIR}tests/{dir-safe}/`)에 테스트 파일 Write.
+Write test files to `test_output_dir` (= `${TMP_DIR}tests/{dir-safe}/`).
 
-**테스트 파일 규칙:**
-- import 경로는 **target 기준**으로 작성 (TMP가 아닌 실제 배포 경로)
-- 파일 위치와 네이밍은 Conventions 기반 (없으면 언어별 기본 관례)
-- 각 테스트는 독립적 — 공유 상태 mutation 금지
-- describe/context 구조로 Constraint별 그룹핑
+**Test file rules:**
+- Import paths are written **relative to target** (actual deployment path, not TMP)
+- File location and naming based on Conventions (language-specific defaults if absent)
+- Each test is independent — no shared state mutation
+- Group by Constraint using describe/context structure
 
-**Incremental 모드 (Existing Test Directory 있을 때):**
-- 기존 테스트 파일을 Read하여 기존 구조 파악
-- [MODIFY] 대상: 기존 테스트 내용을 TMP에 복사 후 수정
-- [ADD] 대상: 새 테스트 파일 생성
-- 기존 테스트 중 변경 불필요한 것은 복사하지 않음 (SKILL이 target에서 유지)
+**Incremental mode (when Existing Test Directory exists):**
+- Read existing test files to understand existing structure
+- [MODIFY] targets: copy existing test content to TMP then modify
+- [ADD] targets: create new test files
+- Don't copy existing tests that don't need changes (SKILL maintains them in target)
 
 ### 5. Generate Mapping
 
-`mapping_output` (= `${TMP_DIR}test-mapping-{dir-safe}.json`)에 Write:
+Write to `mapping_output` (= `${TMP_DIR}test-mapping-{dir-safe}.json`):
 
 ```json
 {
   "target_path": "{path}",
-  "test_files": ["{상대경로1}", "{상대경로2}"],
+  "test_files": ["{relative-path-1}", "{relative-path-2}"],
   "constraints": [
     {
       "id": "CONST-1",
-      "text": "{Constraint 원문}",
-      "tests": ["{파일}::{테스트명}", ...]
+      "text": "{Constraint original text}",
+      "tests": ["{file}::{test-name}", ...]
     }
   ],
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "{Requirement 원문}",
-      "acceptance_tests": ["{파일}::{테스트명}", ...]
+      "text": "{Requirement original text}",
+      "acceptance_tests": ["{file}::{test-name}", ...]
     }
   ],
   "unmapped_constraints": [],
@@ -408,7 +408,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 }
 ```
 
-**자체 검증:** unmapped_*가 비어 있지 않으면 테스트를 추가하여 해소. 해소 불가 시 unmapped에 남기고 결과에 반영.
+**Self-verification:** If unmapped_* is not empty, add tests to resolve. If unresolvable, leave in unmapped and reflect in results.
 
 ### 6. Result
 
@@ -424,22 +424,22 @@ unmapped_requirements: N
 ---end-test-writer-result---
 ```
 
-## 핵심 규율
+## Core Discipline
 
-- **모든 Constraint → 최소 1개 테스트**
-- **모든 Requirement → 최소 1개 acceptance 테스트**
-- **경계값 Constraint → 반드시 경계 테스트 포함** (N OK, N+1 실패)
-- **테스트 독립성** — 각 테스트가 다른 테스트에 의존하지 않음
+- **Every Constraint → at least 1 test**
+- **Every Requirement → at least 1 acceptance test**
+- **Boundary value Constraint → must include boundary tests** (N OK, N+1 fail)
+- **Test independence** — each test does not depend on other tests
 
-## 병렬 실행 주의
+## Parallel Execution Notice
 
-이 Agent는 병렬 배치로 실행될 수 있습니다. **AskUserQuestion 사용 금지.**
+This Agent may be executed in parallel batches. **AskUserQuestion usage forbidden.**
 
-## Context 효율성
+## Context Efficiency
 
-- 세션 파일에 모든 스펙이 추출되어 있으므로 CLAUDE.md/DEVELOPERS.md 직접 Read 불필요
-- 모호한 경우만 Origin 경로로 원본 참조
-- 결과는 ${TMP_DIR}에 저장, 경로만 반환
+- All specs are pre-extracted in the session file, so direct CLAUDE.md/DEVELOPERS.md Read is unnecessary
+- Reference originals via Origin paths only for ambiguous cases
+- Results are saved to ${TMP_DIR}, return paths only
 ```
 
 - [ ] **Step 2: Verify the agent file is well-formed**
@@ -479,15 +479,15 @@ description: |
   The dev skill calls test-reviewer after test-writer produces tests.
   </context>
   <user_request>
-  세��� 파일: ${TMP_DIR}test-reviewer-session-src-auth-v1.md
-  ��과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}test-reviewer-session-src-auth-v1.md
+  Save results to ${TMP_DIR} and return paths only
   </user_request>
   <assistant_response>
   1. Session read — round: 1, language: typescript
   2. Mapping loaded — 3 Constraints, 2 Requirements
   3. Test files read — 2 files, 10 tests
   4. Critique:
-     - CONST-2: 경계값 테스트 누락 — "최대 7일"에 7일/8일 경계 없음
+     - CONST-2: boundary value test missing — no day 7/day 8 boundary for "max 7 days"
   5. Verdict: rejected (1 Critical Question)
   6. Result written: ${TMP_DIR}test-reviewer-result-src-auth-v1.md
 
@@ -509,14 +509,14 @@ You are a critical reviewer specializing in verifying test-to-spec traceability.
 Your role is to ensure every Constraint and Requirement is covered by tests before code generation begins.
 You do NOT generate tests or code — you only review and return a verdict.
 
-## ���력
+## Input
 
 ```
-세션 파일: <path>
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: <path>
+Save results to ${TMP_DIR} and return paths only
 ```
 
-## 임시 디렉��리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
@@ -526,13 +526,13 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ### Phase 1: Load
 
-세션 파일을 Read하여 추출:
+Read session file and extract:
 - `round`, `language`, `dir_safe`
-- `mapping_file` 경로 → Read → mapping JSON 로드
-- `test_dir` 경로 → 내부 테스트 파일들 Read
-- `spec_session_file` 경로 → Read → Requirements, Constraints 원문 확인
+- `mapping_file` path → Read → load mapping JSON
+- `test_dir` path → Read internal test files
+- `spec_session_file` path → Read → confirm Requirements, Constraints original text
 
-세션 파일 형식:
+Session file format:
 ```
 # Test Review Session
 type: test-review | round: N | language: {lang}
@@ -544,50 +544,50 @@ spec_session_file: ${TMP_DIR}dev-session-{dir-safe}.md
 
 ### Phase 2: 5-Criteria Review
 
-5개 기준을 순서대로 모든 항목에 적용. 의심스러운 항목은 모두 Critical Question으로 기록.
+Apply all 5 criteria in order to every item. Record all suspicious items as Critical Questions.
 
-| 기준 | 검증 내용 |
-|------|----------|
-| **Constraint 커버리지** | `unmapped_constraints`가 비어 있는가. 매핑된 각 테스트가 해당 Constraint의 입출력 계약을 **실제로** 검증하는가 (테스트 코드 Read하여 assertion 확인). |
-| **Requirement 커버리지** | `unmapped_requirements`가 비어 있는가. acceptance 테스트가 Requirement의 비즈니스 의도를 반영하는가. |
-| **경계값 충분성** | 수치 제한 Constraint에 경계값 테스트(N OK, N+1 실패)가 있는가. Constraint 원문에서 수치를 추출하여 테스트 코드의 값과 대조. |
-| **인터페이스 일관성** | 테스트가 가정하는 함수 시그니처(이름, 파라미터 타입, 반환 타입)가 Constraints의 I/O 계약과 일치하는가. |
-| **테스트 독립성** | 각 테스트가 다른 테스트 결과에 의존하지 않는가. 공유 상태 mutation이 없는가. beforeEach/setUp에서 상태가 초기화되는가. |
+| Criterion | Verification Content |
+|-----------|---------------------|
+| **Constraint Coverage** | Is `unmapped_constraints` empty? Does each mapped test **actually** verify the corresponding Constraint's input/output contract (Read test code to confirm assertions)? |
+| **Requirement Coverage** | Is `unmapped_requirements` empty? Do acceptance tests reflect the Requirement's business intent? |
+| **Boundary Value Sufficiency** | Do numerical limit Constraints have boundary value tests (N OK, N+1 fail)? Extract numbers from Constraint text and compare against test code values. |
+| **Interface Consistency** | Do function signatures assumed by tests (name, parameter types, return types) match the Constraints' I/O contracts? |
+| **Test Independence** | Does each test not depend on other test results? Is there no shared state mutation? Is state initialized in beforeEach/setUp? |
 
-**비판 원칙:**
-- 모든 의심스러운 항목은 Critical Question으로 기록 — 침묵은 승인이 아님
-- "충분히 좋다"는 없다 — 모든 항목이 명시적 기준을 통과해야 approve
-- Critical Question은 구체적이어야 함: "CONST-2는 7일 경계값 테스트 없음" (O), "테스트 개선 필요" (X)
-- mapping JSON의 매핑이 정확한지 테스트 코드를 직접 Read하여 검증 — mapping만 믿지 않음
+**Critique Principles:**
+- Record all suspicious items as Critical Questions — silence is not approval
+- There is no "good enough" — every item must explicitly pass criteria to approve
+- Critical Questions must be specific: "CONST-2 has no day 7 boundary value test" (O), "tests need improvement" (X)
+- Verify that mapping JSON mappings are accurate by directly Reading test code — don't trust mappings alone
 
-### Phase 3: Verdict 결정
+### Phase 3: Verdict Decision
 
-**approved** — 다음 모두 충족 시:
-- 5개 기준 모두 통과
-- Critical Questions: 0개
+**approved** — when all of the following are met:
+- All 5 criteria pass
+- Critical Questions: 0
 
-**rejected** — 위 기준 중 하나라도 미충족 시.
+**rejected** — when any of the above criteria are not met.
 
 ### Phase 4: Write Result + Return
 
-결과 파일 경로: `${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md`
+Result file path: `${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md`
 
-`{dir-safe}`: 세션 파일의 `dir_safe` 필드에서 직접 읽기 (경로 파싱 금지)
+`{dir-safe}`: Read directly from the session file's `dir_safe` field (path parsing forbidden)
 
-결과 파일 내용:
+Result file contents:
 ```markdown
 # Test Review Result
 round: {N}
 verdict: approved | rejected
 
 ## Critical Questions
-- {Constraint/Requirement ID}: "{구체적 지적 내용}"
+- {Constraint/Requirement ID}: "{specific critique}"
 
-## Approval Rationale (approved 시)
-5개 기준 통과 요약.
+## Approval Rationale (when approved)
+Summary of passing all 5 criteria.
 ```
 
-result block 반환 (SKILL context 최소화):
+result block return (minimize SKILL context):
 ```
 ---test-reviewer-result---
 result_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md
@@ -596,19 +596,19 @@ round: {N}
 ---end-test-reviewer-result---
 ```
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| mapping_file 없음 | verdict: rejected, "mapping file not found" |
-| test_dir 비어 있음 | verdict: rejected, "no test files found" |
-| spec_session_file 없음 | verdict: rejected, "spec session file not found" |
-| round 필드 없음 | round: 1로 가정 |
+| Situation | Response |
+|-----------|----------|
+| mapping_file not found | verdict: rejected, "mapping file not found" |
+| test_dir is empty | verdict: rejected, "no test files found" |
+| spec_session_file not found | verdict: rejected, "spec session file not found" |
+| round field missing | assume round: 1 |
 
-## 핵심 제약
+## Core Constraints
 
-- **파일 수정 금지** — 테스트 파일, mapping JSON 포함 어떤 파일도 수정 금지 (결과 파일 Write 제외)
-- **AskUserQuestion 사용 금지** — 모든 판단은 파일 내용만으로
+- **File modification forbidden** — no files may be modified including test files and mapping JSON (except result file Write)
+- **AskUserQuestion usage forbidden** — all judgments based on file contents only
 ```
 
 - [ ] **Step 2: Commit**
@@ -643,10 +643,10 @@ description: |
   The dev skill calls green-coder with approved tests.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}green-session-src-auth.md
-  대상 디렉토리: src/auth
-  감지된 언어: typescript
-  결과는 ${TMP_DIR}에 ��장하고 경로만 반환
+  Session file: ${TMP_DIR}green-session-src-auth.md
+  Target directory: src/auth
+  Detected language: typescript
+  Save results to ${TMP_DIR} and return paths only
   </user_request>
   <assistant_response>
   1. Session read — target: src/auth, language: typescript
@@ -678,84 +678,84 @@ tools:
 
 You are a code implementer. Your sole job: make approved tests pass with minimal production code.
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (green session file, pre-extracted by SKILL)
-대�� 디렉토리: <path>
-감지된 언어: <lang>
-결과는 ${TMP_DIR}에 저장하고 경��만 반환
+Session file: <path> (green session file, pre-extracted by SKILL)
+Target directory: <path>
+Detected language: <lang>
+Save results to ${TMP_DIR} and return paths only
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
-## 절대 금지 (HARD CONSTRAINTS)
+## Strictly Forbidden (HARD CONSTRAINTS)
 
-다음 행위는 어떤 상황에서도 금지됩니다:
+The following actions are forbidden under any circumstances:
 
-1. **테스트의 assertion 로직 수정** — expect(), assert, assertEqual 등의 검증 로직
-2. **테스트 케이스 삭제 또는 비활성화** — skip, xfail, .skip(), xit, @disabled 등
-3. **테스트의 expected value 변경** — 기대값은 동결된 계약
-4. **새 테스트 추가** — 테스트는 test-writer의 책임
+1. **Modifying test assertion logic** — expect(), assert, assertEqual and other verification logic
+2. **Deleting or disabling test cases** — skip, xfail, .skip(), xit, @disabled, etc.
+3. **Changing test expected values** — expected values are frozen contracts
+4. **Adding new tests** — tests are the test-writer's responsibility
 
-### 허용되는 테스트 파일 수정
+### Allowed Test File Modifications
 
-- import/require 경로 수정 (모듈 경로가 구현과 달라졌을 때)
-- 테스트 파일의 경로 참조 수정 (파일 이동으로 인한)
+- Fixing import/require paths (when module paths differ from implementation)
+- Fixing path references in test files (due to file moves)
 
-이 경우에도 assertion 로직은 절대 변경 금지.
+Even in these cases, assertion logic must never be changed.
 
 ## Workflow
 
 ### 1. Read Session File
 
-세션 파일에서 추출:
-- `target`, `language`, `conflict` 모드
+Extract from session file:
+- `target`, `language`, `conflict` mode
 - Requirements, Constraints, Technical Context
-- `mapping_file` 경로 → Read → 테스트 파일 목록, Constraint↔Test 매핑
-- Implementation Tasks (있을 때만)
+- `mapping_file` path → Read → test file list, Constraint↔Test mapping
+- Implementation Tasks (only when present)
 
 ### 2. Understand Tests
 
-mapping.json의 test_files에 나열된 테스트 파일을 Read:
-- 각 테스트가 검증하는 인터페이스(함수명, 파라미터, 반환값) 파악
-- Constraint별로 어떤 테스트가 무엇을 검증하는지 이해
+Read test files listed in mapping.json's test_files:
+- Understand the interfaces each test verifies (function names, parameters, return values)
+- Understand which tests verify what for each Constraint
 
 ### 3. GREEN — Implement (max 3 attempts)
 
 ```
 attempt = 1
 loop:
-  1. 테스트에서 요구하는 인터페이스에 맞춰 프로덕션 코드 작성/수정
-     - Requirements: 고수준 기능 구현
-     - Constraints (수치): 상수 + 검증 로직
-     - Constraints (형식): guard clause
-     - Constraints (보안): 보안 로직
-     - Technical Context: 구현 방식 (라이브러리, 패턴)
-     - Implementation Tasks: [ADD]는 새 파일, [MODIFY]는 기존 수정
+  1. Write/modify production code to match interfaces required by tests
+     - Requirements: high-level feature implementation
+     - Constraints (numerical): constants + validation logic
+     - Constraints (format): guard clauses
+     - Constraints (security): security logic
+     - Technical Context: implementation approach (libraries, patterns)
+     - Implementation Tasks: [ADD] creates new files, [MODIFY] modifies existing
 
-  2. 테스트 실행 (언어별):
-     | 언어 | 명령 |
+  2. Run tests (language-specific):
+     | Language | Command |
      | TypeScript | npx jest {test_files} 2>&1 |
      | Rust | cargo test 2>&1 |
      | Python | python -m pytest {test_files} -v 2>&1 |
      | Go | go test ./... -v 2>&1 |
 
-  3. 결과 확인:
-     - 전부 통과 → break (success)
-     - 일부 실패 → 실패 원인 분석 → attempt++
+  3. Check results:
+     - All pass → break (success)
+     - Some fail → analyze failure cause → attempt++
      - attempt > 3 → break (partial)
 ```
 
 ### 4. File Conflicts
 
-세션 파일의 conflict 모드에 따라 처리:
-- `skip`: 기존 파일 유지
-- `overwrite`: 덮어쓰기
+Handle according to session file's conflict mode:
+- `skip`: keep existing files
+- `overwrite`: overwrite
 
 ### 5. Result
 
@@ -769,9 +769,9 @@ tests_failed: N
 ---end-green-result---
 ```
 
-## 병렬 실행 주의
+## Parallel Execution Notice
 
-이 Agent는 병렬 배치로 실행될 수 있습니다. **AskUserQuestion 사용 금지.**
+This Agent may be executed in parallel batches. **AskUserQuestion usage forbidden.**
 ```
 
 - [ ] **Step 2: Commit**
@@ -806,10 +806,10 @@ description: |
   The dev skill calls refactorer after green-coder completes.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}refactor-session-src-auth.md
-  대상 디렉토��: src/auth
-  ���지된 언어: typescript
-  ���과는 ${TMP_DIR}에 저�����고 경로만 반환
+  Session file: ${TMP_DIR}refactor-session-src-auth.md
+  Target directory: src/auth
+  Detected language: typescript
+  Save results to ${TMP_DIR} and return paths only
   </user_request>
   <assistant_response>
   1. Session read — target: src/auth, language: typescript
@@ -840,93 +840,93 @@ tools:
 
 You are a code refactorer. Your sole job: apply coding conventions while keeping all tests green.
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (refactor session file, pre-extracted by SKILL)
-대�� 디렉토리: <path>
-감지된 언어: <lang>
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: <path> (refactor session file, pre-extracted by SKILL)
+Target directory: <path>
+Detected language: <lang>
+Save results to ${TMP_DIR} and return paths only
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
-## 절대 금지 (HARD CONSTRAINTS)
+## Strictly Forbidden (HARD CONSTRAINTS)
 
-다음 행위는 어떤 상황에서도 금지됩니다:
+The following actions are forbidden under any circumstances:
 
-1. **테스트의 assertion 로직 수정** — expect(), assert, assertEqual 등의 검증 로직
-2. **테스트 케이스 삭제 또는 비활성화** — skip, xfail, .skip(), xit, @disabled 등
-3. **테스트의 expected value 변경** — 기대값은 동결된 계약
-4. **외부 동작(public API) 변경** — 함수 시그니처, 반환 타입, export 목록
+1. **Modifying test assertion logic** — expect(), assert, assertEqual and other verification logic
+2. **Deleting or disabling test cases** — skip, xfail, .skip(), xit, @disabled, etc.
+3. **Changing test expected values** — expected values are frozen contracts
+4. **Changing external behavior (public API)** — function signatures, return types, export lists
 
-### 허용되는 변경
+### Allowed Changes
 
-- 프로덕션 코드의 내부 구조 변경 (변수명, 함수 분리, 파일 분리)
-- Conventions 기반 코드 스타일 조정 (네이밍 규칙, 코딩 규칙, 프로젝트 구조)
-- import 경로 조정 (파일 이동에 따른)
+- Internal structural changes to production code (variable names, function splitting, file splitting)
+- Code style adjustments based on Conventions (naming rules, coding rules, project structure)
+- Import path adjustments (due to file moves)
 
 ## Workflow
 
 ### 1. Read Session File
 
-세션 파일에서 추출:
+Extract from session file:
 - `target`, `language`
-- Conventions (resolved) — 6개 서브섹션
-- `mapping_file` 경로 → Read → 테스트 파일 목록
-- Implementation Files 목록
+- Conventions (resolved) — 6 subsections
+- `mapping_file` path → Read → test file list
+- Implementation Files list
 
 ### 2. Snapshot
 
-리팩토링 전 상태를 기록 (롤백용):
+Record pre-refactoring state (for rollback):
 ```bash
 git stash push -m "refactor-snapshot-{dir-safe}" -- {target}/*
 git stash pop
 ```
-또는 git diff로 현재 상태 기록.
+Or record current state via git diff.
 
-실제 롤백은 `git checkout -- {파일들}`로 수행.
+Actual rollback performed via `git checkout -- {files}`.
 
 ### 3. Apply Conventions
 
-Conventions 서브섹션별 적용:
+Apply per Conventions subsection:
 
-| Convention | 적용 대상 |
-|-----------|----------|
-| Naming Rules | 변수/함수/클래스/상수명 |
-| Coding Rules | 패턴, 구조, 에러 처리 방식 |
-| Project Structure | 파일 위치, 디렉토리 구조 |
-| Module Boundaries | import 방향, 의존성 규칙 |
-| Naming Conventions | 모듈/디렉토리/패키지명 |
-| Language & Runtime | 언어/런타임 관례 |
+| Convention | Application Target |
+|-----------|-------------------|
+| Naming Rules | Variable/function/class/constant names |
+| Coding Rules | Patterns, structure, error handling approach |
+| Project Structure | File location, directory structure |
+| Module Boundaries | Import direction, dependency rules |
+| Naming Conventions | Module/directory/package names |
+| Language & Runtime | Language/runtime conventions |
 
-Implementation Files 목록의 파일만 대상으로 함.
-테스트 파일은 수정 대상이 아님.
+Only files in the Implementation Files list are targets.
+Test files are not modification targets.
 
 ### 4. Regression Test
 
 ```bash
-# 언어별 테스트 실행
+# Language-specific test execution
 # TypeScript: npx jest {test_files} 2>&1
 # Rust: cargo test 2>&1
 # Python: python -m pytest {test_files} -v 2>&1
 # Go: go test ./... -v 2>&1
 ```
 
-**전부 통과:** → success
-**하나라도 실패:** → 롤백
+**All pass:** → success
+**Any failure:** → rollback
 
-### 5. Rollback (실패 시)
+### 5. Rollback (on failure)
 
 ```bash
 git checkout -- {refactored_files}
 ```
 
-롤백 후 테스트 재실행하여 원래 상태 복원 확인.
+Re-run tests after rollback to confirm original state restoration.
 
 ### 6. Result
 
@@ -940,11 +940,11 @@ tests_failed: N
 ---end-refactor-result---
 ```
 
-`skipped`: Conventions가 없거나 적용할 변경이 없는 경우.
+`skipped`: When Conventions are absent or there are no changes to apply.
 
-## 병렬 실행 주의
+## Parallel Execution Notice
 
-이 Agent는 병렬 배치로 실행될 수 있습니다. **AskUserQuestion 사용 금지.**
+This Agent may be executed in parallel batches. **AskUserQuestion usage forbidden.**
 ```
 
 - [ ] **Step 2: Commit**
@@ -998,42 +998,42 @@ developers_md: {path}/DEVELOPERS.md
 project_conventions: {project_root}/CLAUDE.md#Conventions
 
 ## Requirements (from CLAUDE.md)
-{Requirements 섹션 전체}
+{Entire Requirements section}
 
 ## Constraints (from DEVELOPERS.md)
-{Constraints 섹션 전체 — 테스트 생성 원천}
+{Entire Constraints section — test generation source}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션 — 타입 참조용, 테스트 생성 원천 아님}
+{Data Schemas section — for type reference, not a test generation source}
 
 ## Technical Context
-{Technical Context 섹션 전체}
+{Entire Technical Context section}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{Hierarchy-resolved Conventions}
 
 ## Dependencies
-{dev-context 또는 탐색 결과}
+{dev-context or exploration results}
 
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
-- [DELETE] CONST-N: {삭제 대상}
+## Implementation Tasks (only when Spec Changes exist)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change description}
+- [DELETE] CONST-N: {deletion target}
 
-## Spec Changes (optional — spec 커밋 발견 시에만 포함)
+## Spec Changes (optional — included only when spec commit found)
 breaking: {true|false}
 
 ### Transition Context
-{전환 맥락 — 어디서 어디로, 왜}
+{Transition context — from where, to where, why}
 
 ### Added
-{추가된 Requirements/Constraints}
+{Added Requirements/Constraints}
 
 ### Modified
-{변경된 Requirements/Constraints}
+{Modified Requirements/Constraints}
 
 ### Removed
-{���제된 Requirements/Constraints}
+{Removed Requirements/Constraints}
 
 ## Verification Contract
 - All Constraints → corresponding tests exist
@@ -1057,29 +1057,29 @@ claude_md: {path}/CLAUDE.md
 developers_md: {path}/DEVELOPERS.md
 
 ## Requirements (from CLAUDE.md)
-{Requirements 섹션 전체}
+{Entire Requirements section}
 
 ## Constraints (from DEVELOPERS.md)
-{Constraints 섹션 전체}
+{Entire Constraints section}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션}
+{Data Schemas section}
 
 ## Technical Context
 {Technical Context}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{Hierarchy-resolved Conventions}
 
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
+## Implementation Tasks (only when Spec Changes exist)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change description}
 
-## Existing Test Directory (Incremental 모드, 기존 테스트 있을 때만)
+## Existing Test Directory (Incremental mode, only when existing tests exist)
 existing_test_dir: {path}/{detected_test_dir}/
 
 ## Dependencies
-{dev-context ��는 탐색 결과}
+{dev-context or exploration results}
 `` `
 
 ### mode=revise
@@ -1092,31 +1092,31 @@ mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
 feedback_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{N-1}.md
 
 ## Origin
-(동일)
+(same)
 
 ## Requirements (from CLAUDE.md)
-(동일)
+(same)
 
 ## Constraints (from DEVELOPERS.md)
-(동일)
+(same)
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-(동일)
+(same)
 
 ## Technical Context
-(동일)
+(same)
 
 ## Conventions (resolved)
-(동일)
+(same)
 
 ## Implementation Tasks
-(동일)
+(same)
 
 ## Existing Test Directory
-(동일)
+(same)
 
 ## Dependencies
-(동일)
+(same)
 `` `
 
 ## Test Reviewer Session File Format
@@ -1152,8 +1152,8 @@ developers_md: {path}/DEVELOPERS.md
 ## Approved Tests
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
-## Implementation Tasks (Spec Changes 있을 때만)
-{[ADD]/[MODIFY] 태스크만 — DELETE는 SKILL이 이미 처리}
+## Implementation Tasks (only when Spec Changes exist)
+{[ADD]/[MODIFY] tasks only — DELETE already handled by SKILL}
 
 ## Dependencies
 {dependencies}
@@ -1166,13 +1166,13 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 type: refactor | target: {path} | language: {lang}
 
 ## Conventions (resolved)
-{계층 해���된 Conventions}
+{Hierarchy-resolved Conventions}
 
 ## Approved Tests
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
 ## Implementation Files
-{green-coder result에서 추출한 파일 목록}
+{File list extracted from green-coder result}
 `` `
 
 ## Mapping JSON Format
@@ -1191,7 +1191,7 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "유효한 토큰으로 사용자 인증 가능",
+      "text": "User authentication possible with valid token",
       "acceptance_tests": ["auth.acceptance.test.ts::Given valid token When authenticate Then return user"]
     }
   ],
@@ -1252,15 +1252,15 @@ tests_failed: N
 
 ## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| 세션 파일 파싱 실패 | Agent 실패 반환 |
-| test-writer unmapped > 0 | partial 상태 반환 |
-| test-reviewer max_safety 도달 | best-effort 진행, 경고 |
-| Verify RED 컴파일 실패 | green-coder에 위임 (import fix 허용) |
-| GREEN 3회 실패 | partial 상태 반환 |
-| REFACTOR 회귀 실패 | 롤백, rolled_back 상태 반환 |
-| 파일 쓰기 실패 | 해당 파일 건너뛰기 |
+| Situation | Response |
+|-----------|----------|
+| Session file parsing failure | Return agent failure |
+| test-writer unmapped > 0 | Return partial status |
+| test-reviewer max_safety reached | Proceed best-effort, warning |
+| Verify RED compilation failure | Delegate to green-coder (import fix allowed) |
+| GREEN 3 failures | Return partial status |
+| REFACTOR regression failure | Rollback, return rolled_back status |
+| File write failure | Skip that file |
 ```
 
 - [ ] **Step 3: Commit**
@@ -1296,7 +1296,7 @@ Key changes:
 7. Steps 10-14: Renumber from old 7.5-10 (build verify, diff, commit, validate, result)
 8. Update DO/DON'T and error handling sections
 
-The complete rewritten SKILL.md should follow the design spec's "dev SKILL 전체 흐름" section exactly, with:
+The complete rewritten SKILL.md should follow the design spec's "dev SKILL full flow" section exactly, with:
 - Step 7 loop using `round = 1`, `max_safety = 5`
 - Session file generation for each agent using templates from dev-templates.md
 - DELETE handling at Step 6e with Grep→collect→delete→clean→test sequence
@@ -1374,16 +1374,16 @@ Run: `cat CLAUDE.md`
 
 Replace the current Agents table:
 ```markdown
-| Agent | Superpowers 조합 | 역할 |
-|-------|-----------------|------|
-| `decompose` | (없음) | 대규모 스펙 → 모듈 분해 계획 |
-| `impl` | brainstorming | 요구사항 분석 + CLAUDE.md/DEVELOPERS.md 생�� |
-| `test-writer` | (없음) | RED — 스펙 → 테스트 + Constraint↔Test 매핑 |
-| `test-reviewer` | (없음) | 스펙 대비 테스트 트레이서빌리티 검증 |
-| `green-coder` | (없음) | GREEN — approved 테스트 통과시키는 최소 구현 |
-| `refactorer` | (없음) | REFACTOR — Conventions 적용 + 회귀 테스트 |
-| `validator` | verification-before-completion | semantic drift 검출 |
-| `decompiler` | (없음) | 소스코드 → CLAUDE.md/DEVELOPERS.md 추출 |
+| Agent | Superpowers Combination | Role |
+|-------|------------------------|------|
+| `decompose` | (none) | Large-scale spec → module decomposition plan |
+| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
+| `test-writer` | (none) | RED — spec → tests + Constraint↔Test mapping |
+| `test-reviewer` | (none) | Spec-to-test traceability verification |
+| `green-coder` | (none) | GREEN — minimal implementation to pass approved tests |
+| `refactorer` | (none) | REFACTOR — Conventions application + regression tests |
+| `validator` | verification-before-completion | Semantic drift detection |
+| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
 ```
 
 - [ ] **Step 3: Update /dev architecture diagram**
@@ -1391,7 +1391,7 @@ Replace the current Agents table:
 Replace the `/dev` diagram in the Architecture section with:
 
 ```markdown
-#### /dev (CLAUDE.md → 소스코드)
+#### /dev (CLAUDE.md → Source Code)
 
 `` `
 User: /dev [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
@@ -1400,33 +1400,33 @@ User: /dev [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
 ┌─────────────────────────────────────────────┐
 │ dev SKILL                                   │
 │                                             │
-│ 1. 대상 결정 (--all 또는 incremental)       │
-│ 2. 언어 감지 + Spec Changes 분석            │
-│ 3. [DELETE] 태스크 SKILL이 직접 실행         │
+│ 1. Target resolution (--all or incremental) │
+│ 2. Language detection + Spec Changes analysis│
+│ 3. [DELETE] tasks executed directly by SKILL │
 │ 4. Test Writing Loop (per target):          │
 │    Task(test-writer) → Task(test-reviewer)  │
 │    → feedback loop (max 5)                  │
-│ 5. TMP → target 복사 + Verify RED           │
+│ 5. TMP → target copy + Verify RED           │
 │ 6. Task(green-coder) per target             │
 │ 7. Task(refactorer) per target              │
-│ 8. 빌드 검증 + git diff + dev 커밋          │
+│ 8. Build verify + git diff + dev commit     │
 └─────────────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────┐  ┌──────────────────────┐
 │ test-writer AGENT     │  │ test-reviewer AGENT   │
 │                       │  │                       │
-│ Constraints → 테스트  │◄►│ 5-criteria 검증       │
+│ Constraints → tests   │◄►│ 5-criteria review     │
 │ Requirements → accept │  │ verdict: approved     │
-│ mapping.json 생성     │  │         | rejected    │
+│ mapping.json created  │  │         | rejected    │
 └───────────────────────┘  └──────────────────────┘
         │ approved
         ▼
 ┌───────────────────────┐  ┌──────────────────────┐
 │ green-coder AGENT     │  │ refactorer AGENT      │
 │                       │  │                       │
-│ approved 테스트 기반  │─►│ Conventions 적용      │
-│ 최소 구현 (max 3)    │  │ 회귀 실패 시 롤백     │
+│ Approved test-based   │─►│ Conventions applied   │
+│ minimal impl (max 3)  │  │ Rollback on failure   │
 └───────────────────────┘  └──────────────────────┘
 `` `
 ```

@@ -7,8 +7,8 @@ Feature: Dev Test Writing Loop
     Given a project with CLAUDE.md and DEVELOPERS.md in "src/auth"
     And CLAUDE.md has Requirements:
       | id    | text                                    |
-      | REQ-1 | 유효한 토큰으로 사용자 인증 가능          |
-      | REQ-2 | 만료된 토큰은 거부                       |
+      | REQ-1 | Users can authenticate with a valid token |
+      | REQ-2 | Expired tokens are rejected              |
     And DEVELOPERS.md has Constraints:
       | id      | text                                                    |
       | CONST-1 | authenticate(token: string) → User \| AuthError         |
@@ -33,7 +33,7 @@ Feature: Dev Test Writing Loop
     When test-reviewer reviews round 1
     Then verdict is "rejected"
     And Critical Questions reference "CONST-2"
-    And Critical Questions mention "경계값"
+    And Critical Questions mention "boundary values"
 
   Scenario: test-writer revises tests based on reviewer feedback
     Given test-reviewer rejected with feedback about CONST-2 boundary tests

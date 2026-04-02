@@ -10,9 +10,9 @@ description: |
   The decompile skill calls decompiler agent with a session file for each directory in leaf-first order.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}decompile-session-src-auth.md
-  대상: src/auth
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}decompile-session-src-auth.md
+  Target: src/auth
+  Save results to ${TMP_DIR} and return only the path
   </user_request>
   <assistant_response>
   ---decompiler-result---
@@ -38,27 +38,27 @@ You are a code analyst specializing in extracting CLAUDE.md specifications from 
 
 **No superpowers composition** — this is an extraction task, not a design/verification process.
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (decompile session file, pre-extracted by SKILL)
-대상: <path>
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: <path> (decompile session file, pre-extracted by SKILL)
+Target: <path>
+Save results to ${TMP_DIR} and return only the path
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
-## CLI 경로
+## CLI Path
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
-## 스키마 참조
+## Schema Reference
 
 ```bash
 cat "${CLAUDE_PLUGIN_ROOT}/references/shared/claude-md-schema.md"
@@ -69,10 +69,20 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 
 ### 1. Read Session File
 
-세션 파일에서 추출:
-- **Tree Info**: 디렉토리 정보 (source_file_count, subdir_count, depth)
-- **Children CLAUDE.md**: 이미 생성된 자식 CLAUDE.md 경로 목록
-- **Project Conventions**: 프로젝트 레벨 컨벤션 (있는 경우)
+Extract from the session file:
+- **Tree Info**: Directory information (source_file_count, subdir_count, depth)
+- **Children CLAUDE.md**: List of already-generated child CLAUDE.md paths
+- **Project Conventions**: Project-level conventions (if present)
+- **document_language**: Language for generated documents
+
+### Document Language Resolution
+
+| Condition | Action |
+|-----------|--------|
+| `document_language` is non-empty | Use this language for all generated CLAUDE.md and DEVELOPERS.md content |
+| `document_language` is empty | Ask via AskUserQuestion: "Which language should CLAUDE.md and DEVELOPERS.md be written in? (e.g., English, Korean, Japanese)" (ask only once, reuse for remaining directories) |
+
+**All generated document content (Purpose, Requirements, Domain Context, Constraints, etc.) must be written in the resolved language.**
 
 ### 2. Boundary Resolution
 
@@ -80,7 +90,7 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 $CLI_PATH resolve-boundary --dir {target_dir}
 ```
 
-바운더리 결과에서 직접 파일 목록, 서브디렉토리 목록 확인.
+Confirm direct file list and subdirectory list from the boundary result.
 
 ### 3. Code Analysis
 
@@ -88,7 +98,7 @@ $CLI_PATH resolve-boundary --dir {target_dir}
 $CLI_PATH analyze-code --path {target_dir} --output ${TMP_DIR}decompile-analyze-{dir-safe}.json
 ```
 
-분석 결과에서 exports, dependencies, behaviors, contracts 추출.
+Extract exports, dependencies, behaviors, and contracts from the analysis result.
 
 ### 4. Analysis Formatting
 
@@ -96,41 +106,41 @@ $CLI_PATH analyze-code --path {target_dir} --output ${TMP_DIR}decompile-analyze-
 $CLI_PATH format-analysis --input ${TMP_DIR}decompile-analyze-{dir-safe}.json --output ${TMP_DIR}decompile-summary-{dir-safe}.md
 ```
 
-LLM-ready 요약에서 주요 패턴, 의존성, 동작 추출.
+Extract key patterns, dependencies, and behaviors from the LLM-ready summary.
 
 ### 5. Document Generation
 
-분석 결과 + 코드 읽기를 기반으로 문서 생성:
+Generate documents based on analysis results + code reading:
 
 **CLAUDE.md** (Primary SSOT):
-- `## Purpose`: 코드의 존재 이유를 비즈니스 가치 관점에서 서술
-- `## Requirements`: 코드가 충족하는 요구사항을 사용자 관점으로 역추출
-- `## Domain Context`: 코드에서 유추되는 비즈니스 제약/규정/레거시 이유
+- `## Purpose`: Describe the reason for the code's existence from a business value perspective
+- `## Requirements`: Reverse-extract requirements that the code fulfills from the user's perspective
+- `## Domain Context`: Business constraints/regulations/legacy reasons inferred from the code
 
 **DEVELOPERS.md** (Derived Spec):
-- `## Constraints`: 코드의 입출력 계약을 정밀하게 기술 (테스트 변환 가능하도록)
-- `## Technical Context`: 사용된 기술과 그 이유
-- `## Decision Log`: 코드에서 유추되는 설계 결정 (선택적)
-- `## Operations`: 배포/모니터링 관련 (선택적)
+- `## Constraints`: Precisely describe the code's input/output contracts (convertible to tests)
+- `## Technical Context`: Technologies used and their rationale
+- `## Decision Log`: Design decisions inferred from the code (optional)
+- `## Operations`: Deployment/monitoring related (optional)
 
-**규칙:**
-- 자식 CLAUDE.md가 있으면 자식의 Requirements를 참조하지만 중복하지 않음
-- INV-1 준수: dependencies ⊆ children
-- Purpose는 "None" 불가, 반드시 의미 있는 서술
-- Requirements가 정말 없으면 "None" 명시
+**Rules:**
+- If child CLAUDE.md exists, reference the child's Requirements but do not duplicate them
+- Comply with INV-1: dependencies ⊆ children
+- Purpose cannot be "None"; it must always have a meaningful description
+- If there are truly no Requirements, explicitly state "None"
 
-### 6. Smart Merge (기존 CLAUDE.md가 있을 때)
+### 6. Smart Merge (when existing CLAUDE.md exists)
 
-1. 기존 CLAUDE.md를 Read
-2. Purpose: 기존 유지 (더 정확하면 기존 우선)
-3. Requirements: 기존 + 코드에서 발견된 미문서화 항목 추가
-4. Domain Context: 기존 유지 + 보충
+1. Read the existing CLAUDE.md
+2. Purpose: Preserve existing (prefer existing if more accurate)
+3. Requirements: Existing + add undocumented items discovered from code
+4. Domain Context: Preserve existing + supplement
 
-### 7. Clarification (최소화)
+### 7. Clarification (minimize)
 
-코드 의도가 정말 불명확할 때만 AskUserQuestion:
-- Domain Context에서 비즈니스 이유가 코드에서 전혀 유추 불가한 경우
-- 동일한 질문을 여러 디렉토리에서 반복하지 않음
+Only use AskUserQuestion when code intent is truly unclear:
+- When business reasons in Domain Context are completely impossible to infer from code
+- Do not repeat the same question across multiple directories
 
 ### 8. Schema Validation
 
@@ -138,12 +148,12 @@ LLM-ready 요약에서 주요 패턴, 의존성, 동작 추출.
 $CLI_PATH validate-schema --file {claude_md_path} --dir {target_dir}
 ```
 
-실패 시:
+On failure:
 ```bash
 $CLI_PATH fix-schema --file {claude_md_path}
 ```
 
-1회 자동 수정 후 재검증.
+Auto-fix once, then re-validate.
 
 ### 9. Result
 
@@ -156,8 +166,8 @@ developers_md: generated | skipped
 ---end-decompiler-result---
 ```
 
-## Context 효율성
+## Context Efficiency
 
-- 세션 파일에 트리 정보와 자식 컨텍스트가 추출되어 있음
-- CLI 출력을 파일로 저장하여 컨텍스트 절약
-- 결과는 ${TMP_DIR}에 저장, 경로만 반환
+- Tree info and child context are pre-extracted in the session file
+- CLI output is saved to files to conserve context
+- Results are saved to ${TMP_DIR}; only paths are returned

@@ -3,62 +3,62 @@ name: autodev
 description: |
   Use when the user wants to autonomously develop a feature end-to-end without manual steps.
   Runs requirements → CLAUDE.md → code → validation loop until complete.
-  단계별 명령 없이 요구사항만 주면 처음부터 끝까지 자율 실행.
-  Trigger keywords: 자동 개발, 처음부터 끝까지, 자율 구현
+  Autonomous execution from start to finish given only requirements, without step-by-step commands.
+  Trigger keywords: auto develop, end-to-end, autonomous implementation
 argument-hint: '"requirement" [--path path] [--max-iter N]'
 allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash, Skill]
 ---
 
 # /autodev
 
-요구사항을 처음부터 끝까지 자율 실행합니다.
-스펙 정의(spec) → 코드 생성(dev) → 검증(validate) 루프를 모두 자율적으로 완료합니다.
+Autonomously executes requirements from start to finish.
+Completes the entire loop of spec definition (spec) → code generation (dev) → validation (validate) autonomously.
 
-**최초 요구사항 확인 1회를 제외하고 사람의 개입 없이 완료.**
+**Completes without human intervention, except for one initial requirement confirmation.**
 
 ## Triggers
 
 - `/autodev`
-- `자동 개발`
-- `처음부터 끝까지 구현해줘`
-- `자율 구현`
+- `auto develop`
+- `implement end-to-end`
+- `autonomous implementation`
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `requirement` | 예* | - | 구현할 요구사항 텍스트 |
-| `--path` | 아니오 | `.` | 대상 경로 |
-| `--max-iter` | 아니오 | `5` | dev-validate 사이클 최대 횟수 |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `requirement` | Yes* | - | Requirement text to implement |
+| `--path` | No | `.` | Target path |
+| `--max-iter` | No | `5` | Maximum number of dev-validate cycles |
 
-\* 요구사항 없으면 AskUserQuestion으로 1회 수집.
+\* If no requirement is provided, it will be collected once via AskUserQuestion.
 
-## /spec --auto 와의 차이
+## Difference from /spec --auto
 
-| 항목 | /spec --auto | /autodev |
+| Item | /spec --auto | /autodev |
 |------|-------------|----------|
-| 요구사항 확인 | brainstorming + 최대 2회 질문 | 최대 1회 질문 |
-| 모드 | single=brainstorming, multi=승인 | 항상 자율(parallel) |
-| max_iter 기본값 | 3 | 5 |
-| 사용법 | `/spec --auto "..."` | `/autodev "..."` |
+| Requirement confirmation | brainstorming + up to 2 questions | Up to 1 question |
+| Mode | single=brainstorming, multi=approval | Always autonomous (parallel) |
+| max_iter default | 3 | 5 |
+| Usage | `/spec --auto "..."` | `/autodev "..."` |
 
-> **주의:** dev는 소스 파일 확장자로 언어를 자동 감지합니다.
-> 소스 파일이 없는 신규 프로젝트에서 dev 언어 감지 실패 시 자율 실행이 중단될 수 있습니다.
-> 빈 프로젝트에서는 `/autodev` 실행 전에 언어를 나타내는 파일
-> (package.json, go.mod, Cargo.toml 등)을 추가하거나 `/dev`를 먼저 실행하세요.
+> **Note:** dev automatically detects the language from source file extensions.
+> In new projects without source files, autonomous execution may be interrupted if dev language detection fails.
+> For empty projects, add a file indicating the language
+> (package.json, go.mod, Cargo.toml, etc.) before running `/autodev`, or run `/dev` first.
 
 ## Workflow
 
-### Step 1: 요구사항 확인 (최대 1회)
+### Step 1: Requirement Confirmation (up to 1 time)
 
-요구사항 텍스트가 있으면 즉시 Step 2로 진행.
+If requirement text is provided, proceed directly to Step 2.
 
-없거나 너무 모호하면 AskUserQuestion 1회:
-- "어떤 기능을 구현할까요? 핵심 동작과 대상 경로를 간략히 알려주세요."
+If missing or too vague, use AskUserQuestion once:
+- "What feature would you like to implement? Please briefly describe the core behavior and target path."
 
-이후 **모든 단계는 자율 실행 — AskUserQuestion 금지.**
+After this, **all steps are autonomous — AskUserQuestion is prohibited.**
 
-### Step 2: 초기화
+### Step 2: Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -66,20 +66,20 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-다음 값 보존:
-- `{original_requirement}`: 요구사항 텍스트
-- `{impl_path}`: `--path` 인자 (기본값 `.`)
-- `{max_iter}`: `--max-iter` 인자 (기본값 `5`)
+Preserve the following values:
+- `{original_requirement}`: requirement text
+- `{impl_path}`: `--path` argument (default `.`)
+- `{max_iter}`: `--max-iter` argument (default `5`)
 
-### Step 3: CLAUDE.md 인덱스 생성
+### Step 3: Generate CLAUDE.md Index
 
 ```bash
 $CLI_PATH scan-claude-md --root {impl_path} --output "${TMP_DIR}claude-md-index.json"
 ```
 
-### Step 4: Decompose (범위 자동 판단)
+### Step 4: Decompose (Automatic Scope Determination)
 
-`${TMP_DIR}decompose-session.md` 생성:
+Create `${TMP_DIR}decompose-session.md`:
 
 ```markdown
 # Decompose Session
@@ -89,31 +89,31 @@ type: decompose | project_root: {impl_path}
 {original_requirement}
 
 ## Existing Modules Index
-{scan-claude-md 결과: path, purpose 쌍}
+{scan-claude-md result: path, purpose pairs}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
 ```
 Task(decompose):
-  세션 파일: ${TMP_DIR}decompose-session.md
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}decompose-session.md
+  Save results to ${TMP_DIR} and return only the path
 ```
 
-decompose result에서 `scope` 및 `modules[]` 확인.
+Check `scope` and `modules[]` from the decompose result.
 
-### Step 5: Spec (스펙 정의) — AskUserQuestion 금지
+### Step 5: Spec (Spec Definition) — AskUserQuestion Prohibited
 
-모든 impl agent를 **parallel 모드**로 실행 (single/multi 무관).
+Run all impl agents in **parallel mode** (regardless of single/multi).
 
 #### scope = single
 
-scan-claude-md 인덱스에서 `{impl_path}/CLAUDE.md` 존재 확인:
-- 있으면 → `action: update`
-- 없으면 → `action: create`
+Check if `{impl_path}/CLAUDE.md` exists in the scan-claude-md index:
+- Exists → `action: update`
+- Does not exist → `action: create`
 
-`${TMP_DIR}spec-session.md` 생성:
+Create `${TMP_DIR}spec-session.md`:
 
 ```markdown
 # Spec Session
@@ -123,26 +123,26 @@ type: spec | project_root: {impl_path} | target_path: {impl_path} | action: {act
 {original_requirement}
 
 ## Existing Modules Index
-{scan-claude-md 결과}
+{scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}spec-session.md
-  프로젝트 루트: {impl_path}
-  세션 파일을 읽고 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+  Session file: ${TMP_DIR}spec-session.md
+  Project root: {impl_path}
+  Read the session file and generate CLAUDE.md + DEVELOPERS.md.
 ```
 
 #### scope = multi
 
-`modules[]`를 depth ASC 정렬.
+Sort `modules[]` by depth ASC.
 
-depth 루프 (0, 1, 2, ... 순서):
-1. scan-claude-md 재실행 → 최신 인덱스
-2. 현재 depth 각 모듈의 세션 파일 생성 (`${TMP_DIR}spec-session-{dir-safe}.md`, `parallel: true`):
+Depth loop (0, 1, 2, ... order):
+1. Re-run scan-claude-md → latest index
+2. Create session files for each module at the current depth (`${TMP_DIR}spec-session-{dir-safe}.md`, `parallel: true`):
 
    ```markdown
    # Spec Session
@@ -158,14 +158,14 @@ depth 루프 (0, 1, 2, ... 순서):
    {module.source_concept}
 
    ## Existing Modules Index
-   {최신 scan-claude-md 결과}
+   {latest scan-claude-md result}
 
    ## Project Conventions
-   {project root Conventions 또는 "None"}
+   {project root Conventions or "None"}
    ```
 
-3. Task(impl) 병렬 디스패치 (최대 3개)
-4. 완료 대기 → 다음 depth
+3. Dispatch Task(impl) in parallel (up to 3)
+4. Wait for completion → next depth
 
 ### Step 6: Auto Loop
 
@@ -177,8 +177,8 @@ depth 루프 (0, 1, 2, ... 순서):
 Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path}")
 ```
 
-`failed` → 루프 종료, 오류 보고.
-`success | partial` → Auto Phase 2로.
+`failed` → Exit loop, report error.
+`success | partial` → Proceed to Auto Phase 2.
 
 #### Auto Phase 2: Validate
 
@@ -190,25 +190,25 @@ Skill("claude-md-plugin:validate", args: "{impl_path} --report-only")
 total_violations = schema_errors + convention_issues + boundary_issues + semantic_drift
 ```
 
-- `total_violations == 0` → **성공 종료 → Step 7**
-- `auto_iter >= max_iter` → **max_iter 종료 → Step 7**
-- 그 외 → **위반 상세 추출 → Auto Phase 3**
+- `total_violations == 0` → **Success exit → Step 7**
+- `auto_iter >= max_iter` → **max_iter exit → Step 7**
+- Otherwise → **Extract violation details → Auto Phase 3**
 
-**위반 상세 추출:**
+**Violation Detail Extraction:**
 
-validate-result의 `result_files` 목록을 확인:
+Check the `result_files` list from validate-result:
 
-**케이스 A: `result_files` 없음 (모든 모듈 스키마 실패)**
-→ 루프 종료:
-  "스키마 오류로 semantic 검증 불가. /validate로 수동 해소 후 재시도하세요."
+**Case A: No `result_files` (all modules failed schema validation)**
+→ Exit loop:
+  "Cannot perform semantic verification due to schema errors. Resolve manually with /validate and retry."
 
-**케이스 B: `result_files` 있고 모든 파일이 issues=0 (CLI 이슈만 존재)**
-→ `${TMP_DIR}validate-session-{dir-safe}.md`의 `## Deterministic Results` 섹션을 Violations Detail로 사용하여 Phase 3 실행
-  (convention/boundary 이슈는 spec update로 CLAUDE.md 수정 가능)
+**Case B: `result_files` exist and all files have issues=0 (CLI issues only)**
+→ Use the `## Deterministic Results` section from `${TMP_DIR}validate-session-{dir-safe}.md` as Violations Detail and proceed to Phase 3
+  (convention/boundary issues can be fixed by updating CLAUDE.md via spec update)
 
-**케이스 C: `result_files` 있고 일부 issues > 0 (semantic drift 존재)**
-→ 각 result_file 중 `## Summary: Total issues: N > 0`인 파일 → 해당 모듈 spec update 대상
-   `## Issues` 섹션 → 모듈별 위반 상세 수집 → Phase 3 실행
+**Case C: `result_files` exist and some have issues > 0 (semantic drift exists)**
+→ For each result_file where `## Summary: Total issues: N > 0` → target module for spec update
+   `## Issues` section → collect per-module violation details → proceed to Phase 3
 
 #### Auto Phase 3: Spec Update
 
@@ -216,7 +216,7 @@ validate-result의 `result_files` 목록을 확인:
 $CLI_PATH scan-claude-md --root {impl_path} --output "${TMP_DIR}claude-md-index-auto-{auto_iter}.json"
 ```
 
-위반 모듈별 세션 파일 생성:
+Create session files per violation module:
 `${TMP_DIR}spec-session-auto-{auto_iter}-{dir-safe}.md`
 
 ```markdown
@@ -234,63 +234,63 @@ validate_violations:
   boundary_issues: {n}
   semantic_drift: {n}
 
-이 모듈에서 검증 위반이 발견되었습니다.
-기존 CLAUDE.md와 DEVELOPERS.md를 읽고, dev 후 validate가 통과하도록
-Requirements와 Constraints를 구체화·보완하세요.
-CLAUDE.md는 SSOT이므로 요구사항을 더 명확하게 기술하는 방향으로 개선합니다.
+Validation violations were found in this module.
+Read the existing CLAUDE.md and DEVELOPERS.md, and refine/supplement
+Requirements and Constraints so that validate passes after dev.
+Since CLAUDE.md is the SSOT, improve by describing requirements more clearly.
 
 ## Violations Detail
-{아래 중 해당하는 것:}
-  - semantic drift가 있을 때: result_file의 ## Issues 섹션 내용
-  - CLI 이슈만 있을 때: validate-session-{dir-safe}.md의 ## Deterministic Results 섹션 내용
+{whichever applies:}
+  - When semantic drift exists: content of ## Issues section from result_file
+  - When only CLI issues exist: content of ## Deterministic Results section from validate-session-{dir-safe}.md
 
 ## Existing Modules Index
-{최신 scan-claude-md 결과}
+{latest scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-Task(impl) 병렬 디스패치 (최대 3개). AskUserQuestion 금지.
+Dispatch Task(impl) in parallel (up to 3). AskUserQuestion prohibited.
 
-`auto_iter++` → Auto Phase 1로 루프.
+`auto_iter++` → Loop back to Auto Phase 1.
 
-### Step 7: 결과 보고
+### Step 7: Result Report
 
-**성공 종료 (`total_violations == 0`):**
-
-```
-✓ autodev 완료 ({auto_iter} iteration(s))
-  spec:     CLAUDE.md + DEVELOPERS.md 생성
-  dev:      코드 생성 완료
-  validate: 모든 검증 통과
-```
-
-```bash
-git diff --stat
-```
-
-**실패 종료 (max_iter 도달 | dev 실패 | schema 오류):**
+**Success exit (`total_violations == 0`):**
 
 ```
-⚠ autodev 종료 (이유: {사유})
-  반복 횟수: {auto_iter}/{max_iter}
-  남은 이슈: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
-  /validate 또는 /spec으로 수동 해소하세요.
+✓ autodev complete ({auto_iter} iteration(s))
+  spec:     CLAUDE.md + DEVELOPERS.md generated
+  dev:      Code generation complete
+  validate: All validations passed
 ```
 
 ```bash
 git diff --stat
 ```
 
-## 오류 처리
+**Failure exit (max_iter reached | dev failed | schema error):**
 
-| 상황 | 대응 |
-|------|------|
-| 요구사항 없음 | Step 1에서 AskUserQuestion 1회 |
-| decompose 실패 | 에러 보고 후 종료 |
-| impl agent 실패 (단일 모듈) | 경고, 나머지 계속 |
-| dev failed | 루프 종료, 오류 보고 |
-| result_files 없음 (모든 모듈 스키마 실패) | 루프 종료, /validate 수동 해소 안내 |
-| result_files 있고 모두 issues=0 (CLI 이슈만) | validate-session Deterministic Results로 Phase 3 실행 |
-| max_iter 초과 | 루프 종료, 남은 이슈 보고 |
+```
+⚠ autodev terminated (reason: {reason})
+  Iterations: {auto_iter}/{max_iter}
+  Remaining issues: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
+  Resolve manually with /validate or /spec.
+```
+
+```bash
+git diff --stat
+```
+
+## Error Handling
+
+| Situation | Response |
+|-----------|----------|
+| No requirement | AskUserQuestion once in Step 1 |
+| Decompose failed | Report error and exit |
+| impl agent failed (single module) | Warning, continue with remaining |
+| dev failed | Exit loop, report error |
+| No result_files (all modules failed schema) | Exit loop, guide to manual resolution with /validate |
+| result_files exist and all issues=0 (CLI issues only) | Run Phase 3 with validate-session Deterministic Results |
+| max_iter exceeded | Exit loop, report remaining issues |

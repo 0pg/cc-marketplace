@@ -8,32 +8,32 @@ description: |
   "resolve drift", "fix documentation mismatch", "sync docs with code", or uses "/validate".
   Runs deterministic CLI validation (schema, convention structure, boundary, DEVELOPERS.md existence)
   and semantic validator agent for comprehensive drift detection, with interactive auto-fix.
-  Trigger keywords: CLAUDE.md 검증, 문서 검증, drift 검사, drift 해소
+  Trigger keywords: validate CLAUDE.md, document verification, drift check, resolve drift
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, Skill, AskUserQuestion]
 ---
 
 # /validate
 
-CLAUDE.md와 실제 코드 간의 일치 여부를 검증하고, 발견된 이슈를 대화형으로 해소합니다.
+Verifies consistency between CLAUDE.md and actual code, and interactively resolves discovered issues.
 
 ## Triggers
 
 - `/validate`
-- `CLAUDE.md 검증`
-- `drift 검사`
+- `validate CLAUDE.md`
+- `drift check`
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `path` | 아니오 | `.` | 대상 경로 |
-| `--strict` | 아니오 | false | DEVELOPERS.md 부재를 error로, 내용 drift 검증 활성화 |
-| `--report-only` | 아니오 | false | 검증만 수행, auto-fix 스킵 |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `path` | No | `.` | Target path |
+| `--strict` | No | false | Treat DEVELOPERS.md absence as ERROR, enable content drift verification |
+| `--report-only` | No | false | Perform verification only, skip auto-fix |
 
 ## Workflow
 
-### 0. 초기화
+### 0. Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -41,114 +41,114 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 1. CLAUDE.md 수집
+### 1. Collect CLAUDE.md files
 
 ```
 Glob("{path}/**/CLAUDE.md")
 ```
 
-수집 파일 없으면: "대상 경로에 CLAUDE.md가 없습니다." → 종료.
+If no files collected: "No CLAUDE.md found in the target path." → exit.
 
-### 2. Deterministic 검증 (CLI only, no agent)
+### 2. Deterministic verification (CLI only, no agent)
 
-#### 2a. 스키마 검증 + auto-fix
+#### 2a. Schema verification + auto-fix
 
-각 CLAUDE.md에 대해:
+For each CLAUDE.md:
 
 ```bash
 $CLI_PATH validate-schema --file "$claude_md" --dir "$dir" --output "${TMP_DIR}schema-${dir_safe}.json"
 ```
 
-실패 시 auto-fix:
+On failure, auto-fix:
 ```bash
 $CLI_PATH fix-schema --file "$claude_md"
 $CLI_PATH validate-schema --file "$claude_md" --dir "$dir" --output "${TMP_DIR}schema-${dir_safe}.json"
 ```
 
-auto-fix 후에도 실패 → 스키마 오류 보고, Phase 3 대상 제외.
+If still failing after auto-fix → report schema error, exclude from Phase 3.
 
-#### 2b. Convention 구조 검증
+#### 2b. Convention structure verification
 
 ```bash
 $CLI_PATH validate-convention --project-root {project_root} --output "${TMP_DIR}convention-result.json"
 ```
 
-`MISSING_CONVENTION`, `MISSING_SUBSECTION` 이슈 수집. Phase 3 차단하지 않음.
+Collect `MISSING_CONVENTION`, `MISSING_SUBSECTION` issues. Does not block Phase 3.
 
-#### 2c. Boundary 검증
+#### 2c. Boundary verification
 
-스키마 통과한 각 디렉토리:
+For each directory that passed schema:
 ```bash
 $CLI_PATH resolve-boundary --path {dir} --claude-md {dir}/CLAUDE.md --output "${TMP_DIR}boundary-${dir_safe}.json"
 ```
 
-`PARENT_REFERENCE`, `SIBLING_REFERENCE` 이슈 수집.
+Collect `PARENT_REFERENCE`, `SIBLING_REFERENCE` issues.
 
-#### 2d. DEVELOPERS.md 존재 확인 (INV-3)
+#### 2d. DEVELOPERS.md existence check (INV-3)
 
-각 CLAUDE.md 디렉토리에 DEVELOPERS.md 존재 확인:
-- 부재 시: `--strict`면 ERROR, 아니면 WARNING
+Check DEVELOPERS.md existence in each CLAUDE.md directory:
+- If absent: ERROR in `--strict` mode, WARNING otherwise
 
-### 2.5 변경 스펙 + 테스트 커버리지 맵 구성
+### 2.5 Build changed spec + test coverage map
 
-스키마 통과한 각 대상에 대해:
+For each target that passed schema:
 
-#### 2.5a. 변경 스펙 탐지
+#### 2.5a. Detect changed specs
 
 ```bash
 $CLI_PATH diff-spec-range --file {dir}/CLAUDE.md --root {project_root} \
   --output "${TMP_DIR}spec-diff-${dir_safe}.json"
 ```
 
-결과 필드: `changed_requirements[]`, `source_changed_files[]`, `source_changed`, `all_requirements`
+Result fields: `changed_requirements[]`, `source_changed_files[]`, `source_changed`, `all_requirements`
 
-- `all_requirements=true`: git 저장소 아님 또는 첫 커밋 → 전체 Requirements 검증 대상
-- `source_changed=false` AND `changed_requirements` 비어 있음 → 변경 없음, semantic 검증 스킵 가능
+- `all_requirements=true`: not a git repo or first commit → all Requirements are verification targets
+- `source_changed=false` AND `changed_requirements` is empty → no changes, semantic verification can be skipped
 
-#### 2.5b. 테스트 커버리지 맵 구성
+#### 2.5b. Build test coverage map
 
-**Step 1: target_dir 범위 필터링 + source_changed 재판정**
+**Step 1: Filter to target_dir scope + re-determine source_changed**
 
-`spec-diff-${dir_safe}.json`의 `source_changed_files`에서 `{target_dir}` 하위 파일만 필터:
+Filter `source_changed_files` from `spec-diff-${dir_safe}.json` to files under `{target_dir}`:
 ```
 target_source_files = source_changed_files.filter(f => f.startsWith({target_dir}))
 ```
-- `all_requirements=true`이면: `target_source_files` = Glob(`{target_dir}/**/*.{rs,ts,js,py}`) 전체
-- `target_source_files` 비어있고 `changed_requirements` 비어있음 → **semantic 검증 스킵** (모듈 내 실제 변경 없음)
+- If `all_requirements=true`: `target_source_files` = full Glob(`{target_dir}/**/*.{rs,ts,js,py}`)
+- If `target_source_files` is empty AND `changed_requirements` is empty → **skip semantic verification** (no actual changes within the module)
 
-**Step 2: 소스 파일별 공개 함수 추출**
+**Step 2: Extract public functions per source file**
 
-각 `target_source_file`에 대해 언어별 패턴으로 공개 함수 목록 추출:
+For each `target_source_file`, extract public function list using language-specific patterns:
 
-| 언어 | Grep 패턴 | 추출 대상 |
-|------|----------|---------|
-| Rust | `^pub fn \|^    pub fn ` in {source_file} | fn 이름 |
-| TypeScript/JS | `^export (function\|const\|async function) ` in {source_file} | 심볼 이름 |
-| Python | `^def [^_]\|^    def [^_]` in {source_file} | fn 이름 (private _ 제외) |
+| Language | Grep Pattern | Extraction Target |
+|----------|-------------|-------------------|
+| Rust | `^pub fn \|^    pub fn ` in {source_file} | fn names |
+| TypeScript/JS | `^export (function\|const\|async function) ` in {source_file} | symbol names |
+| Python | `^def [^_]\|^    def [^_]` in {source_file} | fn names (excluding private _) |
 
-결과: `public_fns = [fn_name, ...]` per source_file
+Result: `public_fns = [fn_name, ...]` per source_file
 
-**Step 3: 테스트 파일 탐색**
+**Step 3: Search for test files**
 
-언어별 탐색 경로 (target_dir 내부 + project_root/tests/ 통합 테스트 포함):
+Language-specific search paths (inside target_dir + project_root/tests/ integration tests):
 
-| 언어 | 탐색 경로 | 테스트 식별 패턴 |
-|------|----------|--------------|
-| Rust | `{target_dir}/**/*.rs` + `{project_root}/tests/**/*.rs` | `#[test]` (-A 1 → fn 이름) |
-| TypeScript/JS | `{target_dir}/**/*.{test,spec}.{ts,js}` + `{project_root}/**/__tests__/**` | `it\(\|test\(\|describe\(` (-A 1 → 이름) |
-| Python | `{target_dir}/**/{test_*.py,*_test.py}` + `{project_root}/tests/**/*.py` | `^def test_` (-A 1 → fn 이름) |
+| Language | Search Paths | Test Identification Pattern |
+|----------|-------------|---------------------------|
+| Rust | `{target_dir}/**/*.rs` + `{project_root}/tests/**/*.rs` | `#[test]` (-A 1 → fn name) |
+| TypeScript/JS | `{target_dir}/**/*.{test,spec}.{ts,js}` + `{project_root}/**/__tests__/**` | `it\(\|test\(\|describe\(` (-A 1 → name) |
+| Python | `{target_dir}/**/{test_*.py,*_test.py}` + `{project_root}/tests/**/*.py` | `^def test_` (-A 1 → fn name) |
 
-`test_files_found` = 탐색된 테스트 파일 수
+`test_files_found` = number of test files discovered
 
-**Step 4: 함수 참조 확인 (calls[] 채우기)**
+**Step 4: Check function references (populate calls[])**
 
-각 테스트 케이스 fn 내에서 Step 2의 `public_fns` 항목을 Grep:
+Within each test case fn, Grep for `public_fns` items from Step 2:
 ```
 for each test_fn in test_cases:
   calls = [fn for fn in public_fns if Grep(fn, in test_fn body)]
 ```
 
-결과 구조 (모듈별 JSON):
+Result structure (JSON per module):
 ```json
 [
   {
@@ -168,22 +168,22 @@ for each test_fn in test_cases:
 ]
 ```
 
-테스트 파일 없으면: `test_files_found: 0` 기록 (TEST_MISSING 신호).
+If no test files: record `test_files_found: 0` (TEST_MISSING signal).
 
-### 3. 세션 파일 생성 + Semantic 검증 (validator agent)
+### 3. Create session files + Semantic verification (validator agent)
 
-스키마 통과한 각 대상에 대해:
+For each target that passed schema:
 
-1. CLAUDE.md 파싱:
+1. Parse CLAUDE.md:
 ```bash
 $CLI_PATH parse-claude-md --file {dir}/CLAUDE.md --output "${TMP_DIR}parsed-${dir_safe}.json"
 ```
 
-2. Convention 계층 해소 (project > module)
+2. Resolve Convention hierarchy (project > module)
 
-3. DEVELOPERS.md 읽기 (strict 시)
+3. Read DEVELOPERS.md (in strict mode)
 
-4. 세션 파일 Write → `${TMP_DIR}validate-session-{dir-safe}.md`:
+4. Write session file → `${TMP_DIR}validate-session-{dir-safe}.md`:
 
 ```markdown
 # Validate Task: {path}
@@ -196,7 +196,7 @@ Requirements:
 Domain Context: {parsed domain context}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{hierarchy-resolved Conventions}
 
 ## DEVELOPERS.md Content (strict only)
 Constraints:
@@ -205,55 +205,55 @@ Technical Context:
 {parsed technical context}
 
 ## Deterministic Results
-{Phase 2에서 발견된 CLI 이슈 요약}
+{summary of CLI issues found in Phase 2}
 
-## Changed Requirements (diff-spec-range 결과)
+## Changed Requirements (diff-spec-range result)
 all_requirements: {true|false}
-source_changed: {true|false}  ← target_dir 범위로 필터링된 값
-추가/변경: {changed_requirements list — action + text}
-변경된 소스 파일 (target_dir 내): {target_source_files list}
+source_changed: {true|false}  ← value filtered to target_dir scope
+Added/Changed: {changed_requirements list — action + text}
+Changed source files (within target_dir): {target_source_files list}
 
 ## Test Coverage Map
-{2.5b에서 Grep으로 구성한 JSON 배열}
-모듈 범위 한정: {target directory}만 포함
+{JSON array built via Grep in 2.5b}
+Module scope limited: includes only {target directory}
 ```
 
-5. `Task(validator)` 디스패치 (병렬 배치, 최대 3개):
+5. Dispatch `Task(validator)` (parallel batch, up to 3):
 ```
-세션 파일: ${TMP_DIR}validate-session-{dir-safe}.md
-검증 대상: {directory}
+Session file: ${TMP_DIR}validate-session-{dir-safe}.md
+Verification target: {directory}
 strict: {true|false}
 ```
 
 ### 4. Auto-fix (Interactive)
 
-`--report-only`가 아니면:
+If not `--report-only`:
 
-1. 전체 이슈 목록 출력 (deterministic + semantic)
-2. ERROR/WARNING 이슈에 대해 drift 유형별 해소 방향 제시 + AskUserQuestion:
+1. Output full issue list (deterministic + semantic)
+2. For ERROR/WARNING issues, present resolution direction by drift type + AskUserQuestion:
 
-   **해소 방향 규칙 (CLAUDE.md = SSOT 원칙):**
+   **Resolution direction rules (CLAUDE.md = SSOT principle):**
 
-   | Drift Type | 기본 해소 | 사용자 선택지 |
+   | Drift Type | Default Resolution | User Options |
    |---|---|---|
-   | REQUIREMENTS_NOT_IMPLEMENTED | /dev 권장 | (a) /dev 재생성 (b) CLAUDE.md에서 요구사항 제거 |
-   | REQUIREMENTS_PARTIALLY_IMPLEMENTED | /dev 권장 | (a) /dev 재생성 (b) 현재 상태에 맞게 CLAUDE.md 조정 |
-   | REQUIREMENTS_VIOLATED | 사용자 판단 필수 | (a) 코드가 틀림 → /dev (b) 요구사항이 바뀜 → CLAUDE.md 업데이트 |
-   | CONVENTION_*_VIOLATION | 코드 수정 | (a) 코드 수정 (b) Convention 규칙 완화 |
-   | CONSTRAINT_NOT_ENFORCED | 코드 수정 | (a) 코드 수정 (b) DEVELOPERS.md Constraint 업데이트 |
-   | TECH_CONTEXT_STALE | 문서 수정 | DEVELOPERS.md 자동 업데이트 |
+   | REQUIREMENTS_NOT_IMPLEMENTED | Recommend /dev | (a) Regenerate with /dev (b) Remove requirement from CLAUDE.md |
+   | REQUIREMENTS_PARTIALLY_IMPLEMENTED | Recommend /dev | (a) Regenerate with /dev (b) Adjust CLAUDE.md to match current state |
+   | REQUIREMENTS_VIOLATED | User judgment required | (a) Code is wrong → /dev (b) Requirement changed → update CLAUDE.md |
+   | CONVENTION_*_VIOLATION | Fix code | (a) Fix code (b) Relax Convention rule |
+   | CONSTRAINT_NOT_ENFORCED | Fix code | (a) Fix code (b) Update DEVELOPERS.md Constraint |
+   | TECH_CONTEXT_STALE | Fix documentation | Auto-update DEVELOPERS.md |
 
-   **수정 범위 제한:**
-   - validate의 직접 Edit: 기존 코드의 수정 (기존 함수/구조체 내 변경)
-   - 신규 코드 생성 (새 파일, 새 함수, 새 모듈): "/dev {path}로 재생성하세요" 안내만 제공, validate 내에서 /dev 자동 호출하지 않음
-   - CLAUDE.md/DEVELOPERS.md 수정: 사용자 명시적 승인 후에만
+   **Modification scope limits:**
+   - validate's direct Edit: modifications to existing code (changes within existing functions/structs)
+   - New code generation (new files, new functions, new modules): only provide guidance "Regenerate with /dev {path}", do not auto-invoke /dev within validate
+   - CLAUDE.md/DEVELOPERS.md modifications: only after explicit user approval
 
-3. 승인된 수정 적용
-4. 수정 후 재검증
+3. Apply approved modifications
+4. Re-verify after modifications
 
-### 5. 통합 보고서
+### 5. Consolidated report
 
-Task(validator) 결과 block에서 `result_file` 경로를 수집하여 목록으로 포함:
+Collect `result_file` paths from Task(validator) result blocks and include as list:
 
 ```
 ---validate-result---
@@ -267,26 +267,26 @@ auto_fixed: {n}
 result_files:
   - {TMP_DIR}validate-{dir-safe}.md
   - {TMP_DIR}validate-{dir-safe-2}.md
-  (스키마 통과하여 semantic 검증이 실행된 모듈만. 없으면 생략)
+  (only modules that passed schema and had semantic verification run. omit if none)
 ---end-validate-result---
 ```
 
 ## DO / DON'T
 
 **DO:**
-- Phase 2 CLI 검증을 반드시 먼저 수행
-- 스키마 실패 모듈은 semantic 검증에서 제외
-- validator agent에게 세션 파일로 위임
+- Always perform Phase 2 CLI verification first
+- Exclude schema-failed modules from semantic verification
+- Delegate to validator agent via session files
 
 **DON'T:**
-- 스키마 실패 모듈에 semantic 검증 수행
-- 사용자 승인 없이 CLAUDE.md/DEVELOPERS.md 수정 (auto-fix는 fix-schema CLI 또는 사용자 명시적 승인 시에만)
-- 신규 코드 생성 (새 파일, 새 함수, 새 모듈 — /dev의 역할)
+- Perform semantic verification on schema-failed modules
+- Modify CLAUDE.md/DEVELOPERS.md without user approval (auto-fix only via fix-schema CLI or explicit user approval)
+- Generate new code (new files, new functions, new modules — that's /dev's role)
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
-| CLAUDE.md 없음 | 안내 메시지, 종료 |
-| validator agent 실패 (단일 모듈) | 경고, 나머지 계속 |
+| Situation | Response |
+|-----------|----------|
+| CLI build failure | install-cli.sh handles automatic build |
+| CLAUDE.md not found | guidance message, exit |
+| validator agent failure (single module) | warn, continue with the rest |
