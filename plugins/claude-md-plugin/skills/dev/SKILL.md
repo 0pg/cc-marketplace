@@ -235,6 +235,7 @@ loop:
 green-coder 세션 파일 생성:
 ${TMP_DIR}green-session-{dir-safe}.md
 (형식: dev-templates.md의 "Green Coder Session File Format" 참조)
+conflict 모드는 dev 인자에서 전달받은 값을 세션 파일 헤더에 포함 (기본값: skip)
 
 Task(green-coder) 디스패치:
   세션 파일: ${TMP_DIR}green-session-{dir-safe}.md

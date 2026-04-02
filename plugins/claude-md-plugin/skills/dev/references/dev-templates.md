@@ -63,7 +63,7 @@ breaking: {true|false}
 ````markdown
 # Test Writer Session
 type: test-writer | mode: write | target: {path} | language: {lang}
-test_output_dir: ${TMP_DIR}tests/{dir-safe}/
+test_dir: ${TMP_DIR}tests/{dir-safe}/
 mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
 
 ## Origin
@@ -101,7 +101,7 @@ existing_test_dir: {path}/{detected_test_dir}/
 ````markdown
 # Test Writer Session
 type: test-writer | mode: revise | round: {N} | target: {path} | language: {lang}
-test_output_dir: ${TMP_DIR}tests/{dir-safe}/
+test_dir: ${TMP_DIR}tests/{dir-safe}/
 mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
 feedback_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{N-1}.md
 
@@ -164,6 +164,9 @@ developers_md: {path}/DEVELOPERS.md
 
 ## Technical Context
 {Technical Context}
+
+## Data Schemas (from DEVELOPERS.md, reference only)
+{Data Schemas 섹션 — 타입 참조용}
 
 ## Approved Tests
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json

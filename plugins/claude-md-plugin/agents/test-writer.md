@@ -65,11 +65,14 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 세션 파일에서 추출:
 - `mode`: write | revise
 - `target`, `language`
-- `test_output_dir`, `mapping_output`
+- `test_dir`, `mapping_output`
+- `round` (revise 모드만)
 - Requirements, Constraints, Data Schemas, Technical Context, Conventions
 - Implementation Tasks (있을 때만)
 - Existing Test Directory (있을 때만)
 - `feedback_file` (revise 모드만)
+
+Note: 세션 파일 헤더의 `test_output_dir` 필드가 이 Agent의 `test_dir`에 해당합니다.
 
 ### 2. Mode 분기
 
@@ -78,7 +81,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 **mode=revise:**
 - feedback_file Read → Critical Questions 추출
-- 기존 TMP 테스트 파일 Edit (test_output_dir에서)
+- 기존 TMP 테스트 파일 Edit (test_dir에서)
 - 기존 mapping.json 업데이트
 - → Phase 5(매핑 갱신) → Phase 6(결과)
 
@@ -109,7 +112,7 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ### 4. Write Test Files
 
-`test_output_dir` (= `${TMP_DIR}tests/{dir-safe}/`)에 테스트 파일 Write.
+`test_dir` (= `${TMP_DIR}tests/{dir-safe}/`)에 테스트 파일 Write.
 
 **테스트 파일 규칙:**
 - import 경로는 **target 기준**으로 작성 (TMP가 아닌 실제 배포 경로)
