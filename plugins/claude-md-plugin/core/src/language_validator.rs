@@ -40,7 +40,7 @@ pub struct LanguageValidationResult {
     /// Actual target script percentage (0.0–100.0)
     pub target_percentage: f64,
     /// Distribution of classified chars by script
-    pub script_distribution: HashMap<String, usize>,
+    pub script_distribution: HashMap<String, f64>,
     /// Total number of classified (non-neutral) chars
     pub total_classified_chars: usize,
     /// Lines where >50% of classified chars are non-target
@@ -86,7 +86,7 @@ impl LanguageValidator {
 
         let stripped_lines = Self::strip_markdown(content);
 
-        let mut script_distribution: HashMap<String, usize> = HashMap::new();
+        let mut script_counts: HashMap<String, usize> = HashMap::new();
         let mut total_classified_chars: usize = 0;
         let mut target_chars: usize = 0;
         let mut non_target_lines: Vec<usize> = Vec::new();
@@ -98,7 +98,7 @@ impl LanguageValidator {
             for ch in line_text.chars() {
                 if let Some(script) = Self::classify_char(ch) {
                     let label = Self::script_label(&script).to_string();
-                    *script_distribution.entry(label).or_insert(0) += 1;
+                    *script_counts.entry(label).or_insert(0) += 1;
                     total_classified_chars += 1;
                     line_total += 1;
                     if target_scripts.contains(&script) {
@@ -117,6 +117,16 @@ impl LanguageValidator {
             }
         }
 
+        // Convert counts to percentages
+        let script_distribution: HashMap<String, f64> = if total_classified_chars > 0 {
+            script_counts.iter().map(|(k, v)| {
+                let pct = (*v as f64 / total_classified_chars as f64) * 100.0;
+                (k.clone(), (pct * 10.0).round() / 10.0)
+            }).collect()
+        } else {
+            HashMap::new()
+        };
+
         // Insufficient content — skip
         if total_classified_chars < 20 {
             return Ok(LanguageValidationResult {
@@ -133,6 +143,7 @@ impl LanguageValidator {
         }
 
         let target_percentage = (target_chars as f64 / total_classified_chars as f64) * 100.0;
+        let target_percentage = (target_percentage * 10.0).round() / 10.0;
         let result = if target_percentage >= threshold {
             "pass".to_string()
         } else {
