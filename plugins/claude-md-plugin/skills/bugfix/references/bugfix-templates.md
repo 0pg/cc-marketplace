@@ -1,0 +1,107 @@
+# Bugfix Templates
+
+## Bugfix Session File Format
+
+```markdown
+# Bugfix Session
+type: bugfix | path: {path}
+
+## Bug Description
+expected: {E — what user expects}
+actual: {A — current behavior}
+
+## Error Message
+{stack trace or error output, if provided — "none" if absent}
+
+## Target File
+{specific file path, if --file was provided — "none" if absent}
+
+## Layer 1: Requirements (CLAUDE.md)
+path: {selected CLAUDE.md path}
+
+Purpose: {parsed purpose}
+Requirements:
+- REQ-N: {text}
+Domain Context: {parsed domain context}
+
+## Layer 2: Constraints (DEVELOPERS.md)
+path: {DEVELOPERS.md path, "none" if absent}
+
+Constraints:
+- CONST-N: {text}
+Technical Context: {parsed technical context}
+
+## Layer 3: Source Files
+language: {detected language}
+files:
+- {file path}: {content or "listing only" if content omitted}
+
+## Recent Spec Changes
+all_requirements: {true|false}
+source_changed: {true|false}
+changed_requirements:
+- {action}: {requirement text}
+Changed source files: {list or "none"}
+
+## Conventions
+{hierarchy-resolved Conventions from project root — Module Boundaries and Project Structure sections}
+```
+
+## Escalation Format
+
+When judgment is ambiguous, the SKILL presents this format via AskUserQuestion:
+
+```
+판단이 필요합니다.
+
+## 현재 상황
+- 사용자 기대 (E): "{expected}"
+- 현재 동작 (A): "{actual}"
+- CLAUDE.md REQ-N: "{spec text}"
+  (또는: "이 동작에 대한 Requirement 없음")
+
+## 판단 근거가 모호한 이유
+"{구체적 이유}"
+
+## 선택지
+A) 스펙과 코드 모두 E에 맞게 수정한다
+   → 실행 순서: CLAUDE.md REQ-N 먼저 수정 → spec commit → /dev로 코드 재생성
+   (Fix-Highest-Layer-First: 코드는 SSOT 수정 이후 derived됨)
+B) 스펙을 수정한다 (E를 요구사항으로 추가/변경)
+   → CLAUDE.md에 신규 Requirement 추가 → spec commit → /dev 재생성
+C) 현재 동작(A)이 올바름 (버그 아님)
+   → 버그 리포트 종료
+
+어떻게 처리할까요?
+```
+
+## Result Block Format
+
+Returned by bugfixer agent to the SKILL:
+
+```
+---bugfix-result---
+status: fixed | escalated | not_a_bug | failed
+root_cause_layer: 1 | 2 | 3 | multi | unknown
+judgment: unambiguous | ambiguous
+fix_type: spec_update | constraints_update | code_fix | none
+fix_description: {what was fixed or what the issue is}
+test_result: passed | skipped | failed
+[escalation:                           ← only when judgment==ambiguous
+  expected: {E}
+  actual: {A}
+  spec: {S text or "none"}
+  reason: {why ambiguous}
+  choices: [A, B, C]]
+[proposed_change: {text}]              ← only for L1/L2 fix proposals
+---end-bugfix-result---
+```
+
+## diff-spec-range Field Mapping
+
+| CLI field | Meaning in Judgment Algorithm |
+|-----------|-------------------------------|
+| `changed_requirements not empty` | spec 변경됨 (last dev commit 이후) |
+| `source_changed=true` + `changed_requirements empty` | 소스 변경, spec 변경 없음 → 코드 이탈 |
+| `all_requirements=true` | git 미사용 또는 첫 커밋 → git 증거 불충분 |
+| `source_changed=false` + `changed_requirements empty` | 최근 변경 없음 → git 증거 불충분 |
