@@ -43,6 +43,8 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     Then root_cause_layer is "3"
     And judgment is "unambiguous"
     And fix_description mentions "/dev rerun needed"
+    And SKILL runs /dev to regenerate code rather than a manual code fix
+    And no separate bugfix commit is created
 
   Scenario: source diverged — source_changed=true, changed_requirements empty, A != S
     Given diff-spec-range shows source_changed=true and changed_requirements is empty
@@ -69,6 +71,8 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     And user reports expected "tokens expire after 30 days", actual "tokens expire after 7 days"
     When bugfixer agent applies judgment algorithm
     Then judgment is "ambiguous"
+    And result status is "escalated"
+    And escalation choices include "A", "B", "C"
     And escalation reason mentions "code matches spec but user expectation differs"
     And escalation cites "REQ-2" directly
 
@@ -78,6 +82,7 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     When bugfixer agent applies judgment algorithm
     Then judgment is "ambiguous"
     And result status is "escalated"
+    And escalation choices include "A", "B", "C"
     And escalation cites the relevant Requirement text
 
   Scenario: all_requirements=true — no git context → ambiguous
@@ -85,7 +90,26 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     And user reports a bug with unclear git history
     When bugfixer agent applies judgment algorithm
     Then judgment is "ambiguous"
+    And result status is "escalated"
+    And escalation choices include "A", "B", "C"
     And escalation reason mentions "no git context"
+
+  Scenario: E itself is unclear — SKILL asks for clarification before dispatch
+    Given user reports a bug with vague description "login is broken"
+    And expected behavior is not specified
+    When SKILL receives the bug report
+    Then SKILL calls AskUserQuestion to clarify expected behavior
+    And SKILL does not dispatch bugfixer agent until E is clarified
+
+  Scenario: Multiple conflicting requirements — ambiguous escalation
+    Given CLAUDE.md has REQ-1 saying "returns User on success"
+    And CLAUDE.md has REQ-3 saying "returns null when user has no active subscription"
+    And user reports expected "User returned", actual "null returned for active user"
+    When bugfixer agent applies judgment algorithm
+    Then judgment is "ambiguous"
+    And result status is "escalated"
+    And escalation reason mentions "conflicting requirements"
+    And escalation choices include "A", "B", "C"
 
   # ─────────────────────────────────────────────
   # Fix paths — SKILL behavior
