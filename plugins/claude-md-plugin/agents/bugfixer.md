@@ -136,6 +136,7 @@ Ambiguous (escalate):
   • all_requirements=true (no git context)
   • E != S AND A == S (code matches spec, user expectation differs)
   • multiple Requirements conflict
+  • E is unclear (handled via early-exit in Step 1, listed here for completeness)
   → judgment: ambiguous → populate escalation fields → STOP
 ```
 
