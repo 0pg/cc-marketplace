@@ -288,6 +288,7 @@ User: /decompile [path]
 | `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
+| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
 
 ## Commands
 
@@ -308,12 +309,12 @@ User: /decompile [path]
 | `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Inline TDD from Constraints) |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
+| `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer |
 
 ### Phase 2 (Planned after Core stabilization)
 
 | Skill | Role |
 |-------|------|
-| `/bugfix` | Source code bug → 3-layer tracing → fix |
 | `/impl-review` | CLAUDE.md quality review |
 | `/impact` | Document change → affected module analysis |
 | `/diff-spec` | Semantic diff between document versions |
