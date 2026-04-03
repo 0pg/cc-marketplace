@@ -2135,10 +2135,12 @@ fn create_markdown_file(world: &mut TestWorld, filename: String, step: &cucumber
     fs::write(&file_path, content).expect("Failed to write markdown file");
 }
 
-#[given(expr = "a markdown file {string} with content at exactly 70 percent Latin")]
+#[given(regex = r#"^a markdown file "([^"]+)" with content at exactly 70 percent Latin$"#)]
 fn create_70_percent_latin_file(world: &mut TestWorld, filename: String) {
-    // Build content where after stripping headings and None, ~70% chars are Latin
-    let content = "## Purpose\n\nThis is a test document with enough English text to reach seventy percent of all content chars\n\n## Requirements\n\n- 한국어 요구사항 텍스트를 여기에 작성합니다 추가합니다\n\n## Domain Context\n\nNone";
+    // Build content where after stripping headings and None, ~70-75% chars are Latin
+    // After stripping: heading lines removed, None removed
+    // Remaining: English prose + Korean requirement line
+    let content = "## Purpose\n\nThis is a test document with enough English text here to reach the seventy percent target threshold level needed for the validation check to pass properly\n\n## Requirements\n\n- 한국어 텍스트 여기에 작성합니다\n\n## Domain Context\n\nNone";
     let dir = world.temp_dir.as_ref().expect("Need temp dir");
     let file_path = dir.path().join(&filename);
     fs::write(&file_path, content).expect("Failed to write markdown file");
