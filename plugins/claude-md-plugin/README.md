@@ -163,6 +163,17 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 /decompile src/auth
 ```
 
+### `/bugfix` — Bug → 3-Layer Root Cause Tracing → Fix
+
+Traces a reported bug through all three layers (CLAUDE.md Requirements → DEVELOPERS.md Constraints → source code) and fixes at the highest affected layer.
+
+```bash
+/bugfix "login returns 500 instead of 401 for invalid credentials"
+/bugfix "description" --path src/auth
+/bugfix "description" --file src/auth/login.ts
+/bugfix "description" --error "TypeError: cannot read property..."
+```
+
 ## Commands
 
 | Command | Description |
@@ -176,7 +187,6 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 
 | Skill | Role |
 |-------|------|
-| `/bugfix` | Runtime bug → 3-layer trace → fix |
 | `/spec-review` | CLAUDE.md quality review |
 | `/impact` | Change impact analysis |
 | `/diff-spec` | Semantic diff between spec versions |
@@ -235,6 +245,8 @@ SKILL (Entry Point)
 | `refactorer` | (none) | REFACTOR — conventions application + regression tests |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
+| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) |
+| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
 
 ### Design Principles
 
