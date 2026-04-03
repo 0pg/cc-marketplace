@@ -40,9 +40,8 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     Given diff-spec-range shows changed_requirements=["REQ-2 modified"] and source_changed=false
     And user reports expected "AuthError on expired token", actual "User returned on expired token"
     When bugfixer agent applies judgment algorithm
-    Then root_cause_layer is "3"
-    And judgment is "unambiguous"
-    And fix_description mentions "/dev rerun needed"
+    Then judgment is "unambiguous"
+    And fix_type is "none" (no manual code fix — /dev rerun handles it)
     And SKILL runs /dev to regenerate code rather than a manual code fix
     And no separate bugfix commit is created
 
@@ -119,6 +118,7 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     Given bugfixer returns root_cause_layer="1" with judgment="unambiguous"
     When SKILL processes the result
     Then SKILL calls AskUserQuestion with proposed CLAUDE.md change before modifying
+    And user approval is required even though judgment is "unambiguous" (INV-bugfix-2)
     And SKILL modifies CLAUDE.md after user approval
     And SKILL creates a spec commit
     And SKILL runs /dev to regenerate code
@@ -128,6 +128,7 @@ Feature: /bugfix — 3-Layer Bug Root Cause Analysis and Fix
     Given bugfixer returns root_cause_layer="2" with judgment="unambiguous"
     When SKILL processes the result
     Then SKILL calls AskUserQuestion with proposed DEVELOPERS.md change before modifying
+    And user approval is required even though judgment is "unambiguous" (INV-bugfix-2)
     And SKILL modifies DEVELOPERS.md after user approval
     And SKILL runs /dev to regenerate code
     And no separate bugfix commit is created
