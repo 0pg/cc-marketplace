@@ -213,6 +213,13 @@ Completeness criteria:
 
 ### Phase 1.5: Dependency Exploration (inline)
 
+**Conditional skip:** When `## Domain Context Summary` is present in the session file,
+skip Phase 1.5 entirely — the requirement-explorer has already performed domain context
+collection and dependency exploration. Proceed directly to Phase 2 (Tiered Clarification)
+or Phase P (Write plan.md).
+
+When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
+
 Same as existing Phase 1.5 — Dependency exploration based on Existing Modules Index + parent/sibling module Public API exploration.
 
 ### Phase 2: Tiered Clarification (single mode only)
@@ -344,6 +351,13 @@ Completeness criteria:
 - **low**: Mostly unclear
 
 ### Phase 1.5: Dependency Exploration (inline)
+
+**Conditional skip:** When `## Domain Context Summary` is present in the session file,
+skip Phase 1.5 entirely — the requirement-explorer has already performed domain context
+collection and dependency exploration. Proceed directly to Phase 2 (Tiered Clarification)
+or Phase P (Write plan.md).
+
+When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
 
 Read `## Existing Modules Index` from the session file:
 1. Evaluate semantic relevance between each module's Purpose and the current requirements
