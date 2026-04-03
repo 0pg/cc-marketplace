@@ -28,8 +28,10 @@ INV-bugfix-1: Conflict Resolution
   Never patch code while leaving CLAUDE.md inconsistent.
 
 INV-bugfix-2: Ambiguity Escalation
-  Autonomous fix only when judgment is unambiguous (evidence-based).
-  Any degree of ambiguity → escalate to user with structured context.
+  Layer 3 (code): autonomous fix when judgment is unambiguous (evidence-based).
+  Layer 1/2 (SSOT documents): always require user approval before modification,
+    even when judgment is unambiguous. Modifying the SSOT has broader impact than a code fix.
+  Any degree of ambiguity (any layer) → escalate to user with structured context.
 ```
 
 ## Architecture
@@ -42,20 +44,25 @@ User: /bugfix "description" [--path] [--error] [--file]
 │ bugfix SKILL                                │
 │                                             │
 │ 1. Bug context 수집                          │
-│ 2. 관련 CLAUDE.md + DEVELOPERS.md +          │
+│ 2. CLAUDE.md 선정 + DEVELOPERS.md +          │
 │    소스 파일 + diff-spec-range 수집            │
+│    (선정 로직은 "SKILL Step 2" 참고)            │
 │ 3. bugfix-session.md 생성                    │
 │ 4. Task(bugfixer agent) dispatch            │
 │ 5. Result 기반 fix 실행:                      │
+│    not_a_bug → 사용자에게 알림 후 종료           │
 │    unambiguous L1 → AskUserQuestion 승인     │
 │                   → CLAUDE.md 직접 수정      │
 │                   → spec commit → /dev      │
 │    unambiguous L2 → AskUserQuestion 승인     │
 │                   → DEVELOPERS.md 수정 → /dev│
-│    unambiguous L3 → 테스트 통과 확인           │
-│    ambiguous     → AskUserQuestion (escalation) │
-│                   → 사용자 선택 기반 fix        │
-│ 6. bugfix commit                            │
+│    unambiguous L3 → result block의           │
+│                   test_result 확인 (agent    │
+│                   가 이미 fix 완결)            │
+│    multi → L1→L2→L3 순서로 위 분기 순차 실행   │
+│    ambiguous → AskUserQuestion (escalation) │
+│               → 사용자 선택 기반 fix            │
+│ 6. bugfix commit (L3 fix 포함 시에만)          │
 └─────────────────────────────────────────────┘
        │
        ▼
@@ -108,20 +115,28 @@ systematic-debugging의 Phase 1–3을 적용해 코드 레벨 root cause를 추
   A = 현재 코드의 실제 동작
   S = CLAUDE.md가 명시한 동작 (없으면 null)
 
-자명한 케이스 (autonomous fix):
+diff-spec-range CLI 결과 필드 매핑:
+  changed_requirements not empty          → spec이 변경됨 (last dev commit 이후)
+  source_changed=true + changed_requirements empty → 소스 변경, spec 변경 없음
+  all_requirements=true                   → git 미사용 또는 첫 커밋 (전체 Requirements 검증)
+
+자명한 케이스:
+  ✓ E == A
+      → not_a_bug (버그 없음 또는 이미 수정됨)
   ✓ E == S AND A != S
-      → 코드가 틀림 → Layer 3 fix
-  ✓ spec commit > last dev commit (diff-spec-range)
-      → 코드 스테일 → /dev 재실행
-  ✓ last dev commit 이후 소스 변경 + spec commit 없음 AND A != S
-      → 코드가 CLAUDE.md에서 이탈 → Layer 3 fix
+      → 코드가 틀림 → Layer 3 fix (autonomous)
+  ✓ changed_requirements not empty AND source_changed=false
+      → 코드 스테일 (spec 변경이 dev에 반영 안 됨) → /dev 재실행
+  ✓ source_changed=true AND changed_requirements empty AND A != S
+      → 코드가 CLAUDE.md에서 이탈 → Layer 3 fix (autonomous)
 
 모호한 케이스 (escalate to user):
   - E 자체가 불명확
   - S == null (CLAUDE.md 누락)
   - E != S AND S가 명시적으로 존재
-  - git 증거 불충분 (최근 변경 없음)
+  - git 증거 불충분 (all_requirements=true)
   - 여러 Requirement가 충돌
+  - E != S AND A == S (코드는 스펙 준수, 사용자 기대가 스펙과 다름)
 ```
 
 ## Escalation Format
@@ -142,10 +157,11 @@ SKILL이 다음 포맷으로 AskUserQuestion을 통해 사용자에게 판단을
 "{구체적 이유}"
 
 ## 선택지
-A) 코드를 수정한다 (E에 맞게)
-   → CLAUDE.md REQ-N도 E를 반영하도록 업데이트 필요
+A) 스펙과 코드 모두 E에 맞게 수정한다
+   → 실행 순서: CLAUDE.md REQ-N 먼저 수정 → spec commit → /dev로 코드 재생성
+   (Fix-Highest-Layer-First: 코드는 SSOT 수정 이후 derived됨)
 B) 스펙을 수정한다 (E를 요구사항으로 추가/변경)
-   → /spec → /dev 재생성
+   → CLAUDE.md에 신규 Requirement 추가 → spec commit → /dev 재생성
 C) 현재 동작(A)이 올바름 (버그 아님)
    → 버그 리포트 종료
 
@@ -171,6 +187,38 @@ Fix path per layer:
 Layer 2 fix에 /spec 대신 직접 수정을 사용하는 이유:
 DEVELOPERS.md는 개발자가 직접 작성하는 Derived Spec이다.
 Constraints 갭을 채우는 targeted patch가 /spec full workflow보다 bugfix 맥락에서 더 정확하다.
+
+## SKILL Step 2: Context 수집 로직
+
+### CLAUDE.md 선정
+
+```
+1. --file 제공:
+   --file 경로에서 상위로 탐색하며 첫 번째 CLAUDE.md 발견 → 해당 파일 선택
+   예) --file=src/auth/login.ts → src/auth/CLAUDE.md 탐색 → 없으면 src/CLAUDE.md → ...
+
+2. --file 미제공, --path 제공:
+   scan-claude-md --root {path} 결과에서 target 디렉토리의 CLAUDE.md 선택
+   (path 내 최상위 CLAUDE.md)
+
+3. Conventions: 프로젝트 루트 CLAUDE.md에서 Conventions 섹션을 추가로 포함 (계층 상속)
+```
+
+### 소스 파일 선정
+
+```
+1. --file 제공: 해당 파일 + 같은 디렉토리의 소스 파일 목록
+2. --file 미제공:
+   선정된 CLAUDE.md의 디렉토리 내 소스 파일 목록 (확장자 기반 언어 감지)
+   파일 수가 많으면 (>10) 목록만 포함, 내용은 agent가 필요 시 직접 Read
+```
+
+### diff-spec-range 실행
+
+```bash
+$CLI_PATH diff-spec-range --file {selected_CLAUDE.md_path} --root {project_root} \
+  --output "${TMP_DIR}spec-diff-{dir-safe}.json"
+```
 
 ## Session File Schema
 
@@ -218,20 +266,37 @@ test_result: passed | skipped | failed (Layer 3 only)
 
 ## Commit Message
 
+**L3-only fix** (코드만 수정):
 ```
 bugfix({path}): {one-line summary}
 
-Root cause: Layer {N} — {brief description}
+Root cause: Layer 3 — {brief description}
 
 Changes:
-- {list of changed files with description}
+- {list of changed files}
 ```
 
-Layer 1/2 fix가 포함된 경우 spec commit과 dev commit이 분리된다:
+**L1 fix** (CLAUDE.md 수정 + /dev 재생성):
 ```
 spec({path}): fix requirement — {summary}
-dev({path}): regenerate after spec fix
-bugfix({path}): {summary}
+dev({path}): regenerate after spec fix — {summary}
+```
+별도 bugfix commit 없음. spec + dev commit으로 변경이 완결된다.
+
+**L2 fix** (DEVELOPERS.md 수정 + /dev 재생성):
+```
+dev({path}): fix constraint and regenerate — {summary}
+```
+별도 bugfix commit 없음.
+
+**multi-layer fix** (예: L1 + L3):
+```
+spec({path}): fix requirement — {summary}
+dev({path}): regenerate after spec fix — {summary}
+```
+/dev 재생성 후에도 L3 이슈가 남을 경우:
+```
+bugfix({path}): fix residual implementation issue — {summary}
 ```
 
 ## Error Handling
@@ -249,6 +314,17 @@ bugfix({path}): {summary}
 | Agent | Superpowers | Role |
 |-------|-------------|------|
 | `bugfixer` | systematic-debugging | 3-layer root cause 분석 + Layer 3 코드 fix |
+
+### bugfixer agent 필요 tools
+
+```
+tools: [Bash, Read, Glob, Grep, Edit, Write]
+
+- Bash: git log, diff-spec-range, 테스트 실행
+- Read/Glob/Grep: 소스 파일 탐색 및 읽기
+- Edit: Layer 3 코드 수정
+- Write: 실패 테스트 파일 작성
+```
 
 ## Relationship to Other Skills
 
