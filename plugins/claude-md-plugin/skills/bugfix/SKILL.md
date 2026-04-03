@@ -58,6 +58,9 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
+> `dir-safe`: path의 슬래시를 하이픈으로 치환 (e.g., `src/auth` → `src-auth`).
+> Used as a suffix for all TMP_DIR files related to this bugfix target.
+
 ### 1. Bug Context 수집
 
 `description` 인수에서 E (expected), A (actual) 파싱.
@@ -115,8 +118,6 @@ $CLI_PATH diff-spec-range \
   --output "${TMP_DIR}spec-diff-{dir-safe}.json"
 ```
 
-> `dir-safe`: path의 슬래시를 하이픈으로 치환 (e.g., `src/auth` → `src-auth`)
-
 ### 3. Session File 생성
 
 `${TMP_DIR}bugfix-session-{dir-safe}.md`
@@ -142,6 +143,8 @@ Task(bugfixer):
 ```
 
 Extract from result block: `status`, `root_cause_layer`, `judgment`, `fix_type`, `fix_description`, `test_result`, `escalation` (if present), `proposed_change` (if present).
+
+> `proposed_change` and `escalation` are optional fields defined in `skills/bugfix/references/bugfix-templates.md` Result Block Format — they extend the base spec result block.
 
 ### 5. Result 처리
 
