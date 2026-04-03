@@ -206,7 +206,7 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
 "
 
 git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
-git commit -m "feat({target_path}): {action} CLAUDE.md + DEVELOPERS.md
+git commit -m "spec({target_path}): {action} CLAUDE.md + DEVELOPERS.md
 
 requirement: {user_requirement first 150 chars}
 workflow: .claude/workflows/{dir-safe}/state.json"
