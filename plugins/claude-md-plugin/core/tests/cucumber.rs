@@ -19,6 +19,7 @@ use claude_md_core::code_analyzer::{
     Exports, ExportedFunction, ExportedType, ExportedClass, ExportedEnum,
     ExportedVariable, ReExport, TypeKind,
 };
+use claude_md_core::language_validator::{LanguageValidator, LanguageValidationResult};
 
 #[derive(Debug, Default, World)]
 pub struct TestWorld {
@@ -48,6 +49,9 @@ pub struct TestWorld {
     fix_schema_added: Option<Vec<String>>,
     // Parser fields
     parser_result: Option<Result<ClaudeMdSpec, ParseError>>,
+    // Language validator fields
+    language_result: Option<LanguageValidationResult>,
+    language_error: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -2119,6 +2123,96 @@ fn should_find_records_as_classes(world: &mut TestWorld, step: &cucumber::gherki
                     name, result.exports.classes.iter().map(|c| &c.name).collect::<Vec<_>>());
         }
     }
+}
+
+// ============== Language Validator Steps ==============
+
+#[given(expr = "a markdown file {string} with content:")]
+fn create_markdown_file(world: &mut TestWorld, filename: String, step: &cucumber::gherkin::Step) {
+    let content = step.docstring().expect("Expected docstring content");
+    let dir = world.temp_dir.as_ref().expect("Need temp dir");
+    let file_path = dir.path().join(&filename);
+    fs::write(&file_path, content).expect("Failed to write markdown file");
+}
+
+#[given(regex = r#"^a markdown file "([^"]+)" with content at exactly 70 percent Latin$"#)]
+fn create_70_percent_latin_file(world: &mut TestWorld, filename: String) {
+    // Build content where after stripping headings and None, ~70-75% chars are Latin
+    // After stripping: heading lines removed, None removed
+    // Remaining: English prose + Korean requirement line
+    let content = "## Purpose\n\nThis is a test document with enough English text here to reach the seventy percent target threshold level needed for the validation check to pass properly\n\n## Requirements\n\n- 한국어 텍스트 여기에 작성합니다\n\n## Domain Context\n\nNone";
+    let dir = world.temp_dir.as_ref().expect("Need temp dir");
+    let file_path = dir.path().join(&filename);
+    fs::write(&file_path, content).expect("Failed to write markdown file");
+}
+
+#[when(expr = "I validate language with expected {string} and threshold {int}")]
+fn validate_language(world: &mut TestWorld, expected: String, threshold: i32) {
+    let dir = world.temp_dir.as_ref().expect("Need temp dir");
+    let file_path = dir.path().join("CLAUDE.md");
+    let validator = LanguageValidator::new();
+    match validator.validate(&file_path, &expected, threshold as f64) {
+        Ok(result) => {
+            world.language_result = Some(result);
+            world.language_error = None;
+        }
+        Err(e) => {
+            world.language_result = None;
+            world.language_error = Some(e.to_string());
+        }
+    }
+}
+
+#[then(expr = "language result should be {string}")]
+fn check_language_result(world: &mut TestWorld, expected_result: String) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert_eq!(result.result, expected_result,
+        "Expected result '{}', got '{}' (percentage: {:.1}%, chars: {})",
+        expected_result, result.result, result.target_percentage, result.total_classified_chars);
+}
+
+#[then(expr = "target percentage should be greater than {int}")]
+fn check_target_percentage(world: &mut TestWorld, min_pct: i32) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert!(result.target_percentage > min_pct as f64,
+        "Expected percentage > {}, got {:.1}", min_pct, result.target_percentage);
+}
+
+#[then("non target lines should not be empty")]
+fn check_non_target_lines_not_empty(world: &mut TestWorld) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert!(!result.non_target_lines.is_empty(),
+        "Expected non-target lines to be non-empty, got empty");
+}
+
+#[then(expr = "non target lines should contain line {int}")]
+fn check_non_target_contains_line(world: &mut TestWorld, line: i32) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert!(result.non_target_lines.contains(&(line as usize)),
+        "Expected non_target_lines to contain {}, got {:?}", line, result.non_target_lines);
+}
+
+#[then(expr = "non target lines should not contain line {int}")]
+fn check_non_target_not_contains_line(world: &mut TestWorld, line: i32) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert!(!result.non_target_lines.contains(&(line as usize)),
+        "Expected non_target_lines to NOT contain {}, got {:?}", line, result.non_target_lines);
+}
+
+#[then(expr = "language validation should fail with {string}")]
+fn check_language_error(world: &mut TestWorld, error_type: String) {
+    let error = world.language_error.as_ref().expect("Expected language error");
+    // Normalize: "UnsupportedLanguage" matches both the Display "Unsupported language:" and Debug "UnsupportedLanguage"
+    let normalized_error_type = error_type.replace("UnsupportedLanguage", "Unsupported language");
+    assert!(error.contains(&normalized_error_type) || error.contains(&error_type),
+        "Expected error containing '{}', got '{}'", error_type, error);
+}
+
+#[then(expr = "script distribution should contain {string}")]
+fn check_script_distribution_contains(world: &mut TestWorld, script: String) {
+    let result = world.language_result.as_ref().expect("Expected language result");
+    assert!(result.script_distribution.contains_key(&script),
+        "Expected script distribution to contain '{}', got {:?}", script, result.script_distribution);
 }
 
 #[tokio::main]

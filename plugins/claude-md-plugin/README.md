@@ -42,6 +42,18 @@ The plugin includes a Rust CLI binary in `core/`:
 cd plugins/claude-md-plugin/core && cargo build --release
 ```
 
+### Superpowers Plugin (Required)
+
+This plugin composes [superpowers](../superpowers) components for process discipline:
+
+| Agent | Superpowers Component |
+|-------|----------------------|
+| impl | `superpowers:brainstorming` |
+| validator | `superpowers:verification-before-completion` |
+| test-writer, green-coder, refactorer | `superpowers:test-driven-development` |
+
+Install the superpowers plugin before using `/spec` or `/dev`.
+
 ## Quick Start
 
 | Situation | Command | Result |
@@ -157,6 +169,8 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 |---------|-------------|
 | `/project-setup` | Initialize/update Instructions + Conventions in project CLAUDE.md |
 | `/migrate` | Migrate to new schema version (v6→v7, v9→v10 supported) |
+| `/autodev` | Autonomously run requirements → CLAUDE.md → code → validation loop without manual steps |
+| `/spec-step` | Resume an interrupted `/spec` workflow by reading persisted state.json |
 
 ## Phase 2 Skills (planned)
 

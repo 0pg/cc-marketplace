@@ -69,6 +69,7 @@ pub mod exports_formatter;
 pub mod analysis_formatter;
 pub mod contract_hasher;
 pub mod spec_diff;
+pub mod language_validator;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;
@@ -76,6 +77,7 @@ pub use schema_validator::{SchemaValidator, ConvergeResult};
 pub use code_analyzer::CodeAnalyzer;
 pub use claude_md_parser::ClaudeMdParser;
 pub use convention_validator::ConventionValidator;
+pub use language_validator::LanguageValidator;
 
 #[cfg(test)]
 mod tests {

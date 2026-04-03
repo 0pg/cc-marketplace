@@ -209,6 +209,25 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
+
+    /// Validate document language consistency
+    ValidateLanguage {
+        /// File to validate (CLAUDE.md or DEVELOPERS.md)
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// Expected language (English, Korean, Japanese, Chinese)
+        #[arg(short, long)]
+        expected: String,
+
+        /// Minimum target percentage (default: 70)
+        #[arg(short, long, default_value_t = 70.0)]
+        threshold: f64,
+
+        /// Output JSON file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -431,6 +450,13 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::ValidateLanguage { file, expected, threshold, output } => {
+            let validator = claude_md_core::LanguageValidator::new();
+            match validator.validate(file, expected, *threshold) {
+                Ok(result) => output_result(&result, output.as_ref(), "validate-language"),
+                Err(e) => Err(e.to_string().into()),
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -450,6 +476,7 @@ fn main() {
             Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",
             Commands::FormatAnalysis { .. } => "format-analysis",
+            Commands::ValidateLanguage { .. } => "validate-language",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
