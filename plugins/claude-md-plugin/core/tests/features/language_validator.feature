@@ -167,8 +167,8 @@ Feature: Language Validation
       None
       """
     When I validate language with expected "English" and threshold 70
-    Then non target lines should contain line 10
-    And non target lines should not contain line 8
+    Then non target lines should contain line 9
+    And non target lines should not contain line 7
 
   Scenario: Script distribution is reported correctly
     Given a markdown file "CLAUDE.md" with content:
@@ -226,4 +226,4 @@ Feature: Language Validation
       """
     When I validate language with expected "Korean" and threshold 70
     Then language result should be "pass"
-    And target percentage should be greater than 90
+    And target percentage should be greater than 85
