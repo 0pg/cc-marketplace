@@ -169,6 +169,8 @@ Extracts CLAUDE.md + DEVELOPERS.md from existing source code (leaf-first order).
 |---------|-------------|
 | `/project-setup` | Initialize/update Instructions + Conventions in project CLAUDE.md |
 | `/migrate` | Migrate to new schema version (v6→v7, v9→v10 supported) |
+| `/autodev` | Autonomously run requirements → CLAUDE.md → code → validation loop without manual steps |
+| `/spec-step` | Resume an interrupted `/spec` workflow by reading persisted state.json |
 
 ## Phase 2 Skills (planned)
 

@@ -296,6 +296,7 @@ User: /decompile [path]
 | `/project-setup` | Create/update Instructions + Conventions in CLAUDE.md (absorbed convention-update) |
 | `/migrate` | Version upgrade migration (v6→v7, v9→v10, etc.) |
 | `/autodev` | Autonomous completion from requirements to code. Runs spec+dev+validate loop without human intervention |
+| `/spec-step` | Resume an interrupted spec workflow from persisted state.json |
 
 ## Skills
 
@@ -336,6 +337,7 @@ User: /decompile [path]
 | `contract-hash` | SHA-256 hash (change detection) |
 | `parse-tree` | Parse directory structure |
 | `validate-language` | Document language validation |
+| `diff-spec-range` | Detect changed Requirements and source files since last spec commit |
 
 ## Invariants
 
