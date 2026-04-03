@@ -335,6 +335,7 @@ User: /decompile [path]
 | `fix-schema` | Auto-add missing sections |
 | `contract-hash` | SHA-256 hash (change detection) |
 | `parse-tree` | Parse directory structure |
+| `validate-language` | Document language validation |
 
 ## Invariants
 
@@ -366,6 +367,18 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 ```
 project_root/CLAUDE.md MUST contain ## Conventions (6 required subsections)
 module_root/CLAUDE.md MAY contain ## Conventions (override; inherits from project_root if absent)
+```
+
+### INV-6: Language Validation Opt-in
+```
+validate-language runs IFF Document language ∈ project root ## Instructions
+No Document language → no validation (zero false positives for unconfigured projects)
+```
+
+### INV-7: Two-Tier Separation
+```
+Tier 1 (CLI): deterministic character counting, no LLM tokens
+Tier 2 (LLM): only triggered when CLI result = below_threshold
 ```
 
 ## Development Principles

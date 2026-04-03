@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "10.10.0",
+  "version": "10.11.0",
   "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
   "author": {
     "name": "jhk"
@@ -36,6 +36,6 @@
     "./commands/project-setup.md",
     "./commands/migrate.md",
     "./commands/autodev.md",
-    "./commands/impl-step.md"
+    "./commands/spec-step.md"
   ]
 }

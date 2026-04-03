@@ -82,6 +82,8 @@ Changed source files (within target_dir): {target_source_files list}
 | TECH_CONTEXT_STALE | INFO | Stated technology doesn't match actual usage |
 | DATA_SCHEMA_STALE | WARNING | Types defined in Data Schemas don't match code |
 | FLOWS_MISPLACED | WARNING | Flows section exists in DEVELOPERS.md that is not at project root |
+| LANGUAGE_MISMATCH | Document content in unexpected language | WARNING | CLI below_threshold + agent confirms untranslated |
+| LANGUAGE_ACCEPTABLE | Non-target script is legitimate | (dismissed) | CLI below_threshold + agent dismisses |
 
 ## Validation Report Format
 
