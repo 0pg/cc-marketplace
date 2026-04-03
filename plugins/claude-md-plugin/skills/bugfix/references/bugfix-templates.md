@@ -9,6 +9,7 @@ type: bugfix | path: {path}
 ## Bug Description
 expected: {E — what user expects}
 actual: {A — current behavior}
+                               ← structured format for agent clarity; spec intent is "user description — expected vs actual"
 
 ## Error Message
 {stack trace or error output, if provided — "none" if absent}
@@ -86,14 +87,15 @@ root_cause_layer: 1 | 2 | 3 | multi | unknown
 judgment: unambiguous | ambiguous
 fix_type: spec_update | constraints_update | code_fix | none
 fix_description: {what was fixed or what the issue is}
-test_result: passed | skipped | failed
-[escalation:                           ← only when judgment==ambiguous
+test_result: passed | skipped | failed   ← (Layer 3 only; skipped for L1/L2)
+                               ← optional fields below: agent passes these to SKILL for user interaction
+[escalation:                   ← populated when judgment==ambiguous
   expected: {E}
   actual: {A}
   spec: {S text or "none"}
   reason: {why ambiguous}
   choices: [A, B, C]]
-[proposed_change: {text}]              ← only for L1/L2 fix proposals
+[proposed_change: {text}]      ← populated when L1/L2 fix is proposed (agent's fix suggestion)
 ---end-bugfix-result---
 ```
 
