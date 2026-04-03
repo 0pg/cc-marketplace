@@ -123,13 +123,17 @@ User: /spec "requirements"
 │ spec SKILL                                  │
 │                                             │
 │ 1. Bash(scan-claude-md) → Build index       │
-│ 2. Create decompose session file            │
-│ 3. Task(decompose agent) → Decompose plan   │
-│ 4. Scope branching:                         │
+│ 2. Self Socratic Loop:                      │
+│    Task(requirement-explorer) →             │
+│    Task(requirement-reviewer) →             │
+│    approved | last-resort AskUserQuestion   │
+│ 3. Create decompose session file            │
+│ 4. Task(decompose agent) → Decompose plan   │
+│ 5. Scope branching:                         │
 │    single → 1 Task(impl agent)              │
 │    multi  → Approve → Task(impl agent) × N  │
 │             root-first, max 3 parallel       │
-│ 5. Show git diff                            │
+│ 6. Show git diff                            │
 └─────────────────────────────────────────────┘
         │
         ├─ scope=single ──────────────────────┐
@@ -289,6 +293,8 @@ User: /decompile [path]
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
 | `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
+| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization |
+| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements |
 
 ## Commands
 
@@ -296,7 +302,7 @@ User: /decompile [path]
 |---------|------|
 | `/project-setup` | Create/update Instructions + Conventions in CLAUDE.md (absorbed convention-update) |
 | `/migrate` | Version upgrade migration (v6→v7, v9→v10, etc.) |
-| `/autodev` | Autonomous completion from requirements to code. Runs spec+dev+validate loop without human intervention |
+| `/autodev` | Thin orchestrator: Skill(spec) + Skill(dev). Autonomous end-to-end execution. |
 | `/spec-step` | Resume an interrupted spec workflow from persisted state.json |
 
 ## Skills
@@ -305,7 +311,7 @@ User: /decompile [path]
 
 | Skill | Role |
 |-------|------|
-| `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). `--auto` runs autonomous spec→dev→validate loop |
+| `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization before decompose. |
 | `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Inline TDD from Constraints) |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
