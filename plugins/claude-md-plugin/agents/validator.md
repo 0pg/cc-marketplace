@@ -142,7 +142,35 @@ Performed only when `strict: true`:
 | CONSTRAINT_NOT_ENFORCED | Constraint not reflected in code | WARNING |
 | TECH_CONTEXT_STALE | Specified technology does not match reality | INFO |
 
-### 5. Result
+### 5. Document Language Drift (conditional)
+
+Only executed when `## Language Check` section is present in the session file.
+
+**Input**: Parse the `## Language Check` section — extract `file`, `expected`, `actual`, `non_target_lines` for each entry.
+
+**Process**:
+1. For each file in the Language Check list:
+   - Read only the `non_target_lines` from the original file
+   - For each non-target line, classify content:
+     - **Legitimate**: proper nouns, domain-specific terms (law names, protocol names), quoted foreign text, standard abbreviations, technical terms → dismiss
+     - **Untranslated**: actual prose (full sentences, requirement descriptions) in a different language → flag
+
+**Output**:
+- Legitimate content only → issue type: `LANGUAGE_ACCEPTABLE` (not counted in issues)
+- Any untranslated content → issue type: `LANGUAGE_MISMATCH` (WARNING severity)
+
+**Evidence format**:
+```
+### [WARNING] LANGUAGE_MISMATCH
+- {file}:{line}: "{non-target text excerpt (max 80 chars)}" — expected {language}
+```
+
+| Drift Type | Description | Severity |
+|-----------|-------------|----------|
+| LANGUAGE_MISMATCH | Document content in unexpected language | WARNING |
+| LANGUAGE_ACCEPTABLE | Non-target script is legitimate (domain terms, proper nouns) | (dismissed) |
+
+### 6. Result
 
 Save results to `${TMP_DIR}validate-{dir-safe}.md` file.
 
@@ -175,6 +203,9 @@ File format:
 ### [WARNING] CONVENTION_STRUCTURE_VIOLATION
 - Rule: "{convention rule}"
 - Evidence: {file}:{line} — {violation description}
+
+### [WARNING] LANGUAGE_MISMATCH
+- {file}:{line}: "{text excerpt}" — expected {language}
 ```
 
 Return:
