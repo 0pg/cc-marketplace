@@ -49,6 +49,11 @@ Glob("{path}/**/CLAUDE.md")
 
 If no files collected: "No CLAUDE.md found in the target path." → exit.
 
+### 1.5 Read Document language
+
+Read `## Instructions` from project root CLAUDE.md. Extract the `Document language` value.
+If not found, set `document_language` to empty (Phase 2e will be skipped).
+
 ### 2. Deterministic verification (CLI only, no agent)
 
 #### 2a. Schema verification + auto-fix
@@ -88,6 +93,33 @@ Collect `PARENT_REFERENCE`, `SIBLING_REFERENCE` issues.
 
 Check DEVELOPERS.md existence in each CLAUDE.md directory:
 - If absent: ERROR in `--strict` mode, WARNING otherwise
+
+#### 2e. Language validation (conditional)
+
+**Skip entirely** if `document_language` is empty (not configured in Instructions).
+
+For each CLAUDE.md target:
+```bash
+$CLI_PATH validate-language \
+  --file "$claude_md" \
+  --expected "$document_language" \
+  --threshold 70 \
+  --output "${TMP_DIR}language-${dir_safe}.json"
+```
+
+If DEVELOPERS.md exists:
+```bash
+$CLI_PATH validate-language \
+  --file "$developers_md" \
+  --expected "$document_language" \
+  --threshold 70 \
+  --output "${TMP_DIR}language-dev-${dir_safe}.json"
+```
+
+Collect results:
+- `result=pass` → no issue
+- `result=skipped` → no issue
+- `result=below_threshold` → increment `language_issues` count, include in session file `## Language Check`
 
 ### 2.5 Build changed spec + test coverage map
 
@@ -216,6 +248,11 @@ Changed source files (within target_dir): {target_source_files list}
 ## Test Coverage Map
 {JSON array built via Grep in 2.5b}
 Module scope limited: includes only {target directory}
+
+## Language Check
+{Only present when at least one file has result=below_threshold}
+- file: {path} | expected: {language} | actual: {percentage}% | non_target_lines: [{line_nums}]
+{repeat for each below_threshold file}
 ```
 
 5. Dispatch `Task(validator)` (parallel batch, up to 3):
@@ -262,6 +299,7 @@ total_modules: {n}
 schema_errors: {n}
 convention_issues: {n}
 boundary_issues: {n}
+language_issues: {n}
 semantic_drift: {n}
 auto_fixed: {n}
 result_files:
@@ -269,6 +307,10 @@ result_files:
   - {TMP_DIR}validate-{dir-safe-2}.md
   (only modules that passed schema and had semantic verification run. omit if none)
 ---end-validate-result---
+
+> **Auto mode note:** `language_issues` are excluded from `total_violations` when computing
+> whether to trigger spec retry in auto mode. Language translation cannot be addressed by
+> the auto-mode spec update loop.
 ```
 
 ## DO / DON'T
