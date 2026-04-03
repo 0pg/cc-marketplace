@@ -1,5 +1,5 @@
 ---
-name: impl-step
+name: spec-step
 description: |
   Inter-session spec workflow step executor.
   Reads .claude/workflows/{dir-safe}/state.json and executes the next pending step.

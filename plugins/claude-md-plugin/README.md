@@ -42,6 +42,18 @@ The plugin includes a Rust CLI binary in `core/`:
 cd plugins/claude-md-plugin/core && cargo build --release
 ```
 
+### Superpowers Plugin (Required)
+
+This plugin composes [superpowers](../superpowers) components for process discipline:
+
+| Agent | Superpowers Component |
+|-------|----------------------|
+| impl | `superpowers:brainstorming` |
+| validator | `superpowers:verification-before-completion` |
+| test-writer, green-coder, refactorer | `superpowers:test-driven-development` |
+
+Install the superpowers plugin before using `/spec` or `/dev`.
+
 ## Quick Start
 
 | Situation | Command | Result |

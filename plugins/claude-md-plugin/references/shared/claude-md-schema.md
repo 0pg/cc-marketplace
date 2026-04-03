@@ -134,6 +134,7 @@ TypeScript 5.0, Node.js 20 LTS
 ### Coding Rules
 - Async: use async/await, raw Promise forbidden
 - Types: strict mode, any forbidden
+- Tests: `__tests__/` directory, `*.test.ts` naming
 
 ### Naming Rules
 - Variables/functions: camelCase
@@ -148,7 +149,7 @@ TypeScript 5.0, Node.js 20 LTS
 | Module Boundaries | Yes | Module responsibility rules, dependency direction |
 | Naming Conventions | Yes | Module/directory/package naming |
 | Language & Runtime | Yes | Primary language, version, runtime |
-| Coding Rules | Yes | Basic coding rules |
+| Coding Rules | Yes | Basic coding rules (including test file placement rules) |
 | Naming Rules | Yes | Code-level naming rules |
 
 ## Reference Rules

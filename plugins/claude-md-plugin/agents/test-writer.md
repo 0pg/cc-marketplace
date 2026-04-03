@@ -114,9 +114,13 @@ For each Requirement, at least 1 acceptance-level test:
 
 Write test files to `test_dir` (= `${TMP_DIR}tests/{dir-safe}/`).
 
+**Test file location resolution (priority order):**
+1. Conventions의 Coding Rules에 테스트 배치 규칙이 있으면 → 그대로 따름
+2. 없으면 → `${CLAUDE_PLUGIN_ROOT}/references/shared/test-conventions/{language}.md` 참조
+3. 해당 언어 파일도 없으면 → `tests/` 디렉토리 기본값
+
 **Test file rules:**
 - Import paths are written relative to **target** (actual deployment path, not TMP)
-- File location and naming are based on Conventions (language-specific defaults if none)
 - Each test is independent — no shared state mutation
 - Group by Constraint using describe/context structure
 
