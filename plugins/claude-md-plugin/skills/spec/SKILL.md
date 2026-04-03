@@ -7,34 +7,34 @@ description: |
   "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
   Analyzes natural language requirements and generates CLAUDE.md without implementing code.
   Follows ATDD principle: specification first, then code generation via /dev.
-  Trigger keywords: 요구사항 정의, 스펙 작성, 명세 먼저
+  Trigger keywords: define requirements, write spec, spec first
 user_invocable: true
 allowed-tools: [Read, Glob, Write, Task, AskUserQuestion, Bash, Skill]
 ---
 
 # /spec
 
-요구사항(자연어 또는 User Story)을 분석하여 **CLAUDE.md + DEVELOPERS.md**를 생성/업데이트.
-**코드 구현 없이** 요구사항 정의만 수행하여 "명세 먼저" 원칙을 따름.
+Analyzes requirements (natural language or User Story) to generate/update **CLAUDE.md + DEVELOPERS.md**.
+Performs requirement definition only **without code implementation**, following the "spec first" principle.
 
 ## Triggers
 
 - `/spec`
-- `요구사항 정의`
-- `스펙 작성`
+- `define requirements`
+- `write spec`
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `requirement` | 예 | - | 요구사항 텍스트 |
-| `--path` | 아니오 | `.` | 대상 경로 |
-| `--auto` | 아니오 | false | spec→dev→validate 자율 루프 실행 |
-| `--auto-max-iter` | 아니오 | `3` | spec update 최대 시도 횟수. N회 시도 후 최종 dev+validate 포함하여 총 N+1회 검증 |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `requirement` | Yes | - | Requirement text |
+| `--path` | No | `.` | Target path |
+| `--auto` | No | false | Run spec→dev→validate autonomous loop |
+| `--auto-max-iter` | No | `3` | Maximum spec update retry count. After N attempts, includes one final dev+validate for a total of N+1 verifications |
 
 ## Workflow
 
-### 0. 초기화
+### 0. Initialization
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -42,17 +42,20 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-### 1. 기존 CLAUDE.md 인덱스 생성
+### 1. Generate existing CLAUDE.md index
 
 ```bash
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index.json"
 ```
 
-### 2. 프로젝트 컨벤션 읽기
+### 2. Read project conventions and document language
 
-project root CLAUDE.md의 `## Conventions` 섹션이 있으면 읽기.
+Read the `## Conventions` section from project root CLAUDE.md if present.
 
-### 3. Decompose 세션 파일 생성
+Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
+If not found, set `document_language` to empty (the agent will ask the user).
+
+### 3. Create Decompose session file
 
 `${TMP_DIR}decompose-session.md`:
 
@@ -61,41 +64,41 @@ project root CLAUDE.md의 `## Conventions` 섹션이 있으면 읽기.
 type: decompose | project_root: {project_root}
 
 ## User Requirement
-{사용자 요구사항 텍스트}
+{user requirement text}
 
 ## Existing Modules Index
-{scan-claude-md 결과: path, purpose 쌍}
+{scan-claude-md result: path, purpose pairs}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-### 4. Decompose agent 디스패치
+### 4. Dispatch Decompose agent
 
 ```
 Task(decompose):
-  세션 파일: ${TMP_DIR}decompose-session.md
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}decompose-session.md
+  Save results to ${TMP_DIR} and return only the path
 ```
 
-### 5. Decompose 결과 읽기
+### 5. Read Decompose result
 
-decompose result block에서 `result_file` 경로를 추출하여 Read.
+Extract the `result_file` path from the decompose result block and Read.
 
-결과 JSON에서 `scope`, `modules[]`, `unassigned[]`, `ambiguous[]` 파악.
+Identify `scope`, `modules[]`, `unassigned[]`, `ambiguous[]` from the result JSON.
 
-`unassigned`가 있으면 사용자에게 안내:
+If `unassigned` items exist, notify the user:
 ```
-⚠ 다음 요구사항이 어느 모듈에도 배치되지 않았습니다:
-  - {unassigned 항목들}
-impl 완료 후 직접 추가하거나 다시 /spec을 실행하세요.
+⚠ The following requirements were not assigned to any module:
+  - {unassigned items}
+After impl is complete, add them manually or re-run /spec.
 ```
 
-### 6. scope 분기
+### 6. Scope branching
 
 #### scope = single
 
-**6a. Plan 세션 파일 생성**
+**6a. Create Plan session file**
 
 `${TMP_DIR}spec-plan-session-{dir-safe}.md`:
 
@@ -104,32 +107,33 @@ impl 완료 후 직접 추가하거나 다시 /spec을 실행하세요.
 type: spec-plan | mode: plan | round: 1 | project_root: {project_root}
 target_path: TBD
 action: TBD
+document_language: {document_language or ""}
 
 ## User Requirement
-{사용자 요구사항 텍스트 전체}
+{full user requirement text}
 
 ## Existing Modules Index
-{scan-claude-md 결과: path, purpose 쌍}
+{scan-claude-md result: path, purpose pairs}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-**6b. Task(impl, mode=plan) 디스패치**
+**6b. Dispatch Task(impl, mode=plan)**
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-  프로젝트 루트: {project_root}
+  Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
+  Project root: {project_root}
 
-  세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
+  Read the session file and generate an execution plan (plan.md) in mode=plan.
 ```
 
-결과 block에서 `plan_file`, `target_path`, `action`, `dir-safe` 추출.
+Extract `plan_file`, `target_path`, `action`, `dir-safe` from the result block.
 
-> `dir_safe`: target_path의 슬래시를 하이픈으로 치환 (예: `src/auth` → `src-auth`)
+> `dir_safe`: replace slashes with hyphens in target_path (e.g., `src/auth` → `src-auth`)
 
-**6b-1. Workflow state 초기화**
+**6b-1. Initialize workflow state**
 
 ```bash
 WORKFLOW_DIR=".claude/workflows/{dir-safe}"
@@ -147,7 +151,7 @@ cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
   "plan_file": ".claude/workflows/{dir-safe}/spec-plan.md",
   "last_reviewer_result": "",
   "project_root": "{project_root}",
-  "user_requirement": "{사용자 요구사항 텍스트 최초 500자 — JSON 특수문자(\" \\ 개행) escape 필수}",
+  "user_requirement": "{first 500 chars of user requirement text — escape JSON special chars (\" \\ newlines)}",
   "created_at": "TIMESTAMP_PLACEHOLDER",
   "updated_at": "TIMESTAMP_PLACEHOLDER"
 }
@@ -162,20 +166,20 @@ sed -i '' "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" "$WORKFLOW_DIR/state.json"
 
 ```
 loop:
-  1. Reviewer 세션 파일 생성:
+  1. Create Reviewer session file:
      ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md:
        # Spec Reviewer Session
        type: spec-reviewer | round: {round}
        plan_file: {plan_file}
        dir_safe: {dir-safe}
 
-  2. Task(impl-reviewer) 디스패치:
-       세션 파일: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
-       결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  2. Dispatch Task(impl-reviewer):
+       Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
+       Save results to ${TMP_DIR} and return only the path
 
-     result block에서 verdict 추출.
+     Extract verdict from result block.
 
-     2-1. Artifact promote + state.json 갱신 (verdict 반영):
+     2-1. Promote artifact + update state.json (reflecting verdict):
      ```bash
      cp "${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md" \
         ".claude/workflows/{dir-safe}/reviewer-v{round}.md"
@@ -196,8 +200,8 @@ loop:
        break
 
   4. if round >= max_safety:
-       ⚠ Socratic loop가 {max_safety}회 반복 후 종료됩니다.
-         최선의 계획으로 진행합니다.
+       ⚠ Socratic loop terminated after {max_safety} iterations.
+         Proceeding with the best available plan.
      ```bash
      python3 -c "
      import json
@@ -212,15 +216,16 @@ loop:
      ```
        break
 
-  5. Revise 세션 파일 생성:
-     ${TMP_DIR}spec-plan-session-{dir-safe}.md (덮어쓰기):
+  5. Create Revise session file:
+     ${TMP_DIR}spec-plan-session-{dir-safe}.md (overwrite):
        # Spec Plan Session
        type: spec-plan | mode: revise | round: {round+1} | project_root: {project_root}
        target_path: {target_path}
        action: {action}
+       document_language: {document_language or ""}
 
        ## User Requirement
-       {사용자 요구사항 텍스트 전체}
+       {full user requirement text}
 
        ## Reviewer Feedback File
        feedback_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md
@@ -229,20 +234,20 @@ loop:
        existing_plan_file: {plan_file}
 
        ## Existing Modules Index
-       {scan-claude-md 결과}
+       {scan-claude-md result}
 
        ## Project Conventions
-       {project root Conventions 또는 "None"}
+       {project root Conventions or "None"}
 
-  6. Task(impl, mode=revise) 디스패치:
-       세션 파일: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-       프로젝트 루트: {project_root}
+  6. Dispatch Task(impl, mode=revise):
+       Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
+       Project root: {project_root}
 
-       세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
+       Read the session file and improve the execution plan in mode=revise.
 
-     결과 block에서 plan_file 업데이트 확인.
+     Verify plan_file update from result block.
 
-     6-1. Revise artifact promote + state.json 갱신:
+     6-1. Promote revise artifact + update state.json:
      ```bash
      cp "${TMP_DIR}spec-plan-{dir-safe}.md" ".claude/workflows/{dir-safe}/spec-plan.md"
      python3 -c "
@@ -259,10 +264,10 @@ loop:
      ```
 
   7. round++
-  → 1로 돌아감
+  → return to 1
 ```
 
-**6d. Execute 세션 파일 생성**
+**6d. Create Execute session file**
 
 ```bash
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-exec.json"
@@ -275,48 +280,49 @@ $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-ind
 type: spec-execute | mode: execute | project_root: {project_root}
 target_path: {target_path}
 action: {action}
+document_language: {document_language or ""}
 
 ## Approved Plan File
 plan_file: {plan_file}
 
 ## User Requirement
-{사용자 요구사항 텍스트 전체}
+{full user requirement text}
 
 ## Existing Modules Index
-{최신 scan-claude-md 결과}
+{latest scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-**6e. Task(impl, mode=execute) 디스패치**
+**6e. Dispatch Task(impl, mode=execute)**
 
 ```
 Task(impl):
-  세션 파일: ${TMP_DIR}spec-execute-session-{dir-safe}.md
-  프로젝트 루트: {project_root}
+  Session file: ${TMP_DIR}spec-execute-session-{dir-safe}.md
+  Project root: {project_root}
 
-  세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
+  Read the session file and generate CLAUDE.md + DEVELOPERS.md in mode=execute.
 ```
 
-**6e-1. Execute 완료 후 state 갱신 + auto-commit**
+**6e-1. Update state + auto-commit after Execute completion**
 
-**커밋 메시지 구성:**
+**Commit message construction:**
 
-SKILL 실행자는 Execute 완료 후 커밋 메시지를 다음 규칙으로 구성합니다:
+The SKILL executor constructs the commit message after Execute completion following these rules:
 
-1. **summary**: impl agent가 생성한 CLAUDE.md의 Purpose와 Requirements를 기반으로 한 줄 요약
-2. **[BREAKING]** (선택): Requirements 삭제 또는 대규모 방향 전환이 있을 때만 포함
-3. **전환 맥락**: 1-2문장
-   - `create` action: "신규 모듈 생성" + Purpose 요약
-   - `update` action: `git diff HEAD -- {target_path}/CLAUDE.md`의 Requirements 변경을 기반으로 전환 방향 기술
-   - 좋은 예: "session 기반 인증에 OAuth2를 추가 경로로 도입. 레거시 클라이언트 지원을 위해 session 유지."
-   - 나쁜 예: "인증 시스템 업데이트" (방향성 없음)
-4. **Changes**: `git diff HEAD -- {target_path}/CLAUDE.md {target_path}/DEVELOPERS.md`에서 파생
-   - added: 새로 추가된 Requirements/Constraints 항목
-   - modified: 변경된 Requirements/Constraints 항목
-   - removed: 삭제된 Requirements/Constraints 항목
-   - 해당 없는 카테고리는 생략
+1. **summary**: one-line summary based on Purpose and Requirements from the CLAUDE.md generated by impl agent
+2. **[BREAKING]** (optional): include only when Requirements are deleted or there is a major direction change
+3. **Transition context**: 1-2 sentences
+   - `create` action: "New module creation" + Purpose summary
+   - `update` action: describe transition direction based on Requirements changes from `git diff HEAD -- {target_path}/CLAUDE.md`
+   - Good example: "Introducing OAuth2 as an additional authentication path alongside session-based auth. Maintaining sessions for legacy client support."
+   - Bad example: "Update authentication system" (no directionality)
+4. **Changes**: derived from `git diff HEAD -- {target_path}/CLAUDE.md {target_path}/DEVELOPERS.md`
+   - added: newly added Requirements/Constraints items
+   - modified: changed Requirements/Constraints items
+   - removed: deleted Requirements/Constraints items
+   - omit categories that don't apply
 
 ```bash
 python3 -c "
@@ -330,74 +336,75 @@ with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
     json.dump(s, f, indent=2, ensure_ascii=False)
 "
 
-# CLAUDE.md + DEVELOPERS.md만 커밋 (TMP 파일 및 workflow state 제외)
+# Commit only CLAUDE.md + DEVELOPERS.md (exclude TMP files and workflow state)
 git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
 git commit -m "spec({target_path}): [BREAKING] {summary}
 
-{전환 맥락 — 어디서 어디로, 왜 이 변경을 하는가 1-2문장}
+{transition context — from where to where, why this change, 1-2 sentences}
 
 Changes:
-- added: {추가된 Requirements/Constraints 목록}
-- modified: {변경된 Requirements/Constraints 목록}
-- removed: {삭제된 Requirements/Constraints 목록}"
+- added: {list of added Requirements/Constraints}
+- modified: {list of modified Requirements/Constraints}
+- removed: {list of removed Requirements/Constraints}"
 ```
 
 #### scope = multi
 
-**6a. 사용자 승인**
+**6a. User approval**
 
-AskUserQuestion으로 분해 계획을 제시하고 승인 요청:
+Present the decomposition plan via AskUserQuestion and request approval:
 
 ```
-분해 계획:
+Decomposition plan:
   • {path} ({action}) — {purpose_hint}
   • {path} ({action}) — {purpose_hint}
   ...
 
-{ambiguous가 있으면}
-⚠ 모호한 판단:
-  - {ambiguous 항목들}
+{if ambiguous items exist}
+⚠ Ambiguous decisions:
+  - {ambiguous items}
 
-이 계획으로 진행할까요? (수정이 필요하면 알려주세요)
+Proceed with this plan? (Let me know if modifications are needed)
 ```
 
-수정 요청 시, 요청 유형에 따라 처리 방식이 다름 (최대 1회 루프):
+Handling varies by modification type (max 1 loop):
 
-| 수정 유형 | 처리 방식 |
-|----------|----------|
-| path 변경, purpose_hint 수정, 모듈 추가/삭제 | SKILL이 직접 `decompose-result.json` 편집 |
-| 요구사항 재분배, 모듈 병합/분리 | `decompose-session.md`에 `## User Modification` 섹션 추가 후 Task(decompose) 재호출 |
+| Modification type | Handling approach |
+|-------------------|-------------------|
+| Path change, purpose_hint edit, module add/delete | SKILL directly edits `decompose-result.json` |
+| Requirement redistribution, module merge/split | Add `## User Modification` section to `decompose-session.md` and re-invoke Task(decompose) |
 
-재호출 시 세션 파일에 추가할 섹션:
+Section to add to session file on re-invocation:
 ```markdown
 ## User Modification
-{사용자의 수정 요청 내용}
+{user's modification request content}
 ```
-decompose agent는 이 섹션을 읽어 이전 분해 결과를 수정하는 방향으로 재실행한다.
+The decompose agent reads this section and re-executes in a direction that modifies the previous decomposition result.
 
-취소 시: 종료.
+On cancel: exit.
 
-**6b. root-first 정렬**
+**6b. root-first sorting**
 
-`modules[]`를 `depth` ASC 정렬. 같은 depth는 `depends_on`이 없는 것 우선.
+Sort `modules[]` by `depth` ASC. At the same depth, prioritize those without `depends_on`.
 
-**6c+6d. depth 루프 — 세션 파일 생성과 디스패치를 depth별로 실행**
+**6c+6d. Depth loop — execute session file creation and dispatch per depth**
 
-각 depth를 순서대로 처리한다. **세션 파일 생성은 해당 depth 직전에** 수행하여
-이전 depth의 impl 결과(CLAUDE.md)가 인덱스에 반영되도록 한다.
+Process each depth in order. **Session file creation is performed just before each depth** so that
+impl results (CLAUDE.md) from previous depths are reflected in the index.
 
 ```
 for depth in sorted_depths:  # 0, 1, 2, ...
 
-  1. 현재 depth 모듈들의 세션 파일 생성:
-     scan-claude-md를 재실행하여 최신 인덱스 획득
-     (이전 depth impl이 생성한 CLAUDE.md가 포함됨)
+  1. Create session files for modules at current depth:
+     Re-run scan-claude-md to get the latest index
+     (includes CLAUDE.md generated by previous depth impl)
 
-     각 모듈에 대해 ${TMP_DIR}spec-session-{dir-safe}.md 생성:
+     Create ${TMP_DIR}spec-session-{dir-safe}.md for each module:
 
      ---
      # Spec Session
      type: spec | project_root: {project_root} | target_path: {module.path} | action: {module.action} | parallel: true
+     document_language: {document_language or ""}
 
      ## User Requirement
      {module.requirement_refs}
@@ -409,20 +416,21 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      {module.source_concept}
 
      ## Existing Modules Index
-     {최신 scan-claude-md 결과}
+     {latest scan-claude-md result}
 
      ## Project Conventions
-     {project root Conventions 또는 "None"}
+     {project root Conventions or "None"}
      ---
 
-  2. 현재 depth 모듈들: Plan 세션 파일 생성 + Task(impl, mode=plan) 병렬 디스패치 (최대 3개)
+  2. Current depth modules: Create Plan session files + dispatch Task(impl, mode=plan) in parallel (up to 3)
 
-     각 모듈에 대해 `${TMP_DIR}spec-plan-session-{dir-safe}.md` 생성:
+     Create `${TMP_DIR}spec-plan-session-{dir-safe}.md` for each module:
      ```
      # Spec Plan Session
      type: spec-plan | mode: plan | round: 1 | project_root: {project_root} | parallel: true
      target_path: {module.path}
      action: {module.action}
+     document_language: {document_language or ""}
 
      ## User Requirement
      {module.requirement_refs}
@@ -434,56 +442,57 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      {module.source_concept}
 
      ## Existing Modules Index
-     {최신 scan-claude-md 결과}
+     {latest scan-claude-md result}
 
      ## Project Conventions
-     {project root Conventions 또는 "None"}
+     {project root Conventions or "None"}
      ```
 
-     Task(impl, mode=plan) 병렬 디스패치:
+     Dispatch Task(impl, mode=plan) in parallel:
      ```
      Task(impl) — ${TMP_DIR}spec-plan-session-{dir-safe-A}.md
-     Task(impl) — ${TMP_DIR}spec-plan-session-{dir-safe-B}.md  (있으면)
-     Task(impl) — ${TMP_DIR}spec-plan-session-{dir-safe-C}.md  (있으면)
+     Task(impl) — ${TMP_DIR}spec-plan-session-{dir-safe-B}.md  (if exists)
+     Task(impl) — ${TMP_DIR}spec-plan-session-{dir-safe-C}.md  (if exists)
      ```
 
-     각 Task 지시:
-       세션 파일: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-       프로젝트 루트: {project_root}
-       세션 파일을 읽고 mode=plan으로 실행계획(plan.md)을 생성해주세요.
-       (parallel 모드 — AskUserQuestion 금지)
+     Instructions for each Task:
+       Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
+       Project root: {project_root}
+       Read the session file and generate an execution plan (plan.md) in mode=plan.
+       (parallel mode — AskUserQuestion prohibited)
 
-  3. 각 모듈 Socratic Loop (모듈별 순차 실행, round=1, max_safety=5):
+  3. Socratic Loop per module (sequential per module, round=1, max_safety=5):
 
-     각 모듈에 대해 아래를 순서대로 실행:
+     Execute the following sequentially for each module:
 
      ```
      loop:
-       a. Reviewer 세션 파일 생성:
+       a. Create Reviewer session file:
           ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md:
             # Spec Reviewer Session
             type: spec-reviewer | round: {round}
             plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
             dir_safe: {dir-safe}
 
-       b. Task(impl-reviewer) 디스패치:
-            세션 파일: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
-            결과는 ${TMP_DIR}에 저장하고 경로만 반환
+       b. Dispatch Task(impl-reviewer):
+            Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
+            Save results to ${TMP_DIR} and return only the path
 
-          result block에서 verdict 추출.
+          Extract verdict from result block.
 
        c. if verdict == "approved" → break
 
        d. if round >= max_safety:
-            ⚠ 모듈 {module.path}: Socratic loop {max_safety}회 반복 후 종료.
+            ⚠ Module {module.path}: Socratic loop terminated after {max_safety} iterations.
             break
 
-       e. Revise 세션 파일 생성:
-          ${TMP_DIR}spec-plan-session-{dir-safe}.md (덮어쓰기):
+       e. Create Revise session file:
+          ${TMP_DIR}spec-plan-session-{dir-safe}.md (overwrite):
             # Spec Plan Session
             type: spec-plan | mode: revise | round: {round+1} | project_root: {project_root} | parallel: true
             target_path: {module.path}
             action: {module.action}
+            document_language: {document_language or ""}
 
             ## User Requirement
             {module.requirement_refs}
@@ -495,31 +504,32 @@ for depth in sorted_depths:  # 0, 1, 2, ...
             existing_plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 
             ## Existing Modules Index
-            {scan-claude-md 결과}
+            {scan-claude-md result}
 
             ## Project Conventions
-            {project root Conventions 또는 "None"}
+            {project root Conventions or "None"}
 
-       f. Task(impl, mode=revise) 디스패치:
-            세션 파일: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-            세션 파일을 읽고 mode=revise로 실행계획을 개선해주세요.
-            (parallel 모드 — AskUserQuestion 금지)
+       f. Dispatch Task(impl, mode=revise):
+            Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
+            Read the session file and improve the execution plan in mode=revise.
+            (parallel mode — AskUserQuestion prohibited)
 
        g. round++
      ```
 
-     > **왜 모듈별 순차인가:** 각 모듈의 reviewer loop iteration이 이전 결과에 의존하므로
-     > loop 내부는 순차 불가피. 단, 모듈간 loop는 독립이므로 병렬 실행 가능하나
-     > SKILL context 보호를 위해 순차 처리.
+     > **Why sequential per module:** Each module's reviewer loop iteration depends on previous results,
+     > so sequential execution within the loop is unavoidable. While loops between modules are independent
+     > and could run in parallel, they are processed sequentially to protect SKILL context.
 
-  4. Execute 세션 파일 생성 + Task(impl, mode=execute) 병렬 디스패치 (최대 3개):
+  4. Create Execute session files + dispatch Task(impl, mode=execute) in parallel (up to 3):
 
-     각 모듈에 대해 `${TMP_DIR}spec-execute-session-{dir-safe}.md` 생성:
+     Create `${TMP_DIR}spec-execute-session-{dir-safe}.md` for each module:
      ```
      # Spec Execute Session
      type: spec-execute | mode: execute | project_root: {project_root} | parallel: true
      target_path: {module.path}
      action: {module.action}
+     document_language: {document_language or ""}
 
      ## Approved Plan File
      plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
@@ -528,39 +538,39 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      {module.requirement_refs}
 
      ## Existing Modules Index
-     {최신 scan-claude-md 결과}
+     {latest scan-claude-md result}
 
      ## Project Conventions
-     {project root Conventions 또는 "None"}
+     {project root Conventions or "None"}
      ```
 
-     Task(impl, mode=execute) 병렬 디스패치:
+     Dispatch Task(impl, mode=execute) in parallel:
      ```
      Task(impl) — ${TMP_DIR}spec-execute-session-{dir-safe-A}.md
-     Task(impl) — ${TMP_DIR}spec-execute-session-{dir-safe-B}.md  (있으면)
-     Task(impl) — ${TMP_DIR}spec-execute-session-{dir-safe-C}.md  (있으면)
+     Task(impl) — ${TMP_DIR}spec-execute-session-{dir-safe-B}.md  (if exists)
+     Task(impl) — ${TMP_DIR}spec-execute-session-{dir-safe-C}.md  (if exists)
      ```
 
-     각 Task 지시:
-       세션 파일: ${TMP_DIR}spec-execute-session-{dir-safe}.md
-       프로젝트 루트: {project_root}
-       세션 파일을 읽고 mode=execute로 CLAUDE.md + DEVELOPERS.md를 생성해주세요.
-       (parallel 모드 — AskUserQuestion 금지)
+     Instructions for each Task:
+       Session file: ${TMP_DIR}spec-execute-session-{dir-safe}.md
+       Project root: {project_root}
+       Read the session file and generate CLAUDE.md + DEVELOPERS.md in mode=execute.
+       (parallel mode — AskUserQuestion prohibited)
 
-  5. 현재 depth 완료 대기 → 다음 depth로
+  5. Wait for current depth completion → proceed to next depth
 ```
 
-> **왜 depth별로 나누는가:** depth=1 모듈(자식)의 impl agent는 depth=0 모듈(부모)의 CLAUDE.md를
-> Phase 1.5(Dependency Exploration)에서 Read해야 한다. 부모 impl 완료 전에 세션 파일을 생성하면
-> 인덱스가 stale하여 부모 컨텍스트를 누락한다.
+> **Why split by depth:** impl agents at depth=1 modules (children) need to Read the CLAUDE.md of depth=0 modules (parents)
+> during Phase 1.5 (Dependency Exploration). If session files are created before parent impl completes,
+> the index becomes stale and parent context is missed.
 
-### 7. 변경사항 표시
+### 7. Display changes
 
 ```bash
 git diff --stat
 ```
 
-### 8. 결과
+### 8. Result
 
 ```
 ---spec-result---
@@ -574,49 +584,48 @@ unassigned_count: N
 ## DO / DON'T
 
 **DO:**
-- 항상 decompose를 먼저 호출하여 scope 판단 위임
-- scope=single이어도 decompose를 생략하지 않음
-- multi의 경우 사용자 승인 후 병렬 impl 디스패치
-- unassigned 요구사항은 사용자에게 안내
+- Always invoke decompose first to delegate scope determination
+- Do not skip decompose even for scope=single
+- For multi scope, dispatch parallel impl after user approval
+- Notify user about unassigned requirements
 
 **DON'T:**
-- decompose 없이 직접 Task(impl) 디스패치
-- impl agent에 분해 판단 위임
-- 사용자 승인 없이 multi 모드 자동 실행
+- Dispatch Task(impl) directly without decompose
+- Delegate decomposition decisions to impl agent
+- Auto-execute multi mode without user approval
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| CLI 빌드 실패 | install-cli.sh가 자동 빌드 |
-| 요구사항 인자 없음 | AskUserQuestion으로 요구사항 수집 |
-| decompose agent 실패 | 에러 보고 후 종료 |
-| impl agent 실패 (단일 모듈) | 경고, 나머지 모듈 계속 |
-| 사용자 승인 취소 | status: cancelled_by_user 반환 |
+| Situation | Response |
+|-----------|----------|
+| CLI build failure | install-cli.sh handles automatic build |
+| No requirement argument | Collect requirements via AskUserQuestion |
+| decompose agent failure | Report error and exit |
+| impl agent failure (single module) | warn, continue with remaining modules |
+| User cancels approval | Return status: cancelled_by_user |
 
 ---
 
 ## Auto Mode (--auto)
 
-`--auto` 플래그가 있으면 spec 완료 후 자동으로 dev → validate → spec update 루프를 실행한다.
-**Phase 0 이후 AskUserQuestion 사용 금지.**
+When the `--auto` flag is present, automatically run dev → validate → spec update loop after spec completion.
+**AskUserQuestion prohibited after Phase 0.**
 
-> **주의:** compile은 소스 파일 확장자로 언어를 자동 감지합니다.
-> 소스 파일이 없는 신규 프로젝트에서 첫 dev 시 언어를 묻는 질문이 발생할 수 있습니다.
-> 이 경우 자율 실행이 중단됩니다. 빈 프로젝트에서는 `--auto` 실행 전에
-> 언어를 나타내는 파일(package.json, go.mod, Cargo.toml 등)을 추가하거나
-> `/dev`를 먼저 한 번 실행하세요.
+> **Note:** dev auto-detects language from source file extensions.
+> For new projects with no source files, a language prompt may appear during the first dev run.
+> In that case, autonomous execution will be interrupted. For empty projects, add a file indicating
+> the language (package.json, go.mod, Cargo.toml, etc.) or run `/dev` once before using `--auto`.
 
-다음 값을 Auto Mode 진입 시 보존:
-- `{original_requirement}`: 사용자 요구사항 텍스트 (Phase 0에서 추출)
-- `{impl_path}`: `--path` 인자값 (기본값 `.`)
+Preserve the following values upon entering Auto Mode:
+- `{original_requirement}`: user requirement text (extracted in Phase 0)
+- `{impl_path}`: `--path` argument value (default `.`)
 
-### Phase 0: 초기 spec (일반 워크플로우와 동일)
+### Phase 0: Initial spec (same as normal workflow)
 
-- 위 Workflow Step 0-8 전체 실행
-- single 모드: AskUserQuestion 허용 (brainstorming + 명확화)
-- multi 모드: 사용자 승인 1회 (분해 계획)
-- CLAUDE.md + DEVELOPERS.md 생성 완료 → Auto Loop 진입
+- Execute full Workflow Steps 0-8 above
+- single mode: AskUserQuestion allowed (brainstorming + clarification)
+- multi mode: one-time user approval (decomposition plan)
+- CLAUDE.md + DEVELOPERS.md generation complete → enter Auto Loop
 
 
 ### Auto Loop
@@ -629,9 +638,9 @@ unassigned_count: N
 Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path}")
 ```
 
-dev-result에서 `status` 확인:
-- `failed` → 경고 후 Auto Loop 종료 (코드가 없으면 validate 불가)
-- `success | partial` → Auto Phase 2로
+Check `status` from dev-result:
+- `failed` → warn and exit Auto Loop (cannot validate without code)
+- `success | partial` → proceed to Auto Phase 2
 
 #### Auto Phase 2: Validate
 
@@ -639,22 +648,22 @@ dev-result에서 `status` 확인:
 Skill("claude-md-plugin:validate", args: "{impl_path} --report-only")
 ```
 
-validate-result 파싱:
+Parse validate-result:
 
 ```
 total_violations = schema_errors + convention_issues + boundary_issues + semantic_drift
 ```
 
-- `total_violations == 0` → **성공 종료**
-- `auto_iter >= auto_max_iter` → **max_iter 종료**
-- 그 외 → 위반 상세 추출 → Auto Phase 3
+- `total_violations == 0` → **success exit**
+- `auto_iter >= auto_max_iter` → **max_iter exit**
+- Otherwise → extract violation details → Auto Phase 3
 
-**위반 상세 추출:**
+**Violation detail extraction:**
 
-validate-result의 `result_files` 목록에서 각 파일 Read:
-- `## Summary`의 `Total issues: N` > 0인 파일 → 해당 모듈이 spec update 대상
-- `## Issues` 섹션 → 모듈별 위반 상세 수집 (REQUIREMENTS_NOT_IMPLEMENTED 등)
-- result_files가 없으면 (semantic 검증 대상 없음): total_violations > 0이어도 Phase 3 생략
+Read each file from validate-result's `result_files` list:
+- Files where `## Summary`'s `Total issues: N` > 0 → that module is a spec update target
+- `## Issues` section → collect per-module violation details (REQUIREMENTS_NOT_IMPLEMENTED, etc.)
+- If result_files is empty (no semantic verification targets): skip Phase 3 even if total_violations > 0
 
 #### Auto Phase 3: Spec Update
 
@@ -662,12 +671,13 @@ validate-result의 `result_files` 목록에서 각 파일 Read:
 $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-auto-{iter}.json"
 ```
 
-위반이 발견된 각 모듈에 대해 세션 파일 생성:
+Create session files for each module where violations were found:
 `${TMP_DIR}spec-session-auto-{iter}-{dir-safe}.md`
 
 ```markdown
 # Spec Session (Auto Mode)
 type: spec | project_root: {project_root} | target_path: {path} | action: update | parallel: true
+document_language: {document_language or ""}
 
 ## User Requirement
 {original_requirement}
@@ -680,50 +690,50 @@ validate_violations:
   boundary_issues: {n}
   semantic_drift: {n}
 
-이 모듈에서 검증 위반이 발견되었습니다.
-기존 CLAUDE.md와 DEVELOPERS.md를 읽고, dev 후 validate가 통과할 수 있도록
-Requirements와 Constraints를 구체화·보완하세요.
-CLAUDE.md는 SSOT이므로 요구사항을 더 명확하게 기술하는 방향으로 개선합니다.
+Validation violations were found in this module.
+Read the existing CLAUDE.md and DEVELOPERS.md, and refine/supplement
+Requirements and Constraints so that validate passes after dev.
+Since CLAUDE.md is the SSOT, improve by making requirements more explicitly stated.
 
 ## Violations Detail
-{result_file의 ## Issues 섹션에서 추출한 이 모듈의 위반 상세}
+{violation details for this module extracted from result_file's ## Issues section}
 
 ## Existing Modules Index
-{최신 scan-claude-md 결과}
+{latest scan-claude-md result}
 
 ## Project Conventions
-{project root Conventions 또는 "None"}
+{project root Conventions or "None"}
 ```
 
-Task(impl) 병렬 디스패치 (최대 3개). **AskUserQuestion 금지.**
+Dispatch Task(impl) in parallel (up to 3). **AskUserQuestion prohibited.**
 
-`auto_iter++` → Auto Phase 1로 루프
+`auto_iter++` → loop back to Auto Phase 1
 
-### Auto Phase 4: 종료 보고
+### Auto Phase 4: Exit report
 
-**성공 종료 (`total_violations == 0`):**
-
-```
-✓ Auto mode 완료 ({auto_iter} iteration(s))
-  spec: CLAUDE.md + DEVELOPERS.md 생성
-  dev: 코드 생성 완료
-  validate: 모든 검증 통과
-```
-
-**실패 종료 (max_iter 도달 | dev 실패):**
+**Success exit (`total_violations == 0`):**
 
 ```
-⚠ Auto mode 종료 (이유: {사유})
-  반복 횟수: {auto_iter}/{auto_max_iter}
-  남은 이슈: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
-  /validate 또는 /spec을 수동으로 실행하여 해소하세요.
+✓ Auto mode complete ({auto_iter} iteration(s))
+  spec: CLAUDE.md + DEVELOPERS.md generated
+  dev: code generation complete
+  validate: all verifications passed
 ```
 
-### Auto Mode 오류 처리
+**Failure exit (max_iter reached | dev failed):**
 
-| 상황 | 대응 |
-|------|------|
-| dev failed | 루프 종료, 오류 보고 |
-| result_files 없음 (schema/convention만) | Phase 3 생략, dev 재시도 |
-| spec update 모두 실패 | 경고, 루프 계속 (다음 dev 시도) |
-| max_iter 초과 | 루프 종료, 남은 이슈 보고 |
+```
+⚠ Auto mode terminated (reason: {reason})
+  Iterations: {auto_iter}/{auto_max_iter}
+  Remaining issues: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
+  Run /validate or /spec manually to resolve.
+```
+
+### Auto Mode Error Handling
+
+| Situation | Response |
+|-----------|----------|
+| dev failed | Exit loop, report error |
+| No result_files (schema/convention only) | Skip Phase 3, retry dev |
+| All spec updates failed | Warn, continue loop (try next dev) |
+| max_iter exceeded | Exit loop, report remaining issues |

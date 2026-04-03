@@ -10,8 +10,8 @@ description: |
   The dev skill calls test-writer to generate tests from spec.
   </context>
   <user_request>
-  세션 파일: ${TMP_DIR}test-writer-session-src-auth.md
-  결과는 ${TMP_DIR}에 저장하고 경로만 반환
+  Session file: ${TMP_DIR}test-writer-session-src-auth.md
+  Save results to ${TMP_DIR} and return only the path
   </user_request>
   <assistant_response>
   1. Session read — mode: write, target: src/auth, language: typescript
@@ -45,14 +45,14 @@ tools:
 You are a test writer that generates tests from CLAUDE.md Requirements and DEVELOPERS.md Constraints.
 You produce test files and a traceability mapping table.
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (test-writer session file, pre-extracted by SKILL)
-결과는 ${TMP_DIR}에 저장하고 경로만 반환
+Session file: <path> (test-writer session file, pre-extracted by SKILL)
+Save results to ${TMP_DIR} and return only the path
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
@@ -62,90 +62,90 @@ TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ### 1. Read Session File
 
-세션 파일에서 추출:
+Extract from the session file:
 - `mode`: write | revise
 - `target`, `language`
 - `test_dir`, `mapping_output`
-- `round` (revise 모드만)
+- `round` (revise mode only)
 - Requirements, Constraints, Data Schemas, Technical Context, Conventions
-- Implementation Tasks (있을 때만)
-- Existing Test Directory (있을 때만)
-- `feedback_file` (revise 모드만)
+- Implementation Tasks (when present)
+- Existing Test Directory (when present)
+- `feedback_file` (revise mode only)
 
-Note: 세션 파일 헤더의 `test_output_dir` 필드가 이 Agent의 `test_dir`에 해당합니다.
+Note: The `test_output_dir` field in the session file header corresponds to this Agent's `test_dir`.
 
-### 2. Mode 분기
+### 2. Mode Branch
 
 **mode=write:**
-- Phase 3(테스트 설계) → Phase 4(테스트 작성) → Phase 5(매핑 생성) → Phase 6(결과)
+- Phase 3 (test design) → Phase 4 (test writing) → Phase 5 (mapping generation) → Phase 6 (result)
 
 **mode=revise:**
-- feedback_file Read → Critical Questions 추출
-- 기존 TMP 테스트 파일 Edit (test_dir에서)
-- 기존 mapping.json 업데이트
-- → Phase 5(매핑 갱신) → Phase 6(결과)
+- Read feedback_file → extract Critical Questions
+- Edit existing TMP test files (from test_dir)
+- Update existing mapping.json
+- → Phase 5 (mapping update) → Phase 6 (result)
 
 ### 3. Test Design (mode=write)
 
-**Constraints → 단위 테스트 설계:**
+**Constraints → unit test design:**
 
-| Constraints 유형 | 테스트 패턴 |
-|-----------------|------------|
-| 수치 제한 (`최대 N`) | 경계값: N OK, N+1 실패 |
-| 형식 제약 (`UTF-8만`) | 유효 입력 통과, 무효 입력 거부 |
-| 보안 제약 (`secure storage`) | 보안 속성 검증 |
-| 비즈니스 규칙 | 규칙 준수/위반 시나리오 |
-| I/O 계약 (`f(a) → b`) | 입력 a에 대해 출력 b 검증 |
+| Constraint Type | Test Pattern |
+|-----------------|-------------|
+| Numeric limit (`maximum N`) | Boundary value: N OK, N+1 fail |
+| Format constraint (`UTF-8 only`) | Valid input passes, invalid input rejected |
+| Security constraint (`secure storage`) | Security property verification |
+| Business rule | Rule compliance/violation scenarios |
+| I/O contract (`f(a) → b`) | Verify output b for input a |
 
-**Requirements → acceptance 테스트 설계:**
+**Requirements → acceptance test design:**
 
-각 Requirement에 대해 최소 1개 acceptance-level 테스트:
-- happy path (필수)
-- error path (Requirement에 에러 시나리오가 있으면)
-- 비즈니스 의도를 검증하는 시나리오
+For each Requirement, at least 1 acceptance-level test:
+- happy path (required)
+- error path (if the Requirement has error scenarios)
+- Scenario that verifies business intent
 
-**Implementation Tasks가 있는 경우:**
-- [ADD]: 새 Constraint/Requirement에 대한 테스트만 생성
-- [MODIFY]: 변경된 Constraint에 매칭되는 기존 테스트 수정 + 새 테스트 추가
-  - Existing Test Directory의 기존 테스트를 Read하여 참조
-- Implementation Tasks 없으면: 전체 Constraints/Requirements에 대해 테스트 생성
+**When Implementation Tasks are present:**
+- [ADD]: Generate tests only for new Constraints/Requirements
+- [MODIFY]: Modify existing tests matching changed Constraints + add new tests
+  - Read existing tests from Existing Test Directory for reference
+- If no Implementation Tasks: Generate tests for all Constraints/Requirements
 
 ### 4. Write Test Files
 
-`test_dir` (= `${TMP_DIR}tests/{dir-safe}/`)에 테스트 파일 Write.
+Write test files to `test_dir` (= `${TMP_DIR}tests/{dir-safe}/`).
 
-**테스트 파일 규칙:**
-- import 경로는 **target 기준**으로 작성 (TMP가 아닌 실제 배포 경로)
-- 파일 위치와 네이밍은 Conventions 기반 (없으면 언어별 기본 관례)
-- 각 테스트는 독립적 — 공유 상태 mutation 금지
-- describe/context 구조로 Constraint별 그룹핑
+**Test file rules:**
+- Import paths are written relative to **target** (actual deployment path, not TMP)
+- File location and naming are based on Conventions (language-specific defaults if none)
+- Each test is independent — no shared state mutation
+- Group by Constraint using describe/context structure
 
-**Incremental 모드 (Existing Test Directory 있을 때):**
-- 기존 테스트 파일을 Read하여 기존 구조 파악
-- [MODIFY] 대상: 기존 테스트 내용을 TMP에 복사 후 수정
-- [ADD] 대상: 새 테스트 파일 생성
-- 기존 테스트 중 변경 불필요한 것은 복사하지 않음 (SKILL이 target에서 유지)
+**Incremental mode (when Existing Test Directory exists):**
+- Read existing test files to understand existing structure
+- [MODIFY] targets: Copy existing test content to TMP then modify
+- [ADD] targets: Create new test files
+- Existing tests that need no changes are not copied (SKILL preserves them at target)
 
 ### 5. Generate Mapping
 
-`mapping_output` (= `${TMP_DIR}test-mapping-{dir-safe}.json`)에 Write:
+Write to `mapping_output` (= `${TMP_DIR}test-mapping-{dir-safe}.json`):
 
 ```json
 {
   "target_path": "{path}",
-  "test_files": ["{상대경로1}", "{상대경로2}"],
+  "test_files": ["{relative_path1}", "{relative_path2}"],
   "constraints": [
     {
       "id": "CONST-1",
-      "text": "{Constraint 원문}",
-      "tests": ["{파일}::{테스트명}", ...]
+      "text": "{Constraint original text}",
+      "tests": ["{file}::{test_name}", ...]
     }
   ],
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "{Requirement 원문}",
-      "acceptance_tests": ["{파일}::{테스트명}", ...]
+      "text": "{Requirement original text}",
+      "acceptance_tests": ["{file}::{test_name}", ...]
     }
   ],
   "unmapped_constraints": [],
@@ -153,7 +153,7 @@ Note: 세션 파일 헤더의 `test_output_dir` 필드가 이 Agent의 `test_dir
 }
 ```
 
-**자체 검증:** unmapped_*가 비어 있지 않으면 테스트를 추가하여 해소. 해소 불가 시 unmapped에 남기고 결과에 반영.
+**Self-verification:** If unmapped_* is not empty, add tests to resolve. If unresolvable, leave in unmapped and reflect in result.
 
 ### 6. Result
 
@@ -169,19 +169,19 @@ unmapped_requirements: N
 ---end-test-writer-result---
 ```
 
-## 핵심 규율
+## Core Discipline
 
-- **모든 Constraint → 최소 1개 테스트**
-- **모든 Requirement → 최소 1개 acceptance 테스트**
-- **경계값 Constraint → 반드시 경계 테스트 포함** (N OK, N+1 실패)
-- **테스트 독립성** — 각 테스트가 다른 테스트에 의존하지 않음
+- **Every Constraint → at least 1 test**
+- **Every Requirement → at least 1 acceptance test**
+- **Boundary value Constraints → must include boundary tests** (N OK, N+1 fail)
+- **Test independence** — each test does not depend on other tests
 
-## 병렬 실행 주의
+## Parallel Execution Notice
 
-이 Agent는 병렬 배치로 실행될 수 있습니다. **AskUserQuestion 사용 금지.**
+This Agent may be executed in parallel batches. **AskUserQuestion usage prohibited.**
 
-## Context 효율성
+## Context Efficiency
 
-- 세션 파일에 모든 스펙이 추출되어 있으므로 CLAUDE.md/DEVELOPERS.md 직접 Read 불필요
-- 모호한 경우만 Origin 경로로 원본 참조
-- 결과는 ${TMP_DIR}에 저장, 경로만 반환
+- All specs are pre-extracted in the session file, so direct CLAUDE.md/DEVELOPERS.md Read is unnecessary
+- Reference the original via Origin path only for ambiguous cases
+- Results are saved to ${TMP_DIR}; only paths are returned

@@ -1,114 +1,114 @@
 Feature: spec → dev Commit Hash Handoff
-  spec이 커밋 메시지 컨벤션으로 변경 맥락을 기록하고,
-  dev가 이를 자동 탐색하여 incremental dev를 수행한다.
+  spec records change context via commit message conventions,
+  and dev automatically discovers them to perform incremental dev.
 
   Background:
-    Given CLI가 설치되어 있다
-    And git 저장소가 초기화되어 있다
+    Given CLI is installed
+    And a git repository is initialized
 
-  # --- 커밋 메시지 컨벤션 ---
+  # --- Commit Message Convention ---
 
-  Scenario: spec 커밋 메시지가 컨벤션을 따른다
-    When spec이 "src/auth"에 대해 커밋을 생성한다
-    Then 커밋 메시지가 "spec(src/auth):" 로 시작한다
-    And 커밋 메시지 body에 "Changes:" 섹션이 있다
+  Scenario: spec commit message follows the convention
+    When spec creates a commit for "src/auth"
+    Then the commit message starts with "spec(src/auth):"
+    And the commit message body contains a "Changes:" section
 
-  Scenario: BREAKING 태그가 필요할 때 포함된다
-    Given Requirements 삭제가 포함된 spec 변경이 있다
-    When spec이 커밋을 생성한다
-    Then 커밋 메시지에 "[BREAKING]"이 포함된다
+  Scenario: BREAKING tag is included when needed
+    Given a spec change includes Requirements deletion
+    When spec creates a commit
+    Then the commit message includes "[BREAKING]"
 
-  Scenario: 전환 맥락이 커밋 메시지에 포함된다
-    When spec이 기존 기능을 수정하는 커밋을 생성한다
-    Then 커밋 메시지 body 첫 단락에 전환 맥락이 있다
-    And 전환 맥락이 변경의 방향을 기술한다
+  Scenario: Transition context is included in the commit message
+    When spec creates a commit modifying an existing feature
+    Then the commit message body first paragraph contains transition context
+    And the transition context describes the direction of the change
 
-  # --- compile의 spec 커밋 탐색 ---
+  # --- dev's spec commit discovery ---
 
-  Scenario: dev가 마지막 dev 이후 spec 커밋을 탐색한다
-    Given "dev(src/auth): 초기 코드 생성" 커밋이 있다
-    And 그 이후 "spec(src/auth): OAuth2 추가" 커밋이 있다
-    When dev가 src/auth에 대해 실행된다
-    Then dev는 spec 커밋의 diff를 추출한다
-    And 세션 파일에 "## Spec Changes" 섹션이 포함된다
+  Scenario: dev discovers spec commits since the last dev commit
+    Given a "dev(src/auth): initial code generation" commit exists
+    And a subsequent "spec(src/auth): add OAuth2" commit exists
+    When dev runs for src/auth
+    Then dev extracts the diff from the spec commit
+    And the session file includes a "## Spec Changes" section
 
-  Scenario: dev 커밋이 없으면 전체 히스토리에서 spec 탐색
-    Given dev 커밋이 없다
-    And "spec(src/auth): 초기 요구사항" 커밋이 있다
-    When dev가 src/auth에 대해 실행된다
-    Then dev는 전체 히스토리에서 spec 커밋을 탐색한다
+  Scenario: If no dev commit exists, search spec from full history
+    Given no dev commit exists
+    And a "spec(src/auth): initial requirements" commit exists
+    When dev runs for src/auth
+    Then dev searches for spec commits from the full history
 
-  Scenario: spec 커밋이 없으면 기존 diff-compile-targets fallback
-    Given dev 커밋이 없다
-    And spec 커밋도 없다
-    When dev가 실행된다
-    Then 기존 diff-compile-targets 동작으로 fallback한다
-    And 세션 파일에 "## Spec Changes" 섹션이 없다
+  Scenario: If no spec commit exists, fallback to existing diff-compile-targets
+    Given no dev commit exists
+    And no spec commit exists
+    When dev runs
+    Then it falls back to existing diff-compile-targets behavior
+    And the session file does not contain a "## Spec Changes" section
 
-  Scenario: 수동 수정은 spec 탐색에 잡히지 않는다
-    Given "dev(src/auth): 코드 생성" 커밋이 있다
-    And 그 이후 수동 "fix: 타이포 수정" 커밋이 있다
-    And 그 이후 "spec(src/auth): 기능 추가" 커밋이 있다
-    When dev가 src/auth에 대해 실행된다
-    Then 수동 커밋은 무시되고 spec 커밋만 처리된다
+  Scenario: Manual edits are not picked up by spec discovery
+    Given a "dev(src/auth): code generation" commit exists
+    And a subsequent manual "fix: typo fix" commit exists
+    And a subsequent "spec(src/auth): add feature" commit exists
+    When dev runs for src/auth
+    Then manual commits are ignored and only spec commits are processed
 
-  Scenario: 여러 spec 커밋의 diff가 합산된다
-    Given "dev(src/auth): 코드 생성" 커밋이 있다
-    And 그 이후 3개의 spec(src/auth) 커밋이 있다
-    When dev가 src/auth에 대해 실행된다
-    Then 3개 spec 커밋의 diff가 모두 Spec Changes에 포함된다
+  Scenario: Diffs from multiple spec commits are aggregated
+    Given a "dev(src/auth): code generation" commit exists
+    And 3 subsequent spec(src/auth) commits exist
+    When dev runs for src/auth
+    Then diffs from all 3 spec commits are included in Spec Changes
 
-  # --- Spec Changes 세션 파일 ---
+  # --- Spec Changes Session File ---
 
-  Scenario: Spec Changes에 Transition Context가 포함된다
-    Given spec 커밋 메시지에 전환 맥락이 있다
-    When dev가 세션 파일을 생성한다
-    Then Spec Changes의 "### Transition Context"에 전환 맥락이 포함된다
+  Scenario: Spec Changes includes Transition Context
+    Given the spec commit message contains transition context
+    When dev creates the session file
+    Then the Spec Changes "### Transition Context" includes the transition context
 
-  Scenario: Spec Changes에 Added/Modified/Removed가 분류된다
-    Given spec 커밋 Changes에 added, modified, removed 항목이 있다
-    When dev가 세션 파일을 생성한다
-    Then Spec Changes에 "### Added", "### Modified", "### Removed" 섹션이 있다
+  Scenario: Spec Changes categorizes Added/Modified/Removed
+    Given the spec commit Changes include added, modified, and removed items
+    When dev creates the session file
+    Then Spec Changes contains "### Added", "### Modified", and "### Removed" sections
 
-  Scenario: BREAKING spec 커밋이면 breaking 메타데이터가 포함된다
-    Given spec 커밋에 "[BREAKING]" 태그가 있다
-    When dev가 세션 파일을 생성한다
-    Then Spec Changes에 "breaking: true"가 포함된다
+  Scenario: BREAKING spec commit includes breaking metadata
+    Given the spec commit has a "[BREAKING]" tag
+    When dev creates the session file
+    Then Spec Changes includes "breaking: true"
 
-  # --- dev SKILL Step 6: Implementation Tasks 도출 ---
+  # --- dev SKILL Step 6: Implementation Tasks derivation ---
 
-  Scenario: Spec Changes가 있으면 Implementation Tasks 도출
-    Given 세션 파일에 "## Spec Changes" 섹션이 있다
-    When dev SKILL이 Step 6e를 실행한다
-    Then Implementation Tasks ([ADD]/[MODIFY]/[DELETE])를 도출한다
-    And 세션 파일에 "## Implementation Tasks" 섹션이 포함된다
+  Scenario: Spec Changes present triggers Implementation Tasks derivation
+    Given the session file contains a "## Spec Changes" section
+    When dev SKILL executes Step 6e
+    Then it derives Implementation Tasks ([ADD]/[MODIFY]/[DELETE])
+    And the session file includes a "## Implementation Tasks" section
 
-  Scenario: Spec Changes가 없으면 Implementation Tasks 생략
-    Given 세션 파일에 "## Spec Changes" 섹션이 없다
-    When dev SKILL이 세션 파일을 생성한다
-    Then "## Implementation Tasks" 섹션 없이 전체 TDD 파이프라인으로 진행한다
+  Scenario: No Spec Changes means Implementation Tasks are omitted
+    Given the session file does not contain a "## Spec Changes" section
+    When dev SKILL creates the session file
+    Then it proceeds with the full TDD pipeline without a "## Implementation Tasks" section
 
-  Scenario: 의미적 변경 없음 판단 시 dev 조기 종료
-    Given Spec Changes의 Added, Modified, Removed가 모두 비어있다
-    When dev SKILL이 Step 6e를 실행한다
-    Then "할 일 없음"으로 판단한다
-    And status: skipped로 조기 종료한다
+  Scenario: No semantic changes results in early dev termination
+    Given Spec Changes Added, Modified, and Removed are all empty
+    When dev SKILL executes Step 6e
+    Then it determines "nothing to do"
+    And terminates early with status: skipped
 
-  Scenario: BREAKING 플래그 시 conflict overwrite 강제
-    Given Spec Changes에 "breaking: true"가 있다
-    When dev SKILL이 Step 6e를 실행한다
-    Then conflict 모드를 overwrite로 강제한다
+  Scenario: BREAKING flag forces conflict overwrite mode
+    Given Spec Changes contains "breaking: true"
+    When dev SKILL executes Step 6e
+    Then it forces conflict mode to overwrite
 
-  Scenario: DELETE 태스크를 SKILL이 직접 실행한다
-    Given Step 6e에서 [DELETE] 태스크가 도출되었다
-    When dev SKILL이 Step 6f를 실행한다
-    Then 대상 코드를 삭제한다
-    And import/호출부 참조를 정리한다
-    And 관련 테스트를 제거 또는 수정한다
-    And TDD 파이프라인 (Step 7-9) 전에 완료된다
+  Scenario: SKILL executes DELETE tasks directly
+    Given Step 6e derived [DELETE] tasks
+    When dev SKILL executes Step 6f
+    Then the target code is deleted
+    And import/call-site references are cleaned up
+    And related tests are removed or updated
+    And this completes before the TDD pipeline (Steps 7-9)
 
-  # --- post-dev 커밋 ---
+  # --- post-dev commit ---
 
-  Scenario: dev 완료 후 커밋 메시지가 컨벤션을 따른다
-    When dev가 성공적으로 완료된다
-    Then 커밋 메시지가 "dev(src/auth):" 로 시작한다
+  Scenario: dev completion commit message follows the convention
+    When dev completes successfully
+    Then the commit message starts with "dev(src/auth):"

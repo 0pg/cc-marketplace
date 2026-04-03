@@ -12,42 +12,42 @@ developers_md: {path}/DEVELOPERS.md
 project_conventions: {project_root}/CLAUDE.md#Conventions
 
 ## Requirements (from CLAUDE.md)
-{Requirements 섹션 전체}
+{full Requirements section}
 
 ## Constraints (from DEVELOPERS.md)
-{Constraints 섹션 전체 — 테스트 생성 원천}
+{full Constraints section — test generation source}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션 — 타입 참조용, 테스트 생성 원천 아님}
+{Data Schemas section — for type reference, not a test generation source}
 
 ## Technical Context
-{Technical Context 섹션 전체}
+{full Technical Context section}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{hierarchy-resolved Conventions}
 
 ## Dependencies
-{dev-context 또는 탐색 결과}
+{dev-context or exploration results}
 
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
-- [DELETE] CONST-N: {삭제 대상}
+## Implementation Tasks (only when Spec Changes present)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change details}
+- [DELETE] CONST-N: {deletion target}
 
-## Spec Changes (optional — spec 커밋 발견 시에만 포함)
+## Spec Changes (optional — included only when spec commits found)
 breaking: {true|false}
 
 ### Transition Context
-{전환 맥락 — 어디서 어디로, 왜}
+{transition context — from where to where, why}
 
 ### Added
-{추가된 Requirements/Constraints}
+{added Requirements/Constraints}
 
 ### Modified
-{변경된 Requirements/Constraints}
+{changed Requirements/Constraints}
 
 ### Removed
-{삭제된 Requirements/Constraints}
+{deleted Requirements/Constraints}
 
 ## Verification Contract
 - All Constraints → corresponding tests exist
@@ -71,29 +71,29 @@ claude_md: {path}/CLAUDE.md
 developers_md: {path}/DEVELOPERS.md
 
 ## Requirements (from CLAUDE.md)
-{Requirements 섹션 전체}
+{full Requirements section}
 
 ## Constraints (from DEVELOPERS.md)
-{Constraints 섹션 전체}
+{full Constraints section}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션}
+{Data Schemas section}
 
 ## Technical Context
 {Technical Context}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{hierarchy-resolved Conventions}
 
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
+## Implementation Tasks (only when Spec Changes present)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change details}
 
-## Existing Test Directory (Incremental 모드, 기존 테스트 있을 때만)
+## Existing Test Directory (incremental mode, only when existing tests present)
 existing_test_dir: {path}/{detected_test_dir}/
 
 ## Dependencies
-{dev-context 또는 탐색 결과}
+{dev-context or exploration results}
 ````
 
 ### mode=revise
@@ -110,29 +110,29 @@ claude_md: {path}/CLAUDE.md
 developers_md: {path}/DEVELOPERS.md
 
 ## Requirements (from CLAUDE.md)
-{Requirements 섹션 전체}
+{full Requirements section}
 
 ## Constraints (from DEVELOPERS.md)
-{Constraints 섹션 전체}
+{full Constraints section}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션}
+{Data Schemas section}
 
 ## Technical Context
 {Technical Context}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{hierarchy-resolved Conventions}
 
-## Implementation Tasks (Spec Changes 있을 때만)
-- [ADD] CONST-N: {설명}
-- [MODIFY] CONST-N: {변경 내용}
+## Implementation Tasks (only when Spec Changes present)
+- [ADD] CONST-N: {description}
+- [MODIFY] CONST-N: {change details}
 
-## Existing Test Directory (Incremental 모드, 기존 테스트 있을 때만)
+## Existing Test Directory (incremental mode, only when existing tests present)
 existing_test_dir: {path}/{detected_test_dir}/
 
 ## Dependencies
-{dev-context 또는 탐색 결과}
+{dev-context or exploration results}
 ````
 
 ## Test Reviewer Session File Format
@@ -166,13 +166,13 @@ developers_md: {path}/DEVELOPERS.md
 {Technical Context}
 
 ## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas 섹션 — 타입 참조용}
+{Data Schemas section — for type reference}
 
 ## Approved Tests
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
-## Implementation Tasks (Spec Changes 있을 때만)
-{[ADD]/[MODIFY] 태스크만 — DELETE는 SKILL이 이미 처리}
+## Implementation Tasks (only when Spec Changes present)
+{[ADD]/[MODIFY] tasks only — DELETE already handled by SKILL}
 
 ## Dependencies
 {dependencies}
@@ -185,13 +185,13 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 type: refactor | target: {path} | language: {lang}
 
 ## Conventions (resolved)
-{계층 해소된 Conventions}
+{hierarchy-resolved Conventions}
 
 ## Approved Tests
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
 ## Implementation Files
-{green-coder result에서 추출한 파일 목록}
+{file list extracted from green-coder result}
 ````
 
 ## Mapping JSON Format
@@ -210,7 +210,7 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "유효한 토큰으로 사용자 인증 가능",
+      "text": "Users can authenticate with a valid token",
       "acceptance_tests": ["auth.acceptance.test.ts::Given valid token When authenticate Then return user"]
     }
   ],
@@ -271,12 +271,12 @@ tests_failed: N
 
 ## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| 세션 파일 파싱 실패 | Agent 실패 반환 |
-| test-writer unmapped > 0 | partial 상태 반환 |
-| test-reviewer max_safety 도달 | best-effort 진행, 경고 |
-| Verify RED 컴파일 실패 | green-coder에 위임 (import fix 허용) |
-| GREEN 3회 실패 | partial 상태 반환 |
-| REFACTOR 회귀 실패 | 롤백, rolled_back 상태 반환 |
-| 파일 쓰기 실패 | 해당 파일 건너뛰기 |
+| Situation | Response |
+|-----------|----------|
+| Session file parsing failure | Agent returns failure |
+| test-writer unmapped > 0 | Return partial status |
+| test-reviewer max_safety reached | Best-effort proceed, warn |
+| Verify RED compilation failure | Delegate to green-coder (import fix allowed) |
+| GREEN 3 failures | Return partial status |
+| REFACTOR regression failure | Rollback, return rolled_back status |
+| File write failure | Skip that file |

@@ -7,8 +7,8 @@ description: |
 
   <example>
   <user_request>
-  세션 파일: ${TMP_DIR}validate-session-src-auth.md
-  검증 대상: src/auth
+  Session file: ${TMP_DIR}validate-session-src-auth.md
+  Validation target: src/auth
   strict: false
   </user_request>
   <assistant_response>
@@ -24,8 +24,8 @@ description: |
 
   <example>
   <user_request>
-  세션 파일: ${TMP_DIR}validate-session-src-legacy.md
-  검증 대상: src/legacy
+  Session file: ${TMP_DIR}validate-session-src-legacy.md
+  Validation target: src/legacy
   strict: true
   </user_request>
   <assistant_response>
@@ -61,21 +61,21 @@ Skill("superpowers:verification-before-completion")
 Follow superpowers:verification-before-completion's core principle: **evidence before assertions**.
 Every drift finding must include concrete code evidence (file path, line, content).
 
-## 입력
+## Input
 
 ```
-세션 파일: <path> (validate session file, pre-extracted by SKILL)
-검증 대상: <directory>
+Session file: <path> (validate session file, pre-extracted by SKILL)
+Validation target: <directory>
 strict: true | false
 ```
 
-## 임시 디렉토리
+## Temporary Directory
 
 ```bash
 TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
-## CLI 경로
+## CLI Path
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
@@ -85,68 +85,68 @@ CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 
 ### 1. Read Validate Session File
 
-세션 파일에 사전 추출된 내용:
-- **CLAUDE.md Content**: Purpose, Requirements, Domain Context (파싱 완료)
-- **Conventions** (hierarchy resolved): 아키텍처 규칙
+Content pre-extracted in the session file:
+- **CLAUDE.md Content**: Purpose, Requirements, Domain Context (parsed)
+- **Conventions** (hierarchy resolved): Architecture rules
 - **DEVELOPERS.md Content** (strict only): Constraints, Technical Context
-- **Deterministic Results**: SKILL Phase 2에서 CLI로 수행한 스키마/컨벤션/바운더리 결과
-- **Changed Requirements**: diff-spec-range 결과 (`all_requirements`, `source_changed`, 변경 목록)
-- **Test Coverage Map**: SKILL Phase 2.5b에서 Grep으로 구성한 소스 파일별 테스트 커버리지
+- **Deterministic Results**: Schema/convention/boundary results performed by CLI in SKILL Phase 2
+- **Changed Requirements**: diff-spec-range result (`all_requirements`, `source_changed`, change list)
+- **Test Coverage Map**: Source file-level test coverage composed by Grep in SKILL Phase 2.5b
 
-> 결정론적 검증(스키마, 컨벤션 구조, 바운더리, DEVELOPERS.md 존재)은 validate SKILL에서 이미 처리됨.
-> Requirements Drift 판정은 Test Coverage Map만 참조. 이 agent는 **semantic drift만** 담당.
+> Deterministic validations (schema, convention structure, boundary, DEVELOPERS.md existence) are already handled by the validate SKILL.
+> Requirements Drift determination references only the Test Coverage Map. This agent is responsible for **semantic drift only**.
 
-### 2. Requirements Drift Detection (Test Coverage Map 기반)
+### 2. Requirements Drift Detection (based on Test Coverage Map)
 
-세션 파일의 `## Test Coverage Map`과 `## Changed Requirements`에서 읽어 판정.
-**Grep/Read로 코드를 직접 탐색하지 않는다 — Map만 참조.**
+Read from the session file's `## Test Coverage Map` and `## Changed Requirements` for determination.
+**Do not search code directly with Grep/Read — reference only the Map.**
 
-검증 대상 결정:
-- `all_requirements=true` → 전체 Requirements 검증
-- `all_requirements=false` → `changed_requirements`에 나열된 항목만 검증
-- `changed_requirements` 비어있고 `source_changed=false` → 변경 없음, Requirements Drift 스킵
+Determine validation targets:
+- `all_requirements=true` → validate all Requirements
+- `all_requirements=false` → validate only items listed in `changed_requirements`
+- `changed_requirements` empty and `source_changed=false` → no changes, skip Requirements Drift
 
-각 검증 대상 Requirement에 대해 Test Coverage Map에서 판정:
+For each validation target Requirement, determine from the Test Coverage Map:
 
-| 조건 | 판정 | Severity |
-|------|------|----------|
-| Map에 `test_files_found=0`인 source_file 있음 | TEST_MISSING | WARNING |
-| 테스트 있으나 `calls[]` 비어있음 | TEST_NOT_CALLING_IMPL | WARNING |
-| 테스트 있고 `calls[]` 있음 | 커버됨, 이슈 없음 | — |
-| Map에 해당 source_file 없음 | "검증 범위 외" 표시, 판정 없음 | — |
-| `source_changed=false` AND Requirements 추가됨 | REQUIREMENTS_NOT_IMPLEMENTED | ERROR |
+| Condition | Determination | Severity |
+|-----------|--------------|----------|
+| Map has source_file with `test_files_found=0` | TEST_MISSING | WARNING |
+| Tests exist but `calls[]` is empty | TEST_NOT_CALLING_IMPL | WARNING |
+| Tests exist and `calls[]` present | Covered, no issue | — |
+| Corresponding source_file not in Map | Mark as "outside validation scope", no determination | — |
+| `source_changed=false` AND Requirements added | REQUIREMENTS_NOT_IMPLEMENTED | ERROR |
 
-> **금지**: Requirements Drift 판정을 위해 Test Coverage Map 외부에서 Grep/Read하지 않는다.
-> Map에 없는 파일 = "검증 범위 외". 자체 코드 탐색으로 증거를 생성하지 않는다.
+> **Prohibited**: Do not Grep/Read outside the Test Coverage Map for Requirements Drift determination.
+> Files not in the Map = "outside validation scope". Do not generate evidence through self-directed code searching.
 
 ### 3. Convention CODE_VIOLATION Detection
 
-Conventions의 아키텍처 규칙만 검증 (린터 영역 제외):
-- Module Boundaries: 의존성 방향 위반
-- Project Structure: 디렉토리 구조 규칙 위반
-- Module Boundaries: 책임 범위 초과
+Validate only architecture rules from Conventions (exclude linter domain):
+- Module Boundaries: Dependency direction violations
+- Project Structure: Directory structure rule violations
+- Module Boundaries: Responsibility scope violations
 
-| Drift Type | 설명 | Severity |
-|-----------|------|----------|
-| CONVENTION_DEPENDENCY_VIOLATION | 의존성 방향 위반 | ERROR |
-| CONVENTION_STRUCTURE_VIOLATION | 구조 규칙 위반 | WARNING |
+| Drift Type | Description | Severity |
+|-----------|-------------|----------|
+| CONVENTION_DEPENDENCY_VIOLATION | Dependency direction violation | ERROR |
+| CONVENTION_STRUCTURE_VIOLATION | Structure rule violation | WARNING |
 
 ### 4. DEVELOPERS.md Content Drift (strict only)
 
-`strict: true`일 때만 수행:
-- Constraints vs 코드: 명시된 제약이 코드에 반영되었는지
-- Technical Context vs 코드: 명시된 기술 선택이 실제 사용되는지
+Performed only when `strict: true`:
+- Constraints vs code: Whether specified constraints are reflected in code
+- Technical Context vs code: Whether specified technology choices are actually in use
 
-| Drift Type | 설명 | Severity |
-|-----------|------|----------|
-| CONSTRAINT_NOT_ENFORCED | Constraint가 코드에 미반영 | WARNING |
-| TECH_CONTEXT_STALE | 명시된 기술이 실제와 불일치 | INFO |
+| Drift Type | Description | Severity |
+|-----------|-------------|----------|
+| CONSTRAINT_NOT_ENFORCED | Constraint not reflected in code | WARNING |
+| TECH_CONTEXT_STALE | Specified technology does not match reality | INFO |
 
 ### 5. Result
 
-결과를 `${TMP_DIR}validate-{dir-safe}.md` 파일로 저장합니다.
+Save results to `${TMP_DIR}validate-{dir-safe}.md` file.
 
-파일 형식:
+File format:
 ```markdown
 # Validation Report: {directory}
 
@@ -160,7 +160,7 @@ Conventions의 아키텍처 규칙만 검증 (린터 영역 제외):
 
 ### [ERROR] REQUIREMENTS_NOT_IMPLEMENTED
 - Requirement: "{requirement text}"
-- Coverage Map: test_files_found=0 for {source_file}  ← or →
+- Coverage Map: test_files_found=0 for {source_file}  <- or ->
 - Test: "{test_case_name}" at {file:line} — does not cover this requirement
 
 ### [WARNING] TEST_MISSING
@@ -170,14 +170,14 @@ Conventions의 아키텍처 규칙만 검증 (린터 영역 제외):
 ### [WARNING] TEST_NOT_CALLING_IMPL
 - Requirement: "{requirement text}"
 - Test: "{test_case_name}" at {file:line}
-- Calls: [] (구현 함수 호출 없음)
+- Calls: [] (no implementation function calls)
 
 ### [WARNING] CONVENTION_STRUCTURE_VIOLATION
 - Rule: "{convention rule}"
 - Evidence: {file}:{line} — {violation description}
 ```
 
-반환:
+Return:
 ```
 ---validate-result---
 status: success | failed
@@ -188,12 +188,12 @@ strict: true | false
 ---end-validate-result---
 ```
 
-## 병렬 실행 주의
+## Parallel Execution Notice
 
-이 Agent는 병렬 배치로 실행됩니다. **AskUserQuestion 사용 금지** — 다른 Agent의 진행을 블로킹합니다.
+This Agent is executed in parallel batches. **AskUserQuestion usage prohibited** — it blocks other Agents' progress.
 
-## Context 효율성
+## Context Efficiency
 
-- 세션 파일에 문서 내용이 추출되어 있으므로 CLAUDE.md/DEVELOPERS.md 직접 Read 불필요
-- 코드 검증은 Grep/Read로 대상 디렉토리만 검색
-- 결과는 ${TMP_DIR}에 저장, 경로만 반환
+- Document content is pre-extracted in the session file, so direct CLAUDE.md/DEVELOPERS.md Read is unnecessary
+- Code validation searches only the target directory via Grep/Read
+- Results are saved to ${TMP_DIR}; only paths are returned

@@ -1,18 +1,18 @@
 <!--
-  이 파일은 예시와 설명을 위한 문서입니다.
-  규칙의 Single Source of Truth: core/schema-rules.yaml
+  This file is for examples and explanations.
+  Single Source of Truth for rules: core/schema-rules.yaml
 -->
 
 # CLAUDE.md Schema Template (v4.0.0)
 
-이 템플릿은 CLAUDE.md 파일의 표준 구조를 정의합니다.
+This template defines the standard structure for CLAUDE.md files.
 
-**CLAUDE.md = Primary SSOT — PM의 요구사항 문서**
-- CLAUDE.md는 PM이 읽고 쓸 수 있는 비즈니스 요구사항 문서
-- DEVELOPERS.md는 개발자가 Requirements를 시스템 레벨로 구체화한 Derived Spec
-- 소스코드는 문서에서 파생된 Derived Artifact
+**CLAUDE.md = Primary SSOT — PM's Requirements Document**
+- CLAUDE.md is a business requirements document that PMs can read and write
+- DEVELOPERS.md is a Derived Spec where developers concretize Requirements at the system level
+- Source code is a Derived Artifact generated from documentation
 
-## 2-문서 체계
+## 2-Document System
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -27,152 +27,156 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| 문서 | 역할 | 로드 방식 |
-|------|------|----------|
-| **CLAUDE.md** | Primary SSOT (PM 요구사항) | auto-loaded |
-| **DEVELOPERS.md** | Derived Spec (개발자 명세) | on-demand |
+| Document | Role | Load Method |
+|----------|------|-------------|
+| **CLAUDE.md** | Primary SSOT (PM requirements) | auto-loaded |
+| **DEVELOPERS.md** | Derived Spec (developer specification) | on-demand |
 
-## 필수 섹션 요약 (3 always-required + 2 conditional)
+## Required Sections Summary (3 always-required + 2 conditional)
 
-| 섹션 | 필수 | 조건 | "None" 허용 | 설명 |
-|------|------|------|-------------|------|
-| Purpose | always | — | ✗ | 모듈의 존재 이유 (비즈니스 가치) |
-| Requirements | always | — | ✓ | 비즈니스 요구사항 (사용자 관점, 검증 가능한 문장) |
-| Domain Context | always | — | ✓ | 비즈니스 제약 배경 (규정, 레거시, 조직적 이유) |
-| Instructions | conditional | is_project_root | ✗ | AI 행동 지시 (project root에만) |
-| Conventions | conditional | is_project_or_module_root | — | 프로젝트/코드 수준 통합 규칙 |
+| Section | Required | Condition | "None" Allowed | Description |
+|---------|----------|-----------|----------------|-------------|
+| Purpose | always | — | ✗ | The reason the module exists (business value) |
+| Requirements | always | — | ✓ | Business requirements (user perspective, verifiable statements) |
+| Domain Context | always | — | ✓ | Business constraint background (regulations, legacy, organizational reasons) |
+| Instructions | conditional | is_project_root | ✗ | AI behavior directives (project root only) |
+| Conventions | conditional | is_project_or_module_root | — | Unified project/code-level rules |
 
-> 규칙 상세: `core/schema-rules.yaml` 참조
+> Rule details: See `core/schema-rules.yaml`
 
 ---
 
-## 상세 설명
+## Detailed Description
 
-### 1. Purpose (필수, None 불가)
-모듈의 존재 이유를 비즈니스 가치 중심으로 1-2문장으로 명시합니다.
+### 1. Purpose (Required, None Not Allowed)
+State the reason the module exists in 1-2 sentences, focused on business value.
 
 ```markdown
 ## Purpose
-사용자 인증을 담당. 보안 규정 준수와 원활한 사용자 경험 제공.
+Handles user authentication. Ensures security compliance and smooth user experience.
 ```
 
-### 2. Requirements (필수, None 허용)
-비즈니스 요구사항을 사용자 관점으로 기술합니다. PM이 읽고 쓸 수 있어야 합니다.
+### 2. Requirements (Required, None Allowed)
+Describe business requirements from the user's perspective. Must be readable and writable by PMs.
 
-요구사항이 없는 경우 `None`을 명시합니다.
+When there are no requirements, explicitly state `None`.
 
 ```markdown
 ## Requirements
 None
 ```
 
-요구사항이 있는 경우:
+When requirements exist:
 
 ```markdown
 ## Requirements
-- 만료된 토큰으로 접근 시 자동 갱신, 사용자 재로그인 불필요
-- 동시 로그인 기기 최대 5개, 초과 시 가장 오래된 세션 종료
-- PCI-DSS 규정에 따른 토큰 수명 제한
+- Auto-refresh on access with expired token, no user re-login required
+- Maximum 5 concurrent login devices, oldest session terminated when exceeded
+- Token lifetime limits per PCI-DSS regulations
 ```
 
-**Requirements 작성 원칙:**
-- 사용자 관점의 동작 기술
-- 기술 용어 최소화
-- 비즈니스 가치 중심
-- 모호함 허용 (구체화는 DEVELOPERS.md Constraints에서)
+**Requirements Writing Principles:**
+- Describe behavior from the user's perspective
+- Minimize technical jargon
+- Focus on business value
+- Ambiguity is acceptable (concretization happens in DEVELOPERS.md Constraints)
 
-### 3. Domain Context (필수, None 허용)
-비즈니스 제약 배경을 2-3문장으로 요약합니다.
+### 3. Domain Context (Required, None Allowed)
+Summarize business constraint background in 2-3 sentences.
 
-도메인 맥락이 없는 경우 `None`을 명시합니다.
+When there is no domain context, explicitly state `None`.
 
 ```markdown
 ## Domain Context
 None
 ```
 
-도메인 맥락이 있는 경우:
+When domain context exists:
 
 ```markdown
 ## Domain Context
-- PCI-DSS 컴플라이언스에 따라 토큰 만료 기간 제한
-- 레거시 시스템과의 호환성을 위해 UUID v1 형식 지속 지원
+- Token expiration period limited per PCI-DSS compliance
+- Continued support for UUID v1 format for legacy system compatibility
 ```
 
-### 4. Instructions (조건부 - project root에만)
-AI 행동 지시를 명시합니다. project root CLAUDE.md에만 작성합니다.
+### 4. Instructions (Conditional - project root only)
+Specify AI behavior directives. Only written in the project root CLAUDE.md.
+
+The `Document language` field specifies the language for generated CLAUDE.md and DEVELOPERS.md content.
+Set via `/project-setup`. If absent, agents will ask the user.
 
 ```markdown
 ## Instructions
+- Document language: English
 Always use TypeScript strict mode.
 Follow the team's code review process.
 ```
 
-### 5. Conventions (조건부 - project_root 또는 module_root)
+### 5. Conventions (Conditional - project_root or module_root)
 
-프로젝트/코드 수준 통합 규칙입니다. project_root CLAUDE.md에 필수이며, module_root에서는 optional override로 사용됩니다.
+Unified project/code-level rules. Required in the project_root CLAUDE.md; used as optional override in module_root.
 
 ```markdown
 ## Conventions
 
 ### Project Structure
-src/ 하위에 기능별 디렉토리 구성.
+Feature-based directory organization under src/.
 
 ### Module Boundaries
-각 모듈은 자체 CLAUDE.md를 가지며, 순환 의존 금지.
+Each module has its own CLAUDE.md; circular dependencies are forbidden.
 
 ### Naming Conventions
-디렉토리: kebab-case, 파일: camelCase
+Directories: kebab-case, Files: camelCase
 
 ### Language & Runtime
 TypeScript 5.0, Node.js 20 LTS
 
 ### Coding Rules
-- 비동기: async/await 사용, raw Promise 금지
-- 타입: strict mode, any 금지
+- Async: use async/await, raw Promise forbidden
+- Types: strict mode, any forbidden
 
 ### Naming Rules
-- 변수/함수: camelCase
-- 클래스/타입: PascalCase
+- Variables/functions: camelCase
+- Classes/types: PascalCase
 ```
 
-**필수 서브섹션 (6개):**
+**Required Subsections (6):**
 
-| 서브섹션 | 필수 | 설명 |
-|----------|------|------|
-| Project Structure | Yes | 디렉토리 구조 규칙 |
-| Module Boundaries | Yes | 모듈 책임 규칙, 의존성 방향 |
-| Naming Conventions | Yes | 모듈/디렉토리/패키지 네이밍 |
-| Language & Runtime | Yes | 주요 언어, 버전, 런타임 |
-| Coding Rules | Yes | 기본 코딩 규칙 |
-| Naming Rules | Yes | 코드 수준 네이밍 규칙 |
+| Subsection | Required | Description |
+|------------|----------|-------------|
+| Project Structure | Yes | Directory structure rules |
+| Module Boundaries | Yes | Module responsibility rules, dependency direction |
+| Naming Conventions | Yes | Module/directory/package naming |
+| Language & Runtime | Yes | Primary language, version, runtime |
+| Coding Rules | Yes | Basic coding rules |
+| Naming Rules | Yes | Code-level naming rules |
 
-## 참조 규칙
+## Reference Rules
 
-### 허용
-- 부모 → 자식: 자식 디렉토리 참조 가능
+### Allowed
+- Parent → Child: Can reference child directories
 
-### 금지
-- 자식 → 부모: 부모 디렉토리 참조 불가
-- 형제 ↔ 형제: 형제 디렉토리 상호 참조 불가
+### Forbidden
+- Child → Parent: Cannot reference parent directories
+- Sibling ↔ Sibling: Cannot cross-reference sibling directories
 
-## 관련 문서
+## Related Documents
 
-- **DEVELOPERS.md**: Derived Spec — CLAUDE.md Requirements를 시스템 레벨로 구체화하는 쌍 문서
-- 템플릿: `references/shared/developers-md-schema.md`
+- **DEVELOPERS.md**: Derived Spec — A companion document that concretizes CLAUDE.md Requirements at the system level
+- Template: `references/shared/developers-md-schema.md`
 
-### 불변식
+### Invariants
 
-**INV-3: CLAUDE.md ↔ DEVELOPERS.md 쌍 (활성)**
+**INV-3: CLAUDE.md ↔ DEVELOPERS.md Pairing (Active)**
 ```
 ∀ CLAUDE.md ∃ DEVELOPERS.md (1:1 mapping)
 path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
---strict 모드에서 DEVELOPERS.md 부재를 경고로 보고
+DEVELOPERS.md absence reported as warning in --strict mode
 ```
 
-**INV-5: Convention 섹션 배치 규칙**
+**INV-5: Convention Section Placement Rules**
 ```
 project_root/CLAUDE.md MUST contain ## Conventions
-module_root/CLAUDE.md MAY contain ## Conventions (override; 없으면 project_root에서 상속)
-싱글 모듈: project_root == module_root → 같은 CLAUDE.md에 배치
+module_root/CLAUDE.md MAY contain ## Conventions (override; inherits from project_root if absent)
+Single module: project_root == module_root → placed in the same CLAUDE.md
 ```

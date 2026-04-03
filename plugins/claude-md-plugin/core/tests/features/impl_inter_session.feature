@@ -42,13 +42,13 @@ Feature: Inter-session spec → dev pipeline
 
   Scenario: Auto-commit after execute step includes requirement context
     Given spec SKILL completes mode=execute for target "src/auth" with action "create"
-    And the user requirement was "사용자는 JWT 토큰으로 인증할 수 있다"
+    And the user requirement was "Users can authenticate with JWT tokens"
     When the execute step finishes generating CLAUDE.md and DEVELOPERS.md
     Then spec SKILL creates a git commit with message matching:
       """
       feat(src/auth): create CLAUDE.md + DEVELOPERS.md
 
-      요구사항: 사용자는 JWT 토큰으로 인증할 수 있다
+      Requirement: Users can authenticate with JWT tokens
       """
     And the commit includes "src/auth/CLAUDE.md" and "src/auth/DEVELOPERS.md"
     And the commit does NOT include TMP files or workflow state files

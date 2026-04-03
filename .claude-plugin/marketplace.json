@@ -49,8 +49,8 @@
     },
     {
       "name": "claude-md-plugin",
-      "description": "CLAUDE.md Primary SSOT 문서-코드 동기화 플러그인. superpowers domain component를 조합하는 business layer. /spec으로 스펙 정의, /dev로 코드 생성, /validate로 검증, /decompile로 추출.",
-      "version": "10.9.0",
+      "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
+      "version": "10.10.0",
       "author": {
         "name": "jhk"
       },

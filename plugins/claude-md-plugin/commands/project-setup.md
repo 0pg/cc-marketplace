@@ -1,125 +1,138 @@
 ---
 name: project-setup
 description: |
-  프로젝트/모듈 CLAUDE.md에 Conventions 섹션 (통합 6개 서브섹션)을 추가하거나 업데이트합니다.
-  기존 프로젝트는 소스코드에서 컨벤션을 추출하고, 새 프로젝트는 대화형으로 수집합니다.
-  --update 옵션으로 기존 Conventions 섹션을 수정할 수 있습니다 (기존 /convention-update 흡수).
+  Adds or updates the Conventions section (unified 6 subsections) in project/module CLAUDE.md.
+  For existing projects, extracts conventions from source code; for new projects, collects them interactively.
+  Use the --update option to modify an existing Conventions section (absorbs the former /convention-update).
 argument-hint: "[project_root_path] [--update [content]]"
 allowed-tools: [Bash, Read, Glob, Grep, Write, AskUserQuestion]
 ---
 
 # /project-setup
 
-프로젝트 CLAUDE.md에 Convention 섹션을 추가/업데이트하여 `/dev` REFACTOR 단계에서 참조할 수 있도록 합니다.
+Adds/updates the Convention section in the project CLAUDE.md so it can be referenced during the `/dev` REFACTOR phase.
 
 ## Triggers
 
 - `/project-setup`
-- `프로젝트 설정`
-- `컨벤션 생성`
-- `컨벤션 업데이트` (--update 모드)
-- `컨벤션 수정` (--update 모드)
+- `project setup`
+- `create conventions`
+- `update conventions` (--update mode)
+- `modify conventions` (--update mode)
 
 ## Arguments
 
-| 이름 | 필수 | 기본값 | 설명 |
-|------|------|--------|------|
-| `project_root_path` | 아니오 | 자동 탐지 | 프로젝트 루트 경로 |
-| `--update` | 아니오 | false | 기존 Conventions 업데이트 모드 |
-| `content` | 아니오 | - | --update 시 반영할 변경 지시사항 (없으면 대화형) |
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `project_root_path` | No | Auto-detect | Project root path |
+| `--update` | No | false | Existing Conventions update mode |
+| `content` | No | - | Change instructions to apply with --update (interactive if omitted) |
 
 ## Workflow
 
-### 1. 프로젝트 루트 결정
+### 1. Determine Project Root
 
-인자가 있으면 해당 경로 사용. 없으면 CWD에서 project root marker (`.git`, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod` 등) 확인.
+If an argument is provided, use that path. Otherwise, check the CWD for project root markers (`.git`, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.).
 
-marker가 없으면 AskUserQuestion으로 경로 입력 요청.
+If no marker is found, request path input via AskUserQuestion.
 
-**상위 디렉토리 탐색 금지** — CWD 외부로 탐색하지 않음.
+**No parent directory traversal** — do not search outside the CWD.
 
-### 2. 모듈 루트 탐지
+### 2. Module Root Detection
 
-build marker 파일 (`package.json`, `Cargo.toml`, `go.mod` 등) 기반 모듈 루트 자동 감지.
-모듈 루트 미발견 시 프로젝트 루트를 싱글 모듈로 취급.
+Auto-detect module roots based on build marker files (`package.json`, `Cargo.toml`, `go.mod`, etc.).
+If no module root is found, treat the project root as a single module.
 
-### 3. 기존 Convention 섹션 확인 + 모드 분기
+### 3. Check Existing Convention Section + Mode Branching
 
-project_root CLAUDE.md에서 `## Conventions` 존재 확인.
+Check for `## Conventions` in the project_root CLAUDE.md.
 
-**`--update` 모드이거나 Conventions 존재 시:**
-→ Step 3-U (업데이트 모드)로 분기
+**If `--update` mode or Conventions exist:**
+→ Branch to Step 3-U (update mode)
 
-**Conventions 미존재 시:**
-→ Step 4 (신규 생성)으로 진행
+**If Conventions do not exist:**
+→ Proceed to Step 4 (new creation)
 
-### 3-U. 업데이트 모드 (기존 /convention-update 흡수)
+### 3-U. Update Mode (absorbs former /convention-update)
 
-#### 3-U-A. 인자 content가 있는 경우
+#### 3-U-A. When argument content is provided
 
-내용 분석으로 대상 서브섹션 자동 판별:
-| 키워드 | 대상 |
-|--------|------|
-| 디렉토리, 폴더, 구조 | Project Structure |
-| 모듈, 의존성, 레이어 | Module Boundaries |
-| 패키지명, 디렉토리명 | Naming Conventions |
-| 언어, 버전, 런타임 | Language & Runtime |
-| 코딩, 패턴, 규칙 | Coding Rules |
-| 변수명, 함수명, 네이밍 | Naming Rules |
+Auto-determine target subsection via content analysis:
+| Keywords | Target |
+|----------|--------|
+| directory, folder, structure | Project Structure |
+| module, dependency, layer | Module Boundaries |
+| package name, directory name | Naming Conventions |
+| language, version, runtime | Language & Runtime |
+| coding, pattern, rule | Coding Rules |
+| variable name, function name, naming | Naming Rules |
 
-대상 서브섹션에 content 반영 → 사용자 확인 → 저장.
+Apply content to the target subsection → user confirmation → save.
 
-#### 3-U-B. 인자 content가 없는 경우 (대화형)
+#### 3-U-B. When argument content is not provided (interactive)
 
-현재 Conventions 6개 서브섹션을 표시하고 AskUserQuestion:
-"수정할 서브섹션을 선택하세요: [1-6]"
+Display the current 6 Conventions subsections and AskUserQuestion:
+"Select the subsection to modify: [1-6]"
 
-선택된 서브섹션의 현재 내용을 표시하고 수정 내용을 수집.
+Display the current content of the selected subsection and collect modifications.
 
-완료 후 Step 9 (검증)으로 진행.
+After completion, proceed to Step 9 (verification).
 
-### 4. 프로젝트 유형 판별
+### 4. Determine Project Type
 
-소스 파일 존재 여부로 기존/신규 프로젝트 구분.
+Distinguish between existing and new projects based on source file presence.
 
-### 5. 컨벤션 추출 또는 수집
+### 5. Extract or Collect Conventions
 
-#### 5-A. 기존 프로젝트: 코드 분석으로 추출
+#### 5-A. Existing Project: Extract via Code Analysis
 
-| 분석 대상 | 방법 |
-|-----------|------|
-| 언어/런타임 | 파일 확장자 통계, 빌드 설정 파일 |
-| 디렉토리 패턴 | 최상위 디렉토리 구조 분석 |
-| 코딩 규칙 | 비동기 패턴, 에러 처리, 타입 사용 등 |
-| 네이밍 규칙 | 변수/함수/클래스/상수 패턴 분석 |
-| 테스트 패턴 | 프레임워크, 파일 패턴, Mock 전략 |
+| Analysis Target | Method |
+|-----------------|--------|
+| Language/Runtime | File extension statistics, build config files |
+| Directory patterns | Top-level directory structure analysis |
+| Coding rules | Async patterns, error handling, type usage, etc. |
+| Naming rules | Variable/function/class/constant pattern analysis |
+| Test patterns | Framework, file patterns, mock strategy |
 
-> **린트 제외 원칙**: 포맷터/린터 설정 파일이 존재하면 해당 도구가 처리하는 항목은 Convention에서 제외.
+> **Lint exclusion principle**: If formatter/linter config files exist, items handled by those tools are excluded from Conventions.
 
-분석 결과를 사용자에게 보여주고 AskUserQuestion으로 확인.
+Show analysis results to the user and confirm via AskUserQuestion.
 
-#### 5-B. 신규 프로젝트: 대화형 수집
+#### 5-B. New Project: Interactive Collection
 
-Q1. 언어 선택 → Q2. 구조 스타일 → Q3. 코딩 스타일
+Q1. Language selection → Q2. Structure style → Q3. Coding style
 
-### 6. `## Instructions` 섹션 생성
+### 5-C. Ask Document Language
 
-project root CLAUDE.md에 `## Instructions`가 없으면 생성:
+Ask the user via AskUserQuestion which language CLAUDE.md and DEVELOPERS.md should be written in:
+
+```
+Which language should CLAUDE.md and DEVELOPERS.md be written in?
+Examples: English, Korean, Japanese, Chinese, etc.
+(Default: English)
+```
+
+If the user does not specify, default to `English`.
+
+### 6. Generate `## Instructions` Section
+
+If `## Instructions` does not exist in the project root CLAUDE.md, generate it:
 
 ```markdown
 ## Instructions
 
+- Document language: {selected language}
 - CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
 - When code disagrees with CLAUDE.md, regenerate code via /dev (not modify docs).
 - To change requirements, update CLAUDE.md first, then code follows.
 - Derive tests from DEVELOPERS.md Constraints.
-- 소스코드는 /dev로 생성. Write tool로 직접 소스 파일 생성 금지.
-- 완료 선언 전 /validate --strict 실행 필수.
+- Generate source code via /dev. Do not create source files directly with the Write tool.
+- Must run /validate --strict before declaring completion.
 ```
 
-### 7. `## Conventions` 섹션 생성
+### 7. Generate `## Conventions` Section
 
-필수 6개 서브섹션 포함:
+Include the 6 required subsections:
 
 ```markdown
 ## Conventions
@@ -132,31 +145,31 @@ project root CLAUDE.md에 `## Instructions`가 없으면 생성:
 ### Naming Rules
 ```
 
-선택적 서브섹션: API Design, Error Strategy, Testing Strategy, Test Convention 등.
+Optional subsections: API Design, Error Strategy, Testing Strategy, Test Convention, etc.
 
-### 8. 모듈별 Convention 처리 (DRY 원칙)
+### 8. Per-Module Convention Handling (DRY Principle)
 
-싱글 모듈이면 skip.
-멀티 모듈: project_root와 동일하면 상속, 다르면 override 작성.
+Skip if single module.
+Multi-module: inherit if same as project_root, write override if different.
 
-### 9. 검증
+### 9. Verification
 
 ```bash
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 $CLI_PATH validate-convention --project-root {project_root}
 ```
 
-CLI 빌드 실패 시 AskUserQuestion으로 설치/건너뛰기 질문.
+If CLI build fails, ask via AskUserQuestion whether to install or skip.
 
-### 10. 결과 보고
+### 10. Result Report
 
-생성/업데이트된 파일 목록, 상속 정보 표시.
+Display list of generated/updated files and inheritance information.
 
-## 오류 처리
+## Error Handling
 
-| 상황 | 대응 |
-|------|------|
-| 프로젝트 루트 탐지 실패 | 경로 입력 요청 |
-| 파일 쓰기 권한 없음 | 에러 메시지 |
-| 소스 분석 실패 | 대화형 수집으로 전환 |
-| CLI 빌드 실패 | 설치/건너뛰기 질문 |
+| Situation | Response |
+|-----------|----------|
+| Project root detection failed | Request path input |
+| No file write permissions | Error message |
+| Source analysis failed | Fall back to interactive collection |
+| CLI build failed | Ask whether to install or skip |
