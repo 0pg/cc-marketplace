@@ -390,7 +390,7 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 /spec      → CLAUDE.md + DEVELOPERS.md (document definition)
 /dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
 /bugfix    → Source Code + DEVELOPERS.md:Agent Observations (append-only)
-/decompile → CLAUDE.md + DEVELOPERS.md (document extraction)
+/decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
 /validate  → Violation reporting + interactive resolution + Agent Observations cleanup
 ```
 

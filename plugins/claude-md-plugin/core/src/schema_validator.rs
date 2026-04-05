@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::OnceLock;
 
 /// Result of schema validation
 #[derive(Debug, Serialize, Deserialize)]
@@ -429,7 +430,8 @@ impl SchemaValidator {
     /// parse_sections splits on all `#` headers, so H3 entries end up as separate sections.
     /// Instead, we extract the raw block between `## Agent Observations` and the next `## `.
     fn validate_agent_observations_entries_raw(content: &str, section_start_line: usize, warnings: &mut Vec<String>) {
-        let type_tag_re = regex::Regex::new(r"^\[(\w+)\]\s+.+").unwrap();
+        static TYPE_TAG_RE: OnceLock<regex::Regex> = OnceLock::new();
+        let type_tag_re = TYPE_TAG_RE.get_or_init(|| regex::Regex::new(r"^\[(\w+)\]\s+.+").unwrap());
         let lines: Vec<&str> = content.lines().collect();
 
         // Find the raw range: from section_start_line to next ## or EOF
@@ -437,7 +439,7 @@ impl SchemaValidator {
         let mut end_idx = lines.len();
         for i in start_idx..lines.len() {
             let trimmed = lines[i].trim_start();
-            if trimmed.starts_with("## ") && !trimmed.starts_with("### ") {
+            if trimmed.starts_with("## ") {
                 end_idx = i;
                 break;
             }
