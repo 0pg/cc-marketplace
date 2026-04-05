@@ -39,6 +39,7 @@ STATE_FILE=".claude/workflows/$DIR_SAFE/state.json"
 Read state.json and extract the following fields:
 - `status`, `round`, `plan_file`, `last_reviewer_result`
 - `target_path`, `action`, `project_root`, `user_requirement`
+- `explore_status`
 
 If state.json does not exist:
 ```
@@ -46,6 +47,18 @@ If state.json does not exist:
   Run /spec first or verify the --target path.
 ```
 Exit.
+
+**Self Socratic Loop guard:**
+
+If `explore_status` is `"pending"` or `"in-progress"` or is missing from state.json:
+```
+⚠ Self Socratic Loop was not completed for this workflow.
+  Run /spec --path {target_path} again to restart requirement concretization.
+```
+Exit without proceeding.
+
+If `explore_status` is `"approved"`, `"user-resolved"`, `"short-circuited"`, or `"best-effort"`:
+proceed to Status Branching below.
 
 ### 3. Status Branching
 

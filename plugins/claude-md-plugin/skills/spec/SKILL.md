@@ -1,6 +1,6 @@
 ---
 name: spec
-version: 1.2.0
+version: 2.0.0
 aliases: [define, requirements, impl]
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
@@ -29,8 +29,7 @@ Performs requirement definition only **without code implementation**, following 
 |------|----------|---------|-------------|
 | `requirement` | Yes | - | Requirement text |
 | `--path` | No | `.` | Target path |
-| `--auto` | No | false | Run spec→dev→validate autonomous loop |
-| `--auto-max-iter` | No | `3` | Maximum spec update retry count. After N attempts, includes one final dev+validate for a total of N+1 verifications |
+| `--no-ask` | No | false | Suppress AskUserQuestion in Self Socratic Loop. When set, max_rounds exhaustion uses best-effort instead of asking the user. |
 
 ## Workflow
 
@@ -55,6 +54,123 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
+### 2.5 Self Socratic Loop
+
+Concretize vague requirements through project domain context exploration before decompose.
+
+```bash
+# Preserve original requirement
+cat > "${TMP_DIR}original-requirement.md" << 'REQEOF'
+{user requirement text}
+REQEOF
+```
+
+`round = 1`, `max_rounds = 2`
+
+```
+loop:
+  2.5a. Create ${TMP_DIR}explore-session-{round}.md:
+
+        Round 1:
+        ---
+        # Explore Session
+        type: explore | round: 1 | project_root: {project_root}
+
+        ## User Requirement
+        {user requirement text}
+
+        ## Existing Modules Index
+        {scan-claude-md result}
+
+        ## Project Conventions
+        {project root Conventions or "None"}
+        ---
+
+        Round 2:
+        ---
+        # Explore Session
+        type: explore | round: 2 | project_root: {project_root}
+
+        ## User Requirement
+        {user requirement text}
+
+        ## Previous Concretization
+        previous_result: ${TMP_DIR}explore-result-1.md
+
+        ## Reviewer Feedback
+        feedback_file: ${TMP_DIR}explore-reviewer-result-1.md
+
+        ## Existing Modules Index
+        {scan-claude-md result}
+
+        ## Project Conventions
+        {project root Conventions or "None"}
+        ---
+
+  2.5b. Task(requirement-explorer):
+        Session file: ${TMP_DIR}explore-session-{round}.md
+        Save results to ${TMP_DIR} and return only the path
+
+        Extract total, domain_clear, resolved, unresolved from result block.
+
+  2.5c. Short-circuit check:
+        if total == 0 (no ambiguity assessment needed) OR
+           (domain_clear + resolved == total, unresolved == 0):
+          concretized_requirement = Read ## Concretized Requirements from explore-result
+          domain_context_summary = Read ## Domain Context Summary from explore-result
+          explore_status = "short-circuited"
+          break (skip reviewer — requirements already clear)
+
+  2.5d. Early termination check:
+        if all unresolved items are genuinely-ambiguous AND no explorable items remain:
+          → jump to 2.5h (AskUserQuestion) immediately
+
+  2.5e. Create ${TMP_DIR}explore-reviewer-session-{round}.md:
+        ---
+        # Explore Reviewer Session
+        type: explore-reviewer | round: {round}
+        explore_result: ${TMP_DIR}explore-result-{round}.md
+        original_requirement: ${TMP_DIR}original-requirement.md
+        ---
+
+  2.5f. Task(requirement-reviewer):
+        Session file: ${TMP_DIR}explore-reviewer-session-{round}.md
+        Save results to ${TMP_DIR} and return only the path
+
+        Extract verdict, critical_questions from result block.
+
+  2.5g. if verdict == "approved":
+          concretized_requirement = Read ## Concretized Requirements from explore-result
+          domain_context_summary = Read ## Domain Context Summary from explore-result
+          explore_status = "approved"
+          break
+
+  2.5h. if round >= max_rounds OR early termination:
+          if --no-ask flag is set:
+            concretized_requirement = Read ## Concretized Requirements from explore-result
+            domain_context_summary = Read ## Domain Context Summary from explore-result
+            explore_status = "best-effort"
+            break
+
+          Summarize Critical Questions (or Remaining Ambiguities for early termination)
+          → AskUserQuestion (last resort):
+            "Requirements concretization attempted but these remain unclear:
+             - {Critical Question 1}
+             - {Critical Question 2}
+             Can you provide specifics?"
+
+          Incorporate user answer into a new explore session → 1 more explorer run:
+          Create ${TMP_DIR}explore-session-{round+1}.md with user answer appended to
+          ## User Requirement section.
+          Task(requirement-explorer) → extract result.
+          concretized_requirement = result's ## Concretized Requirements
+          domain_context_summary = result's ## Domain Context Summary
+          explore_status = "user-resolved"
+          break
+
+  2.5i. round++ → return to 2.5a
+```
+
 ### 3. Create Decompose session file
 
 `${TMP_DIR}decompose-session.md`:
@@ -64,7 +180,13 @@ If not found, set `document_language` to empty (the agent will ask the user).
 type: decompose | project_root: {project_root}
 
 ## User Requirement
-{user requirement text}
+{concretized_requirement}
+
+## Original Requirement
+{original user requirement text}
+
+## Domain Context Summary
+{domain_context_summary}
 
 ## Existing Modules Index
 {scan-claude-md result: path, purpose pairs}
@@ -112,6 +234,9 @@ document_language: {document_language or ""}
 ## User Requirement
 {full user requirement text}
 
+## Domain Context Summary
+{domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
+
 ## Existing Modules Index
 {scan-claude-md result: path, purpose pairs}
 
@@ -152,6 +277,9 @@ cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
   "last_reviewer_result": "",
   "project_root": "{project_root}",
   "user_requirement": "{first 500 chars of user requirement text — escape JSON special chars (\" \\ newlines)}",
+  "explore_round": {round from Step 2.5},
+  "explore_status": "{explore_status from Step 2.5}",
+  "explore_result_file": "${TMP_DIR}explore-result-{round}.md",
   "created_at": "TIMESTAMP_PLACEHOLDER",
   "updated_at": "TIMESTAMP_PLACEHOLDER"
 }
@@ -415,6 +543,9 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      ## Source Concept
      {module.source_concept}
 
+     ## Domain Context Summary
+     {domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
+
      ## Existing Modules Index
      {latest scan-claude-md result}
 
@@ -440,6 +571,9 @@ for depth in sorted_depths:  # 0, 1, 2, ...
 
      ## Source Concept
      {module.source_concept}
+
+     ## Domain Context Summary
+     {domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
 
      ## Existing Modules Index
      {latest scan-claude-md result}
@@ -604,136 +738,3 @@ unassigned_count: N
 | impl agent failure (single module) | warn, continue with remaining modules |
 | User cancels approval | Return status: cancelled_by_user |
 
----
-
-## Auto Mode (--auto)
-
-When the `--auto` flag is present, automatically run dev → validate → spec update loop after spec completion.
-**AskUserQuestion prohibited after Phase 0.**
-
-> **Note:** dev auto-detects language from source file extensions.
-> For new projects with no source files, a language prompt may appear during the first dev run.
-> In that case, autonomous execution will be interrupted. For empty projects, add a file indicating
-> the language (package.json, go.mod, Cargo.toml, etc.) or run `/dev` once before using `--auto`.
-
-Preserve the following values upon entering Auto Mode:
-- `{original_requirement}`: user requirement text (extracted in Phase 0)
-- `{impl_path}`: `--path` argument value (default `.`)
-
-### Phase 0: Initial spec (same as normal workflow)
-
-- Execute full Workflow Steps 0-8 above
-- single mode: AskUserQuestion allowed (brainstorming + clarification)
-- multi mode: one-time user approval (decomposition plan)
-- CLAUDE.md + DEVELOPERS.md generation complete → enter Auto Loop
-
-
-### Auto Loop
-
-`auto_iter = 0`
-
-#### Auto Phase 1: Dev
-
-```
-Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path}")
-```
-
-Check `status` from dev-result:
-- `failed` → warn and exit Auto Loop (cannot validate without code)
-- `success | partial` → proceed to Auto Phase 2
-
-#### Auto Phase 2: Validate
-
-```
-Skill("claude-md-plugin:validate", args: "{impl_path} --report-only")
-```
-
-Parse validate-result:
-
-```
-total_violations = schema_errors + convention_issues + boundary_issues + semantic_drift
-```
-
-- `total_violations == 0` → **success exit**
-- `auto_iter >= auto_max_iter` → **max_iter exit**
-- Otherwise → extract violation details → Auto Phase 3
-
-**Violation detail extraction:**
-
-Read each file from validate-result's `result_files` list:
-- Files where `## Summary`'s `Total issues: N` > 0 → that module is a spec update target
-- `## Issues` section → collect per-module violation details (REQUIREMENTS_NOT_IMPLEMENTED, etc.)
-- If result_files is empty (no semantic verification targets): skip Phase 3 even if total_violations > 0
-
-#### Auto Phase 3: Spec Update
-
-```bash
-$CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-auto-{iter}.json"
-```
-
-Create session files for each module where violations were found:
-`${TMP_DIR}spec-session-auto-{iter}-{dir-safe}.md`
-
-```markdown
-# Spec Session (Auto Mode)
-type: spec | project_root: {project_root} | target_path: {path} | action: update | parallel: true
-document_language: {document_language or ""}
-
-## User Requirement
-{original_requirement}
-
-## Auto-Fix Context
-auto_iteration: {n}
-validate_violations:
-  schema_errors: {n}
-  convention_issues: {n}
-  boundary_issues: {n}
-  semantic_drift: {n}
-
-Validation violations were found in this module.
-Read the existing CLAUDE.md and DEVELOPERS.md, and refine/supplement
-Requirements and Constraints so that validate passes after dev.
-Since CLAUDE.md is the SSOT, improve by making requirements more explicitly stated.
-
-## Violations Detail
-{violation details for this module extracted from result_file's ## Issues section}
-
-## Existing Modules Index
-{latest scan-claude-md result}
-
-## Project Conventions
-{project root Conventions or "None"}
-```
-
-Dispatch Task(impl) in parallel (up to 3). **AskUserQuestion prohibited.**
-
-`auto_iter++` → loop back to Auto Phase 1
-
-### Auto Phase 4: Exit report
-
-**Success exit (`total_violations == 0`):**
-
-```
-✓ Auto mode complete ({auto_iter} iteration(s))
-  spec: CLAUDE.md + DEVELOPERS.md generated
-  dev: code generation complete
-  validate: all verifications passed
-```
-
-**Failure exit (max_iter reached | dev failed):**
-
-```
-⚠ Auto mode terminated (reason: {reason})
-  Iterations: {auto_iter}/{auto_max_iter}
-  Remaining issues: schema_errors={n}, convention={n}, boundary={n}, semantic_drift={n}
-  Run /validate or /spec manually to resolve.
-```
-
-### Auto Mode Error Handling
-
-| Situation | Response |
-|-----------|----------|
-| dev failed | Exit loop, report error |
-| No result_files (schema/convention only) | Skip Phase 3, retry dev |
-| All spec updates failed | Warn, continue loop (try next dev) |
-| max_iter exceeded | Exit loop, report remaining issues |

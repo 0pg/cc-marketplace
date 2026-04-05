@@ -70,6 +70,10 @@ type: decompose | project_root: {path}
 {project root Conventions or "None"}
 ```
 
+When `## Domain Context Summary` is present in the session file, use it to inform
+module identification (Phase 2 step 4: "Determine paths"). Domain terms help identify
+natural module boundaries.
+
 ## Workflow
 
 ### Phase 1: Scope Classification
@@ -115,7 +119,7 @@ Identify natural boundaries from the spec text:
 Map which parts of the original text correspond to each module.
 
 **Principles:**
-- Direct excerpts from the original text (no rewriting — rewriting is the impl agent's responsibility)
+- Direct excerpts from ## User Requirement section (no further rewriting by decompose — concretization is the explorer agent's responsibility)
 - Requirements spanning multiple modules are placed in the most relevant module and recorded in `source_concept`
 - Requirements that do not clearly belong to any module are recorded in `unassigned[]`
 
@@ -175,5 +179,5 @@ ambiguous_count: N
 
 - **AskUserQuestion usage prohibited** — Handle ambiguity with conservative defaults + ambiguous records
 - **CLAUDE.md writing prohibited** — Return only the decomposition plan; document generation is the impl agent's responsibility
-- **Original text rewriting prohibited** — Only original text excerpts are allowed for requirement_refs
+- **requirement_refs must be direct excerpts from ## User Requirement** — which may be concretized text from the Self Socratic Loop, not necessarily the user's original words. Decompose does not further rewrite.
 
