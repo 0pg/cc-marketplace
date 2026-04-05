@@ -171,6 +171,48 @@ None
 - Called by uses module path (relative path or crate name)
 - `None` allowed when there is no external exposure
 
+### ## Agent Observations (Optional, None Allowed, Agent-Managed)
+
+Experiential knowledge recorded by agents during work. **Only agents write to this section.**
+Not auto-added by converge — created when an agent first records an observation.
+
+Each entry is an H3 with a type tag and required metadata:
+
+```markdown
+## Agent Observations
+
+### [structural] auth-utils circular import
+- anchor: REQ-2
+- since: 2026-03-15
+- refs: 3
+- source: /dev green-coder
+- auth → utils → auth cycle. Resolved with type-only import.
+
+### [decision] SQLite test fixture
+- anchor: CONST-3
+- since: 2026-03-18
+- refs: 1
+- source: /dev test-writer
+- Using SQLite in-memory instead of real DB. User approved.
+```
+
+**Entry Types:**
+
+| Type | Description | Auto-remove Condition | Promotion Target |
+|------|-------------|----------------------|-----------------|
+| `structural` | Architecture patterns, known risks | Anchor deleted | Operations |
+| `decision` | Technical choices with rationale | Anchor deleted | Decision Log |
+| `tactical` | Short-lived workarounds, temp notes | refs=0 + age>30d | (removed, no promotion) |
+| `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
+
+**Required Fields:** `since`, `refs`, `source`
+**Optional Fields:** `anchor` (REQ-N or CONST-N)
+
+**Lifecycle:**
+- Created by agents during /dev, /bugfix, /spec, /decompile
+- Cleaned up by /validate (stale anchor removal, consolidation, promotion report)
+- Promoted to formal sections (Decision Log, Operations, etc.) with user approval
+
 ### ## Flows (Optional, is_project_root only, None Allowed)
 
 **Allowed only in project root DEVELOPERS.md.** System-level use case execution flows.
@@ -202,9 +244,9 @@ Describes cross-module call order and data types. Warning if written in non-proj
 |-------|---------------------|---------|
 | `/spec` | Generates Constraints + Data Schemas + Technical Context | Concretizes CLAUDE.md Requirements |
 | `/decompile` | Full generation | Extracts all 6 sections from source code (includes Data Schemas, Configuration auto-extraction) |
-| `/dev` | Test generation source | Generates test cases from Constraints (Data Schemas used for type reference) |
-| `/validate` | Drift verification | Constraints + Data Schemas drift detection (--strict); cross-module contract verification via Public API |
-| `/bugfix` | L2 diagnosis | L2 layer of 3-layer analysis (Constraints) |
+| `/dev` | Test generation source + Agent Observations write | Generates test cases from Constraints; records observations |
+| `/validate` | Drift verification + Agent Observations cleanup | Constraints drift detection; stale observation removal + promotion report |
+| `/bugfix` | L2 diagnosis + Agent Observations write | 3-layer analysis; records structural observations |
 
 ## Lifecycle
 

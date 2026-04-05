@@ -219,6 +219,14 @@ strict: true | false
 ---end-validate-result---
 ```
 
+## Agent Observations Protocol
+
+Follow the protocol in `${CLAUDE_PLUGIN_ROOT}/references/shared/agent-observations-protocol.md`:
+1. **On Start**: Read `{target_path}/DEVELOPERS.md` → `## Agent Observations`
+2. **Cleanup**: Remove entries with stale anchors (REQ/CONST no longer in CLAUDE.md/DEVELOPERS.md)
+3. **Consolidation**: Merge duplicate entries, remove tactical entries with refs=0 + age>30d
+4. **Promotion Report**: Flag structural/decision entries with refs≥3 as promotion candidates
+
 ## Parallel Execution Notice
 
 This Agent is executed in parallel batches. **AskUserQuestion usage prohibited** — it blocks other Agents' progress.

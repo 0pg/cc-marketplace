@@ -136,6 +136,11 @@ round: {N}
 | spec_session_file not found | verdict: rejected, "spec session file not found" |
 | round field missing | Assume round: 1 |
 
+## Agent Observations Protocol
+
+Read `{target_path}/DEVELOPERS.md` → `## Agent Observations` section on start.
+Use matched observations as additional context. Do not write to this section.
+
 ## Core Constraints
 
 - **File modification prohibited** — No files may be modified, including test files and mapping JSON (except result file Write)

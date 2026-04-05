@@ -52,6 +52,8 @@ pub struct TestWorld {
     // Language validator fields
     language_result: Option<LanguageValidationResult>,
     language_error: Option<String>,
+    // Converge schema fields
+    converge_result_content: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -458,6 +460,29 @@ fn warning_should_mention(world: &mut TestWorld, text: String) {
     let found = result.warnings.iter().any(|w| w.contains(&text));
     assert!(found, "Expected warning mentioning '{}', got: {:?}", text, result.warnings);
 }
+
+// ============== Converge Schema Steps ==============
+
+#[when("I converge the DEVELOPERS.md schema")]
+fn converge_developers_schema(world: &mut TestWorld) {
+    let full_path = get_temp_path(world);
+    let developers_md_path = full_path.join("DEVELOPERS.md");
+    let content = std::fs::read_to_string(&developers_md_path).expect("Cannot read DEVELOPERS.md");
+    let validator = SchemaValidator::new();
+    let result = validator.converge_schema(&content, "developers_md");
+    world.converge_result_content = Some(result.content);
+}
+
+#[then(expr = "converged content should not contain {string}")]
+fn converged_content_should_not_contain(world: &mut TestWorld, text: String) {
+    let content = world.converge_result_content.as_ref().expect("No converge result");
+    assert!(
+        !content.contains(&text),
+        "Expected converged content NOT to contain '{}', but it was found", text
+    );
+}
+
+// ============== Code Analyzer Steps ==============
 
 #[then("I should find environment variables:")]
 fn should_find_env_vars(world: &mut TestWorld, step: &cucumber::gherkin::Step) {

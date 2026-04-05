@@ -27,6 +27,7 @@ Domain Context: {parsed domain context}
 
 ## Layer 2: Constraints (DEVELOPERS.md)
 path: {DEVELOPERS.md path, "none" if absent}
+agent_observations: {DEVELOPERS.md path}#Agent Observations
 
 Constraints:
 - CONST-N: {text}

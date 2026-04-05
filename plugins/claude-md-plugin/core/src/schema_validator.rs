@@ -306,6 +306,14 @@ impl SchemaValidator {
             }
         }
 
+        // Validate Agent Observations entries (type tags + required fields)
+        // Note: parse_sections splits on ALL headers including H3, so we need raw content
+        if let Some(obs_section) = sections.iter().find(|s| s.name.eq_ignore_ascii_case("Agent Observations")) {
+            if !self.is_none_marker(obs_section) {
+                Self::validate_agent_observations_entries_raw(&content, obs_section.start_line, &mut warnings);
+            }
+        }
+
         ValidationResult {
             file: file_str,
             valid: errors.is_empty(),
@@ -415,6 +423,67 @@ impl SchemaValidator {
         }
 
         sections
+    }
+
+    /// Validate Agent Observations entries from raw content.
+    /// parse_sections splits on all `#` headers, so H3 entries end up as separate sections.
+    /// Instead, we extract the raw block between `## Agent Observations` and the next `## `.
+    fn validate_agent_observations_entries_raw(content: &str, section_start_line: usize, warnings: &mut Vec<String>) {
+        let type_tag_re = regex::Regex::new(r"^\[(\w+)\]\s+.+").unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Find the raw range: from section_start_line to next ## or EOF
+        let start_idx = section_start_line; // 1-based, content after the ## header
+        let mut end_idx = lines.len();
+        for i in start_idx..lines.len() {
+            let trimmed = lines[i].trim_start();
+            if trimmed.starts_with("## ") && !trimmed.starts_with("### ") {
+                end_idx = i;
+                break;
+            }
+        }
+
+        // Parse H3 entries within the range
+        let mut entries: Vec<(String, usize, Vec<String>)> = Vec::new(); // (header, line_num_1based, content_lines)
+        for i in start_idx..end_idx {
+            let trimmed = lines[i].trim();
+            if trimmed.starts_with("### ") {
+                let header = trimmed.trim_start_matches("### ").to_string();
+                entries.push((header, i + 1, Vec::new()));
+            } else if let Some(entry) = entries.last_mut() {
+                entry.2.push(trimmed.to_string());
+            }
+        }
+
+        for (header, line_num, content_lines) in &entries {
+            // Check type tag
+            if let Some(caps) = type_tag_re.captures(header) {
+                let entry_type = caps.get(1).unwrap().as_str();
+                if !AGENT_OBS_VALID_ENTRY_TYPES.iter().any(|t| t.eq_ignore_ascii_case(entry_type)) {
+                    warnings.push(format!(
+                        "Agent Observations: invalid entry type '{}' at line {} (valid: {:?})",
+                        entry_type, line_num, AGENT_OBS_VALID_ENTRY_TYPES
+                    ));
+                }
+            } else {
+                warnings.push(format!(
+                    "Agent Observations: entry at line {} missing type tag (expected ### [type] title)",
+                    line_num
+                ));
+            }
+
+            // Check required fields
+            let content_text = content_lines.join("\n");
+            for field in AGENT_OBS_REQUIRED_FIELDS {
+                let field_pattern = format!("- {}:", field);
+                if !content_text.contains(&field_pattern) {
+                    warnings.push(format!(
+                        "Agent Observations: entry '{}' at line {} missing required field '{}'",
+                        header, line_num, field
+                    ));
+                }
+            }
+        }
     }
 
     /// Check if a section contains only a "None" marker (None, N/A, etc.)
@@ -531,6 +600,10 @@ impl SchemaValidator {
                 }
                 // Skip conditional sections — their addition is context-dependent (Step 5)
                 if DEVELOPERS_CONDITIONAL_SECTIONS.iter().any(|(name, _)| name.eq_ignore_ascii_case(optional)) {
+                    continue;
+                }
+                // Skip agent-managed sections — only agents create these, not converge
+                if DEVELOPERS_AGENT_MANAGED_SECTIONS.iter().any(|name| name.eq_ignore_ascii_case(optional)) {
                     continue;
                 }
                 let found = sections.iter().any(|s| s.name.eq_ignore_ascii_case(optional));

@@ -69,6 +69,27 @@ module/
 | `## Decision Log` | X | O | ADR style: context/decision/rationale |
 | `## Operations` | X | O | Gotchas, deployment, monitoring |
 | `## Public API` | X | O | Externally exported function/type list (cross-module contracts) |
+| `## Agent Observations` | X | O | Agent-managed experiential knowledge (agent-writable only, not auto-added by converge) |
+
+#### Agent Observations Entry Format
+
+Each entry is an H3 with a type tag:
+
+```markdown
+### [type] title
+- anchor: REQ-N or CONST-N (optional)
+- since: YYYY-MM-DD (required)
+- refs: N (required)
+- source: /workflow agent-name (required)
+- Free-form content describing the observation.
+```
+
+| Type | Description | Survival Rule | Promotion Target |
+|------|-------------|---------------|-----------------|
+| `structural` | Architecture patterns, known risks | Anchor deletion | Operations |
+| `decision` | Technical choices with rationale | Anchor deletion | Decision Log |
+| `tactical` | Short-lived workarounds | refs=0 + age>30d → auto-remove | (none) |
+| `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
 
 ### Conventions Section
 
@@ -366,10 +387,11 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 
 ### INV-4: Update Responsibility
 ```
-/spec → CLAUDE.md + DEVELOPERS.md (document definition)
-/dev → Source Code (document-based code generation, documents are read-only)
-/decompile → CLAUDE.md + DEVELOPERS.md (document extraction from code)
-/validate → Violation reporting + interactive resolution (user approval)
+/spec      → CLAUDE.md + DEVELOPERS.md (document definition)
+/dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+/bugfix    → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+/decompile → CLAUDE.md + DEVELOPERS.md (document extraction)
+/validate  → Violation reporting + interactive resolution + Agent Observations cleanup
 ```
 
 ### INV-5: Conventions Section Placement Rules
@@ -388,6 +410,29 @@ No Document language → no validation (zero false positives for unconfigured pr
 ```
 Tier 1 (CLI): deterministic character counting, no LLM tokens
 Tier 2 (LLM): only triggered when CLI result = below_threshold
+```
+
+### INV-8: Agent Observations Write Scope
+```
+∀ agent write to DEVELOPERS.md:
+  write_target ⊆ "## Agent Observations"
+  ∧ write_mode ∈ {append, update-refs, delete-stale}
+```
+
+### INV-9: Observation Anchor Dependency
+```
+∀ entry ∈ Agent Observations:
+  entry.anchor ≠ none → entry.anchor ∈ current(Requirements ∪ Constraints)
+  ∨ entry.stale = true
+```
+
+### INV-10: Observation Promotion Path
+```
+promote(entry) requires:
+  entry.type ∈ {structural, decision, preference}
+  ∧ user_approval = true
+post-condition:
+  entry ∉ Agent Observations ∧ promoted_content ∈ target_section
 ```
 
 ## Development Principles

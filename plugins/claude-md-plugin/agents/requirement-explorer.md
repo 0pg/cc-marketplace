@@ -191,6 +191,11 @@ unresolved: N
 | git not available | Skip git history exploration, rely on file reads |
 | Round 2+ but previous_result not found | Treat as Round 1 |
 
+## Agent Observations Protocol
+
+Read `{target_path}/DEVELOPERS.md` → `## Agent Observations` section on start.
+Use matched observations as additional context. Do not write to this section.
+
 ## Core Constraints
 
 - **AskUserQuestion usage prohibited** — Self-exploration only

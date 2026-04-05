@@ -173,6 +173,13 @@ unmapped_requirements: N
 ---end-test-writer-result---
 ```
 
+## Agent Observations Protocol
+
+Follow the protocol in `${CLAUDE_PLUGIN_ROOT}/references/shared/agent-observations-protocol.md`:
+1. **On Start**: Read `{target_path}/DEVELOPERS.md` → `## Agent Observations`, filter by current anchors, increment refs
+2. **During Work**: Note unexpected problems, decisions, user preferences as observation candidates
+3. **On Complete**: Write new entries or update existing ones in `## Agent Observations` only (INV-8)
+
 ## Core Discipline
 
 - **Every Constraint → at least 1 test**
