@@ -16,6 +16,9 @@ depth: {n}
 
 ## Project Conventions
 {project root Conventions or "None"}
+
+## Agent Observations
+path: {path}/DEVELOPERS.md#Agent Observations
 ```
 
 ## CLI Workflow

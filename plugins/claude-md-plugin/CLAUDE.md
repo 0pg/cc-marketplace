@@ -302,20 +302,20 @@ User: /decompile [path]
 
 ## Agents
 
-| Agent | Superpowers Composition | Role |
-|-------|------------------------|------|
-| `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) |
-| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
-| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) |
-| `test-writer` | (none) | RED — Spec → tests + Constraint↔Test mapping |
-| `test-reviewer` | (none) | Test traceability verification against spec |
-| `green-coder` | (none) | GREEN — Minimal implementation to pass approved tests |
-| `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing |
-| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
-| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
-| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
-| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization |
-| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements |
+| Agent | Superpowers Composition | Role | Observations |
+|-------|------------------------|------|--------------|
+| `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) | — |
+| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
+| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
+| `test-writer` | (none) | RED — Spec → tests + Constraint↔Test mapping | read-write |
+| `test-reviewer` | (none) | Test traceability verification against spec | read-only |
+| `green-coder` | (none) | GREEN — Minimal implementation to pass approved tests | read-write |
+| `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
+| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
+| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
+| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
+| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization | read-only |
+| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements | — |
 
 ## Commands
 
