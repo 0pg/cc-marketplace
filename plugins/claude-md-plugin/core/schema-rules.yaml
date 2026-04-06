@@ -5,7 +5,7 @@
 #   - Documentation (references/shared/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "4.1.0"
+version: "4.2.0"
 description: "CLAUDE.md 스키마 검증 규칙 - v4.0 (Primary SSOT — PM 요구사항)"
 
 sections:
@@ -121,6 +121,21 @@ developers_sections:
     condition_type: "dynamic"
     allow_none: true
     description: "시스템 수준 use case 실행 흐름 (project root only)"
+  agent_observations:
+    name: "Agent Observations"
+    required: false
+    allow_none: true
+    agent_managed: true
+    description: "Agent가 작업 중 발견한 경험지식. agent-writable 전용 섹션."
+    valid_entry_types:
+      - "structural"
+      - "decision"
+      - "tactical"
+      - "preference"
+    required_entry_fields:
+      - "since"
+      - "refs"
+      - "source"
 
 migrations:
   renames:

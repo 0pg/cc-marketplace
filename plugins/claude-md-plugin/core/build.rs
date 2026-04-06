@@ -82,6 +82,12 @@ struct DevelopersSectionDef {
     condition: String,
     #[serde(default)]
     condition_type: String,
+    #[serde(default)]
+    agent_managed: bool,
+    #[serde(default)]
+    valid_entry_types: Option<Vec<String>>,
+    #[serde(default)]
+    required_entry_fields: Option<Vec<String>>,
 }
 
 /// Schema rules structure
@@ -204,6 +210,30 @@ fn main() {
         .collect();
     developers_conditional_sections.sort_by_key(|(name, _)| *name);
 
+    // Extract DEVELOPERS.md agent-managed sections (excluded from converge auto-add)
+    let mut developers_agent_managed_sections: Vec<&str> = rules
+        .developers_sections
+        .values()
+        .filter(|s| s.agent_managed)
+        .map(|s| s.name.as_str())
+        .collect();
+    developers_agent_managed_sections.sort();
+
+    // Extract Agent Observations valid entry types and required fields
+    let agent_obs_entry_types: Vec<&str> = rules
+        .developers_sections
+        .get("agent_observations")
+        .and_then(|s| s.valid_entry_types.as_ref())
+        .map(|types| types.iter().map(|t| t.as_str()).collect())
+        .unwrap_or_default();
+
+    let agent_obs_required_fields: Vec<&str> = rules
+        .developers_sections
+        .get("agent_observations")
+        .and_then(|s| s.required_entry_fields.as_ref())
+        .map(|fields| fields.iter().map(|f| f.as_str()).collect())
+        .unwrap_or_default();
+
     // Extract migration renames: (from, to, document)
     let migration_renames: Vec<(&str, &str, &str)> = rules
         .migrations
@@ -283,6 +313,18 @@ pub const MIGRATION_RENAMES: &[(&str, &str, &str)] = &{:?};
 /// Migration removals: (section_name, document_type)
 #[allow(dead_code)]
 pub const MIGRATION_REMOVALS: &[(&str, &str)] = &{:?};
+
+/// DEVELOPERS.md agent-managed sections (excluded from converge auto-add)
+#[allow(dead_code)]
+pub const DEVELOPERS_AGENT_MANAGED_SECTIONS: &[&str] = &{:?};
+
+/// Valid entry types for Agent Observations section (e.g., structural, decision, tactical, preference)
+#[allow(dead_code)]
+pub const AGENT_OBS_VALID_ENTRY_TYPES: &[&str] = &{:?};
+
+/// Required metadata fields for Agent Observations entries (e.g., since, refs, source)
+#[allow(dead_code)]
+pub const AGENT_OBS_REQUIRED_FIELDS: &[&str] = &{:?};
 "#,
         rules.version,
         always_required_sections,
@@ -295,7 +337,10 @@ pub const MIGRATION_REMOVALS: &[(&str, &str)] = &{:?};
         developers_allow_none_sections,
         developers_conditional_sections,
         migration_renames,
-        migration_removals
+        migration_removals,
+        developers_agent_managed_sections,
+        agent_obs_entry_types,
+        agent_obs_required_fields
     );
 
     // Write to OUT_DIR

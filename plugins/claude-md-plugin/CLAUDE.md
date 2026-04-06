@@ -69,6 +69,27 @@ module/
 | `## Decision Log` | X | O | ADR style: context/decision/rationale |
 | `## Operations` | X | O | Gotchas, deployment, monitoring |
 | `## Public API` | X | O | Externally exported function/type list (cross-module contracts) |
+| `## Agent Observations` | X | O | Agent-managed experiential knowledge (agent-writable only, not auto-added by converge) |
+
+#### Agent Observations Entry Format
+
+Each entry is an H3 with a type tag:
+
+```markdown
+### [type] title
+- anchor: REQ-N or CONST-N (optional)
+- since: YYYY-MM-DD (required)
+- refs: N (required)
+- source: /workflow agent-name (required)
+- Free-form content describing the observation.
+```
+
+| Type | Description | Survival Rule | Promotion Target |
+|------|-------------|---------------|-----------------|
+| `structural` | Architecture patterns, known risks | Anchor deletion | Operations |
+| `decision` | Technical choices with rationale | Anchor deletion | Decision Log |
+| `tactical` | Short-lived workarounds | refs=0 + age>30d → auto-remove | (none) |
+| `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
 
 ### Conventions Section
 
@@ -281,20 +302,20 @@ User: /decompile [path]
 
 ## Agents
 
-| Agent | Superpowers Composition | Role |
-|-------|------------------------|------|
-| `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) |
-| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
-| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) |
-| `test-writer` | (none) | RED — Spec → tests + Constraint↔Test mapping |
-| `test-reviewer` | (none) | Test traceability verification against spec |
-| `green-coder` | (none) | GREEN — Minimal implementation to pass approved tests |
-| `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing |
-| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
-| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
-| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
-| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization |
-| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements |
+| Agent | Superpowers Composition | Role | Observations |
+|-------|------------------------|------|--------------|
+| `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) | — |
+| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
+| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
+| `test-writer` | (none) | RED — Spec → tests + Constraint↔Test mapping | read-write |
+| `test-reviewer` | (none) | Test traceability verification against spec | read-only |
+| `green-coder` | (none) | GREEN — Minimal implementation to pass approved tests | read-write |
+| `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
+| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
+| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
+| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
+| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization | read-only |
+| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements | — |
 
 ## Commands
 
@@ -366,10 +387,11 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 
 ### INV-4: Update Responsibility
 ```
-/spec → CLAUDE.md + DEVELOPERS.md (document definition)
-/dev → Source Code (document-based code generation, documents are read-only)
-/decompile → CLAUDE.md + DEVELOPERS.md (document extraction from code)
-/validate → Violation reporting + interactive resolution (user approval)
+/spec      → CLAUDE.md + DEVELOPERS.md (document definition)
+/dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+/bugfix    → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+/decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
+/validate  → Violation reporting + interactive resolution + Agent Observations cleanup
 ```
 
 ### INV-5: Conventions Section Placement Rules
@@ -388,6 +410,29 @@ No Document language → no validation (zero false positives for unconfigured pr
 ```
 Tier 1 (CLI): deterministic character counting, no LLM tokens
 Tier 2 (LLM): only triggered when CLI result = below_threshold
+```
+
+### INV-8: Agent Observations Write Scope
+```
+∀ agent write to DEVELOPERS.md:
+  write_target ⊆ "## Agent Observations"
+  ∧ write_mode ∈ {append, update-refs, delete-stale}
+```
+
+### INV-9: Observation Anchor Dependency
+```
+∀ entry ∈ Agent Observations:
+  entry.anchor ≠ none → entry.anchor ∈ current(Requirements ∪ Constraints)
+  ∨ entry.stale = true
+```
+
+### INV-10: Observation Promotion Path
+```
+promote(entry) requires:
+  entry.type ∈ {structural, decision, preference}
+  ∧ user_approval = true
+post-condition:
+  entry ∉ Agent Observations ∧ promoted_content ∈ target_section
 ```
 
 ## Development Principles

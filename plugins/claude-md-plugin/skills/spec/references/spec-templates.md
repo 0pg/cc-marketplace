@@ -10,7 +10,7 @@
 | `## Conventions` | Required at project/module root | X | 6 required subsections |
 | `## Instructions` | Project root only | X | AI behavior directives |
 
-## DEVELOPERS.md Schema (v4.1)
+## DEVELOPERS.md Schema (v4.2)
 
 | Section | Required | None Allowed | Content |
 |---------|----------|--------------|---------|
@@ -20,6 +20,7 @@
 | `## Decision Log` | X | O | ADR style |
 | `## Operations` | X | O | Gotchas, deployment, monitoring, Configuration (env vars) |
 | `## Flows` | X (project root only) | O | System-level use case execution flows |
+| `## Agent Observations` | X | O | Agent-managed experiential knowledge (not auto-added by converge) |
 
 ## Session File Fields
 

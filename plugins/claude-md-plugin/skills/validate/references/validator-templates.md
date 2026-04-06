@@ -23,6 +23,10 @@ Constraints:
 Technical Context:
 {technical context content}
 
+## Agent Observations
+path: {path}/DEVELOPERS.md#Agent Observations
+entries: {count or "none"}
+
 ## Deterministic Results
 {summary of issues found in Phase 2 CLI verification}
 

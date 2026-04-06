@@ -10,6 +10,7 @@ type: dev | target: {path} | language: {lang} | conflict: {mode}
 claude_md: {path}/CLAUDE.md
 developers_md: {path}/DEVELOPERS.md
 project_conventions: {project_root}/CLAUDE.md#Conventions
+agent_observations: {path}/DEVELOPERS.md#Agent Observations
 
 ## Requirements (from CLAUDE.md)
 {full Requirements section}
