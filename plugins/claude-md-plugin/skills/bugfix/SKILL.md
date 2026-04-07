@@ -159,33 +159,24 @@ Exit.
 
 #### judgment == ambiguous
 
-AskUserQuestion with escalation format from `skills/bugfix/references/bugfix-templates.md`:
+Construct choices dynamically based on which layers have issues, then call AskUserQuestion:
 
-```
-판단이 필요합니다.
+Present a situation summary including:
+- 사용자 기대 (E): `{escalation.expected}`
+- 현재 동작 (A): `{escalation.actual}`
+- CLAUDE.md 스펙 (S): `{escalation.spec}`
+- 모호한 이유: `{escalation.reason}`
 
-## 현재 상황
-- 사용자 기대 (E): "{escalation.expected}"
-- 현재 동작 (A): "{escalation.actual}"
-- CLAUDE.md: "{escalation.spec}"
+Then construct options from the applicable set below — include only those relevant to the situation:
+- If S is missing or ambiguous (L1 issue): include "CLAUDE.md에 요구사항을 추가/명확화한다 → spec commit → /dev 재생성"
+- If code diverges from spec independently (L3 issue): include "코드만 수정한다 (스펙과 코드 모두 E를 의도했던 경우)"
+- If both L1 and L3 are involved: include "CLAUDE.md와 코드를 함께 수정한다 (복합 원인)"
+- Always include: "현재 동작(A)이 올바름 (버그 아님) → 버그 리포트 종료"
 
-## 판단 근거가 모호한 이유
-"{escalation.reason}"
-
-## 선택지
-A) 스펙과 코드 모두 E에 맞게 수정한다
-   → 실행 순서: CLAUDE.md 먼저 수정 → spec commit → /dev로 코드 재생성
-B) 스펙을 수정한다 (E를 요구사항으로 추가/변경)
-   → CLAUDE.md에 신규 Requirement 추가 → spec commit → /dev 재생성
-C) 현재 동작(A)이 올바름 (버그 아님)
-   → 버그 리포트 종료
-
-어떻게 처리할까요?
-```
-
-Handle choice:
-- A or B → treat as `root_cause_layer: 1` → Step 5a
-- C → exit
+Map the user's choice to `root_cause_layer` and proceed:
+- CLAUDE.md 수정 포함 → treat as `root_cause_layer: 1` → Step 5a
+- 코드만 수정 → treat as `root_cause_layer: 3` → Step 5c
+- 버그 아님 → exit
 
 #### root_cause_layer == 1 (unambiguous 또는 사용자가 A/B 선택)
 

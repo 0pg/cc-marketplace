@@ -87,15 +87,21 @@ Note: The `test_output_dir` field in the session file header corresponds to this
 
 ### 3. Test Design (mode=write)
 
-**Constraints → unit test design:**
+**Constraints → unit test design (default patterns — extend based on context):**
 
-| Constraint Type | Test Pattern |
-|-----------------|-------------|
+| Constraint Type | Default Test Pattern |
+|-----------------|---------------------|
 | Numeric limit (`maximum N`) | Boundary value: N OK, N+1 fail |
 | Format constraint (`UTF-8 only`) | Valid input passes, invalid input rejected |
 | Security constraint (`secure storage`) | Security property verification |
 | Business rule | Rule compliance/violation scenarios |
 | I/O contract (`f(a) → b`) | Verify output b for input a |
+
+> **Context-aware extensions** — apply when Constraints or Technical Context contain these signals:
+> - **Security** (auth, key, token, injection, privilege): Add malicious input / privilege escalation tests
+> - **Concurrency** (thread, mutex, race, concurrent): Add concurrent-call and shared-state mutation tests
+> - **Async / event-driven** (callback, promise, channel, timeout): Add timeout and ordering guarantee tests
+> - **External dependency** (HTTP, DB, file I/O): Add error injection tests (failure, timeout, malformed response)
 
 **Requirements → acceptance test design:**
 

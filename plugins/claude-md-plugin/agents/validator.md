@@ -99,7 +99,10 @@ Content pre-extracted in the session file:
 ### 2. Requirements Drift Detection (based on Test Coverage Map)
 
 Read from the session file's `## Test Coverage Map` and `## Changed Requirements` for determination.
-**Do not search code directly with Grep/Read — reference only the Map.**
+
+**Primary source**: Use the Test Coverage Map for all determination. Do not perform open-ended Grep/Read code searching.
+
+**Exception — assertion direction check**: When `calls[]` is present and `TEST_ASSERTION_INCORRECT` verification is needed, Read the specific test file at the path in `test_cases[].line`. This targeted read is permitted; scope it to the referenced file only, do not scan beyond it.
 
 Determine validation targets:
 - `all_requirements=true` → validate all Requirements
@@ -112,12 +115,14 @@ For each validation target Requirement, determine from the Test Coverage Map:
 |-----------|--------------|----------|
 | Map has source_file with `test_files_found=0` | TEST_MISSING | WARNING |
 | Tests exist but `calls[]` is empty | TEST_NOT_CALLING_IMPL | WARNING |
-| Tests exist and `calls[]` present | Covered, no issue | — |
+| Tests exist and `calls[]` present | Verify semantic correctness | — or WARNING |
 | Corresponding source_file not in Map | Mark as "outside validation scope", no determination | — |
 | `source_changed=false` AND Requirements added | REQUIREMENTS_NOT_IMPLEMENTED | ERROR |
 
-> **Prohibited**: Do not Grep/Read outside the Test Coverage Map for Requirements Drift determination.
-> Files not in the Map = "outside validation scope". Do not generate evidence through self-directed code searching.
+> **Semantic verification**: When `calls[]` is present, check that test assertions verify the specified behavior — not its inverse. If assertions are directionally wrong (e.g., `assert!(status == 200)` for a requirement that expects 401) or structurally trivial (always pass regardless of input), set severity to WARNING with determination `TEST_ASSERTION_INCORRECT`.
+
+> **Primary source**: Test Coverage Map is the authoritative source for Requirements Drift determination.
+> When `test_files_found=0` for a source file, fallback search is permitted in `integration/`, `e2e/`, and `**/test*/` directories. Document any fallback sources used in the evidence section. Do not perform open-ended code searching beyond these directories.
 
 ### 3. Convention CODE_VIOLATION Detection
 

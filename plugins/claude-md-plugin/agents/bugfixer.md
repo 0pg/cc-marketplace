@@ -55,7 +55,6 @@ description: |
     actual: "refund rejected after 14 days"
     spec: "none"
     reason: "S == null — missing requirement in CLAUDE.md"
-    choices: [A, B, C]
   ---end-bugfix-result---
   </assistant_response>
   </example>
@@ -142,7 +141,7 @@ Ambiguous (escalate):
 
 ### 3. Layer Analysis (supporting evidence)
 
-Before finalizing judgment, gather evidence from each layer:
+Gather evidence from the layers most likely to contain the root cause. If the error message or stack trace clearly points to a specific layer, start there. Regardless of investigation order, always check L1 (Requirements) to determine whether a code fix is sufficient or a spec update is required.
 
 #### Layer 1: Requirements
 
@@ -190,16 +189,16 @@ The test must:
 
 ```bash
 # TypeScript
-npx jest {test_file} --testNamePattern "{test_name}" --no-coverage 2>&1 | tail -20
+npx jest {test_file} --testNamePattern "{test_name}" --no-coverage 2>&1
 
 # Rust
-cargo test {test_name} 2>&1 | tail -20
+cargo test {test_name} 2>&1
 
 # Python
-python -m pytest {test_file}::{test_name} -v 2>&1 | tail -20
+python -m pytest {test_file}::{test_name} -v 2>&1
 
 # Go
-go test -run {test_name} ./{target}/... 2>&1 | tail -20
+go test -run {test_name} ./{target}/... 2>&1
 ```
 
 If test passes unexpectedly → bug is already fixed → set status: not_a_bug, STOP.
@@ -216,16 +215,16 @@ Run the same command as 4b. Test must pass.
 
 ```bash
 # TypeScript
-npx jest --passWithNoTests 2>&1 | tail -10
+npx jest --passWithNoTests 2>&1
 
 # Rust
-cargo test 2>&1 | tail -10
+cargo test 2>&1
 
 # Python
-python -m pytest 2>&1 | tail -10
+python -m pytest 2>&1
 
 # Go
-go test ./... 2>&1 | tail -10
+go test ./... 2>&1
 ```
 
 If regressions appear → revert fix → set status: failed, explain in fix_description.
@@ -247,8 +246,7 @@ test_result: passed | skipped | failed   ← (Layer 3 only; skipped for L1/L2)
   expected: {E}
   actual: {A}
   spec: {S text or "none"}
-  reason: {why ambiguous}
-  choices: [A, B, C]]
+  reason: {why ambiguous}]
 [proposed_change: {text}]                 ← only for L1/L2 fix proposals
 ---end-bugfix-result---
 ```
