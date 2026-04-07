@@ -422,7 +422,8 @@ fn main() {
                             "changes": converge_result.changes,
                             "warnings": converge_result.warnings,
                         });
-                        println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                        println!("{}", serde_json::to_string_pretty(&json)
+                            .unwrap_or_else(|_| json.to_string()));
                         Ok(())
                     } else {
                         let target = output.as_ref().unwrap_or(&file);

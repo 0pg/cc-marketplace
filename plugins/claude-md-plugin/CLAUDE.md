@@ -12,7 +12,7 @@ and generates source code as a derived artifact.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v10                       │
+│                    claude-md-plugin v11                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
@@ -115,7 +115,7 @@ automatically referenced by child modules. In module_root, write only what diffe
 
 ### Session File Pattern
 
-The core interface of v10: SKILLs extract information from documents to create session files, and Agents consume session files.
+The core interface of v11: SKILLs extract information from documents to create session files, and Agents consume session files.
 
 ```
 SKILL (Entry Point)
@@ -328,7 +328,7 @@ User: /decompile [path]
 
 ## Skills
 
-### Core Skills (v10)
+### Core Skills (v11)
 
 | Skill | Role |
 |-------|------|
@@ -476,3 +476,80 @@ claude-md composes superpowers domain components to create the "document-driven 
 | refactorer | (none) | Apply Conventions + regression protection |
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |
+
+## Instructions
+
+- Document language: English
+- CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
+- When code disagrees with CLAUDE.md, regenerate code via /dev (not modify docs).
+- To change requirements, update CLAUDE.md first, then code follows.
+- Derive tests from DEVELOPERS.md Constraints.
+- Generate source code via /dev. Do not create source files directly with the Write tool.
+- Must run /validate --strict before declaring completion.
+
+## Conventions
+
+### Project Structure
+
+```
+claude-md-plugin/
+├── core/              — Rust CLI engine (deterministic operations, no LLM)
+│   ├── src/           — Production source files (one module per .rs file)
+│   ├── tests/
+│   │   ├── features/  — Cucumber .feature files (BDD acceptance tests)
+│   │   └── cucumber.rs — Step definitions
+│   └── Cargo.toml
+├── skills/            — Skill definition Markdown files (plugin entry points)
+├── agents/            — Agent definition Markdown files
+├── commands/          — Command definition Markdown files
+├── hooks/             — Hook definition files
+├── scripts/           — Shell utility scripts
+├── docs/              — Documentation
+└── references/        — Reference materials
+```
+
+### Module Boundaries
+
+- `core/` provides deterministic CLI subcommands; no LLM calls or network I/O
+- Skills, agents, and commands are Markdown plugin definitions consumed by Claude Code; they have no Rust dependencies
+- Each source module in `core/src/` is self-contained and validates only its own files (INV-2)
+- No cross-module imports between sibling modules; dependencies flow through `lib.rs` re-exports
+
+### Naming Conventions
+
+- Rust source files: `snake_case.rs`
+- Skill, agent, and command files: `kebab-case.md` (e.g., `test-writer.md`, `validate.md`)
+- Cucumber feature files: `snake_case.feature`
+- CLI subcommand names: `kebab-case` (e.g., `validate-schema`, `parse-tree`)
+- Directories under `core/src/`: `snake_case/` for sub-modules
+
+### Language & Runtime
+
+- Language: Rust, edition 2021
+- Toolchain: stable (no nightly features)
+- Key dependencies: `clap 4.4` (CLI parsing), `serde + serde_json` (serialization), `walkdir 2.4` (filesystem traversal), `regex 1.10`, `thiserror 1.0` (error types), `sha2 0.10` (hashing)
+- Test dependencies: `cucumber 0.21`, `tokio` (rt-multi-thread, for async test runner only), `tempfile 3.9`
+
+### Coding Rules
+
+- Use `thiserror::Error` for all custom error types; do not use ad-hoc `String` or `Box<dyn Error>` for library errors
+- Use `serde::{Serialize, Deserialize}` for all data types that cross CLI boundaries (stdout JSON)
+- CLI subcommands write results as JSON to stdout; errors go to stderr
+- Use `OnceLock` for lazily initialized statics; avoid `Mutex<Option<T>>` for read-heavy globals
+- No async in production code; async is limited to the Tokio test runtime
+- Public constants belong in `lib.rs` as `pub const`; do not scatter constants across modules
+- Use `Result<T, E>` for all fallible operations; no `unwrap()` or `expect()` in library code
+
+### Naming Rules
+
+- Functions and local variables: `snake_case`
+- Structs, enums, and traits: `PascalCase`
+- Constants and static variables: `SCREAMING_SNAKE_CASE`
+- Enum variants: `PascalCase`
+- Cucumber step functions: `snake_case` with descriptive full-sentence names matching the step text
+
+## Domain Context
+None
+
+## Requirements
+None

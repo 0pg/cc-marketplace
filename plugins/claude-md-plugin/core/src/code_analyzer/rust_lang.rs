@@ -29,12 +29,17 @@ pub struct RustAnalyzer {
     // Contract extraction patterns
     doc_comment_fn_re: Regex,
     arguments_re: Regex,
+    arg_re: Regex,
     returns_re: Regex,
     errors_re: Regex,
+    err_re: Regex,
     // Protocol patterns
     state_enum_re: Regex,
     enum_variant_re: Regex,
     lifecycle_re: Regex,
+    lifecycle_fn_re: Regex,
+    // Dependency patterns
+    derive_re: Regex,
 }
 
 impl RustAnalyzer {
@@ -113,6 +118,9 @@ impl RustAnalyzer {
                 r"(?s)#\s*Arguments\s*((?:\s*\*[^\n]*\n)+)"
             ).unwrap(),
 
+            // * `param` - description in # Arguments
+            arg_re: Regex::new(r"\*\s*`(\w+)`\s*-\s*(.+)").unwrap(),
+
             // # Returns section in doc comments
             returns_re: Regex::new(
                 r"(?s)#\s*Returns\s*\n\s*([^\n#]+)"
@@ -122,6 +130,9 @@ impl RustAnalyzer {
             errors_re: Regex::new(
                 r"(?s)#\s*Errors\s*((?:\s*[-*][^\n]*\n)+)"
             ).unwrap(),
+
+            // - `ErrorType::Variant` in # Errors
+            err_re: Regex::new(r"[-*]\s*`([^`]+)`").unwrap(),
 
             // pub enum State { variants } - handles nested braces
             state_enum_re: Regex::new(
@@ -138,6 +149,14 @@ impl RustAnalyzer {
             lifecycle_re: Regex::new(
                 r"@lifecycle\s+(\d+)"
             ).unwrap(),
+
+            // doc comment block followed by pub fn (for lifecycle extraction)
+            lifecycle_fn_re: Regex::new(
+                r"(?s)((?:\s*///[^\n]*\n)+)\s*pub\s+fn\s+(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)"
+            ).unwrap(),
+
+            // #[derive(...)] attribute
+            derive_re: Regex::new(r"#\[derive\([^\)]+\)\]").unwrap(),
         }
     }
 
@@ -163,8 +182,7 @@ impl RustAnalyzer {
             if let Some(args_cap) = self.arguments_re.captures(&doc_block) {
                 let args_content = args_cap.get(1).map(|m| m.as_str()).unwrap_or("");
                 // Parse argument lines: * `name` - description
-                let arg_re = Regex::new(r"\*\s*`(\w+)`\s*-\s*(.+)").unwrap();
-                for arg_cap in arg_re.captures_iter(args_content) {
+                for arg_cap in self.arg_re.captures_iter(args_content) {
                     let param_name = arg_cap.get(1).map(|m| m.as_str()).unwrap_or("");
                     let desc = arg_cap.get(2).map(|m| m.as_str()).unwrap_or("");
                     let desc_lower = desc.to_lowercase();
@@ -187,8 +205,7 @@ impl RustAnalyzer {
             if let Some(errors_cap) = self.errors_re.captures(&doc_block) {
                 let errors_content = errors_cap.get(1).map(|m| m.as_str()).unwrap_or("");
                 // Parse error lines: - `ErrorType::Variant` description
-                let err_re = Regex::new(r"[-*]\s*`([^`]+)`").unwrap();
-                for err_cap in err_re.captures_iter(errors_content) {
+                for err_cap in self.err_re.captures_iter(errors_content) {
                     if let Some(err) = err_cap.get(1) {
                         contract.throws.push(err.as_str().to_string());
                     }
@@ -237,12 +254,8 @@ impl RustAnalyzer {
         }
 
         // Extract lifecycle methods from @lifecycle doc comments
-        let lifecycle_fn_re = Regex::new(
-            r"(?s)((?:\s*///[^\n]*\n)+)\s*pub\s+fn\s+(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)"
-        ).unwrap();
-
         let mut lifecycle_methods: Vec<(u32, String)> = Vec::new();
-        for cap in lifecycle_fn_re.captures_iter(content) {
+        for cap in self.lifecycle_fn_re.captures_iter(content) {
             let doc_block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
             let func_name = cap.get(2).map(|m| m.as_str()).unwrap_or("");
 
@@ -465,8 +478,7 @@ impl LanguageAnalyzer for RustAnalyzer {
 
         // Also extract crates used in derive macros (e.g., #[derive(thiserror::Error)])
         // Look for derive attribute patterns
-        let derive_re = Regex::new(r"#\[derive\([^\)]+\)\]").unwrap();
-        for cap in derive_re.find_iter(content) {
+        for cap in self.derive_re.find_iter(content) {
             let derive_content = cap.as_str();
             // Extract crate::Type patterns from derive content
             for crate_cap in self.derive_crate_re.captures_iter(derive_content) {

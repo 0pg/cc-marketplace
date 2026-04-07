@@ -6,7 +6,7 @@ description: |
   Use when a spec workflow was interrupted, or to run pipeline steps in separate sessions/CI jobs.
   Trigger keywords: resume spec, resume workflow, resume spec
 argument-hint: "--target <path>"
-allowed-tools: [Bash, Read, Write, Task, Skill]
+allowed-tools: [Bash, Read, Write, Task]
 ---
 
 # /spec-step

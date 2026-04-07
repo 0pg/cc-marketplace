@@ -431,7 +431,10 @@ impl SchemaValidator {
     /// Instead, we extract the raw block between `## Agent Observations` and the next `## `.
     fn validate_agent_observations_entries_raw(content: &str, section_start_line: usize, warnings: &mut Vec<String>) {
         static TYPE_TAG_RE: OnceLock<regex::Regex> = OnceLock::new();
-        let type_tag_re = TYPE_TAG_RE.get_or_init(|| regex::Regex::new(r"^\[(\w+)\]\s+.+").unwrap());
+        let type_tag_re = TYPE_TAG_RE.get_or_init(|| {
+            regex::Regex::new(r"^\[(\w+)\]\s+.+")
+                .expect("TYPE_TAG_RE is a valid hardcoded regex")
+        });
         let lines: Vec<&str> = content.lines().collect();
 
         // Find the raw range: from section_start_line to next ## or EOF
@@ -460,7 +463,7 @@ impl SchemaValidator {
         for (header, line_num, content_lines) in &entries {
             // Check type tag
             if let Some(caps) = type_tag_re.captures(header) {
-                let entry_type = caps.get(1).unwrap().as_str();
+                let entry_type = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                 if !AGENT_OBS_VALID_ENTRY_TYPES.iter().any(|t| t.eq_ignore_ascii_case(entry_type)) {
                     warnings.push(format!(
                         "Agent Observations: invalid entry type '{}' at line {} (valid: {:?})",
