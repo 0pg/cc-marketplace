@@ -307,7 +307,10 @@ Check green-result status:
     3. Log: "⚠ [GREEN PARTIAL] {path}: {tests_passed}/{total} tests passing ({pass_rate}%)"
     4. Tag module as "gate_required"
        (Step 10.5 Final Test Gate will hard-gate before commit)
-    5. Proceed to Step 9 (refactorer gets a chance to fix remaining issues)
+    5. Proceed to Step 9 (refactorer may fix structural/naming issues such as
+       file location mismatches, import path errors, or naming convention violations;
+       logic gaps — missing algorithm implementation, TODO stubs — will be caught by
+       the Final Test Gate at Step 10.5)
 - failed: report error, move to next module
 ```
 
@@ -380,10 +383,16 @@ For each module (target path + mapping.json):
         [TEST GATE FAILED] {path}: {N} tests failing
         Unmet Constraints: {CONST-IDs}
         Unmet Requirements: {REQ-IDs}
-     c. Rollback module files:
-        - Tracked files: git checkout -- {module files}
-        - New untracked files: git clean -fd -- {files created by green-coder}
-        - Staged files: git reset HEAD -- {module files} before checkout
+     c. Determine rollback file list from agent results:
+        - refactor-result.status = "success":
+          rollback_files = refactored_files (from refactor-result)
+          (refactorer may have moved/renamed files; use its output, not green-coder's)
+        - refactor-result.status = "rolled_back" | "skipped" | absent:
+          rollback_files = implemented_files (from green-result)
+        Rollback:
+        - Staged files:    git reset HEAD -- {rollback_files}
+        - Tracked files:   git checkout -- {rollback_files}
+        - New untracked:   git clean -fd -- {files in rollback_files that are untracked}
      d. Module gate_status = "gate_failed", do NOT commit this module
    - Execution crash/timeout:
      a. Report: [TEST GATE ERROR] {path}: {error}
@@ -391,7 +400,13 @@ For each module (target path + mapping.json):
 
 3. Cross-module verification:
    After all per-module gates, if multiple modules passed individually:
-   - Run full test suite once (all test files across all passing modules)
+   - Collect test files: union of test_files from each passing module's mapping.json
+   - Run full test suite:
+     | Language   | Command                                                    |
+     | TypeScript | npx jest {all collected test_files} 2>&1                  |
+     | Rust       | cargo test 2>&1  (runs workspace-wide automatically)       |
+     | Python     | python -m pytest {all collected test_files} -v 2>&1       |
+     | Go         | go test ./... -v 2>&1                                     |
    - If cross-module failures detected:
      → identify interfering modules from failure output
      → mark affected modules as gate_failed
