@@ -12,7 +12,7 @@ and generates source code as a derived artifact.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v10                       │
+│                    claude-md-plugin v11                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
@@ -115,7 +115,7 @@ automatically referenced by child modules. In module_root, write only what diffe
 
 ### Session File Pattern
 
-The core interface of v10: SKILLs extract information from documents to create session files, and Agents consume session files.
+The core interface of v11: SKILLs extract information from documents to create session files, and Agents consume session files.
 
 ```
 SKILL (Entry Point)
@@ -328,7 +328,7 @@ User: /decompile [path]
 
 ## Skills
 
-### Core Skills (v10)
+### Core Skills (v11)
 
 | Skill | Role |
 |-------|------|

@@ -1,4 +1,4 @@
-# claude-md-plugin (v10)
+# claude-md-plugin (v11)
 
 > CLAUDE.md = Primary SSOT (PM Requirements), Source Code = Derived Artifact
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v10                       │
+│                    claude-md-plugin v11                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
@@ -105,7 +105,7 @@ module/
 - `### Coding Rules` — Coding rules not enforceable by linters
 - `### Naming Rules` — Variable/function/class/constant naming
 
-## Core Skills (v10)
+## Core Skills (v11)
 
 ### `/spec` — Requirements → CLAUDE.md + DEVELOPERS.md
 
@@ -217,7 +217,7 @@ Edit CLAUDE.md → /dev → /validate
 
 ### Session File Pattern
 
-v10's core interface: Skills extract context into session files, Agents consume them.
+v11's core interface: Skills extract context into session files, Agents consume them.
 
 ```
 SKILL (Entry Point)

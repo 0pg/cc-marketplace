@@ -8,7 +8,7 @@ description: |
   Performs 4-agent TDD pipeline: test-writer → test-reviewer loop → green-coder → refactorer.
   Trigger keywords: code generation, develop, code from CLAUDE.md
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Task, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, Skill, AskUserQuestion]
 ---
 
 # /dev
