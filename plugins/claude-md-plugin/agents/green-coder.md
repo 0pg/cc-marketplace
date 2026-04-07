@@ -98,6 +98,7 @@ Read test files listed in mapping.json's test_files:
 attempt = 1
 prev_failed = ∞
 stall_count = 0
+max_attempts = 15
 loop:
   1. Write/modify production code to match interfaces required by tests
      - Requirements: Implement high-level functionality
@@ -123,7 +124,7 @@ loop:
            stall_count++          ← no improvement this attempt
          prev_failed = tests_failed
          analyze failure cause → attempt++
-         if stall_count >= 2 → break (partial)  ← stuck, stop
+         if stall_count >= 2 OR attempt > max_attempts → break (partial)
 ```
 
 ### 4. File Conflicts

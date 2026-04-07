@@ -99,7 +99,10 @@ Content pre-extracted in the session file:
 ### 2. Requirements Drift Detection (based on Test Coverage Map)
 
 Read from the session file's `## Test Coverage Map` and `## Changed Requirements` for determination.
-**Do not search code directly with Grep/Read — reference only the Map.**
+
+**Primary source**: Use the Test Coverage Map for all determination. Do not perform open-ended Grep/Read code searching.
+
+**Exception — assertion direction check**: When `calls[]` is present and `TEST_ASSERTION_INCORRECT` verification is needed, Read the specific test file at the path in `test_cases[].line`. This targeted read is permitted; scope it to the referenced file only, do not scan beyond it.
 
 Determine validation targets:
 - `all_requirements=true` → validate all Requirements

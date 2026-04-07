@@ -137,11 +137,15 @@ loop:
         Session file: ${TMP_DIR}explore-reviewer-session-{round}.md
         Save results to ${TMP_DIR} and return only the path
 
-        Extract verdict, critical_questions from result block.
+        Extract verdict, critical_questions, improvement_notes from result block.
 
   2.5g. if verdict == "approved":
           concretized_requirement = Read ## Concretized Requirements from explore-result
           domain_context_summary = Read ## Domain Context Summary from explore-result
+          if improvement_notes > 0:
+            reviewer_notes = Read ## Improvement Notes from ${TMP_DIR}explore-reviewer-result-{round}.md
+          else:
+            reviewer_notes = ""
           explore_status = "approved"
           break
 
@@ -236,6 +240,9 @@ document_language: {document_language or ""}
 
 ## Domain Context Summary
 {domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
+
+## Reviewer Improvement Notes
+{reviewer_notes if reviewer_notes != "", else omit this section}
 
 ## Existing Modules Index
 {scan-claude-md result: path, purpose pairs}
@@ -546,6 +553,9 @@ for depth in sorted_depths:  # 0, 1, 2, ...
      ## Domain Context Summary
      {domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
 
+     ## Reviewer Improvement Notes
+     {reviewer_notes if reviewer_notes != "", else omit this section}
+
      ## Existing Modules Index
      {latest scan-claude-md result}
 
@@ -574,6 +584,9 @@ for depth in sorted_depths:  # 0, 1, 2, ...
 
      ## Domain Context Summary
      {domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
+
+     ## Reviewer Improvement Notes
+     {reviewer_notes if reviewer_notes != "", else omit this section}
 
      ## Existing Modules Index
      {latest scan-claude-md result}

@@ -55,7 +55,6 @@ description: |
     actual: "refund rejected after 14 days"
     spec: "none"
     reason: "S == null — missing requirement in CLAUDE.md"
-    choices: [A, B, C]
   ---end-bugfix-result---
   </assistant_response>
   </example>
@@ -247,8 +246,7 @@ test_result: passed | skipped | failed   ← (Layer 3 only; skipped for L1/L2)
   expected: {E}
   actual: {A}
   spec: {S text or "none"}
-  reason: {why ambiguous}
-  choices: [A, B, C]]
+  reason: {why ambiguous}]
 [proposed_change: {text}]                 ← only for L1/L2 fix proposals
 ---end-bugfix-result---
 ```
