@@ -98,6 +98,7 @@ Evaluate all criteria against the domain context from the explore result.
   - **pass**: criterion fully met
   - **pass-with-note**: criterion substantially met but has a minor concern worth surfacing to the impl agent (e.g., a term that could be clarified, an edge case not covered but not blocking)
   - **fail**: criterion not met — triggers rejection
+- **pass-with-note discipline**: Reserved for genuinely non-blocking concerns only. If a concern could cause the impl agent to make incorrect architectural decisions, derive wrong constraints, or produce untestable requirements, it must be `fail`. When in doubt between pass-with-note and fail, choose fail.
 - Record all suspicious items as Critical Questions — silence is not approval
 - Critical Questions must be specific: "notification behavior is not pass/fail testable" (O), "requirements need improvement" (X)
 

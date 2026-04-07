@@ -52,9 +52,6 @@ Feature: DEVELOPERS.md Schema Validation
 
       ## Decision Log
       None
-
-      ## Operations
-      None
       """
     When I validate the schema with strict mode
     Then validation should pass
@@ -220,36 +217,6 @@ Feature: DEVELOPERS.md Schema Validation
     When I validate the schema with strict mode
     Then validation should pass
 
-  Scenario: Operations allows None
-    Given CLAUDE.md with content:
-      """
-      # Test Module
-
-      ## Purpose
-      Test module.
-
-      ## Requirements
-      None
-
-      ## Domain Context
-      None
-      """
-    And DEVELOPERS.md with content:
-      """
-      # Test Module
-
-      ## Constraints
-      None
-
-      ## Technical Context
-      None
-
-      ## Operations
-      None
-      """
-    When I validate the schema with strict mode
-    Then validation should pass
-
   Scenario: Non-strict mode does not check DEVELOPERS.md
     Given CLAUDE.md with content:
       """
@@ -297,9 +264,6 @@ Feature: DEVELOPERS.md Schema Validation
       - **Context**: Need a token verification method between internal services
       - **Decision**: Use HMAC-SHA256
       - **Rationale**: Internal services do not require RSA key management complexity
-
-      ## Operations
-      None
       """
     When I validate the schema with strict mode
     Then validation should pass
@@ -330,41 +294,6 @@ Feature: DEVELOPERS.md Schema Validation
 
       ## Technical Context
       None
-      """
-    When I validate the schema with strict mode
-    Then validation should pass
-
-  Scenario: DEVELOPERS.md with Operations Configuration subsection passes validation
-    Given CLAUDE.md with content:
-      """
-      # Test Module
-
-      ## Purpose
-      Test module.
-
-      ## Requirements
-      None
-
-      ## Domain Context
-      None
-      """
-    And DEVELOPERS.md with content:
-      """
-      # Test Module
-
-      ## Constraints
-      None
-
-      ## Technical Context
-      None
-
-      ## Operations
-
-      ### Configuration
-      - JWT_SECRET: string (required) — JWT signing key
-
-      ### Deployment
-      - Environment variables must be configured
       """
     When I validate the schema with strict mode
     Then validation should pass

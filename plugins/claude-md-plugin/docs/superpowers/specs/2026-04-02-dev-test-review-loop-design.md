@@ -154,7 +154,7 @@ Step 14: Return results
 - Changing test expected values
 - Adding new tests
 
-**Goal**: Minimal implementation that passes all approved tests. Max 3 retries.
+**Goal**: Minimal implementation that passes all approved tests. Uses stall-based termination: stops after 2 consecutive attempts with no progress (no reduction in failed test count), or after max 15 attempts.
 
 **result block**:
 ```

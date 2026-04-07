@@ -44,3 +44,18 @@ module/
 
 - Absolute: `from src.foo import bar`
 - With conftest fixtures: Auto-discovered by pytest
+
+## Assertion Strength
+
+**STRONG** (pass):
+- `assertEqual(expected, actual)`, `assert result == expected`
+- `assertRaises(SpecificError)`, `assertAlmostEqual(a, b, places=N)`
+- `pytest.raises(SpecificError)`
+
+**ACCEPTABLE** (pass — when Constraint specifies shape/pattern, not exact value):
+- `assertIn(item, collection)`, `assertIsInstance(obj, cls)`
+- `assertRegex(text, pattern)`
+
+**WEAK** (reject — must cite specific Constraint and required behavior):
+- `assert result is not None`, `assertIsNotNone(result)`
+- `assertTrue(bool(result))`, `assertFalse(bool(result))`

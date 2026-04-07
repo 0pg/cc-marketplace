@@ -88,25 +88,16 @@ Apply 6 criteria in order to all items. Record all suspicious items as Critical 
 
 #### Assertion Strength Classification Reference
 
-**STRONG** (pass):
-- `toBe(value)`, `toEqual({...})`, `toThrow(SpecificError)`, `toHaveLength(N)`
-- `toBeLessThan(N)`, `toBeGreaterThan(N)`, `toStrictEqual(value)`
-- `assertEqual(expected, actual)`, `assert result == expected`
+Refer to `${CLAUDE_PLUGIN_ROOT}/references/shared/test-conventions/{language}.md` → `## Assertion Strength` for language-specific assertion tier classification.
 
-**ACCEPTABLE** (pass — when Constraint specifies shape/pattern, not exact value):
-- `toMatch(regex)`, `toHaveProperty('key')`, `toMatchObject({...})`
-- `toContain(element)`, `toBeInstanceOf(Type)`, `toBeCloseTo(N, precision)`
-- `assertIn(item, collection)`, `assertIsInstance(obj, cls)`
+General principle:
+- **STRONG**: Verifies specific value, error, or behavioral property from the Constraint
+- **ACCEPTABLE**: Verifies shape/pattern when Constraint doesn't specify exact value
+- **WEAK**: Only checks existence/type/truthiness — must be rejected with specific Constraint citation
 
-**WEAK** (reject — must cite specific Constraint and required behavior):
-- `toBeDefined()`, `toBeTruthy()`, `toBeFalsy()`, `toBeNull()`
-- `not.toThrow()` when Constraint specifies a return value
-- `typeof` checks (e.g., `expect(typeof x).toBe('object')`)
-- `assert result is not None`, `assertTrue(bool(result))`
-
-**Exceptions:**
-- STRUCT-XXX Existence tests: `toBeDefined()` is STRONG (by design — verifying export existence)
-- Non-functional Constraints (performance, latency): `toBeLessThan(N)` where N matches the Constraint's stated limit is STRONG
+**Exceptions** (language-independent):
+- STRUCT-XXX Existence tests: existence-only assertions are STRONG (by design — verifying export existence)
+- Non-functional Constraints (performance, latency): threshold assertions matching the Constraint's stated limit are STRONG
 
 **When criterion 6 rejects:**
 - Specific: `CONST-{N}: test '{test_name}' uses weak assertion ({assertion}) — must verify {Constraint's I/O contract}`
@@ -142,7 +133,7 @@ verdict: approved | rejected
 - {Constraint/Requirement ID}: "{specific critique content}"
 
 ## Approval Rationale (when approved)
-Summary of all 5 criteria passed.
+Summary of all 6 criteria passed.
 ```
 
 Return result block (minimize SKILL context):

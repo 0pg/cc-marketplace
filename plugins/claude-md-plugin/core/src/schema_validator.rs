@@ -1037,9 +1037,6 @@ None
 
 ## Decision Log
 None
-
-## Operations
-None
 "#;
         let temp = TempDir::new().unwrap();
         let path = create_developers_file(temp.path(), content);
@@ -1058,9 +1055,6 @@ None
 None
 
 ## Decision Log
-None
-
-## Operations
 None
 "#;
         let temp = TempDir::new().unwrap();
@@ -1082,9 +1076,6 @@ None
 
 ## Decision Log
 None
-
-## Operations
-None
 "#;
         let temp = TempDir::new().unwrap();
         let path = create_developers_file(temp.path(), content);
@@ -1098,7 +1089,7 @@ None
 
     #[test]
     fn test_developers_minimal_required_sections_only() {
-        // Decision Log and Operations are optional in v7 — only Constraints + Technical Context required
+        // Decision Log is optional — only Constraints + Technical Context required
         let content = r#"# Test Module
 
 ## Constraints
@@ -1426,7 +1417,7 @@ Old data.
     #[test]
     fn test_converge_developers_md_idempotent_with_data_schemas() {
         // Content already has all required + optional (non-conditional) sections
-        let content = "# Test Module\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n\n## Decision Log\nNone\n\n## Operations\nNone\n\n## Technical Context\nNone\n";
+        let content = "# Test Module\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n\n## Decision Log\nNone\n\n## Technical Context\nNone\n";
         let validator = SchemaValidator::new();
         let result = validator.converge_schema(content, "developers_md");
         assert!(result.changes.is_empty(), "Should be idempotent: {:?}", result.changes);

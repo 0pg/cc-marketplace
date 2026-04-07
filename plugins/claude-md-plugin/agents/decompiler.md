@@ -121,7 +121,6 @@ Generate documents based on analysis results + code reading:
 - `## Constraints`: Precisely describe the code's input/output contracts (convertible to tests)
 - `## Technical Context`: Technologies used and their rationale
 - `## Decision Log`: Design decisions inferred from the code (optional)
-- `## Operations`: Deployment/monitoring related (optional)
 
 **Rules:**
 - If child CLAUDE.md exists, reference the child's Requirements but do not duplicate them

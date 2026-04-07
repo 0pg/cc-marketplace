@@ -134,7 +134,7 @@ For each `explorable` item, attempt to find the answer in the project:
 
 | Order | Source | Method |
 |-------|--------|--------|
-| 1 | Related module DEVELOPERS.md | Constraints, Public API, Decision Log → Read |
+| 1 | Related module DEVELOPERS.md | Constraints, Decision Log → Read |
 | 2 | Source code | Related function signatures, type definitions, error patterns → Grep, Read |
 | 3 | git history | Related keyword commits, recent change patterns → `git log` |
 

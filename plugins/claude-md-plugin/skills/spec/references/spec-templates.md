@@ -18,7 +18,6 @@
 | `## Data Schemas` | X | O | Module public type definitions — types referenced by Constraints |
 | `## Technical Context` | O | O | Technology choices and rationale |
 | `## Decision Log` | X | O | ADR style |
-| `## Operations` | X | O | Gotchas, deployment, monitoring, Configuration (env vars) |
 | `## Flows` | X (project root only) | O | System-level use case execution flows |
 | `## Agent Observations` | X | O | Agent-managed experiential knowledge (not auto-added by converge) |
 
@@ -87,10 +86,6 @@ Provides JWT token-based authentication to verify user identity for API requests
 - Applies Express middleware pattern
 
 ## Decision Log
-
-None
-
-## Operations
 
 None
 ```

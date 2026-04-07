@@ -50,3 +50,18 @@ module/
 
 - Same package: Direct access to unexported symbols
 - Black-box (`_test` package): `import "module/package"` — only exported symbols
+
+## Assertion Strength
+
+**STRONG** (pass):
+- `require.Equal(t, expected, actual)`, `assert.Equal(t, expected, actual)`
+- `require.ErrorIs(t, err, target)`, `assert.ErrorAs(t, err, &target)`
+- `if got != want { t.Errorf("got %v, want %v", got, want) }`
+
+**ACCEPTABLE** (pass — when Constraint specifies shape/pattern, not exact value):
+- `assert.Contains(t, str, substr)`, `require.IsType(t, &Type{}, val)`
+- `assert.Regexp(t, pattern, str)`
+
+**WEAK** (reject — must cite specific Constraint and required behavior):
+- `require.NotNil(t, val)`, `assert.True(t, ok)`
+- `require.NoError(t, err)` when Constraint specifies a return value

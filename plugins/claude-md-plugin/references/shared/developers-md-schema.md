@@ -34,6 +34,8 @@ CLAUDE.md (Primary SSOT) → DEVELOPERS.md (Derived Spec) → Source Code (Deriv
 
 ## Sections (2 required + 4 optional, all allow None)
 
+> **v5.0 change**: Operations and Public API sections removed. Environment variables moved to Constraints; operational procedures moved to Decision Log. structural observation promotion target changed from Operations to Technical Context.
+
 ### ## Constraints (Required, None Allowed)
 
 Precise input/output contracts that concretize CLAUDE.md Requirements at the system level.
@@ -122,55 +124,6 @@ No date field — only currently valid decisions are recorded. Revoked decisions
 - **Rationale**: Single-instance environment makes Redis overkill
 ```
 
-### ## Operations (Optional, None Allowed)
-
-4 subsections (bilingual allowed): Configuration, Gotchas, Deployment, Monitoring.
-`/decompile` auto-extracts `### Configuration` from `analyze-code`'s env_vars.
-
-```markdown
-## Operations
-
-### Configuration
-| Env Variable | Type | Required/Default | Description |
-|-------------|------|-----------------|-------------|
-| JWT_PUBLIC_KEY | string | required | RS256 public key (PEM format) |
-| TOKEN_TTL_HOURS | number | default: 168 | Access token validity period |
-| MAX_SESSIONS | number | default: 5 | Maximum concurrent sessions |
-
-### Gotchas
-- Token expiration time is UTC-based
-
-### Deployment
-- 5-minute cache warmup required on deployment
-
-### Monitoring
-- Check `auth.validation.duration` metric
-- Alarm when error rate > 5%
-```
-
-### ## Public API (Optional, None Allowed)
-
-List of functions/types this module exports to the outside (parent or sibling modules).
-Automatically added when `/spec` agent discovers current module function references in parent module's DEVELOPERS.md.
-Explicitly documents cross-module interface contracts for use in `diff-spec-range` based validation.
-
-```markdown
-## Public API
-
-| Symbol | Signature | Called by |
-|--------|-----------|-----------|
-| spawn_agent | `fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()>` | orchestrator |
-| AgentResult | `enum AgentResult { Success(Output), Failed(AgentError) }` | orchestrator |
-
-None
-```
-
-**Writing Principles:**
-- Only record symbols called/referenced externally (exclude internal functions)
-- Signature uses actual language syntax (type aliases allowed)
-- Called by uses module path (relative path or crate name)
-- `None` allowed when there is no external exposure
-
 ### ## Agent Observations (Optional, None Allowed, Agent-Managed)
 
 Experiential knowledge recorded by agents during work. **Only agents write to this section.**
@@ -200,7 +153,7 @@ Each entry is an H3 with a type tag and required metadata:
 
 | Type | Description | Auto-remove Condition | Promotion Target |
 |------|-------------|----------------------|-----------------|
-| `structural` | Architecture patterns, known risks | Anchor deleted | Operations |
+| `structural` | Architecture patterns, known risks | Anchor deleted | Technical Context |
 | `decision` | Technical choices with rationale | Anchor deleted | Decision Log |
 | `tactical` | Short-lived workarounds, temp notes | refs=0 + age>30d | (removed, no promotion) |
 | `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
@@ -211,7 +164,7 @@ Each entry is an H3 with a type tag and required metadata:
 **Lifecycle:**
 - Created by agents during /dev, /bugfix, /spec, /decompile
 - Cleaned up by /validate (stale anchor removal, consolidation, promotion report)
-- Promoted to formal sections (Decision Log, Operations, etc.) with user approval
+- Promoted to formal sections (Decision Log, Technical Context, etc.) with user approval
 
 ### ## Flows (Optional, is_project_root only, None Allowed)
 
@@ -243,7 +196,7 @@ Describes cross-module call order and data types. Warning if written in non-proj
 | Skill | DEVELOPERS.md Usage | Details |
 |-------|---------------------|---------|
 | `/spec` | Generates Constraints + Data Schemas + Technical Context | Concretizes CLAUDE.md Requirements |
-| `/decompile` | Full generation | Extracts all 6 sections from source code (includes Data Schemas, Configuration auto-extraction) |
+| `/decompile` | Full generation | Extracts sections from source code (includes Data Schemas auto-extraction) |
 | `/dev` | Test generation source + Agent Observations write | Generates test cases from Constraints; records observations |
 | `/validate` | Drift verification + Agent Observations cleanup | Constraints drift detection; stale observation removal + promotion report |
 | `/bugfix` | L2 diagnosis + Agent Observations write | 3-layer analysis; records structural observations |

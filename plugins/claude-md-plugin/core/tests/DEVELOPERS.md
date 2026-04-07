@@ -24,10 +24,6 @@
 - **Single `cucumber.rs` file**: All step definitions are consolidated in one file to avoid Rust's integration-test linking restrictions; splitting across modules would require a `mod` tree that complicates the `#[given/when/then]` attribute routing.
 - **`Option<T>` fields in `TestWorld`**: Using `Option` instead of bare values allows `Default` derivation and makes missing-state bugs surface as panics with descriptive messages rather than silent wrong answers.
 
-## Operations
-
-None
-
 ## Agent Observations
 
 None

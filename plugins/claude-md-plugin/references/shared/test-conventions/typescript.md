@@ -50,3 +50,19 @@ module/
 
 - Relative to source: `import { foo } from '../src/foo';`
 - With path aliases: `import { foo } from '@/foo';`
+
+## Assertion Strength
+
+**STRONG** (pass):
+- `toBe(value)`, `toEqual({...})`, `toStrictEqual(value)`
+- `toThrow(SpecificError)`, `toHaveLength(N)`
+- `toBeLessThan(N)`, `toBeGreaterThan(N)`
+
+**ACCEPTABLE** (pass — when Constraint specifies shape/pattern, not exact value):
+- `toMatch(regex)`, `toHaveProperty('key')`, `toMatchObject({...})`
+- `toContain(element)`, `toBeInstanceOf(Type)`, `toBeCloseTo(N, precision)`
+
+**WEAK** (reject — must cite specific Constraint and required behavior):
+- `toBeDefined()`, `toBeTruthy()`, `toBeFalsy()`, `toBeNull()`
+- `not.toThrow()` when Constraint specifies a return value
+- `typeof` checks (e.g., `expect(typeof x).toBe('object')`)

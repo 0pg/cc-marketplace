@@ -88,6 +88,12 @@ document_language: {language or ""}
 ## User Requirement
 {requirement text}
 
+## Domain Context Summary
+{domain_context_summary if available, else section omitted}
+
+## Reviewer Improvement Notes
+{reviewer improvement notes if available, else section omitted}
+
 ## Existing Modules Index
 {scan-claude-md result}
 
@@ -154,7 +160,7 @@ cat "${CLAUDE_PLUGIN_ROOT}/references/shared/developers-md-schema.md"
 - Instructions: only at project root
 
 **DEVELOPERS.md required sections**: Constraints (None allowed), Technical Context (None allowed)
-- Decision Log, Operations: optional
+- Decision Log: optional
 
 ## Workflow — Step 0: Mode Determination (always first)
 
@@ -220,7 +226,7 @@ or Phase P (Write plan.md).
 
 When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
 
-Same as existing Phase 1.5 — Dependency exploration based on Existing Modules Index + parent/sibling module Public API exploration.
+Same as existing Phase 1.5 — Dependency exploration based on Existing Modules Index + parent/sibling module Constraints exploration.
 
 ### Phase 2: Tiered Clarification (single mode only)
 
@@ -264,6 +270,7 @@ round: {N}
 - Constraints: Input type, return type, error type all specified. Vague types ("any", "object") prohibited.
 - Rationale and Domain Context: Qualitative descriptions are acceptable when they convey design intent clearly.
 - Rationale: Each item directly excerpts and links to the original requirement text.
+- Reviewer Improvement Notes: When `## Reviewer Improvement Notes` is present in the session file, address each note explicitly. For each note, either (1) add a Requirement or Constraint that covers the concern, or (2) add a Rationale entry explaining why the concern is already covered or does not apply.
 
 Return result block:
 ```
@@ -365,22 +372,22 @@ Read `## Existing Modules Index` from the session file:
 2. Read related modules' CLAUDE.md to check Requirements/Domain Context
 3. Check external dependencies from package.json/Cargo.toml/go.mod etc.
 
-**4. Parent/sibling module Public API obligation exploration** (including Parallel mode)
+**4. Parent/sibling module Constraints obligation exploration** (including Parallel mode)
 
 If DEVELOPERS.md exists in the parent directory(ies) of `target_path`:
 - Read the parent DEVELOPERS.md
-- Extract references in the form `{current_module_name}::{function_name}` or `{current_module_path}/{function_name}` from `## Constraints` or `## Public API` sections
-- When found: record those functions as additional obligations in the current module's DEVELOPERS.md `## Public API`
+- Extract references in the form `{current_module_name}::{function_name}` or `{current_module_path}/{function_name}` from `## Constraints` sections
+- When found: record those functions as additional obligations in the current module's DEVELOPERS.md `## Constraints`
 
 Example:
 ```
 Found in orchestrator/DEVELOPERS.md's Constraints:
   "agent::spawn_agent(tx, issue) → JoinHandle"
-→ Add to agent/DEVELOPERS.md's ## Public API:
-  | spawn_agent | fn spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()> | orchestrator |
+→ Add to agent/DEVELOPERS.md's ## Constraints:
+  - CONST-N: `spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()>` must be publicly exported for orchestrator consumption.
 ```
 
-If nothing found, skip (omit Public API section or None).
+If nothing found, skip.
 
 ### Phase 2: Tiered Clarification
 
@@ -413,6 +420,7 @@ Read from session file:
 - `action` → create | update
 - `## Purpose Hint` → use only as a hint
 - `## User Requirement` → subset of requirements for this module
+- `## Reviewer Improvement Notes` → address in plan.md Rationale if present (non-blocking concerns from requirement reviewer)
 
 **AskUserQuestion usage prohibited** — Handle unclear points with best-effort, record as `warnings` in result.
 
@@ -428,6 +436,7 @@ Extract from session file:
 
 Use plan.md's `## Proposed Requirements` and `## Proposed Constraints`
 as input when generating CLAUDE.md/DEVELOPERS.md.
+If `## Reviewer Improvement Notes` is present in the session file but not addressed in plan.md's Rationale, add a Rationale entry for each unaddressed note during document generation.
 → Proceed to Phase 4.
 
 ## Common Phases (shared by Execute mode + existing Single/Parallel)
@@ -453,7 +462,6 @@ as input when generating CLAUDE.md/DEVELOPERS.md.
 - `## Constraints`: Precise input/output contracts (convertible to tests)
 - `## Technical Context`: Technology choices and rationale
 - `## Decision Log`: ADR style (optional)
-- `## Operations`: Gotchas, deployment (optional)
 
 ### Phase 6: Schema Validation
 
