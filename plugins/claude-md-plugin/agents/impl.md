@@ -260,8 +260,9 @@ round: {N}
 ```
 
 **plan.md writing principles:**
-- Requirements: Only measurable expressions. "appropriately", "quickly" prohibited.
+- Requirements and Constraints: Only measurable expressions. "appropriately", "quickly", and similar vague qualifiers are prohibited in these sections.
 - Constraints: Input type, return type, error type all specified. Vague types ("any", "object") prohibited.
+- Rationale and Domain Context: Qualitative descriptions are acceptable when they convey design intent clearly.
 - Rationale: Each item directly excerpts and links to the original requirement text.
 
 Return result block:

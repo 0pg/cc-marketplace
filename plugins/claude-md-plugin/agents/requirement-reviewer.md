@@ -94,17 +94,18 @@ Evaluate all criteria against the domain context from the explore result.
 | **Resolution soundness** | Are Resolution Log sources grounded in actual project artifacts? Spot-check at least 2 cited sources via Grep/Read. Also verify concretized requirements are faithful to the original — no hallucinated/drifted requirements. | Cited file:line does not contain claimed content, or concretized requirements introduce items not traceable to original |
 
 **Evaluation principles:**
+- Evaluate each criterion with three states:
+  - **pass**: criterion fully met
+  - **pass-with-note**: criterion substantially met but has a minor concern worth surfacing to the impl agent (e.g., a term that could be clarified, an edge case not covered but not blocking)
+  - **fail**: criterion not met — triggers rejection
 - Record all suspicious items as Critical Questions — silence is not approval
-- "Good enough" does not exist — all criteria must pass explicitly
 - Critical Questions must be specific: "notification behavior is not pass/fail testable" (O), "requirements need improvement" (X)
 
 ### Phase 3: Verdict Decision
 
-**approved** — when all of the following are met:
-- All 5 criteria pass
-- Critical Questions: 0
+**approved** — when no criterion is `fail` (all are `pass` or `pass-with-note`).
 
-**rejected** — when any criterion fails.
+**rejected** — when any criterion is `fail`.
 
 ### Phase 4: Write Result + Return
 
@@ -117,16 +118,19 @@ round: {N}
 verdict: approved | rejected
 
 ## Evaluation
-- Purpose identifiability: pass | fail — {rationale}
-- Requirements derivability: pass | fail — {rationale}
-- Constraints derivability: pass | fail — {rationale}
-- Domain Context sufficiency: pass | fail — {rationale}
-- Resolution soundness: pass | fail — {rationale}
+- Purpose identifiability: pass | pass-with-note | fail — {rationale}
+- Requirements derivability: pass | pass-with-note | fail — {rationale}
+- Constraints derivability: pass | pass-with-note | fail — {rationale}
+- Domain Context sufficiency: pass | pass-with-note | fail — {rationale}
+- Resolution soundness: pass | pass-with-note | fail — {rationale}
   - Spot-checked: {file:line → confirmed | not found}
   - Faithfulness: {confirmed | drifted — details}
 
 ## Critical Questions (when rejected)
 - {criterion}: "{specific problem — which item is insufficient and why}"
+
+## Improvement Notes (when approved with pass-with-note items)
+- {criterion}: "{minor concern or suggested clarification}"
 ```
 
 Return result block:
@@ -136,6 +140,7 @@ result_file: ${TMP_DIR}explore-reviewer-result-{round}.md
 verdict: approved | rejected
 round: {N}
 critical_questions: {N}
+improvement_notes: {N}
 ---end-explore-reviewer-result---
 ```
 

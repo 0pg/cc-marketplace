@@ -92,10 +92,12 @@ Read test files listed in mapping.json's test_files:
 - Identify the interface each test verifies (function name, parameters, return value)
 - Understand what each test verifies per Constraint
 
-### 3. GREEN — Implement (max 3 attempts)
+### 3. GREEN — Implement
 
 ```
 attempt = 1
+prev_failed = ∞
+stall_count = 0
 loop:
   1. Write/modify production code to match interfaces required by tests
      - Requirements: Implement high-level functionality
@@ -114,8 +116,14 @@ loop:
 
   3. Check results:
      - All passed → break (success)
-     - Some failed → analyze failure cause → attempt++
-     - attempt > 3 → break (partial)
+     - Some failed:
+         if tests_failed < prev_failed:
+           stall_count = 0        ← progress made, reset stall counter
+         else:
+           stall_count++          ← no improvement this attempt
+         prev_failed = tests_failed
+         analyze failure cause → attempt++
+         if stall_count >= 2 → break (partial)  ← stuck, stop
 ```
 
 ### 4. File Conflicts
