@@ -194,9 +194,35 @@ loop:
         break → Step 7.5
 
   7f. if round >= max_safety:
-        ⚠ Test review loop terminated after {max_safety} iterations.
-          Proceeding with best-effort tests.
-        break → Step 7.5
+        1. Read last 2 rounds' test-reviewer result files:
+           ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round-1}.md
+           ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md
+        2. Extract Critical Question IDs (CONST-N / REQ-N) from each
+
+        3. Classify by comparing ID sets:
+
+        CONVERGING — last round's issue IDs ⊂ previous round's issue IDs
+          (issues are being resolved, some remain):
+          → ⚠ "[REVIEW INCOMPLETE] {path}: proceeding with {N} known gaps: {IDs}"
+          → Append to green-coder session: unreviewed_gaps: [{last round's Critical Questions}]
+          → break → Step 7.5
+
+        STUCK — last round's issue IDs == previous round's issue IDs
+          (identical issues, test-writer cannot resolve):
+          → HALT module
+          → "[TEST LOOP STUCK] {path}: unresolvable after {max_safety} rounds
+             Stuck on: {issue IDs and summaries}
+             Action: Review DEVELOPERS.md Constraints for testability"
+          → module status = "skipped"
+          → skip to next module
+
+        DIVERGING — |last round's issue IDs| > |previous round's issue IDs|
+          (issues growing, not converging):
+          → HALT module
+          → "[TEST LOOP DIVERGING] {path}: issues growing after {max_safety} rounds
+             Action: Review Constraints for ambiguity or test-reviewer criteria"
+          → module status = "skipped"
+          → skip to next module
 
   7g. Create Revise session file:
       ${TMP_DIR}test-writer-session-{dir-safe}.md (overwrite):
@@ -217,16 +243,46 @@ loop:
       Copy based on test_files paths in mapping.json
 
 7.5b. Verify RED (SKILL executes directly via Bash):
-      Run tests per language:
-      | Language | Command |
-      | TypeScript | npx jest --passWithNoTests 2>&1 |
-      | Rust | cargo test --no-run 2>&1 (compile only) |
-      | Python | python -m pytest --collect-only 2>&1 |
-      | Go | go test -run "^$" ./... 2>&1 (compile only) |
+      Actually run tests to confirm they fail without implementation:
+      | Language   | Command                                            |
+      | TypeScript | npx jest --no-cache {test_files} 2>&1              |
+      | Rust       | cargo test 2>&1                                    |
+      | Python     | python -m pytest {test_files} -v 2>&1              |
+      | Go         | go test ./... -v 2>&1                              |
 
-7.5c. All fail confirmed → proceed to Step 8
-7.5d. Some pass → record as existing implementation coverage, proceed to Step 8
-7.5e. Compilation itself fails (import errors, etc.) → delegate to green-coder (import fix allowed)
+7.5c. Interpret results (exit code + output analysis):
+
+      - exit != 0 AND assertion/test failures in output:
+        → RED confirmed, proceed to Step 8
+
+      - exit != 0 AND only compilation/import errors (no assertion failures):
+        → delegate to green-coder for import fix (existing behavior)
+
+      - exit != 0 AND runtime/infrastructure errors
+        (e.g., DB connection refused, network timeout, missing system dependency):
+        → WARN: "[RED UNVERIFIABLE] {path}: external dependency unavailable"
+        → proceed with caution (record as unverified)
+
+      - exit == 0 AND ALL tests pass:
+        → Check mapping.json: if ALL mapped tests are Existence-type (STRUCT-XXX)
+          → exempt, RED confirmed (existence tests legitimately pass before impl)
+        → Otherwise: [RED VIOLATION] — tests pass without implementation
+          red_violation_count++
+          if red_violation_count > 2:
+            → HALT module
+            → "[RED FAILED] {path}: tests pass without implementation
+               after {red_violation_count} rewrites — likely tautological"
+            → module status = "skipped"
+          else:
+            → return to Step 7 test-writer loop:
+              round++ (reuse existing max_safety counter)
+              Create feedback as Critical Question format:
+              "RED VIOLATION: All tests pass without implementation.
+               Assertions must verify specific output values per Constraint I/O contract,
+               not merely existence/type/truthiness."
+
+      - exit == 0 AND SOME pass:
+        → record as existing implementation coverage, proceed to Step 8
 ```
 
 ### 8. Task(green-coder)
@@ -245,7 +301,13 @@ Dispatch Task(green-coder):
 
 Check green-result status:
 - success: proceed to Step 9
-- partial: collect warnings, proceed to Step 9
+- partial:
+    1. Extract tests_passed, tests_failed from green-result
+    2. Calculate pass_rate = tests_passed / (tests_passed + tests_failed)
+    3. Log: "⚠ [GREEN PARTIAL] {path}: {tests_passed}/{total} tests passing ({pass_rate}%)"
+    4. Tag module as "gate_required"
+       (Step 10.5 Final Test Gate will hard-gate before commit)
+    5. Proceed to Step 9 (refactorer gets a chance to fix remaining issues)
 - failed: report error, move to next module
 ```
 
@@ -295,6 +357,47 @@ Failure:
 > **Limitation**: If new files are not declared in `mod.rs`/`lib.rs`, cargo check will not inspect those files.
 > The green-coder agent must always add mod declarations when creating new files.
 
+### 10.5. Final Test Gate (mandatory)
+
+For each module that passed build verification, run the actual test suite as a hard commit gate.
+
+```
+For each module (target path + mapping.json):
+
+1. Run test suite:
+   | Language   | Command                                            |
+   | TypeScript | npx jest {test_files from mapping.json} 2>&1       |
+   | Rust       | cargo test 2>&1                                    |
+   | Python     | python -m pytest {test_files from mapping.json} -v 2>&1 |
+   | Go         | go test ./... -v 2>&1                              |
+
+2. Evaluate:
+   - ALL pass → module gate_status = "passed"
+   - SOME fail:
+     a. Cross-reference failing tests with mapping.json
+        → identify unmet Constraint IDs and Requirement IDs
+     b. Report:
+        [TEST GATE FAILED] {path}: {N} tests failing
+        Unmet Constraints: {CONST-IDs}
+        Unmet Requirements: {REQ-IDs}
+     c. Rollback module files:
+        - Tracked files: git checkout -- {module files}
+        - New untracked files: git clean -fd -- {files created by green-coder}
+        - Staged files: git reset HEAD -- {module files} before checkout
+     d. Module gate_status = "gate_failed", do NOT commit this module
+   - Execution crash/timeout:
+     a. Report: [TEST GATE ERROR] {path}: {error}
+     b. Module gate_status = "gate_failed", do NOT commit
+
+3. Cross-module verification:
+   After all per-module gates, if multiple modules passed individually:
+   - Run full test suite once (all test files across all passing modules)
+   - If cross-module failures detected:
+     → identify interfering modules from failure output
+     → mark affected modules as gate_failed
+     → rollback affected modules (same as step 2c)
+```
+
 ### 11. Display changes
 
 ```bash
@@ -303,7 +406,7 @@ git diff --stat
 
 ### 12. Create dev commit
 
-If compilation completed successfully (status != failed), **create individual commits per target directory** (no consolidated commits):
+If compilation completed successfully (status != failed), **create individual commits per target directory** that passed the Final Test Gate (gate_status = "passed"). Modules with gate_status = "gate_failed" are excluded from commit:
 
 ```bash
 # Repeat for each dev target
@@ -335,6 +438,11 @@ status: success | partial | failed
 total: {n}
 generated: {n}
 skipped: {n}
+gate_passed: {n}
+gate_failed: {n}
+gate_details:
+  - path: {path}, gate_status: passed, tests: {passed}/{total}
+  - path: {path}, gate_status: gate_failed, tests: {passed}/{total}, unmet: [{IDs}]
 tests: {passed} passed, {failed} failed
 validate: {status} (when --validate is used)
 ---end-dev-result---
@@ -361,8 +469,11 @@ validate: {status} (when --validate is used)
 | CLI build failure | install-cli.sh handles automatic build |
 | CLAUDE.md not found | guidance message, exit |
 | test-writer failure | warn, continue with the rest |
-| test-reviewer max_safety reached | best-effort proceed, warn |
+| test-reviewer max_safety CONVERGING | best-effort proceed with documented gaps |
+| test-reviewer max_safety STUCK/DIVERGING | HALT module, skip to next |
 | green-coder failure (single module) | warn, continue with the rest |
 | refactorer regression failure | rollback, warn |
 | Build verification failure (Step 10) | report error, status=failed |
+| Final Test Gate failure (Step 10.5) | rollback module, exclude from commit |
+| Cross-module test interference (Step 10.5) | rollback affected modules |
 | Language detection failure | AskUserQuestion |
