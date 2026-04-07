@@ -41,6 +41,13 @@ pub struct TypeScriptAnalyzer {
     // Environment variable patterns
     env_var_dot_re: Regex,
     env_var_bracket_re: Regex,
+    // Contract inference patterns (compiled once; used in infer_contracts_from_validation)
+    function_start_re: Regex,
+    validation_re: Regex,
+    length_re: Regex,
+    // Protocol extraction patterns (compiled once; used in extract_protocol)
+    variant_re: Regex,
+    lifecycle_jsdoc_re: Regex,
 }
 
 impl TypeScriptAnalyzer {
@@ -166,6 +173,29 @@ impl TypeScriptAnalyzer {
             env_var_bracket_re: Regex::new(
                 r#"process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]"#
             ).unwrap(),
+
+            // export function ... { (for contract inference from function body)
+            function_start_re: Regex::new(
+                r"export\s+(?:async\s+)?function\s+(\w+)\s*\([^)]*\)[^{]*\{"
+            ).unwrap(),
+
+            // if (!x.prop) throw (validation precondition inference)
+            validation_re: Regex::new(
+                r"if\s*\(\s*!(\w+(?:\.\w+)+)\s*\)\s*\{?\s*throw"
+            ).unwrap(),
+
+            // if (x.items.length === 0) throw (empty-collection precondition inference)
+            length_re: Regex::new(
+                r"if\s*\(\s*(\w+(?:\.\w+)+)\.length\s*===?\s*0\s*\)\s*\{?\s*throw"
+            ).unwrap(),
+
+            // Enum variant pattern for State enum body
+            variant_re: Regex::new(r"(\w+)\s*(?:=\s*[^,}]+)?").unwrap(),
+
+            // JSDoc block containing @lifecycle N, followed by method name
+            lifecycle_jsdoc_re: Regex::new(
+                r"(?s)/\*\*.*?@lifecycle\s+(\d+).*?\*/\s*(\w+)\s*\("
+            ).unwrap(),
         }
     }
 
@@ -230,11 +260,7 @@ impl TypeScriptAnalyzer {
     /// Infer preconditions from validation patterns like `if (!x.prop) throw`.
     fn infer_contracts_from_validation(&self, content: &str, contracts: &mut Vec<FunctionContract>) {
         // Find function definitions and extract bodies by counting braces
-        let function_start_re = Regex::new(
-            r"export\s+(?:async\s+)?function\s+(\w+)\s*\([^)]*\)[^{]*\{"
-        ).unwrap();
-
-        for cap in function_start_re.captures_iter(content) {
+        for cap in self.function_start_re.captures_iter(content) {
             let function_name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
             let match_end = cap.get(0).map(|m| m.end()).unwrap_or(0);
 
@@ -244,11 +270,7 @@ impl TypeScriptAnalyzer {
             let mut inferred_preconditions = Vec::new();
 
             // Look for validation patterns: if (!order.id) throw new Error
-            let validation_re = Regex::new(
-                r"if\s*\(\s*!(\w+(?:\.\w+)+)\s*\)\s*\{?\s*throw"
-            ).unwrap();
-
-            for val_cap in validation_re.captures_iter(&body) {
+            for val_cap in self.validation_re.captures_iter(&body) {
                 if let Some(prop) = val_cap.get(1) {
                     let prop_str = prop.as_str();
                     inferred_preconditions.push(format!("{} is required", prop_str));
@@ -256,11 +278,7 @@ impl TypeScriptAnalyzer {
             }
 
             // Look for: if (x.items.length === 0) throw
-            let length_re = Regex::new(
-                r"if\s*\(\s*(\w+(?:\.\w+)+)\.length\s*===?\s*0\s*\)\s*\{?\s*throw"
-            ).unwrap();
-
-            for len_cap in length_re.captures_iter(&body) {
+            for len_cap in self.length_re.captures_iter(&body) {
                 if let Some(prop) = len_cap.get(1) {
                     let prop_str = prop.as_str();
                     inferred_preconditions.push(format!("{} not empty", prop_str));
@@ -315,8 +333,7 @@ impl TypeScriptAnalyzer {
             if let Some(body) = cap.get(1) {
                 let body_str = body.as_str();
                 // Parse enum variants: Idle = 'idle', Loading = 'loading', etc.
-                let variant_re = Regex::new(r"(\w+)\s*(?:=\s*[^,}]+)?").unwrap();
-                for var_cap in variant_re.captures_iter(body_str) {
+                for var_cap in self.variant_re.captures_iter(body_str) {
                     if let Some(variant) = var_cap.get(1) {
                         let variant_name = variant.as_str().trim();
                         if !variant_name.is_empty() && !protocol.states.contains(&variant_name.to_string()) {
@@ -345,13 +362,8 @@ impl TypeScriptAnalyzer {
         }
 
         // Extract lifecycle methods from @lifecycle JSDoc tags
-        // Match JSDoc comment block containing @lifecycle N, followed by method name
-        let lifecycle_jsdoc_re = Regex::new(
-            r"(?s)/\*\*.*?@lifecycle\s+(\d+).*?\*/\s*(\w+)\s*\("
-        ).unwrap();
-
         let mut lifecycle_methods: Vec<(u32, String)> = Vec::new();
-        for cap in lifecycle_jsdoc_re.captures_iter(content) {
+        for cap in self.lifecycle_jsdoc_re.captures_iter(content) {
             if let (Some(order), Some(name)) = (cap.get(1), cap.get(2)) {
                 if let Ok(order_num) = order.as_str().parse::<u32>() {
                     lifecycle_methods.push((order_num, name.as_str().to_string()));
