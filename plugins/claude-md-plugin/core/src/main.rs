@@ -13,6 +13,7 @@ use claude_md_core::compile_target_resolver::CompileTargetResolver;
 use claude_md_core::exports_formatter;
 use claude_md_core::analysis_formatter;
 use claude_md_core::spec_diff::SpecDiffer;
+use claude_md_core::node_history::NodeHistoryDiffer;
 
 #[derive(Parser)]
 #[command(name = "claude-md-core")]
@@ -210,6 +211,33 @@ enum Commands {
         dry_run: bool,
     },
 
+    /// Get section-level diffs from recent N commits touching a node's CLAUDE.md/DEVELOPERS.md
+    DiffNodeHistory {
+        /// Node directory path (containing CLAUDE.md and/or DEVELOPERS.md)
+        #[arg(short = 'p', long)]
+        path: PathBuf,
+
+        /// Project root directory (git repo root)
+        #[arg(short, long, default_value = ".")]
+        root: PathBuf,
+
+        /// Maximum number of commits to include
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
+
+        /// Filter by commit message pattern (e.g., "^spec\\(src/auth\\):")
+        #[arg(short = 'g', long)]
+        grep: Option<String>,
+
+        /// Only include commits after this commit hash (exclusive)
+        #[arg(long)]
+        since_commit: Option<String>,
+
+        /// Output JSON file path (stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Validate document language consistency
     ValidateLanguage {
         /// File to validate (CLAUDE.md or DEVELOPERS.md)
@@ -353,6 +381,11 @@ fn main() {
             let result = differ.diff(file);
             output_result(&result, output.as_ref(), "diff-spec-range")
         }
+        Commands::DiffNodeHistory { path, root, limit, grep, since_commit, output } => {
+            let differ = NodeHistoryDiffer::new(root, path);
+            let result = differ.diff(*limit, grep.as_deref(), since_commit.as_deref());
+            output_result(&result, output.as_ref(), "diff-node-history")
+        }
         Commands::FormatExports { input, output } => {
             match std::fs::read_to_string(input) {
                 Ok(json) => match serde_json::from_str::<code_analyzer::AnalysisResult>(&json) {
@@ -473,6 +506,7 @@ fn main() {
             Commands::ScanClaudeMd { .. } => "scan-claude-md",
             Commands::DiffCompileTargets { .. } => "diff-compile-targets",
             Commands::DiffSpecRange { .. } => "diff-spec-range",
+            Commands::DiffNodeHistory { .. } => "diff-node-history",
             Commands::ContractHash { .. } => "contract-hash",
             Commands::FixSchema { .. } => "fix-schema",
             Commands::FormatExports { .. } => "format-exports",

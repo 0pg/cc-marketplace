@@ -20,6 +20,7 @@ use claude_md_core::code_analyzer::{
     ExportedVariable, ReExport, TypeKind,
 };
 use claude_md_core::language_validator::{LanguageValidator, LanguageValidationResult};
+use claude_md_core::node_history::{NodeHistoryDiffer, NodeHistoryResult};
 
 #[derive(Debug, Default, World)]
 pub struct TestWorld {
@@ -56,6 +57,10 @@ pub struct TestWorld {
     converge_result_content: Option<String>,
     converge_result_changes: Option<Vec<String>>,
     converge_result_warnings: Option<Vec<String>>,
+    // Node history fields
+    node_history_result: Option<NodeHistoryResult>,
+    node_history_non_git_dir: Option<TempDir>,
+    named_commits: HashMap<String, String>,
 }
 
 // ============== Common Steps ==============
@@ -2289,6 +2294,344 @@ fn check_script_distribution_contains(world: &mut TestWorld, script: String) {
     let result = world.language_result.as_ref().expect("Expected language result");
     assert!(result.script_distribution.contains_key(&script),
         "Expected script distribution to contain '{}', got {:?}", script, result.script_distribution);
+}
+
+// ============== Node History Steps ==============
+
+fn git_commit_with_message(dir: &Path, message: &str) -> String {
+    use std::process::Command;
+    Command::new("git").args(["commit", "--allow-empty-message", "-m", message])
+        .current_dir(dir)
+        .output().expect("git commit failed");
+    // Return the hash
+    let output = Command::new("git").args(["log", "-1", "--format=%H"])
+        .current_dir(dir)
+        .output().expect("git log failed");
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+fn write_and_commit(dir: &Path, rel_path: &str, content: &str, message: &str) -> String {
+    let full_path = dir.join(rel_path);
+    fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
+    let mut f = File::create(&full_path).expect("create file failed");
+    f.write_all(content.as_bytes()).expect("write failed");
+    git_add(dir, rel_path);
+    git_commit_with_message(dir, message)
+}
+
+#[given("a clean git test repository for node history")]
+fn setup_node_history_git_dir(world: &mut TestWorld) {
+    world.temp_dir = Some(TempDir::new().expect("Failed to create temp dir"));
+    git_init(&get_temp_path(world));
+    world.named_commits = HashMap::new();
+}
+
+#[given(expr = "a committed CLAUDE.md at {string} with Requirements {string}")]
+fn create_committed_claude_md(world: &mut TestWorld, dir: String, requirements: String) {
+    let temp = get_temp_path(world);
+    let content = format!(
+        "# Module\n\n## Purpose\nTest module\n\n## Requirements\n{}\n\n## Domain Context\nNone\n",
+        requirements.replace("\\n", "\n")
+    );
+    write_and_commit(&temp, &format!("{}/CLAUDE.md", dir), &content, "init: add CLAUDE.md");
+}
+
+#[given(expr = "a committed DEVELOPERS.md at {string} with Constraints {string}")]
+fn create_committed_developers_md(world: &mut TestWorld, dir: String, constraints: String) {
+    let temp = get_temp_path(world);
+    let content = format!(
+        "# DEVELOPERS\n\n## Constraints\n{}\n\n## Technical Context\nNone\n",
+        constraints.replace("\\n", "\n")
+    );
+    write_and_commit(&temp, &format!("{}/DEVELOPERS.md", dir), &content, "init: add DEVELOPERS.md");
+}
+
+#[given(expr = "a committed CLAUDE.md at {string} with Purpose {string} and Requirements {string}")]
+fn create_committed_claude_md_with_purpose(world: &mut TestWorld, dir: String, purpose: String, requirements: String) {
+    let temp = get_temp_path(world);
+    let content = format!(
+        "# Module\n\n## Purpose\n{}\n\n## Requirements\n{}\n\n## Domain Context\nNone\n",
+        purpose, requirements.replace("\\n", "\n")
+    );
+    write_and_commit(&temp, &format!("{}/CLAUDE.md", dir), &content, "init: add CLAUDE.md");
+}
+
+#[given(expr = "a new commit changing Requirements in {string} to {string}")]
+fn commit_change_requirements(world: &mut TestWorld, file: String, new_requirements: String) {
+    let temp = get_temp_path(world);
+    let content = format!(
+        "# Module\n\n## Purpose\nTest module\n\n## Requirements\n{}\n\n## Domain Context\nNone\n",
+        new_requirements.replace("\\n", "\n")
+    );
+    write_and_commit(&temp, &file, &content, "spec: update requirements");
+}
+
+#[given(expr = "{int} additional commits changing {string} Requirements")]
+fn create_additional_commits(world: &mut TestWorld, count: usize, file: String) {
+    let temp = get_temp_path(world);
+    for i in 0..count {
+        let content = format!(
+            "# Module\n\n## Purpose\nTest module\n\n## Requirements\n- REQ-{}: Requirement {}\n\n## Domain Context\nNone\n",
+            i + 2, i + 2
+        );
+        write_and_commit(&temp, &file, &content, &format!("spec: update req {}", i + 2));
+    }
+}
+
+#[given(expr = "a new commit changing both {string} and {string}")]
+fn commit_change_both_files(world: &mut TestWorld, file1: String, file2: String) {
+    let temp = get_temp_path(world);
+    let claude_content = "# Module\n\n## Purpose\nTest module\n\n## Requirements\n- REQ-1: Login\n- REQ-2: OAuth\n\n## Domain Context\nNone\n";
+    let dev_content = "# DEVELOPERS\n\n## Constraints\n- CONST-1: JWT\n- CONST-2: OAuth2\n\n## Technical Context\nNone\n";
+
+    let full1 = temp.join(&file1);
+    let full2 = temp.join(&file2);
+    fs::create_dir_all(full1.parent().unwrap()).expect("mkdir failed");
+    fs::create_dir_all(full2.parent().unwrap()).expect("mkdir failed");
+    fs::write(&full1, claude_content).expect("write failed");
+    fs::write(&full2, dev_content).expect("write failed");
+    git_add(&temp, &file1);
+    git_add(&temp, &file2);
+    git_commit_with_message(&temp, "spec: update both files");
+}
+
+#[given(expr = "a new commit changing both Purpose and Requirements in {string}")]
+fn commit_change_purpose_and_requirements(world: &mut TestWorld, file: String) {
+    let temp = get_temp_path(world);
+    let content = "# Module\n\n## Purpose\nUpdated auth module\n\n## Requirements\n- REQ-1: Login\n- REQ-2: OAuth\n\n## Domain Context\nNone\n";
+    write_and_commit(&temp, &file, content, "spec: update purpose and requirements");
+}
+
+#[given(expr = "a commit with message {string} changing {string}")]
+fn commit_with_specific_message(world: &mut TestWorld, message: String, file: String) {
+    let temp = get_temp_path(world);
+    // Read existing content and modify slightly
+    let full_path = temp.join(&file);
+    let existing = fs::read_to_string(&full_path).unwrap_or_default();
+    let new_content = format!("{}\n<!-- updated by: {} -->\n", existing, message);
+    write_and_commit(&temp, &file, &new_content, &message);
+}
+
+#[given(expr = "a commit {string} changing {string} Requirements")]
+fn commit_named(world: &mut TestWorld, name: String, file: String) {
+    let temp = get_temp_path(world);
+    let full_path = temp.join(&file);
+    let existing = fs::read_to_string(&full_path).unwrap_or_default();
+    let new_content = format!("{}\n<!-- commit {} -->\n", existing, name);
+    let hash = write_and_commit(&temp, &file, &new_content, &format!("spec: commit {}", name));
+    world.named_commits.insert(name, hash);
+}
+
+#[given(expr = "a non-git test directory for node history")]
+fn setup_non_git_dir_for_node_history(world: &mut TestWorld) {
+    world.node_history_non_git_dir = Some(TempDir::new().expect("Failed to create temp dir"));
+}
+
+#[given("an empty git repository for node history")]
+fn setup_empty_git_repo(world: &mut TestWorld) {
+    world.temp_dir = Some(TempDir::new().expect("Failed to create temp dir"));
+    git_init(&get_temp_path(world));
+}
+
+#[given(expr = "a single root commit creating {string} with Requirements {string}")]
+fn create_single_root_commit(world: &mut TestWorld, file: String, requirements: String) {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let temp = temp_dir.path().to_path_buf();
+
+    // Init git WITHOUT the empty initial commit
+    use std::process::Command;
+    Command::new("git").args(["init"]).current_dir(&temp)
+        .output().expect("git init failed");
+    Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(&temp)
+        .output().expect("git config email failed");
+    Command::new("git").args(["config", "user.name", "Test"]).current_dir(&temp)
+        .output().expect("git config name failed");
+
+    let content = format!(
+        "# Module\n\n## Purpose\nTest module\n\n## Requirements\n{}\n\n## Domain Context\nNone\n",
+        requirements.replace("\\n", "\n")
+    );
+    let full_path = temp.join(&file);
+    fs::create_dir_all(full_path.parent().unwrap()).expect("mkdir failed");
+    fs::write(&full_path, &content).expect("write failed");
+
+    Command::new("git").args(["add", &file]).current_dir(&temp)
+        .output().expect("git add failed");
+    Command::new("git").args(["commit", "-m", "root: initial CLAUDE.md"])
+        .current_dir(&temp)
+        .output().expect("git commit failed");
+
+    world.temp_dir = Some(temp_dir);
+    world.named_commits = HashMap::new();
+}
+
+#[given(expr = "a committed source file {string} after the spec commit")]
+fn create_source_file_after_spec(world: &mut TestWorld, file: String) {
+    let temp = get_temp_path(world);
+    write_and_commit(&temp, &file, "// source code\n", "dev: add source file");
+}
+
+#[given(expr = "a commit with subject {string} and body {string} changing {string}")]
+fn commit_with_subject_and_body(world: &mut TestWorld, subject: String, body: String, file: String) {
+    let temp = get_temp_path(world);
+    let full_path = temp.join(&file);
+    let existing = fs::read_to_string(&full_path).unwrap_or_default();
+    let new_content = format!("{}\n<!-- {} -->\n", existing, subject);
+    let full_msg = format!("{}\n\n{}", subject, body);
+
+    let fp = temp.join(&file);
+    fs::create_dir_all(fp.parent().unwrap()).expect("mkdir failed");
+    fs::write(&fp, &new_content).expect("write failed");
+    git_add(&temp, &file);
+    git_commit_with_message(&temp, &full_msg);
+}
+
+// ---- When steps ----
+
+#[when(expr = "I run diff-node-history for {string} with limit {int}")]
+fn run_node_history(world: &mut TestWorld, node_path: String, limit: usize) {
+    let temp = get_temp_path(world);
+    let differ = NodeHistoryDiffer::new(&temp, Path::new(&node_path));
+    world.node_history_result = Some(differ.diff(limit, None, None));
+}
+
+#[when(expr = "I run diff-node-history for {string} with limit {int} and grep {string}")]
+fn run_node_history_with_grep(world: &mut TestWorld, node_path: String, limit: usize, grep: String) {
+    let temp = get_temp_path(world);
+    let differ = NodeHistoryDiffer::new(&temp, Path::new(&node_path));
+    world.node_history_result = Some(differ.diff(limit, Some(&grep), None));
+}
+
+#[when(expr = "I run diff-node-history for {string} with limit {int} and since-commit {string}")]
+fn run_node_history_with_since(world: &mut TestWorld, node_path: String, limit: usize, since_name: String) {
+    let temp = get_temp_path(world);
+    let since_hash = world.named_commits.get(&since_name)
+        .expect(&format!("Named commit '{}' not found", since_name))
+        .clone();
+    let differ = NodeHistoryDiffer::new(&temp, Path::new(&node_path));
+    world.node_history_result = Some(differ.diff(limit, None, Some(&since_hash)));
+}
+
+#[when(expr = "I run diff-node-history for {string} with limit {int} in the non-git directory")]
+fn run_node_history_non_git(world: &mut TestWorld, node_path: String, limit: usize) {
+    let temp = world.node_history_non_git_dir.as_ref().expect("No non-git dir").path().to_path_buf();
+    let differ = NodeHistoryDiffer::new(&temp, Path::new(&node_path));
+    world.node_history_result = Some(differ.diff(limit, None, None));
+}
+
+// ---- Then steps ----
+
+#[then(expr = "the result has {int} commit entry")]
+fn check_commit_count_singular(world: &mut TestWorld, count: usize) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert_eq!(result.commits.len(), count,
+        "Expected {} commit(s), got {}", count, result.commits.len());
+}
+
+#[then(expr = "the result has {int} commit entries")]
+fn check_commit_count(world: &mut TestWorld, count: usize) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert_eq!(result.commits.len(), count,
+        "Expected {} commit(s), got {}", count, result.commits.len());
+}
+
+#[then(expr = "commit {int} has a {string} file diff")]
+fn check_commit_has_file_diff(world: &mut TestWorld, index: usize, file_type: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    assert!(commit.file_diffs.iter().any(|fd| fd.file_type == file_type),
+        "Commit {} has no {} file diff. Available: {:?}",
+        index, file_type, commit.file_diffs.iter().map(|fd| &fd.file_type).collect::<Vec<_>>());
+}
+
+#[then(expr = "the {string} diff in commit {int} has section {string} with {int} {string} change")]
+fn check_section_change_count(world: &mut TestWorld, file_type: String, index: usize, section: String, count: usize, action: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    let file_diff = commit.file_diffs.iter().find(|fd| fd.file_type == file_type)
+        .expect(&format!("No {} file diff in commit {}", file_type, index));
+    let section_diff = file_diff.sections.iter().find(|s| s.section == section)
+        .expect(&format!("No '{}' section in {} diff", section, file_type));
+    let action_count = section_diff.changes.iter().filter(|c| c.action == action).count();
+    assert_eq!(action_count, count,
+        "Expected {} '{}' changes in section '{}', got {}", count, action, section, action_count);
+}
+
+#[then(expr = "the {string} diff in commit {int} has section {string}")]
+fn check_section_exists(world: &mut TestWorld, file_type: String, index: usize, section: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    let file_diff = commit.file_diffs.iter().find(|fd| fd.file_type == file_type)
+        .expect(&format!("No {} file diff in commit {}", file_type, index));
+    assert!(file_diff.sections.iter().any(|s| s.section == section),
+        "No '{}' section found. Available: {:?}",
+        section, file_diff.sections.iter().map(|s| &s.section).collect::<Vec<_>>());
+}
+
+#[then(expr = "total_commits_found is {int}")]
+fn check_total_commits(world: &mut TestWorld, count: usize) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert_eq!(result.total_commits_found, count,
+        "Expected total_commits_found={}, got {}", count, result.total_commits_found);
+}
+
+#[then(expr = "commit {int} subject contains {string}")]
+fn check_commit_subject_contains(world: &mut TestWorld, index: usize, text: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    assert!(commit.subject.contains(&text),
+        "Commit {} subject '{}' does not contain '{}'", index, commit.subject, text);
+}
+
+#[then(expr = "commit {int} subject matches commit {string}")]
+fn check_commit_matches_named(world: &mut TestWorld, index: usize, name: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let expected_hash = world.named_commits.get(&name)
+        .expect(&format!("Named commit '{}' not found", name));
+    let commit = &result.commits[index];
+    assert_eq!(&commit.hash, expected_hash,
+        "Commit {} hash '{}' does not match named commit '{}' hash '{}'",
+        index, commit.hash, name, expected_hash);
+}
+
+#[then("is_git_repo is false")]
+fn check_is_not_git_repo(world: &mut TestWorld) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert!(!result.is_git_repo, "Expected is_git_repo=false");
+}
+
+#[then("has_history is false")]
+fn check_has_no_history(world: &mut TestWorld) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert!(!result.has_history, "Expected has_history=false");
+}
+
+#[then(expr = "commit {int} has breaking flag true")]
+fn check_breaking_flag(world: &mut TestWorld, index: usize) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    assert!(commit.breaking, "Commit {} expected breaking=true", index);
+}
+
+#[then("source_changed is true")]
+fn check_source_changed_true(world: &mut TestWorld) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert!(result.source_changed, "Expected source_changed=true");
+}
+
+#[then(expr = "source_changed_files includes {string}")]
+fn check_source_changed_file(world: &mut TestWorld, file: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    assert!(result.source_changed_files.iter().any(|f| f.contains(&file)),
+        "Expected source_changed_files to include '{}', got {:?}", file, result.source_changed_files);
+}
+
+#[then(expr = "commit {int} body contains {string}")]
+fn check_commit_body_contains(world: &mut TestWorld, index: usize, text: String) {
+    let result = world.node_history_result.as_ref().expect("No node history result");
+    let commit = &result.commits[index];
+    assert!(commit.body.contains(&text),
+        "Commit {} body '{}' does not contain '{}'", index, commit.body, text);
 }
 
 #[tokio::main]

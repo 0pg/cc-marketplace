@@ -91,42 +91,25 @@ Dev targets:
 
 For each target, read CLAUDE.md + DEVELOPERS.md + Convention hierarchy and create session files:
 
-0. (`--all` excluded) Search for spec commits — execute per target directory:
-   a. Find last dev commit:
+0. (`--all` excluded) Collect node history via CLI — execute per target directory:
       ```bash
       LAST_DEV=$(git log -1 --format="%H" --grep="^dev({path}):" 2>/dev/null || echo "")
+      $CLI_PATH diff-node-history \
+        --path {path} --root {project_root} --limit 20 \
+        --grep "^spec({path}):" \
+        ${LAST_DEV:+--since-commit "$LAST_DEV"} \
+        --output "${TMP_DIR}node-history-${dir_safe}.json"
       ```
-   b. Find spec commits after that:
-      ```bash
-      if [ -n "$LAST_DEV" ]; then
-        SPEC_COMMITS=$(git log --format="%H" --grep="^spec({path}):" ${LAST_DEV}..HEAD 2>/dev/null)
-      else
-        SPEC_COMMITS=$(git log --format="%H" --grep="^spec({path}):" 2>/dev/null)
-      fi
-      ```
-   c. If found — extract diff + message for each spec commit:
-      ```bash
-      # Extract diff (root commit guard)
-      PARENT=$(git rev-parse --verify {hash}~1 2>/dev/null || echo "")
-      if [ -n "$PARENT" ]; then
-        git diff {hash}~1..{hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
-      else
-        git diff --root {hash} -- {path}/CLAUDE.md {path}/DEVELOPERS.md
-      fi
-
-      # Extract commit message
-      git log -1 --format="%B" {hash}
-      ```
-   d. If not found: do not include Spec Changes section in the session file
+   If `has_history` is false in the JSON output: do not include Spec Changes section.
 1. Read target CLAUDE.md → extract Requirements, Domain Context
 2. Read target DEVELOPERS.md → extract Constraints, Technical Context
 3. Resolve Convention hierarchy (module > project > general)
 4. Read dev-context.md (optional) → extract Dependencies, approach
 5. Write session file → `${TMP_DIR}dev-session-{dir-safe}.md`
-6. (If spec commits found in sub-step 0) Add Spec Changes section:
-   - Extract transition context from commit message body → `### Transition Context`
-   - Parse commit message Changes section → `### Added`, `### Modified`, `### Removed`
-   - If BREAKING flag present → add `breaking: true` metadata
+6. (If `has_history` is true in sub-step 0) Add Spec Changes section from node-history JSON:
+   - Extract transition context from `CommitEntry.body` → `### Transition Context`
+   - Parse `file_diffs[].sections[].changes[]` to derive `### Added`, `### Modified`, `### Removed`
+   - If `CommitEntry.breaking` is true → add `breaking: true` metadata
 
 Session file format: see "Dev Session File Format" in dev-templates.md.
 

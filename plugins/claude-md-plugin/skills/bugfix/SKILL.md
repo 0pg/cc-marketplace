@@ -109,13 +109,14 @@ else:
 
 언어 감지: 소스 파일 확장자 기반 (`.ts/.tsx` → typescript, `.rs` → rust, `.py` → python, `.go` → go)
 
-#### 2d. diff-spec-range 실행
+#### 2d. diff-node-history 실행
 
 ```bash
-$CLI_PATH diff-spec-range \
-  --file {selected_CLAUDE.md_path} \
+$CLI_PATH diff-node-history \
+  --path {selected_dir_path} \
   --root {project_root} \
-  --output "${TMP_DIR}spec-diff-{dir-safe}.json"
+  --limit 5 \
+  --output "${TMP_DIR}node-history-${dir_safe}.json"
 ```
 
 ### 3. Session File 생성
@@ -131,7 +132,7 @@ Include all of:
 - Layer 1: selected CLAUDE.md content (Purpose + Requirements + Domain Context)
 - Layer 2: DEVELOPERS.md content (Constraints + Technical Context) or "none"
 - Layer 3: source file list (content if ≤ 10 files, listing only if > 10)
-- Recent Spec Changes: parsed diff-spec-range JSON output
+- Node History: parsed diff-node-history JSON output (replaces diff-spec-range)
 - Conventions: hierarchy-resolved from project root
 
 ### 4. Task(bugfixer) dispatch

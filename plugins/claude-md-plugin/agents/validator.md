@@ -90,7 +90,7 @@ Content pre-extracted in the session file:
 - **Conventions** (hierarchy resolved): Architecture rules
 - **DEVELOPERS.md Content** (strict only): Constraints, Technical Context
 - **Deterministic Results**: Schema/convention/boundary results performed by CLI in SKILL Phase 2
-- **Changed Requirements**: diff-spec-range result (`all_requirements`, `source_changed`, change list)
+- **Node History**: diff-node-history result (`has_history`, `source_changed`, per-commit section changes)
 - **Test Coverage Map**: Source file-level test coverage composed by Grep in SKILL Phase 2.5b
 
 > Deterministic validations (schema, convention structure, boundary, DEVELOPERS.md existence) are already handled by the validate SKILL.
@@ -98,7 +98,7 @@ Content pre-extracted in the session file:
 
 ### 2. Requirements Drift Detection (based on Test Coverage Map)
 
-Read from the session file's `## Test Coverage Map` and `## Changed Requirements` for determination.
+Read from the session file's `## Test Coverage Map` and `## Node History` for determination.
 
 **Primary source**: Use the Test Coverage Map for all determination. Do not perform open-ended Grep/Read code searching.
 

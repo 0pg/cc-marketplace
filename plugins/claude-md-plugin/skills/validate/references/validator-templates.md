@@ -30,10 +30,16 @@ entries: {count or "none"}
 ## Deterministic Results
 {summary of issues found in Phase 2 CLI verification}
 
-## Changed Requirements (diff-spec-range result)
-all_requirements: {true|false}
+## Node History (diff-node-history result)
+has_history: {true|false}
 source_changed: {true|false}  ← value filtered to target_dir scope
-Added/Changed: {changed_requirements list — action + text}
+commits_included: {N} | total_found: {M}
+{for each commit with section changes:}
+### {short_hash} — {subject}
+{for each file_diff with changes:}
+**{file_type} — {section}**: {changes summary}
+{end for}
+{end for}
 Changed source files (within target_dir): {target_source_files list}
 
 ## Test Coverage Map

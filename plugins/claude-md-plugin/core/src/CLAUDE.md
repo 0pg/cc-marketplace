@@ -6,7 +6,7 @@ Implement the deterministic Rust CLI engine that powers all `claude-md-core` sub
 
 ## Requirements
 
-- REQ-1: Expose all CLI subcommands (`parse-tree`, `resolve-boundary`, `validate-schema`, `parse-claude-md`, `validate-convention`, `analyze-code`, `scan-claude-md`, `diff-compile-targets`, `diff-spec-range`, `contract-hash`, `fix-schema`, `format-exports`, `format-analysis`, `validate-language`) through a single binary entry point.
+- REQ-1: Expose all CLI subcommands (`parse-tree`, `resolve-boundary`, `validate-schema`, `parse-claude-md`, `validate-convention`, `analyze-code`, `scan-claude-md`, `diff-compile-targets`, `diff-spec-range`, `diff-node-history`, `contract-hash`, `fix-schema`, `format-exports`, `format-analysis`, `validate-language`) through a single binary entry point.
 - REQ-2: Write all successful subcommand results as pretty-printed JSON to stdout (or to a file when `--output` is provided); write errors to stderr and exit with code 1.
 - REQ-3: Provide shared constants (`EXCLUDED_DIRS`, `SOURCE_EXTENSIONS`) and the `is_none_marker_content` utility used across multiple modules, accessible via `lib.rs`.
 - REQ-4: Re-export primary public types from each sub-module so callers need only depend on the crate root (`claude_md_core::`).
