@@ -54,6 +54,21 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
+### 2.4 Collect Node History (if existing node)
+
+If the target path already has a CLAUDE.md, collect recent change context:
+
+```bash
+if [ -f "{path}/CLAUDE.md" ]; then
+  $CLI_PATH diff-node-history \
+    --path {path} --root {project_root} --limit 10 \
+    --output "${TMP_DIR}node-history-${dir_safe}.json"
+fi
+```
+
+If the output file exists and contains commits (`has_history: true`), include its contents
+in the explore session file as `## Node History` section. See format below in 2.5a.
+
 ### 2.5 Self Socratic Loop
 
 Concretize vague requirements through project domain context exploration before decompose.
@@ -78,6 +93,16 @@ loop:
 
         ## User Requirement
         {user requirement text}
+
+        ## Node History (optional — only when existing node has history)
+        commits_included: {N} | total_found: {M}
+        {for each commit in node-history JSON:}
+        ### {short_hash} — {subject}
+        timestamp: {timestamp} | breaking: {true|false}
+        {for each file_diff:}
+        **{file_type} — {section}**: {changes count} added, {changes count} removed
+        {end for}
+        {end for}
 
         ## Existing Modules Index
         {scan-claude-md result}

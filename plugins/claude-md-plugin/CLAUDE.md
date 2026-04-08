@@ -365,7 +365,8 @@ User: /decompile [path]
 | `contract-hash` | SHA-256 hash (change detection) |
 | `parse-tree` | Parse directory structure |
 | `validate-language` | Document language validation |
-| `diff-spec-range` | Detect changed Requirements and source files since last spec commit |
+| `diff-spec-range` | Detect changed Requirements and source files since last spec commit (deprecated, use diff-node-history) |
+| `diff-node-history` | Section-level diffs from recent N commits touching a node's CLAUDE.md/DEVELOPERS.md |
 
 ## Invariants
 

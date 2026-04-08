@@ -69,6 +69,7 @@ pub mod exports_formatter;
 pub mod analysis_formatter;
 pub mod contract_hasher;
 pub mod spec_diff;
+pub mod node_history;
 pub mod language_validator;
 
 pub use tree_parser::TreeParser;

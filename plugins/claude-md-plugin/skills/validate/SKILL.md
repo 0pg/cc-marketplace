@@ -128,25 +128,26 @@ For each target that passed schema:
 #### 2.5a. Detect changed specs
 
 ```bash
-$CLI_PATH diff-spec-range --file {dir}/CLAUDE.md --root {project_root} \
-  --output "${TMP_DIR}spec-diff-${dir_safe}.json"
+$CLI_PATH diff-node-history \
+  --path {dir} --root {project_root} --limit 5 \
+  --output "${TMP_DIR}node-history-${dir_safe}.json"
 ```
 
-Result fields: `changed_requirements[]`, `source_changed_files[]`, `source_changed`, `all_requirements`
+Result fields: `has_history`, `commits[]` (with `file_diffs[].sections[].changes[]`), `source_changed_files[]`, `source_changed`
 
-- `all_requirements=true`: not a git repo or first commit → all Requirements are verification targets
-- `source_changed=false` AND `changed_requirements` is empty → no changes, semantic verification can be skipped
+- `has_history=false`: not a git repo or no commits touching this node → all Requirements are verification targets
+- `source_changed=false` AND no section changes in commits → no changes, semantic verification can be skipped
 
 #### 2.5b. Build test coverage map
 
 **Step 1: Filter to target_dir scope + re-determine source_changed**
 
-Filter `source_changed_files` from `spec-diff-${dir_safe}.json` to files under `{target_dir}`:
+Filter `source_changed_files` from `node-history-${dir_safe}.json` to files under `{target_dir}`:
 ```
 target_source_files = source_changed_files.filter(f => f.startsWith({target_dir}))
 ```
-- If `all_requirements=true`: `target_source_files` = full Glob(`{target_dir}/**/*.{rs,ts,js,py}`)
-- If `target_source_files` is empty AND `changed_requirements` is empty → **skip semantic verification** (no actual changes within the module)
+- If `has_history=false`: `target_source_files` = full Glob(`{target_dir}/**/*.{rs,ts,js,py}`)
+- If `target_source_files` is empty AND no section changes in commits → **skip semantic verification** (no actual changes within the module)
 
 **Step 2: Extract public functions per source file**
 
@@ -239,10 +240,11 @@ Technical Context:
 ## Deterministic Results
 {summary of CLI issues found in Phase 2}
 
-## Changed Requirements (diff-spec-range result)
-all_requirements: {true|false}
+## Node History (diff-node-history result)
+has_history: {true|false}
 source_changed: {true|false}  ← value filtered to target_dir scope
-Added/Changed: {changed_requirements list — action + text}
+commits_included: {N} | total_found: {M}
+{per-commit section changes — see validator-templates.md}
 Changed source files (within target_dir): {target_source_files list}
 
 ## Test Coverage Map

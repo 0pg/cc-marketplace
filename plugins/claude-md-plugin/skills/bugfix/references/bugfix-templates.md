@@ -38,12 +38,18 @@ language: {detected language}
 files:
 - {file path}: {content or "listing only" if content omitted}
 
-## Recent Spec Changes
-all_requirements: {true|false}
+## Node History
+has_history: {true|false}
 source_changed: {true|false}
-changed_requirements:
-- {action}: {requirement text}
-Changed source files: {list or "none"}
+commits_included: {N} | total_found: {M}
+{for each commit in node-history JSON:}
+### {short_hash} — {subject}
+timestamp: {timestamp} | breaking: {true|false}
+{for each file_diff:}
+**{file_type} — {section}**: {changes summary}
+{end for}
+{end for}
+source_changed_files: {list or "none"}
 
 ## Conventions
 {hierarchy-resolved Conventions from project root — Module Boundaries and Project Structure sections}
@@ -100,11 +106,11 @@ test_result: passed | skipped | failed   ← (Layer 3 only; skipped for L1/L2)
 ---end-bugfix-result---
 ```
 
-## diff-spec-range Field Mapping
+## diff-node-history Field Mapping
 
 | CLI field | Meaning in Judgment Algorithm |
 |-----------|-------------------------------|
-| `changed_requirements not empty` | spec 변경됨 (last dev commit 이후) |
-| `source_changed=true` + `changed_requirements empty` | 소스 변경, spec 변경 없음 → 코드 이탈 |
-| `all_requirements=true` | git 미사용 또는 첫 커밋 → git 증거 불충분 |
-| `source_changed=false` + `changed_requirements empty` | 최근 변경 없음 → git 증거 불충분 |
+| `has_history=true` + commits have section changes | spec 변경됨 (recent history exists) |
+| `source_changed=true` + no section changes in commits | 소스 변경, spec 변경 없음 → 코드 이탈 |
+| `has_history=false` | git 미사용 또는 해당 노드 변경 이력 없음 → git 증거 불충분 |
+| `source_changed=false` + `has_history=false` | 최근 변경 없음 → git 증거 불충분 |
