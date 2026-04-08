@@ -56,7 +56,7 @@ Save results to ${TMP_DIR} and return only the path
 ## Temporary Directory
 
 ```bash
-TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
 ## Absolutely Prohibited (HARD CONSTRAINTS)
