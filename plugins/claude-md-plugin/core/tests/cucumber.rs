@@ -54,6 +54,8 @@ pub struct TestWorld {
     language_error: Option<String>,
     // Converge schema fields
     converge_result_content: Option<String>,
+    converge_result_changes: Option<Vec<String>>,
+    converge_result_warnings: Option<Vec<String>>,
 }
 
 // ============== Common Steps ==============
@@ -471,6 +473,26 @@ fn converge_developers_schema(world: &mut TestWorld) {
     let validator = SchemaValidator::new();
     let result = validator.converge_schema(&content, "developers_md");
     world.converge_result_content = Some(result.content);
+    world.converge_result_changes = Some(result.changes);
+    world.converge_result_warnings = Some(result.warnings);
+}
+
+#[when("I converge the DEVELOPERS.md schema at project root")]
+fn converge_developers_schema_at_project_root(world: &mut TestWorld) {
+    let full_path = get_temp_path(world);
+    // Create .git directory to simulate project root
+    let git_dir = full_path.join(".git");
+    if !git_dir.exists() {
+        std::fs::create_dir(&git_dir).expect("Failed to create .git dir");
+    }
+    let developers_md_path = full_path.join("DEVELOPERS.md");
+    let content = std::fs::read_to_string(&developers_md_path).expect("Cannot read DEVELOPERS.md");
+    let validator = SchemaValidator::new();
+    let ctx = SchemaValidator::evaluate_conditions(&full_path);
+    let result = validator.converge_schema_with_context(&content, "developers_md", Some(&ctx));
+    world.converge_result_content = Some(result.content);
+    world.converge_result_changes = Some(result.changes);
+    world.converge_result_warnings = Some(result.warnings);
 }
 
 #[then(expr = "converged content should not contain {string}")]
@@ -480,6 +502,35 @@ fn converged_content_should_not_contain(world: &mut TestWorld, text: String) {
         !content.contains(&text),
         "Expected converged content NOT to contain '{}', but it was found", text
     );
+}
+
+#[then(expr = "converged content should contain {string}")]
+fn converged_content_should_contain(world: &mut TestWorld, text: String) {
+    let content = world.converge_result_content.as_ref().expect("No converge result");
+    assert!(
+        content.contains(&text),
+        "Expected converged content to contain '{}', but it was not found.\nContent:\n{}", text, content
+    );
+}
+
+#[then(expr = "converge changes should contain {string}")]
+fn converge_changes_should_contain(world: &mut TestWorld, text: String) {
+    let changes = world.converge_result_changes.as_ref().expect("No converge result");
+    let found = changes.iter().any(|c| c.contains(&text));
+    assert!(found, "Expected changes to contain '{}', got: {:?}", text, changes);
+}
+
+#[then(expr = "converge warnings should contain {string}")]
+fn converge_warnings_should_contain(world: &mut TestWorld, text: String) {
+    let warnings = world.converge_result_warnings.as_ref().expect("No converge result");
+    let found = warnings.iter().any(|w| w.contains(&text));
+    assert!(found, "Expected warnings to contain '{}', got: {:?}", text, warnings);
+}
+
+#[then("converge should report no changes")]
+fn converge_should_report_no_changes(world: &mut TestWorld) {
+    let changes = world.converge_result_changes.as_ref().expect("No converge result");
+    assert!(changes.is_empty(), "Expected no changes, got: {:?}", changes);
 }
 
 // ============== Code Analyzer Steps ==============

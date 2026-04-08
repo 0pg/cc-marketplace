@@ -103,9 +103,16 @@ For each module that passed build verification:
         [TEST GATE FAILED] {path}: {N} tests failing
         Unmet Constraints: {CONST-IDs}
         Unmet Requirements: {REQ-IDs}
-     c. Rollback module:
-        git checkout -- {tracked module files}
-        git clean -fd -- {new untracked files created by green-coder}
+     c. Determine rollback file list from agent results:
+        - refactor-result.status = "success":
+          rollback_files = refactored_files (from refactor-result)
+          (refactorer may have moved/renamed files; use its output, not green-coder's)
+        - refactor-result.status = "rolled_back" | "skipped" | absent:
+          rollback_files = implemented_files (from green-result)
+        Rollback:
+        - Staged files:    git reset HEAD -- {rollback_files}
+        - Tracked files:   git checkout -- {rollback_files}
+        - New untracked:   git clean -fd -- {files in rollback_files that are untracked}
      d. Module status = "gate_failed", do NOT commit
    - Execution crash/timeout → status = "failed", do NOT commit
 
@@ -125,8 +132,8 @@ generated: {n}
 gate_passed: {n}
 gate_failed: {n}
 gate_details:
-  - path: {path}, status: success, tests: {passed}/{total}
-  - path: {path}, status: gate_failed, tests: {passed}/{total}, unmet: [{IDs}]
+  - path: {path}, gate_status: passed, tests: {passed}/{total}
+  - path: {path}, gate_status: gate_failed, tests: {passed}/{total}, unmet: [{IDs}]
 tests: {passed} passed, {failed} failed
 ---end-dev-result---
 ```

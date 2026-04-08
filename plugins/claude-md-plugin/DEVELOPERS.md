@@ -24,6 +24,13 @@
 - Agents must never modify Requirements, Constraints, or any other section
 - `converge_schema` skips `## Agent Observations` (agent-managed, not auto-added)
 
+### Environment Variables
+| Variable | Description |
+|----------|-------------|
+| `CLI_PATH` | Path to `claude-md-core` binary |
+| `TMP_DIR` | Temp directory for session files (trailing slash required) |
+| `CLAUDE_PLUGIN_ROOT` | Absolute path to plugin root directory |
+
 ### INV-3: CLAUDE.md ↔ DEVELOPERS.md Pairing
 - Every directory with CLAUDE.md must have a corresponding DEVELOPERS.md
 - In `--strict` mode, `validate-schema` reports absence of DEVELOPERS.md as a warning
@@ -73,34 +80,15 @@
 - **Decision**: `DEVELOPERS_AGENT_MANAGED_SECTIONS` list excludes these from converge
 - **Rationale**: Agent-managed sections must only be modified by agents (INV-8)
 
-## Operations
+### schema-rules.yaml Modification Procedure (v11.2.0)
+- **Context**: `schema-rules.yaml` drives build-time codegen (`build.rs`) and all schema validation; changes require a coordinated multi-step update
+- **Decision**: Follow this sequence: (1) Edit `core/schema-rules.yaml` (2) Run `cargo build` to trigger `build.rs` codegen (3) Update affected tests in `core/tests/features/` (4) Run `cargo test --test cucumber`
+- **Rationale**: Out-of-order changes cause compile failures (stale constants) or silent test drift
 
-### Build
-```bash
-cd plugins/claude-md-plugin/core
-cargo build --release
-# Binary: target/release/claude-md-core
-```
-
-### Test
-```bash
-cd plugins/claude-md-plugin/core
-cargo test                    # unit tests
-cargo test --test cucumber    # cucumber scenarios
-```
-
-### Environment Variables
-| Variable | Description |
-|----------|-------------|
-| `CLI_PATH` | Path to `claude-md-core` binary |
-| `TMP_DIR` | Temp directory for session files (trailing slash required) |
-| `CLAUDE_PLUGIN_ROOT` | Absolute path to plugin root directory |
-
-### schema-rules.yaml Modification
-1. Edit `core/schema-rules.yaml`
-2. Run `cargo build` (triggers `build.rs` codegen)
-3. Update affected tests in `core/tests/features/`
-4. Run `cargo test --test cucumber`
+### DEVELOPERS.md Schema v5.0 Reduction (v12.0.0)
+- **Context**: Self Socratic Loop review found Operations and Public API are either not consumed by agents or derivable from code. Technical Context, Constraints, Decision Log, Agent Observations are the only sections with non-derivable, agent-consumed content.
+- **Decision**: Remove Operations and Public API from schema. Migrate env vars to Constraints, modification procedures to Decision Log. structural observation promotion target changed from Operations to Technical Context.
+- **Rationale**: 6→4 section reduction. Operations content absorbed by Constraints (env vars) and Decision Log (procedures). Public API derivable from code via `format-exports` CLI; intended API contracts belong in Constraints.
 
 ## Agent Observations
 

@@ -32,7 +32,7 @@ and generates source code as a derived artifact.
 | Concept | Role | Description |
 |---------|------|-------------|
 | **Primary SSOT** | CLAUDE.md | PM's requirements document (Purpose, Requirements, Domain Context) |
-| **Derived Spec** | DEVELOPERS.md | Developer specification (Constraints, Technical Context, Decision Log, Operations) |
+| **Derived Spec** | DEVELOPERS.md | Developer specification (Constraints, Technical Context, Decision Log) |
 | **Derived Artifact** | Source Code | Code derived from CLAUDE.md |
 
 **On mismatch**: Regenerate the code (CLAUDE.md is the SSOT).
@@ -60,15 +60,15 @@ module/
 | `## Conventions` | Required at project/module root | X | **Present (override)** — Write only what differs from parent |
 | `## Instructions` | **project root only** | X | AI behavior directives (globally applied from project root) |
 
-### DEVELOPERS.md Schema
+### DEVELOPERS.md Schema (v5.0)
 
 | Section | Required | None Allowed | Content |
 |---------|----------|--------------|---------|
 | `## Constraints` | O | O | Precise input/output contracts — convertible to tests |
-| `## Technical Context` | O | O | Technology choices and rationale (libraries, algorithms, patterns) |
+| `## Data Schemas` | X | O | Public type definitions referenced by other modules |
+| `## Technical Context` | O | O | Module-level implementation context (libraries, patterns, mechanisms) |
 | `## Decision Log` | X | O | ADR style: context/decision/rationale |
-| `## Operations` | X | O | Gotchas, deployment, monitoring |
-| `## Public API` | X | O | Externally exported function/type list (cross-module contracts) |
+| `## Flows` | X (project root only) | O | System-level use case execution flows |
 | `## Agent Observations` | X | O | Agent-managed experiential knowledge (agent-writable only, not auto-added by converge) |
 
 #### Agent Observations Entry Format
@@ -86,7 +86,7 @@ Each entry is an H3 with a type tag:
 
 | Type | Description | Survival Rule | Promotion Target |
 |------|-------------|---------------|-----------------|
-| `structural` | Architecture patterns, known risks | Anchor deletion | Operations |
+| `structural` | Architecture patterns, known risks | Anchor deletion | Technical Context |
 | `decision` | Technical choices with rationale | Anchor deletion | Decision Log |
 | `tactical` | Short-lived workarounds | refs=0 + age>30d → auto-remove | (none) |
 | `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |

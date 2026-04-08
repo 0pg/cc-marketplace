@@ -72,18 +72,35 @@ Glob(".claude/tmp/*/dedev-session-*.md", path={project_root_path})
 
 Collect list of files to delete.
 
-### 4. Display Plan + One-time Approval
+### 4. Content Migration Check (Operations / Public API)
+
+For each DEVELOPERS.md where dry-run reports `"removed: ## Operations"` or `"removed: ## Public API"`:
+
+1. Read the section content
+2. If content is "None" or empty → skip (converge handles deletion automatically)
+3. If **non-None content exists** → present migration options via AskUserQuestion:
+   - **(a) Auto-migrate**:
+     - Operations > environment variables / Configuration → append to `## Constraints`
+     - Operations > gotchas / procedures → append to `## Decision Log` (ADR format: Context/Decision/Rationale)
+     - Public API entries → append to `## Constraints` as export contract (e.g., `CONST-N: {symbol} must be publicly exported for {consumer} consumption`)
+   - **(b) Manual**: User migrates content themselves before converge runs
+   - **(c) Delete**: Proceed with converge (content will be lost)
+4. If (a): execute migration via Edit tool before converge
+5. If (b): pause and wait for user to complete manual migration
+
+### 5. Display Plan + One-time Approval
 
 If no changes: "No migration needed" → exit.
 
 If changes exist, display the plan:
 - **Schema conversion**: rename/remove/add details (per file)
+- **Content migration**: migration actions from Step 4 (if any)
 - **File cleanup**: list of legacy files to delete
 - **Conflict warnings**: rename cases where both exist (manual resolution required)
 
 Request one-time approval via AskUserQuestion.
 
-### 5. Execution
+### 6. Execution
 
 ```bash
 # Schema convergence
@@ -94,13 +111,13 @@ $CLI_PATH fix-schema --file "$developers_md" --type developers_md
 git rm "$legacy_file" 2>/dev/null || rm "$legacy_file"
 ```
 
-### 6. Conflict Resolution (if needed)
+### 7. Conflict Resolution (if needed)
 
 For files that had conflict warnings in the dry-run:
 - AskUserQuestion: "Both ## {from} and ## {to} exist. (a) Manual merge (b) Regenerate with /decompile"
 - Process according to user's choice
 
-### 7. Verification
+### 8. Verification
 
 ```bash
 $CLI_PATH validate-schema --file "$claude_md" --strict
@@ -109,7 +126,7 @@ $CLI_PATH validate-convention --project-root {project_root}
 
 If verification fails: suggest "Recommend regenerating with /decompile {path}".
 
-### 8. Result Report
+### 9. Result Report
 
 ```bash
 git diff --stat -- "**/CLAUDE.md" "**/DEVELOPERS.md"

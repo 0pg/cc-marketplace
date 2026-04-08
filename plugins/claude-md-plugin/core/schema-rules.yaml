@@ -5,7 +5,7 @@
 #   - Documentation (references/shared/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "4.2.0"
+version: "5.0.0"
 description: "CLAUDE.md 스키마 검증 규칙 - v4.0 (Primary SSOT — PM 요구사항)"
 
 sections:
@@ -104,16 +104,6 @@ developers_sections:
       - "Context|맥락"
       - "Decision|결정"
       - "Rationale|근거"
-  operations:
-    name: "Operations"
-    required: false
-    allow_none: true
-    description: "배포, 모니터링, 트러블슈팅"
-    subsections:
-      - "Configuration|설정"
-      - "Gotchas"
-      - "Deployment|배포"
-      - "Monitoring|모니터링"
   flows:
     name: "Flows"
     required: false
@@ -150,6 +140,10 @@ migrations:
       document: "developers_md"
   removals:
     - name: "File Map"
+      document: "developers_md"
+    - name: "Operations"
+      document: "developers_md"
+    - name: "Public API"
       document: "developers_md"
 
 none_marker:

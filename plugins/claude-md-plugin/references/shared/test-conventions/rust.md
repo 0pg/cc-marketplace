@@ -43,3 +43,17 @@ module/
 
 - Unit tests: Use `use super::*;` or `use crate::<module>;`
 - Integration tests: Use `use <crate_name>::<module>;`
+
+## Assertion Strength
+
+**STRONG** (pass):
+- `assert_eq!(expected, actual)`, `assert_ne!(a, b)`
+- `#[should_panic(expected = "specific message")]`
+
+**ACCEPTABLE** (pass — when Constraint specifies shape/pattern, not exact value):
+- `matches!(val, Pattern)`, `assert!(result.contains("substr"))`
+- `assert!(matches!(val, Enum::Variant { .. }))`
+
+**WEAK** (reject — must cite specific Constraint and required behavior):
+- `assert!(result.is_some())`, `assert!(result.is_ok())`
+- `assert!(!result.is_empty())`, `assert!(flag)`

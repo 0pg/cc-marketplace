@@ -68,7 +68,7 @@ pub fn format_analysis(analysis: &AnalysisResult) -> String {
 
 /// Formats environment variables as a Configuration table for LLM consumption.
 /// The "(Detected)" prefix signals that this is auto-extracted from source code.
-/// The decompiler agent maps this to Operations > Configuration in DEVELOPERS.md.
+/// The decompiler agent maps this to Constraints (environment variable contracts) in DEVELOPERS.md.
 fn format_env_vars(env_vars: &[String]) -> Option<String> {
     if env_vars.is_empty() {
         return None;

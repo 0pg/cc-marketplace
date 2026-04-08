@@ -64,7 +64,6 @@ $CLI_PATH fix-schema --file {claude_md_path}
 - **Data Schemas**: Auto-extracted from `analyze-code` ExportedType (interface/type/struct/enum) — public type definitions
 - **Technical Context**: Technologies used and their rationale
 - **Decision Log**: Design decisions inferred from the code (optional)
-- **Operations**: Deployment/monitoring related (optional); `### Configuration` auto-extracted from `analyze-code` env_vars
 - **Flows**: Written only in project root DEVELOPERS.md — system-level use case execution flows (optional)
 
 ### Smart Merge (when existing CLAUDE.md exists)

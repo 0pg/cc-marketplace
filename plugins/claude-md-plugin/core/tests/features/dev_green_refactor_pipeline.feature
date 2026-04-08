@@ -16,10 +16,11 @@ Feature: Dev Green-Coder and Refactorer Pipeline
     And green-result status is "success"
     And implemented_files list is not empty
 
-  Scenario: green-coder retries up to 3 times on test failure
+  Scenario: green-coder uses stall-based termination on test failure
     Given green-coder first attempt fails 2 tests
-    When green-coder retries
-    Then green-coder attempts up to 3 times total
+    When green-coder retries and each attempt reduces failures
+    Then green-coder continues until all tests pass or stall detected
+    And stall is detected after 2 consecutive attempts with no improvement
     And final status reflects pass or partial
 
   Scenario: green-coder does not modify test assertions
@@ -34,9 +35,9 @@ Feature: Dev Green-Coder and Refactorer Pipeline
     Then green-coder may fix test import/path errors only
     And assertion logic remains unchanged
 
-  Scenario: green-coder returns partial on max retry failure
-    Given approved tests that cannot all pass in 3 attempts
-    When green-coder exhausts 3 retries
+  Scenario: green-coder returns partial on stall detection
+    Given approved tests where failures stall at 2 remaining
+    When green-coder detects 2 consecutive attempts with no improvement
     Then green-result status is "partial"
     And tests_failed count is greater than 0
 

@@ -208,7 +208,8 @@ loop:
           → break → Step 7.5
 
         STUCK — last round's issue IDs == previous round's issue IDs
-          (identical issues, test-writer cannot resolve):
+          OR (last ⊄ prev AND |last| ≤ |prev|)
+          (identical or oscillating issues, test-writer cannot converge):
           → HALT module
           → "[TEST LOOP STUCK] {path}: unresolvable after {max_safety} rounds
              Stuck on: {issue IDs and summaries}
@@ -282,6 +283,7 @@ loop:
                not merely existence/type/truthiness."
 
       - exit == 0 AND SOME pass:
+        → WARN: "[RED PARTIAL] {path}: {N}/{total} tests already pass — existing coverage"
         → record as existing implementation coverage, proceed to Step 8
 ```
 
@@ -400,13 +402,14 @@ For each module (target path + mapping.json):
 
 3. Cross-module verification:
    After all per-module gates, if multiple modules passed individually:
-   - Collect test files: union of test_files from each passing module's mapping.json
-   - Run full test suite:
+   - Skip if language uses workspace-wide test runner (Rust `cargo test`, Go `go test ./...`)
+     — per-module gate already executed the full workspace; re-running is redundant
+   - For file-targeted runners (TypeScript, Python):
+     Collect test files: union of test_files from each passing module's mapping.json
+     Run full test suite:
      | Language   | Command                                                    |
      | TypeScript | npx jest {all collected test_files} 2>&1                  |
-     | Rust       | cargo test 2>&1  (runs workspace-wide automatically)       |
      | Python     | python -m pytest {all collected test_files} -v 2>&1       |
-     | Go         | go test ./... -v 2>&1                                     |
    - If cross-module failures detected:
      → identify interfering modules from failure output
      → mark affected modules as gate_failed

@@ -22,8 +22,7 @@ This template defines the standard structure for CLAUDE.md files.
 │     → Purpose, Requirements, Domain Context                │
 │                                                             │
 │   DEVELOPERS.md (Derived Spec, on-demand)                  │
-│     → Constraints, Technical Context, Decision Log,        │
-│       Operations                                           │
+│     → Constraints, Technical Context, Decision Log         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
