@@ -207,32 +207,37 @@ User: /dev [--all] [--conflict skip|overwrite] [--dry-run] [--validate]
 │ 1. Determine targets (--all or incremental) │
 │ 2. Language detection + Spec Changes analysis│
 │ 3. [DELETE] tasks executed directly by SKILL │
-│ 4. Test Writing Loop (per target):          │
-│    Task(test-writer) → Task(test-reviewer)  │
-│    → feedback loop (max 5)                  │
-│ 5. TMP → target copy + Verify RED           │
-│ 6. Task(green-coder) per target             │
-│ 7. Task(refactorer) per target              │
-│ 8. Build verify + git diff + dev commit     │
+│ 4. Task(tdd-coder) per target               │
+│ 5. SKILL test verify (agent result check)   │
+│ 6. Task(test-reviewer) post-TDD verify      │
+│    → reject: Task(tdd-coder revise) (max 3) │
+│ 7. Task(refactorer) per target (conditional) │
+│ 8. SKILL test verify (refactorer check)     │
+│ 9. Cross-module gate + Build + Commit       │
 └─────────────────────────────────────────────┘
         │
         ▼
-┌───────────────────────┐  ┌──────────────────────┐
-│ test-writer AGENT     │  │ test-reviewer AGENT   │
-│                       │  │                       │
-│ Constraints → tests   │◄►│ 5-criteria validation │
-│ Requirements → accept │  │ verdict: approved     │
-│ Generate mapping.json │  │         | rejected    │
-└───────────────────────┘  └──────────────────────┘
-        │ approved
+┌─────────────────────────────────────────────┐
+│ tdd-coder AGENT                             │
+│ ⚡ Skill("superpowers:tdd")                 │
+│                                             │
+│ Per-Constraint Red-Green-Refactor cycle:    │
+│   RED: Write test → verify FAIL             │
+│   GREEN: Minimal impl → verify PASS         │
+│   REFACTOR: Clean up → still green          │
+│ Generate mapping.json                       │
+└─────────────────────────────────────────────┘
+        │
         ▼
-┌───────────────────────┐  ┌──────────────────────┐
-│ green-coder AGENT     │  │ refactorer AGENT      │
-│                       │  │                       │
-│ Based on approved     │─►│ Apply Conventions     │
-│ tests, minimal impl   │  │ Rollback on regress   │
-│ (max 3)               │  │                       │
-└───────────────────────┘  └──────────────────────┘
+┌──────────────────────┐  ┌──────────────────────┐
+│ test-reviewer AGENT  │  │ refactorer AGENT      │
+│ (post-TDD verify)    │  │                       │
+│                      │  │ Apply Conventions     │
+│ 5-criteria review    │  │ Rollback on regress   │
+│ tests + impl code    │  │                       │
+│ verdict: approved    │  │                       │
+│         | rejected   │  │                       │
+└──────────────────────┘  └──────────────────────┘
 ```
 
 #### /validate (Document-Code Consistency Check)
@@ -307,9 +312,8 @@ User: /decompile [path]
 | `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) | — |
 | `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
 | `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
-| `test-writer` | (none) | RED — Spec → tests + Constraint↔Test mapping | read-write |
-| `test-reviewer` | (none) | Test traceability verification against spec | read-only |
-| `green-coder` | (none) | GREEN — Minimal implementation to pass approved tests | read-write |
+| `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation | read-write |
+| `test-reviewer` | (none) | Post-TDD verification: tests + impl traceability, boundary, assertion, honesty | read-only |
 | `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
@@ -333,7 +337,7 @@ User: /decompile [path]
 | Skill | Role |
 |-------|------|
 | `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization before decompose. |
-| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Inline TDD from Constraints) |
+| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review) |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
 | `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer |
@@ -453,8 +457,8 @@ claude-md composes superpowers domain components to create the "document-driven 
 | Layer | Owner | Tools |
 |-------|-------|-------|
 | Spec definition, validation, tracking | claude-md | /spec, /validate, /decompile |
-| Batch code regeneration | claude-md | /dev (batch) |
-| Incremental code writing | superpowers | TDD (based on CLAUDE.md/DEVELOPERS.md) |
+| TDD code generation | claude-md | /dev (per-Constraint R-G-R via tdd-coder) |
+| TDD process discipline | superpowers | test-driven-development (composed by tdd-coder) |
 | Process discipline | superpowers | brainstorming, plans, debugging, verification |
 
 ### 3-Layer Composition Structure
@@ -471,9 +475,8 @@ claude-md composes superpowers domain components to create the "document-driven 
 |-------|----------------------|-------------------|
 | impl | brainstorming | Load brainstorming before requirements exploration/design |
 | impl-reviewer | (none) | Socratic review of spec plan.md, return verdict |
-| test-writer | (none) | Generate tests + mapping directly from spec |
-| test-reviewer | (none) | Traceability verification, return verdict |
-| green-coder | (none) | Implementation based on approved tests |
+| tdd-coder | test-driven-development | Per-Constraint R-G-R cycle with TDD iron law |
+| test-reviewer | (none) | Post-TDD traceability + honesty verification, return verdict |
 | refactorer | (none) | Apply Conventions + regression protection |
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |

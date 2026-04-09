@@ -1,10 +1,15 @@
 # Dev Templates
 
-## Dev Session File Format
+## TDD Session File Format
+
+### mode=write
 
 ````markdown
-# Dev Task: {path}
-type: dev | target: {path} | language: {lang} | conflict: {mode}
+# TDD Session
+type: tdd | mode: write | target: {path} | language: {lang} | conflict: {mode}
+dir_safe: {dir-safe}
+mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
+test_convention: ${CLAUDE_PLUGIN_ROOT}/references/shared/test-conventions/{lang}.md
 
 ## Origin
 claude_md: {path}/CLAUDE.md
@@ -35,6 +40,9 @@ agent_observations: {path}/DEVELOPERS.md#Agent Observations
 - [MODIFY] CONST-N: {change details}
 - [DELETE] CONST-N: {deletion target}
 
+## Existing Test Directory (incremental mode, only when existing tests present)
+existing_test_dir: {path}/{detected_test_dir}/
+
 ## Spec Changes (optional — included only when spec commits found)
 breaking: {true|false}
 
@@ -57,54 +65,15 @@ breaking: {true|false}
 - /validate --strict {path}
 ````
 
-## Test Writer Session File Format
-
-### mode=write
-
-````markdown
-# Test Writer Session
-type: test-writer | mode: write | target: {path} | language: {lang}
-test_dir: ${TMP_DIR}tests/{dir-safe}/
-mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
-
-## Origin
-claude_md: {path}/CLAUDE.md
-developers_md: {path}/DEVELOPERS.md
-
-## Requirements (from CLAUDE.md)
-{full Requirements section}
-
-## Constraints (from DEVELOPERS.md)
-{full Constraints section}
-
-## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas section}
-
-## Technical Context
-{Technical Context}
-
-## Conventions (resolved)
-{hierarchy-resolved Conventions}
-
-## Implementation Tasks (only when Spec Changes present)
-- [ADD] CONST-N: {description}
-- [MODIFY] CONST-N: {change details}
-
-## Existing Test Directory (incremental mode, only when existing tests present)
-existing_test_dir: {path}/{detected_test_dir}/
-
-## Dependencies
-{dev-context or exploration results}
-````
-
 ### mode=revise
 
 ````markdown
-# Test Writer Session
-type: test-writer | mode: revise | round: {N} | target: {path} | language: {lang}
-test_dir: ${TMP_DIR}tests/{dir-safe}/
+# TDD Session
+type: tdd | mode: revise | round: {N} | target: {path} | language: {lang} | conflict: {mode}
+dir_safe: {dir-safe}
 mapping_output: ${TMP_DIR}test-mapping-{dir-safe}.json
-feedback_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{N-1}.md
+test_convention: ${CLAUDE_PLUGIN_ROOT}/references/shared/test-conventions/{lang}.md
+feedback_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{N}.md
 
 ## Origin
 claude_md: {path}/CLAUDE.md
@@ -125,58 +94,23 @@ developers_md: {path}/DEVELOPERS.md
 ## Conventions (resolved)
 {hierarchy-resolved Conventions}
 
-## Implementation Tasks (only when Spec Changes present)
-- [ADD] CONST-N: {description}
-- [MODIFY] CONST-N: {change details}
+## Dependencies
+{dev-context or exploration results}
 
 ## Existing Test Directory (incremental mode, only when existing tests present)
 existing_test_dir: {path}/{detected_test_dir}/
-
-## Dependencies
-{dev-context or exploration results}
 ````
 
 ## Test Reviewer Session File Format
 
 ````markdown
 # Test Review Session
-type: test-review | round: {N} | language: {lang}
+type: test-review | round: {N} | language: {lang} | target: {path}
 dir_safe: {dir-safe}
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
-test_dir: ${TMP_DIR}tests/{dir-safe}/
-spec_session_file: ${TMP_DIR}dev-session-{dir-safe}.md
-````
-
-## Green Coder Session File Format
-
-````markdown
-# Green Coder Session
-type: green | target: {path} | language: {lang} | conflict: {mode}
-
-## Origin
-claude_md: {path}/CLAUDE.md
-developers_md: {path}/DEVELOPERS.md
-
-## Requirements (from CLAUDE.md)
-{Requirements}
-
-## Constraints (from DEVELOPERS.md)
-{Constraints}
-
-## Technical Context
-{Technical Context}
-
-## Data Schemas (from DEVELOPERS.md, reference only)
-{Data Schemas section — for type reference}
-
-## Approved Tests
-mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
-
-## Implementation Tasks (only when Spec Changes present)
-{[ADD]/[MODIFY] tasks only — DELETE already handled by SKILL}
-
-## Dependencies
-{dependencies}
+spec_session_file: ${TMP_DIR}tdd-session-{dir-safe}.md
+implemented_files: [{file list from tdd-result}]
+test_files: [{file list from tdd-result}]
 ````
 
 ## Refactorer Session File Format
@@ -192,7 +126,7 @@ type: refactor | target: {path} | language: {lang}
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
 ## Implementation Files
-{file list extracted from green-coder result}
+{file list from tdd-result or latest revise result}
 ````
 
 ## Mapping JSON Format
@@ -222,18 +156,20 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 
 ## Result Formats
 
-### test-writer-result
+### tdd-result
 
 ```
----test-writer-result---
-result_file: ${TMP_DIR}test-writer-result-{dir-safe}.json
-status: success | partial
-test_dir: ${TMP_DIR}tests/{dir-safe}/
+---tdd-result---
+result_file: ${TMP_DIR}tdd-result-{dir-safe}.json
+status: success | partial | failed
+implemented_files: [...]
+test_files: [...]
 mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
-tests_generated: N
+tests_passed: N
+tests_failed: N
 unmapped_constraints: N
 unmapped_requirements: N
----end-test-writer-result---
+---end-tdd-result---
 ```
 
 ### test-reviewer-result
@@ -244,18 +180,6 @@ result_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md
 verdict: approved | rejected
 round: {N}
 ---end-test-reviewer-result---
-```
-
-### green-result
-
-```
----green-result---
-result_file: ${TMP_DIR}green-result-{dir-safe}.json
-status: success | partial | failed
-implemented_files: [...]
-tests_passed: N
-tests_failed: N
----end-green-result---
 ```
 
 ### refactor-result
@@ -275,9 +199,8 @@ tests_failed: N
 | Situation | Response |
 |-----------|----------|
 | Session file parsing failure | Agent returns failure |
-| test-writer unmapped > 0 | Return partial status |
-| test-reviewer max_safety reached | Best-effort proceed, warn |
-| Verify RED compilation failure | Delegate to green-coder (import fix allowed) |
-| GREEN 3 failures | Return partial status |
+| tdd-coder unmapped > 0 | Return partial status |
+| test-reviewer max_rounds reached | Best-effort proceed, warn |
+| GREEN 3 failures per constraint | Mark constraint as partial, continue |
 | REFACTOR regression failure | Rollback, return rolled_back status |
 | File write failure | Skip that file |
