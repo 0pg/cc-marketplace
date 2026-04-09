@@ -138,14 +138,14 @@ Each entry is an H3 with a type tag and required metadata:
 - anchor: REQ-2
 - since: 2026-03-15
 - refs: 3
-- source: /dev green-coder
+- source: /dev tdd-coder
 - auth → utils → auth cycle. Resolved with type-only import.
 
 ### [decision] SQLite test fixture
 - anchor: CONST-3
 - since: 2026-03-18
 - refs: 1
-- source: /dev test-writer
+- source: /dev tdd-coder
 - Using SQLite in-memory instead of real DB. User approved.
 ```
 
