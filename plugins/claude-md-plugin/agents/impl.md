@@ -65,7 +65,7 @@ Read the session file and generate CLAUDE.md + DEVELOPERS.md.
 ## Temporary Directory
 
 ```bash
-TMP_DIR=".claude/tmp/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 ```
 
 ## CLI Path
