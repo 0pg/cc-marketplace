@@ -2,12 +2,12 @@
 name: refactorer
 description: |
   Use this agent when applying coding conventions to implemented code (REFACTOR phase).
-  Receives production code from green-coder and applies Conventions while ensuring regression tests pass.
+  Receives production code from tdd-coder and applies Conventions while ensuring regression tests pass.
   NEVER modifies test assertions. Rolls back on regression failure.
 
   <example>
   <context>
-  The dev skill calls refactorer after green-coder completes.
+  The dev skill calls refactorer after tdd-coder and test-reviewer complete.
   </context>
   <user_request>
   Session file: ${TMP_DIR}refactor-session-src-auth.md

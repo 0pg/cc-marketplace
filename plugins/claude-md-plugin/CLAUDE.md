@@ -522,7 +522,7 @@ claude-md-plugin/
 ### Naming Conventions
 
 - Rust source files: `snake_case.rs`
-- Skill, agent, and command files: `kebab-case.md` (e.g., `test-writer.md`, `validate.md`)
+- Skill, agent, and command files: `kebab-case.md` (e.g., `tdd-coder.md`, `validate.md`)
 - Cucumber feature files: `snake_case.feature`
 - CLI subcommand names: `kebab-case` (e.g., `validate-schema`, `parse-tree`)
 - Directories under `core/src/`: `snake_case/` for sub-modules

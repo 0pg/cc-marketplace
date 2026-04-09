@@ -50,7 +50,7 @@ This plugin composes [superpowers](../superpowers) components for process discip
 |-------|----------------------|
 | impl | `superpowers:brainstorming` |
 | validator | `superpowers:verification-before-completion` |
-| test-writer, green-coder, refactorer | `superpowers:test-driven-development` |
+| tdd-coder | `superpowers:test-driven-development` |
 
 Install the superpowers plugin before using `/spec` or `/dev`.
 
@@ -117,7 +117,7 @@ Analyzes requirements and generates CLAUDE.md (Purpose, Requirements, Domain Con
 
 ### `/dev` — CLAUDE.md → Source Code
 
-Generates source code via Inline TDD (tests from DEVELOPERS.md Constraints, then implements).
+Generates source code via per-Constraint Red-Green-Refactor TDD cycles (from DEVELOPERS.md Constraints).
 
 ```bash
 /dev                          # Changed CLAUDE.md/DEVELOPERS.md files
@@ -239,9 +239,8 @@ SKILL (Entry Point)
 |-------|------------------------|------|
 | `decompose` | (none) | Large spec → module decomposition plan (scope determination + path + req distribution) |
 | `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
-| `test-writer` | (none) | RED — spec → tests + Constraint↔Test mapping |
-| `test-reviewer` | (none) | Spec-test traceability verification |
-| `green-coder` | (none) | GREEN — minimal implementation to pass approved tests |
+| `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation |
+| `test-reviewer` | (none) | Post-TDD verification: traceability, boundary, assertion, honesty |
 | `refactorer` | (none) | REFACTOR — conventions application + regression tests |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
