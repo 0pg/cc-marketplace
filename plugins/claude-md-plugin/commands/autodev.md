@@ -68,16 +68,27 @@ mkdir -p "$TMP_DIR"
 Skill("claude-md-plugin:spec", args: "{requirement} --path {impl_path} {--no-ask if no_ask}")
 ```
 
-spec internally runs: Self Socratic Loop → decompose → Socratic Loop → execute.
+spec internally runs: Self Socratic Loop → Socratic Loop → execute.
 
 Check spec-result:
-- `status: success` → proceed to Step 4
+- `status: success` → proceed to Step 3.5
 - `status: failed | cancelled_by_user` → exit with error report
+
+### Step 3.5: Extract spec target
+
+Parse spec-result block from Step 3:
+```
+spec_target = dirname(claude_md_file)
+If spec_target is empty → spec_target = "."
+```
+
+Example: `claude_md_file: src/auth/CLAUDE.md` → `spec_target = "src/auth"`
+Example: `claude_md_file: CLAUDE.md` → `spec_target = "."`
 
 ### Step 4: Dev
 
 ```
-Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path}")
+Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path} --targets {spec_target}")
 ```
 
 Check dev-result:

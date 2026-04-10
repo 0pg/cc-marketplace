@@ -5,7 +5,7 @@ Feature: Socratic Feedback Loop for spec Skill
 
   Background:
     Given spec SKILL is invoked with a requirement
-    And decompose agent returns scope: single
+    And spec SKILL proceeds to plan mode
 
   Scenario: Reviewer approves plan on first round
     Given impl agent produces plan.md with complete Requirements and typed Constraints
@@ -34,9 +34,3 @@ Feature: Socratic Feedback Loop for spec Skill
     Given Socratic loop runs for 3 rounds
     Then SKILL session files contain only file paths, not plan content
     And each round adds only result block (verdict line) to SKILL context
-
-  Scenario: Parallel mode disables AskUserQuestion in plan mode
-    Given spec SKILL is invoked with scope: multi
-    When impl agent runs in mode=plan with parallel: true
-    Then impl agent does not call AskUserQuestion
-    And ambiguous items are recorded as warnings in plan.md

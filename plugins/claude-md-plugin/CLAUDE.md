@@ -148,50 +148,35 @@ User: /spec "requirements"
 │    Task(requirement-explorer) →             │
 │    Task(requirement-reviewer) →             │
 │    approved | last-resort AskUserQuestion   │
-│ 3. Create decompose session file            │
-│ 4. Task(decompose agent) → Decompose plan   │
-│ 5. Scope branching:                         │
-│    single → 1 Task(impl agent)              │
-│    multi  → Approve → Task(impl agent) × N  │
-│             root-first, max 3 parallel       │
-│ 6. Show git diff                            │
+│ 3. Spec execution:                          │
+│    3a. Task(impl, mode=plan) → plan.md      │
+│    3b. Socratic Loop:                       │
+│        Task(impl-reviewer) → verdict        │
+│        reject → Task(impl, mode=revise)     │
+│    3c. Task(impl, mode=execute)             │
+│        → CLAUDE.md + DEVELOPERS.md          │
+│    3d. Auto-commit                          │
+│ 4. Show git diff                            │
 └─────────────────────────────────────────────┘
-        │
-        ├─ scope=single ──────────────────────┐
-        │                                     ▼
-        │                    ┌─────────────────────────────────────┐
-        │                    │ decompose AGENT                     │
-        │                    │                                     │
-        │                    │ 1. Scope Classification             │
-        │                    │    single → Early termination       │
-        │                    │    multi  → Execute Phase 2-4       │
-        │                    │ 2. Module Identification             │
-        │                    │ 3. Requirement Distribution         │
-        │                    │ 4. Tree Validation (INV-1)          │
-        │                    │ 5. Save decompose-result.json       │
-        │                    └─────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl AGENT (single mode)                    │
+│ impl AGENT                                  │
 │ ⚡ Skill("superpowers:brainstorming")       │
 │                                             │
-│ 1. Extract requirements + completeness eval │
-│ 2. Dependency exploration (inline, index)   │
-│ 3. AskUserQuestion → Clarify (max 2 times) │
-│ 4. Generate CLAUDE.md + DEVELOPERS.md       │
-│ 5. validate-schema verification             │
-│ 6. Plan Preview → User approval             │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│ impl AGENT (parallel mode, scope=multi)     │
-│ (brainstorming skipped)                     │
+│ mode=plan:                                  │
+│   1. Extract requirements + completeness    │
+│   2. Dependency exploration (inline, index) │
+│   3. AskUserQuestion → Clarify (max 2)     │
+│   4. Write plan.md (Requirements+Constraints)│
 │                                             │
-│ 1. Check target_path from session file      │
-│ 2. Generate CLAUDE.md + DEVELOPERS.md       │
-│ 3. validate-schema verification             │
-│ AskUserQuestion prohibited — best-effort    │
+│ mode=revise:                                │
+│   Address reviewer Critical Questions       │
+│   Update plan.md                            │
+│                                             │
+│ mode=execute:                               │
+│   Generate CLAUDE.md + DEVELOPERS.md        │
+│   from approved plan.md                     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -309,8 +294,7 @@ User: /decompile [path]
 
 | Agent | Superpowers Composition | Role | Observations |
 |-------|------------------------|------|--------------|
-| `decompose` | (none) | Large-scale spec → module decomposition plan (scope judgment + path + req distribution) | — |
-| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
+| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
 | `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
 | `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation | read-write |
 | `test-reviewer` | (none) | Post-TDD verification: tests + impl traceability, boundary, assertion, honesty | read-only |
@@ -336,7 +320,7 @@ User: /decompile [path]
 
 | Skill | Role |
 |-------|------|
-| `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization before decompose. |
+| `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization, then plan → review → execute. |
 | `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review) |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |

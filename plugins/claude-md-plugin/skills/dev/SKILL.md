@@ -30,6 +30,7 @@ Generates source code based on CLAUDE.md via TDD Red-Green-Refactor cycles.
 | `--conflict` | No | `skip` | File conflict handling: `skip` \| `overwrite` |
 | `--dry-run` | No | false | Display targets only without generating actual files |
 | `--validate` | No | false | Automatically run /validate after compilation |
+| `--targets` | No | - | Explicit target list (comma-separated, `"."` for root). Skips diff-compile-targets. |
 
 ## Workflow
 
@@ -42,6 +43,13 @@ mkdir -p "$TMP_DIR"
 ```
 
 ### 1. Determine dev targets
+
+**`--targets` mode (explicit):**
+```
+Parse comma-separated paths from --targets argument.
+For each path, create target entry with reason: "explicit".
+"." is treated as root (dir: ".", claude_md_path: "CLAUDE.md").
+```
 
 **`--all` mode:**
 ```
@@ -100,6 +108,9 @@ For each target, create a tdd-session file:
         ${LAST_DEV:+--since-commit "$LAST_DEV"} \
         --output "${TMP_DIR}node-history-${dir_safe}.json"
       ```
+   For root target (path = "."):
+   - `--grep "^spec(.):"` matches root spec commits
+   - `--path .` scans root-level files
    If `has_history` is false: do not include Spec Changes section.
 1. Read target CLAUDE.md → extract Requirements, Domain Context
 2. Read target DEVELOPERS.md → extract Constraints, Technical Context, Data Schemas

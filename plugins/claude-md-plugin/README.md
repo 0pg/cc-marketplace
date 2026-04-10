@@ -237,8 +237,7 @@ SKILL (Entry Point)
 
 | Agent | Superpowers Composition | Role |
 |-------|------------------------|------|
-| `decompose` | (none) | Large spec → module decomposition plan (scope determination + path + req distribution) |
-| `impl` | brainstorming (single mode only) | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
+| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
 | `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation |
 | `test-reviewer` | (none) | Post-TDD verification: traceability, boundary, assertion, honesty |
 | `refactorer` | (none) | REFACTOR — conventions application + regression tests |

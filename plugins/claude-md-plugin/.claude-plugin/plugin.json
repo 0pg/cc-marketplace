@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "13.0.0",
+  "version": "14.0.0",
   "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
   "author": {
     "name": "jhk"
@@ -25,7 +25,6 @@
   "agents": [
     "./agents/requirement-explorer.md",
     "./agents/requirement-reviewer.md",
-    "./agents/decompose.md",
     "./agents/impl.md",
     "./agents/impl-reviewer.md",
     "./agents/tdd-coder.md",
