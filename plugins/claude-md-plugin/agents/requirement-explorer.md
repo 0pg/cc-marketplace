@@ -3,13 +3,13 @@ name: requirement-explorer
 description: |
   Use this agent when concretizing vague requirements through project domain context exploration.
   Reads project code, CLAUDE.md files, DEVELOPERS.md, git history, and configuration to
-  resolve ambiguities autonomously. Only used within the Self Socratic Loop before decompose.
+  resolve ambiguities autonomously. Only used within the Self Socratic Loop before spec execution.
   Returns concretized requirements as a file to protect SKILL context window.
 
   <example>
   <context>
   The spec skill calls requirement-explorer to concretize vague requirements
-  before decompose/impl.
+  before spec execution.
   </context>
   <user_request>
   Session file: ${TMP_DIR}explore-session-1.md
