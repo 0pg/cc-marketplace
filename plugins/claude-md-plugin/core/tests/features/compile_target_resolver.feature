@@ -10,43 +10,43 @@ Feature: Dev Target Resolution (Incremental Diff)
   Scenario: Staged CLAUDE.md is a dev target
     Given a spec file "src/auth/CLAUDE.md" with basic content
     And I stage "src/auth/CLAUDE.md"
-    When I resolve dev targets
-    Then "src/auth" should be a dev target with reason "staged"
+    When I resolve compile targets
+    Then "src/auth" should be a compile target with reason "staged"
 
   Scenario: Staged DEVELOPERS.md triggers compile
     Given a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/handler.ts" after the spec
     And a spec file "src/auth/DEVELOPERS.md" with basic content
     And I stage "src/auth/DEVELOPERS.md"
-    When I resolve dev targets
-    Then "src/auth" should be a dev target with reason "staged"
+    When I resolve compile targets
+    Then "src/auth" should be a compile target with reason "staged"
 
   Scenario: Untracked CLAUDE.md is a dev target
     Given an untracked spec file "src/utils/CLAUDE.md" with basic content
-    When I resolve dev targets
-    Then "src/utils" should be a dev target with reason "untracked"
+    When I resolve compile targets
+    Then "src/utils" should be a compile target with reason "untracked"
 
   Scenario: Spec commit newer than source — target (spec-newer)
     Given a committed spec file "src/api/CLAUDE.md"
     And a committed source file "src/api/handler.ts" before the spec
-    When I resolve dev targets
-    Then "src/api" should be a dev target with reason "spec-newer"
+    When I resolve compile targets
+    Then "src/api" should be a compile target with reason "spec-newer"
 
   Scenario: Source commit newer than spec — skipped (up-to-date)
     Given a committed spec file "src/core/CLAUDE.md"
     And a committed source file "src/core/index.ts" after the spec
-    When I resolve dev targets
+    When I resolve compile targets
     Then "src/core" should be skipped with reason "up-to-date"
 
   Scenario: CLAUDE.md with no source files — target (no-source-code)
     Given a committed spec file "src/new/CLAUDE.md"
     And no source files in "src/new"
-    When I resolve dev targets
-    Then "src/new" should be a dev target with reason "no-source-code"
+    When I resolve compile targets
+    Then "src/new" should be a compile target with reason "no-source-code"
 
   Scenario: Non-git directory — warning and empty targets
     Given a non-git test directory
-    When I resolve dev targets in the non-git directory
+    When I resolve compile targets in the non-git directory
     Then I should get a warning of type "no-git-repo"
     And the targets should be empty
 
@@ -57,31 +57,51 @@ Feature: Dev Target Resolution (Incremental Diff)
     And a committed source file "src/mod-b/service.ts" before the spec
     And a spec file "src/mod-c/CLAUDE.md" with basic content
     And I stage "src/mod-c/CLAUDE.md"
-    When I resolve dev targets
+    When I resolve compile targets
     Then "src/mod-a" should be skipped with reason "up-to-date"
-    And "src/mod-b" should be a dev target with reason "spec-newer"
-    And "src/mod-c" should be a dev target with reason "staged"
+    And "src/mod-b" should be a compile target with reason "spec-newer"
+    And "src/mod-c" should be a compile target with reason "staged"
 
   Scenario: Modified (unstaged) CLAUDE.md is a dev target
     Given a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/handler.ts" after the spec
     And I modify "src/auth/CLAUDE.md" without staging
-    When I resolve dev targets
-    Then "src/auth" should be a dev target with reason "modified"
+    When I resolve compile targets
+    Then "src/auth" should be a compile target with reason "modified"
 
-  Scenario: Root-level CLAUDE.md is excluded
+  Scenario: Root CLAUDE.md without DEVELOPERS.md is excluded
     Given a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/token.ts" before the spec
     And a committed root-level CLAUDE.md
-    When I resolve dev targets
-    Then root CLAUDE.md should not be a dev target
-    And "src/auth" should be a dev target with reason "spec-newer"
+    When I resolve compile targets
+    Then root CLAUDE.md should not be a compile target
+    And "src/auth" should be a compile target with reason "spec-newer"
 
   Scenario: Multiple modules with different compile states
     Given a committed spec file "core/domain/CLAUDE.md"
     And a committed source file "core/domain/model.ts" before the spec
     And a committed spec file "src/auth/CLAUDE.md"
     And a committed source file "src/auth/token.ts" after the spec
-    When I resolve dev targets
-    Then "core/domain" should be a dev target with reason "spec-newer"
+    When I resolve compile targets
+    Then "core/domain" should be a compile target with reason "spec-newer"
     And "src/auth" should be skipped with reason "up-to-date"
+
+  Scenario: Root with DEVELOPERS.md is a compile target (no-source-code)
+    Given a committed root-level CLAUDE.md
+    And a committed root-level DEVELOPERS.md
+    When I resolve compile targets
+    Then "." should be a compile target with reason "no-source-code"
+
+  Scenario: Root with DEVELOPERS.md and source files — spec-newer
+    Given a committed root-level CLAUDE.md
+    And a committed root-level DEVELOPERS.md
+    And a committed source file "main.rs" before the spec
+    When I resolve compile targets
+    Then "." should be a compile target with reason "spec-newer"
+
+  Scenario: Root with DEVELOPERS.md and newer source — up-to-date
+    Given a committed root-level CLAUDE.md
+    And a committed root-level DEVELOPERS.md
+    And a committed source file "main.rs" after the spec
+    When I resolve compile targets
+    Then "." should be skipped with reason "up-to-date"

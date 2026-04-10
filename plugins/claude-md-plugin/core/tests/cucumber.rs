@@ -1837,6 +1837,22 @@ fn create_committed_root_claude_md(world: &mut TestWorld) {
         .output().expect("git commit root CLAUDE.md failed");
 }
 
+#[given("a committed root-level DEVELOPERS.md")]
+fn create_committed_root_developers_md(world: &mut TestWorld) {
+    use std::process::Command;
+    let root = get_temp_path(world);
+    let path = root.join("DEVELOPERS.md");
+    let mut f = File::create(&path).expect("create DEVELOPERS.md failed");
+    write!(f, "# DEVELOPERS\n\n## Constraints\n- CONST-1: main() -> Result<()>\n\n## Technical Context\nNone\n").expect("write failed");
+    git_add(&root, "DEVELOPERS.md");
+    Command::new("git")
+        .args(["commit", "-m", "add root DEVELOPERS.md"])
+        .env("GIT_COMMITTER_DATE", "2024-06-01T00:00:00+00:00")
+        .env("GIT_AUTHOR_DATE", "2024-06-01T00:00:00+00:00")
+        .current_dir(&root)
+        .output().expect("git commit root DEVELOPERS.md failed");
+}
+
 #[given(expr = "a committed spec file {string} depending on {string}")]
 fn create_committed_spec_with_dep(world: &mut TestWorld, path: String, dep: String) {
     use std::process::Command;
@@ -1927,7 +1943,7 @@ fn targets_should_be_empty(world: &mut TestWorld) {
 #[then("root CLAUDE.md should not be a compile target")]
 fn root_claude_md_not_target(world: &mut TestWorld) {
     let result = world.diff_result.as_ref().expect("No diff result");
-    let found = result.targets.iter().any(|t| t.dir.is_empty() || t.claude_md_path == "CLAUDE.md");
+    let found = result.targets.iter().any(|t| t.dir == "." || t.dir.is_empty() || t.claude_md_path == "CLAUDE.md");
     assert!(!found,
         "Root CLAUDE.md should not be a target, but found: {:?}",
         result.targets.iter().map(|t| &t.dir).collect::<Vec<_>>(),
