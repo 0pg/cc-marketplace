@@ -82,6 +82,12 @@ pub struct DependencyWarning {
     pub message: String,
 }
 
+/// Normalize directory path for output: empty PathBuf (root) becomes "."
+fn normalize_dir(dir: &Path) -> String {
+    let s = dir.to_string_lossy().to_string();
+    if s.is_empty() { ".".to_string() } else { s }
+}
+
 pub struct CompileTargetResolver {
     source_extensions: HashSet<String>,
     excluded_dirs: HashSet<String>,
@@ -133,11 +139,11 @@ impl CompileTargetResolver {
 
         // 4. Evaluate each directory
         for dir in &all_claude_md_dirs {
-            let dir_str = dir.to_string_lossy().to_string();
+            let dir_str = normalize_dir(dir);
 
             if staged_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
-                    claude_md_path: format!("{}/CLAUDE.md", dir_str),
+                    claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
 
                     dir: dir_str,
                     reason: TargetReason::Staged,
@@ -145,7 +151,7 @@ impl CompileTargetResolver {
                 });
             } else if modified_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
-                    claude_md_path: format!("{}/CLAUDE.md", dir_str),
+                    claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
 
                     dir: dir_str,
                     reason: TargetReason::Modified,
@@ -153,7 +159,7 @@ impl CompileTargetResolver {
                 });
             } else if untracked_spec_dirs.contains(&dir_str) {
                 targets.push(CompileTarget {
-                    claude_md_path: format!("{}/CLAUDE.md", dir_str),
+                    claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
 
                     dir: dir_str,
                     reason: TargetReason::Untracked,
@@ -170,8 +176,8 @@ impl CompileTargetResolver {
                 match (spec_ts, source_ts) {
                     (Some(_), None) if source_files.is_empty() => {
                         targets.push(CompileTarget {
-                            claude_md_path: format!("{}/CLAUDE.md", dir_str),
-        
+                            claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
+
                             dir: dir_str,
                             reason: TargetReason::NoSourceCode,
                             details: "No source code files found (first compile)".to_string(),
@@ -180,8 +186,8 @@ impl CompileTargetResolver {
                     (Some(s), None) => {
                         // Source files exist but none committed yet
                         targets.push(CompileTarget {
-                            claude_md_path: format!("{}/CLAUDE.md", dir_str),
-        
+                            claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
+
                             dir: dir_str,
                             reason: TargetReason::SpecNewer,
                             details: format!("Spec committed at {}, source not yet committed", s),
@@ -205,7 +211,7 @@ impl CompileTargetResolver {
                         }
 
                         targets.push(CompileTarget {
-                            claude_md_path: format!("{}/CLAUDE.md", dir_str),
+                            claude_md_path: if dir_str == "." { "CLAUDE.md".to_string() } else { format!("{}/CLAUDE.md", dir_str) },
 
                             dir: dir_str,
                             reason: TargetReason::SpecNewer,
@@ -269,8 +275,11 @@ impl CompileTargetResolver {
                 && entry.file_name() == "CLAUDE.md"
             {
                 if let Some(parent) = entry.path().parent() {
-                    // Skip root-level CLAUDE.md (project root)
                     if parent == root {
+                        // Include root only if DEVELOPERS.md exists (module, not config-only)
+                        if root.join("DEVELOPERS.md").exists() {
+                            dirs.push(PathBuf::new());
+                        }
                         continue;
                     }
                     let rel = parent.strip_prefix(root)
@@ -287,15 +296,24 @@ impl CompileTargetResolver {
 
     /// Get relative paths to spec files (CLAUDE.md + DEVELOPERS.md) in a directory
     fn spec_files_in(&self, _root: &Path, dir: &Path) -> Vec<String> {
-        vec![
-            dir.join("CLAUDE.md").to_string_lossy().to_string(),
-            dir.join("DEVELOPERS.md").to_string_lossy().to_string(),
-        ]
+        if dir.as_os_str().is_empty() {
+            // Root directory
+            vec!["CLAUDE.md".to_string(), "DEVELOPERS.md".to_string()]
+        } else {
+            vec![
+                dir.join("CLAUDE.md").to_string_lossy().to_string(),
+                dir.join("DEVELOPERS.md").to_string_lossy().to_string(),
+            ]
+        }
     }
 
     /// Get relative paths to source files in a directory (non-recursive)
     fn source_files_in(&self, root: &Path, dir: &Path) -> Vec<String> {
-        let abs_dir = root.join(dir);
+        let abs_dir = if dir.as_os_str().is_empty() {
+            root.to_path_buf()
+        } else {
+            root.join(dir)
+        };
         let mut paths = Vec::new();
 
         if let Ok(entries) = std::fs::read_dir(&abs_dir) {
@@ -532,12 +550,9 @@ fn extract_spec_dirs(files: &[String]) -> HashSet<String> {
         {
             let dir = Path::new(file)
                 .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_default();
-            // Skip root-level (empty dir)
-            if !dir.is_empty() {
-                dirs.insert(dir);
-            }
+                .map(|p| normalize_dir(p))
+                .unwrap_or_else(|| ".".to_string());
+            dirs.insert(dir);
         }
     }
     dirs
@@ -587,14 +602,21 @@ mod tests {
             "src/auth/CLAUDE.md".to_string(),
             "src/utils/CLAUDE.md".to_string(),
             "README.md".to_string(),
-            "CLAUDE.md".to_string(), // root-level, should be skipped
+            "CLAUDE.md".to_string(), // root-level, now included as ""
         ];
 
         let dirs = extract_spec_dirs(&files);
         assert!(dirs.contains("src/auth"));
         assert!(dirs.contains("src/utils"));
-        assert!(!dirs.contains("")); // root-level skipped
-        assert_eq!(dirs.len(), 2);
+        assert!(dirs.contains(".")); // root-level now included as "."
+        assert_eq!(dirs.len(), 3);
+    }
+
+    #[test]
+    fn test_normalize_dir() {
+        assert_eq!(normalize_dir(Path::new("")), ".");
+        assert_eq!(normalize_dir(Path::new("src/auth")), "src/auth");
+        assert_eq!(normalize_dir(Path::new("core/domain")), "core/domain");
     }
 
     #[test]
