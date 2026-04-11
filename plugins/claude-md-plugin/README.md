@@ -17,7 +17,7 @@
 │         ├──── /validate ──→ Doc-Code Consistency Check      │
 │         └──── /decompile ──→ Source Code → CLAUDE.md        │
 │                                                              │
-│   DEVELOPERS.md (Derived Spec — Developer Constraints)       │
+│   DEVELOPERS.md (System Spec — on-demand)                    │
 │         └──── Constraints = test generation source           │
 │                                                              │
 │   Source Code (Derived Artifact)                             │
@@ -26,11 +26,11 @@
 
 | Concept | Role | Description |
 |---------|------|-------------|
-| **Primary SSOT** | CLAUDE.md | PM requirements (Purpose, Requirements, Domain Context) |
-| **Derived Spec** | DEVELOPERS.md | Developer constraints (Constraints, Technical Context) |
+| **Business Spec** | CLAUDE.md | What + why (Purpose, Requirements, Domain Context) — auto-loaded |
+| **System Spec** | DEVELOPERS.md | How precisely (Constraints, Technical Context) — on-demand |
 | **Derived Artifact** | Source Code | Generated from CLAUDE.md + DEVELOPERS.md |
 
-**When documents and code disagree**: Regenerate the code (CLAUDE.md is SSOT).
+**When specs and code disagree**: Regenerate the code (specs are SSOT).
 
 ## Prerequisites
 
@@ -67,12 +67,12 @@ Install the superpowers plugin before using `/spec` or `/dev`.
 
 ```
 module/
-├── CLAUDE.md              ← Human-authored / Auto-loaded / 200-600 tok
-│   PM requirements document. Critical rules and context.
+├── CLAUDE.md              ← PM/PO-authored / Auto-loaded / 200-600 tok
+│   Business Spec. What the module does, why it exists, and what rules to follow.
 │   Claude Code loads hierarchically.
 │
-└── DEVELOPERS.md          ← Human-authored / On-demand
-    Derived spec. Constraints (test source) + Technical Context.
+└── DEVELOPERS.md          ← PM/PO-authored / On-demand
+    System Spec. Constraints (test source) + Technical Context.
 ```
 
 ### CLAUDE.md Schema (v4.0)

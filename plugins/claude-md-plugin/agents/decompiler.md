@@ -112,12 +112,12 @@ Extract key patterns, dependencies, and behaviors from the LLM-ready summary.
 
 Generate documents based on analysis results + code reading:
 
-**CLAUDE.md** (Primary SSOT):
+**CLAUDE.md** (Business Spec):
 - `## Purpose`: Describe the reason for the code's existence from a business value perspective
-- `## Requirements`: Reverse-extract requirements that the code fulfills from the user's perspective
+- `## Requirements`: Reverse-extract requirements that the code fulfills from the user's perspective (REQ-N: format)
 - `## Domain Context`: Business constraints/regulations/legacy reasons inferred from the code
 
-**DEVELOPERS.md** (Derived Spec):
+**DEVELOPERS.md** (System Spec):
 - `## Constraints`: Precisely describe the code's input/output contracts (convertible to tests)
 - `## Technical Context`: Technologies used and their rationale
 - `## Decision Log`: Design decisions inferred from the code (optional)

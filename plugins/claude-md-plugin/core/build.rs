@@ -22,6 +22,9 @@ struct SectionDef {
     allow_none: bool,
     #[serde(default)]
     required_subsections: Option<Vec<String>>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    item_id_pattern: Option<String>,
 }
 
 /// Forbidden reference pattern in schema-rules.yaml
@@ -88,6 +91,9 @@ struct DevelopersSectionDef {
     valid_entry_types: Option<Vec<String>>,
     #[serde(default)]
     required_entry_fields: Option<Vec<String>>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    item_id_pattern: Option<String>,
 }
 
 /// Schema rules structure

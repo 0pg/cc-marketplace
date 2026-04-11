@@ -61,9 +61,9 @@
 ## Decision Log
 
 ### v4.0 CLAUDE.md Schema (2-Document System)
-- **Context**: Single CLAUDE.md was becoming too large (PM requirements + developer constraints mixed)
-- **Decision**: Split into CLAUDE.md (PM SSOT) and DEVELOPERS.md (derived spec, developer constraints)
-- **Rationale**: Claude Code auto-loads CLAUDE.md; DEVELOPERS.md loaded on-demand → token efficiency
+- **Context**: Single CLAUDE.md was becoming too large (business-level and system-level specs mixed)
+- **Decision**: Split into CLAUDE.md (Business Spec, auto-loaded) and DEVELOPERS.md (System Spec, on-demand). Both managed by PM/PO role.
+- **Rationale**: Claude Code auto-loads CLAUDE.md; DEVELOPERS.md loaded on-demand → token efficiency. Split by abstraction level (what+why vs how precisely), not by human role.
 
 ### Session File Pattern (v10)
 - **Context**: Skills were doing too much inline logic; agents had no stable input contract

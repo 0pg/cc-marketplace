@@ -23,7 +23,8 @@ sections:
     condition: "always"
     condition_type: "static"
     allow_none: true
-    description: "비즈니스 요구사항 (사용자 관점, 검증 가능한 문장)"
+    item_id_pattern: "^- REQ-\\d+:"
+    description: "비즈니스 요구사항 (사용자 관점, REQ-N: 형식 필수)"
 
   domain_context:
     name: "Domain Context"
@@ -84,7 +85,8 @@ developers_sections:
     name: "Constraints"
     required: true
     allow_none: true
-    description: "정밀한 입출력 계약 — 테스트 변환 가능해야 함"
+    item_id_pattern: "^- CONST-\\d+:"
+    description: "정밀한 입출력 계약 — CONST-N: 형식 필수, 테스트 변환 가능해야 함"
   data_schemas:
     name: "Data Schemas"
     required: false

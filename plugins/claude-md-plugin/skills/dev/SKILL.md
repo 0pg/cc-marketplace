@@ -150,6 +150,30 @@ SKILL handles DELETE directly before the TDD pipeline:
 5. Delete related test files
 6. Run regression tests → report warning on failure
 
+### 6g. Display Spec Change Summary (only when Spec Changes present)
+
+Before entering the TDD pipeline, display the spec change summary to the DEVELOPER:
+
+```
+=== Spec Changes: {path} ===
+Since: {commit_hash} ({date})
+
+  + REQ-4: {text}              [ADD]
+  ~ REQ-2: {text}              [MODIFY]
+  - CONST-1: {text}            [DELETE]
+
+Tasks: {N} ADD, {M} MODIFY, {K} DELETE
+===
+```
+
+Parsing rules:
+1. From Implementation Tasks section, extract each `[ADD]`, `[MODIFY]`, `[DELETE]` entry
+2. Match `REQ-\d+:` or `CONST-\d+:` patterns from each entry's description
+3. Non-matching lines display as raw text
+4. `Since` line: first `CommitEntry.hash` (short, 7 chars) + `CommitEntry.date` from node-history JSON
+
+This is display-only. No user confirmation required. Workflow proceeds to Step 7 immediately.
+
 ### 7. Task(tdd-coder) — Red-Green-Refactor cycles
 
 Dispatch tdd-coder per target. Parallel batches for independent modules at same depth (max 3).

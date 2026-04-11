@@ -2,11 +2,22 @@
 
 ## Purpose
 
-**CLAUDE.md is the Primary SSOT -- the PM's requirements document.**
+**CLAUDE.md is the Primary SSOT for module specification.**
 
 A document-code synchronization plugin that defines business requirements in CLAUDE.md,
-refines them to system-level specifications in DEVELOPERS.md,
+refines them with design decisions into system-level specifications in DEVELOPERS.md,
 and generates source code as a derived artifact.
+
+## Roles
+
+| Role | Definition | Workflows |
+|------|------------|-----------|
+| **PM/PO** | Any entity (human or AI agent) that manages and modifies spec documents (CLAUDE.md, DEVELOPERS.md) | `/spec`, `/decompile`, `/validate`, `/project-setup`, `/migrate` |
+| **DEVELOPER** | Any entity (human or AI agent) that writes source code based on specs | `/dev`, `/bugfix` (code fix) |
+
+- PM/PO and DEVELOPER are **functional roles**, not job titles. A single AI agent can act as PM/PO in one workflow and DEVELOPER in another.
+- Both CLAUDE.md and DEVELOPERS.md are **authored and managed by the PM/PO role**. DEVELOPER reads them as input.
+- The only exception is `## Agent Observations` in DEVELOPERS.md, where DEVELOPER appends experiential notes (scoped by INV-8, cleaned by PM/PO via `/validate`).
 
 ## Core Philosophy
 
@@ -14,14 +25,14 @@ and generates source code as a derived artifact.
 ┌──────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin v11                       │
 │                                                              │
-│   CLAUDE.md (Primary SSOT — PM Requirements)                 │
+│   CLAUDE.md (Business Spec — auto-loaded, 200-600 tok)       │
 │         │                                                    │
 │         ├──── /spec ──→     Requirements → CLAUDE.md def     │
 │         ├──── /dev ──→      Code generation from CLAUDE.md   │
 │         ├──── /validate ──→ Document-code consistency check  │
 │         └──── /decompile ──→ Source code → CLAUDE.md extract │
 │                                                              │
-│   DEVELOPERS.md (Derived Spec — Developer Specification)     │
+│   DEVELOPERS.md (System Spec — on-demand)                    │
 │         │                                                    │
 │         └──── Constraints = Test generation source           │
 │                                                              │
@@ -31,24 +42,27 @@ and generates source code as a derived artifact.
 
 | Concept | Role | Description |
 |---------|------|-------------|
-| **Primary SSOT** | CLAUDE.md | PM's requirements document (Purpose, Requirements, Domain Context) |
-| **Derived Spec** | DEVELOPERS.md | Developer specification (Constraints, Technical Context, Decision Log) |
-| **Derived Artifact** | Source Code | Code derived from CLAUDE.md |
+| **Business Spec** | CLAUDE.md | What the module does and why (Purpose, Requirements, Domain Context) — auto-loaded |
+| **System Spec** | DEVELOPERS.md | How the module is built precisely (Constraints, Technical Context, Decision Log) — on-demand |
+| **Derived Artifact** | Source Code | Code generated from CLAUDE.md + DEVELOPERS.md |
 
-**On mismatch**: Regenerate the code (CLAUDE.md is the SSOT).
+**On mismatch between spec and code**: Regenerate the code (specs are the SSOT).
+**On mismatch between CLAUDE.md and DEVELOPERS.md**: Update DEVELOPERS.md to reflect changed Requirements (preserve unaffected Technical Context and Decision Log).
 
 ## 2-Document System
 
 ```
 module/
-├── CLAUDE.md              ← Human-authored / Auto-loaded / 200-600 tok
-│   PM's requirements document. Rules and context needed immediately when modifying code.
+├── CLAUDE.md              ← PM/PO-authored / Auto-loaded / 200-600 tok
+│   Business Spec. What the module does, why it exists, and what rules to follow.
 │   Claude Code loads hierarchically and automatically.
 │
-└── DEVELOPERS.md          ← Human-authored / On-demand / Optional
-    Derived Spec. Refines Requirements to system level.
+└── DEVELOPERS.md          ← PM/PO-authored / On-demand / Optional
+    System Spec. Refines Requirements with design decisions into precise contracts.
     Source for /dev to generate tests.
 ```
+
+**Split rationale**: Auto-loaded (always in context) vs On-demand (loaded when developing). Both managed by PM/PO role.
 
 ### CLAUDE.md Schema (v4.0)
 
@@ -292,18 +306,19 @@ User: /decompile [path]
 
 ## Agents
 
-| Agent | Superpowers Composition | Role | Observations |
-|-------|------------------------|------|--------------|
-| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
-| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
-| `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation | read-write |
-| `test-reviewer` | (none) | Post-TDD verification: tests + impl traceability, boundary, assertion, honesty | read-only |
-| `refactorer` | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
-| `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
-| `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
-| `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
-| `requirement-explorer` | (none) | Domain-context exploration → requirement concretization | read-only |
-| `requirement-reviewer` | (none) | 5-criteria evaluation of concretized requirements | — |
+| Agent | Functional Role | Superpowers Composition | Description | Observations |
+|-------|----------------|------------------------|-------------|--------------|
+| `impl` | PM/PO | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
+| `impl-reviewer` | PM/PO | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
+| `requirement-explorer` | PM/PO | (none) | Domain-context exploration → requirement concretization | read-only |
+| `requirement-reviewer` | PM/PO | (none) | 5-criteria evaluation of concretized requirements | — |
+| `validator` | PM/PO | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
+| `decompiler` | PM/PO | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
+| `tdd-coder` | DEVELOPER | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation | read-write |
+| `test-reviewer` | DEVELOPER | (none) | Post-TDD verification: tests + impl traceability, boundary, assertion, honesty | read-only |
+| `refactorer` | DEVELOPER | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
+| `bugfixer` | DEVELOPER | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
+| `spec-quality-reviewer` | PM/PO | (none) | 5-criteria spec quality review (verdict: pass/needs_improvement) | read-only |
 
 ## Commands
 
@@ -321,19 +336,20 @@ User: /decompile [path]
 | Skill | Role |
 |-------|------|
 | `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization, then plan → review → execute. |
-| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review) |
+| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review). Displays spec change summary before TDD pipeline. |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
 | `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer |
+| `/sync` | PM/PO: DEVELOPERS.md partial update for changed Requirements (skips full /spec workflow) |
+| `/impact` | PM/PO: Change impact analysis across module dependency graph (Grep-based, 2-hop) |
+| `/impl-review` | PM/PO: CLAUDE.md + DEVELOPERS.md quality review (deterministic CLI + semantic 5-criteria) |
+| `/status` | PM/PO: Project health dashboard (schema, pairing, drift, conventions) |
 
-### Phase 2 (Planned after Core stabilization)
+### Phase 2 (Planned)
 
 | Skill | Role |
 |-------|------|
-| `/impl-review` | CLAUDE.md quality review |
-| `/impact` | Document change → affected module analysis |
 | `/diff-spec` | Semantic diff between document versions |
-| `/status` | Project health dashboard |
 | `/refactor` | Module split/merge |
 
 ### CLI Subcommands (Rust Core)
@@ -376,11 +392,20 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 
 ### INV-4: Update Responsibility
 ```
-/spec      → CLAUDE.md + DEVELOPERS.md (document definition)
-/dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
-/bugfix    → Source Code + DEVELOPERS.md:Agent Observations (append-only)
-/decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
-/validate  → Violation reporting + interactive resolution + Agent Observations cleanup
+PM/PO role:
+  /spec      → CLAUDE.md + DEVELOPERS.md (document definition)
+  /sync      → DEVELOPERS.md Constraints update (partial, preserves other sections)
+  /decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
+  /validate  → Violation reporting + interactive resolution + Agent Observations cleanup
+  /impact    → Read-only impact analysis (no file modifications)
+  /impl-review → Read-only quality review (no file modifications)
+  /status    → Read-only health dashboard (no file modifications)
+
+DEVELOPER role:
+  /dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+  /bugfix    → Source Code + DEVELOPERS.md:Agent Observations (append-only)
+
+Cross-role boundary: DEVELOPER writes only to Agent Observations (INV-8)
 ```
 
 ### INV-5: Conventions Section Placement Rules
@@ -440,7 +465,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 
 | Layer | Owner | Tools |
 |-------|-------|-------|
-| Spec definition, validation, tracking | claude-md | /spec, /validate, /decompile |
+| Spec definition, validation, tracking | claude-md | /spec, /sync, /validate, /decompile, /impact, /impl-review, /status |
 | TDD code generation | claude-md | /dev (per-Constraint R-G-R via tdd-coder) |
 | TDD process discipline | superpowers | test-driven-development (composed by tdd-coder) |
 | Process discipline | superpowers | brainstorming, plans, debugging, verification |
@@ -464,13 +489,14 @@ claude-md composes superpowers domain components to create the "document-driven 
 | refactorer | (none) | Apply Conventions + regression protection |
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |
+| spec-quality-reviewer | (none) | 5-criteria spec quality review, return verdict |
 
 ## Instructions
 
 - Document language: English
-- CLAUDE.md is the SSOT. Source code is a derived artifact generated from CLAUDE.md.
-- When code disagrees with CLAUDE.md, regenerate code via /dev (not modify docs).
-- To change requirements, update CLAUDE.md first, then code follows.
+- CLAUDE.md + DEVELOPERS.md are the SSOT. Source code is a derived artifact.
+- When code disagrees with specs, regenerate code via /dev (not modify docs).
+- To change requirements, update CLAUDE.md first (PM/PO), then DEVELOPERS.md follows, then code follows.
 - Derive tests from DEVELOPERS.md Constraints.
 - Generate source code via /dev. Do not create source files directly with the Write tool.
 - Must run /validate --strict before declaring completion.

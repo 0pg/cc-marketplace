@@ -444,21 +444,28 @@ If `## Reviewer Improvement Notes` is present in the session file but not addres
 > **mode=execute**: Use Requirements/Constraints from plan.md as input.
 > **Existing Single/Parallel modes**: Use content derived from Phases 1-3 as input.
 
-### Phase 4: Smart Merge (when existing CLAUDE.md exists, action=update)
+### Phase 4: Smart Merge (when existing documents exist, action=update)
 
+**CLAUDE.md:**
 1. Read existing CLAUDE.md
 2. Purpose: Extend (preserve existing + reflect new features)
-3. Requirements: Preserve existing items + add new items
+3. Requirements: Preserve existing items + add new items (maintain REQ-N numbering continuity)
 4. Domain Context: Preserve existing + add new context
+
+**DEVELOPERS.md:**
+1. Read existing DEVELOPERS.md
+2. Constraints: Preserve unaffected items + update/add items for changed Requirements
+3. Technical Context: Preserve all existing + extend with new context
+4. Decision Log: Preserve all existing entries + add new entries if applicable
 
 ### Phase 5: Document Generation
 
-**CLAUDE.md** (Primary SSOT — PM requirements):
+**CLAUDE.md** (Business Spec — auto-loaded):
 - `## Purpose`: Reason for the module's existence (business value)
-- `## Requirements`: Verifiable requirements from the user's perspective
+- `## Requirements`: Verifiable requirements from the user's perspective (REQ-N: format)
 - `## Domain Context`: Business constraint background (regulations, legacy, organizational reasons)
 
-**DEVELOPERS.md** (Derived Spec — developer specification):
+**DEVELOPERS.md** (System Spec — on-demand):
 - `## Constraints`: Precise input/output contracts (convertible to tests)
 - `## Technical Context`: Technology choices and rationale
 - `## Decision Log`: ADR style (optional)

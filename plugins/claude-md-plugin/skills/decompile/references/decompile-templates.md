@@ -58,7 +58,7 @@ $CLI_PATH fix-schema --file {claude_md_path}
 - **Requirements**: Reverse-extract requirements the code fulfills from the user's perspective. "None" if truly none exist.
 - **Domain Context**: Business constraints inferred from the code. "None" or AskUserQuestion if cannot be inferred.
 
-### DEVELOPERS.md (Derived Spec)
+### DEVELOPERS.md (System Spec)
 
 - **Constraints**: Precisely describe the code's input/output contracts (convertible to tests)
 - **Data Schemas**: Auto-extracted from `analyze-code` ExportedType (interface/type/struct/enum) — public type definitions
