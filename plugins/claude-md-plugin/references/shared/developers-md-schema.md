@@ -2,8 +2,9 @@
 
 ## Purpose
 
-DEVELOPERS.md is a Derived Spec document that maps 1:1 with CLAUDE.md.
-It concretizes CLAUDE.md Requirements at the system level and serves as the source for /dev test generation.
+DEVELOPERS.md is a System Spec document that maps 1:1 with CLAUDE.md.
+It refines CLAUDE.md Requirements with design decisions into precise contracts and serves as the source for /dev test generation.
+Both CLAUDE.md and DEVELOPERS.md are authored and managed by the PM/PO role.
 
 ## Core Principles
 
@@ -21,16 +22,18 @@ path(DEVELOPERS.md) = path(CLAUDE.md).replace('CLAUDE.md', 'DEVELOPERS.md')
 
 DEVELOPERS.md absence is reported as a warning (`--strict` mode).
 
+**On mismatch between CLAUDE.md and DEVELOPERS.md**: Update DEVELOPERS.md to reflect changed Requirements (preserve unaffected Technical Context and Decision Log).
+
 ## SOT Structure
 
 ```
-CLAUDE.md (Primary SSOT) → DEVELOPERS.md (Derived Spec) → Source Code (Derived Artifact)
+CLAUDE.md (Business Spec) + Design Decisions → DEVELOPERS.md (System Spec) → Source Code (Derived Artifact)
 ```
 
-| Document | Role | Audience |
-|----------|------|----------|
-| CLAUDE.md | Requirements (PM's requirements) | PM, AI agents |
-| DEVELOPERS.md | Constraints + Technical Context (developer specification) | Developers, /dev |
+| Document | Role | Managed By | Consumed By |
+|----------|------|------------|-------------|
+| CLAUDE.md | Business Spec (what + why) | PM/PO | PM/PO, DEVELOPER |
+| DEVELOPERS.md | System Spec (how precisely) | PM/PO | DEVELOPER (/dev) |
 
 ## Sections (2 required + 4 optional, all allow None)
 

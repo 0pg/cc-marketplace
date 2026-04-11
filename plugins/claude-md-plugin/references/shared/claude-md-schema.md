@@ -7,10 +7,10 @@
 
 This template defines the standard structure for CLAUDE.md files.
 
-**CLAUDE.md = Primary SSOT — PM's Requirements Document**
-- CLAUDE.md is a business requirements document that PMs can read and write
-- DEVELOPERS.md is a Derived Spec where developers concretize Requirements at the system level
-- Source code is a Derived Artifact generated from documentation
+**CLAUDE.md = Business Spec (auto-loaded)**
+- CLAUDE.md is a business-level specification managed by the PM/PO role (human or AI agent)
+- DEVELOPERS.md is a System Spec where PM/PO refines Requirements with design decisions into precise contracts
+- Source code is a Derived Artifact generated from specs
 
 ## 2-Document System
 
@@ -18,18 +18,18 @@ This template defines the standard structure for CLAUDE.md files.
 ┌─────────────────────────────────────────────────────────────┐
 │                    claude-md-plugin                         │
 │                                                             │
-│   CLAUDE.md (Primary SSOT, auto-loaded)                    │
+│   CLAUDE.md (Business Spec, auto-loaded)                   │
 │     → Purpose, Requirements, Domain Context                │
 │                                                             │
-│   DEVELOPERS.md (Derived Spec, on-demand)                  │
+│   DEVELOPERS.md (System Spec, on-demand)                   │
 │     → Constraints, Technical Context, Decision Log         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Document | Role | Load Method |
-|----------|------|-------------|
-| **CLAUDE.md** | Primary SSOT (PM requirements) | auto-loaded |
-| **DEVELOPERS.md** | Derived Spec (developer specification) | on-demand |
+| Document | Role | Managed By | Load Method |
+|----------|------|------------|-------------|
+| **CLAUDE.md** | Business Spec (what + why) | PM/PO | auto-loaded |
+| **DEVELOPERS.md** | System Spec (how precisely) | PM/PO | on-demand |
 
 ## Required Sections Summary (3 always-required + 2 conditional)
 
@@ -69,12 +69,13 @@ When requirements exist:
 
 ```markdown
 ## Requirements
-- Auto-refresh on access with expired token, no user re-login required
-- Maximum 5 concurrent login devices, oldest session terminated when exceeded
-- Token lifetime limits per PCI-DSS regulations
+- REQ-1: Auto-refresh on access with expired token, no user re-login required
+- REQ-2: Maximum 5 concurrent login devices, oldest session terminated when exceeded
+- REQ-3: Token lifetime limits per PCI-DSS regulations
 ```
 
 **Requirements Writing Principles:**
+- Each item uses `REQ-N:` prefix (e.g., `- REQ-1: Auto-refresh on access...`)
 - Describe behavior from the user's perspective
 - Minimize technical jargon
 - Focus on business value
@@ -162,7 +163,7 @@ TypeScript 5.0, Node.js 20 LTS
 
 ## Related Documents
 
-- **DEVELOPERS.md**: Derived Spec — A companion document that concretizes CLAUDE.md Requirements at the system level
+- **DEVELOPERS.md**: System Spec — A companion document where PM/PO refines CLAUDE.md Requirements with design decisions into precise contracts
 - Template: `references/shared/developers-md-schema.md`
 
 ### Invariants
