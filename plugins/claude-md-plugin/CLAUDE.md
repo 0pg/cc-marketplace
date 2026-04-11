@@ -318,6 +318,7 @@ User: /decompile [path]
 | `test-reviewer` | DEVELOPER | (none) | Post-TDD verification: tests + impl traceability, boundary, assertion, honesty | read-only |
 | `refactorer` | DEVELOPER | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
 | `bugfixer` | DEVELOPER | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
+| `spec-quality-reviewer` | PM/PO | (none) | 5-criteria spec quality review (verdict: pass/needs_improvement) | read-only |
 
 ## Commands
 
@@ -335,19 +336,20 @@ User: /decompile [path]
 | Skill | Role |
 |-------|------|
 | `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization, then plan → review → execute. |
-| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review) |
+| `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review). Displays spec change summary before TDD pipeline. |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
 | `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer |
+| `/sync` | PM/PO: DEVELOPERS.md partial update for changed Requirements (skips full /spec workflow) |
+| `/impact` | PM/PO: Change impact analysis across module dependency graph (Grep-based, 2-hop) |
+| `/impl-review` | PM/PO: CLAUDE.md + DEVELOPERS.md quality review (deterministic CLI + semantic 5-criteria) |
+| `/status` | PM/PO: Project health dashboard (schema, pairing, drift, conventions) |
 
-### Phase 2 (Planned after Core stabilization)
+### Phase 2 (Planned)
 
 | Skill | Role |
 |-------|------|
-| `/impl-review` | CLAUDE.md quality review |
-| `/impact` | Document change → affected module analysis |
 | `/diff-spec` | Semantic diff between document versions |
-| `/status` | Project health dashboard |
 | `/refactor` | Module split/merge |
 
 ### CLI Subcommands (Rust Core)
@@ -392,8 +394,12 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 ```
 PM/PO role:
   /spec      → CLAUDE.md + DEVELOPERS.md (document definition)
+  /sync      → DEVELOPERS.md Constraints update (partial, preserves other sections)
   /decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
   /validate  → Violation reporting + interactive resolution + Agent Observations cleanup
+  /impact    → Read-only impact analysis (no file modifications)
+  /impl-review → Read-only quality review (no file modifications)
+  /status    → Read-only health dashboard (no file modifications)
 
 DEVELOPER role:
   /dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
@@ -459,7 +465,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 
 | Layer | Owner | Tools |
 |-------|-------|-------|
-| Spec definition, validation, tracking | claude-md | /spec, /validate, /decompile |
+| Spec definition, validation, tracking | claude-md | /spec, /sync, /validate, /decompile, /impact, /impl-review, /status |
 | TDD code generation | claude-md | /dev (per-Constraint R-G-R via tdd-coder) |
 | TDD process discipline | superpowers | test-driven-development (composed by tdd-coder) |
 | Process discipline | superpowers | brainstorming, plans, debugging, verification |
@@ -483,6 +489,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 | refactorer | (none) | Apply Conventions + regression protection |
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |
+| spec-quality-reviewer | (none) | 5-criteria spec quality review, return verdict |
 
 ## Instructions
 
