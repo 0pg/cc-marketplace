@@ -281,6 +281,7 @@ If not `--report-only`:
    | CONVENTION_*_VIOLATION | Fix code | (a) Fix code (b) Relax Convention rule |
    | CONSTRAINT_NOT_ENFORCED | Fix code | (a) Fix code (b) Update DEVELOPERS.md Constraint |
    | TECH_CONTEXT_STALE | Fix documentation | Auto-update DEVELOPERS.md |
+   | IMPROVEMENT_PROMOTE_CANDIDATE | Roadmap promote 검토 | (a) PM/PO가 `## Roadmap` Short-term에 추가 후 Agent Observations에서 삭제 (b) 무시 (항목 유지) |
 
    **Modification scope limits:**
    - validate's direct Edit: modifications to existing code (changes within existing functions/structs)
