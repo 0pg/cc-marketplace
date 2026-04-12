@@ -229,8 +229,13 @@ strict: true | false
 Follow the protocol in `${CLAUDE_PLUGIN_ROOT}/references/shared/agent-observations-protocol.md`:
 1. **On Start**: Read `{target_path}/DEVELOPERS.md` → `## Agent Observations`
 2. **Cleanup**: Remove entries with stale anchors (REQ/CONST no longer in CLAUDE.md/DEVELOPERS.md)
-3. **Consolidation**: Merge duplicate entries, remove tactical entries with refs=0 + age>30d
-4. **Promotion Report**: Flag structural/decision entries with refs≥3 as promotion candidates
+3. **Consolidation**: Merge duplicate entries, remove stale entries:
+   - `[tactical]` with refs=0 + age>30d → remove
+   - `[improvement]` with anchor=none AND refs=0 AND age>60d → remove
+4. **Promotion Report**:
+   - Flag `[structural]` / `[decision]` entries with refs≥3 → promotion candidates (Technical Context / Decision Log)
+   - Flag `[improvement]` entries where (anchor valid OR refs≥1) → Roadmap promote candidates
+   - Flag `[improvement]` entries where (anchor=none AND refs=0 AND age>60d) → auto-remove candidates
 
 ## Parallel Execution Notice
 
