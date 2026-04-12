@@ -5,7 +5,7 @@
 #   - Documentation (references/shared/claude-md-schema.md)
 #   - Schema-validate skill (claude-md-core validate-schema CLI)
 
-version: "5.0.0"
+version: "5.1.0"
 description: "CLAUDE.md 스키마 검증 규칙 - v4.0 (Primary SSOT — PM 요구사항)"
 
 sections:
@@ -113,6 +113,11 @@ developers_sections:
     condition_type: "dynamic"
     allow_none: true
     description: "시스템 수준 use case 실행 흐름 (project root only)"
+  roadmap:
+    name: "Roadmap"
+    required: false
+    allow_none: true
+    description: "PM/PO forward planning: Short-term/Long-term/Deferred items not yet in Requirements or Constraints"
   agent_observations:
     name: "Agent Observations"
     required: false
@@ -124,6 +129,7 @@ developers_sections:
       - "decision"
       - "tactical"
       - "preference"
+      - "improvement"
     required_entry_fields:
       - "since"
       - "refs"
