@@ -522,6 +522,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |
 | spec-quality-reviewer | (none) | 5-criteria spec quality review, return verdict |
+| po-consultant | (none) | Read-only feasibility judgment — 3-layer reasoning (spec/history/roadmap), return verdict |
 
 ## Instructions
 

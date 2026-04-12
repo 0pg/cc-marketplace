@@ -7,7 +7,7 @@ description: |
   "partial spec update", or uses "/sync".
   After PM/PO modifies CLAUDE.md Requirements, updates only the DEVELOPERS.md Constraints
   without running the full /spec workflow (Self Socratic Loop + plan + review).
-  Preserves Technical Context, Decision Log, and Agent Observations.
+  Preserves Technical Context, Decision Log, Agent Observations, and Roadmap.
   Trigger keywords: sync, update constraints, partial update
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, Skill, AskUserQuestion]

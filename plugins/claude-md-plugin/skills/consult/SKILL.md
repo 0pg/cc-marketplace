@@ -10,7 +10,7 @@ description: |
   Read-only — no file modifications.
   Trigger keywords: consult, feasibility, can we, is it possible, PM/PO judgment
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Task]
+allowed-tools: [Bash, Read, Glob, Grep, Write, Task]
 ---
 
 # /consult
