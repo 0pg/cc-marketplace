@@ -64,7 +64,7 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ```markdown
 # Explore Session
-type: explore | round: 1 | project_root: {path}
+type: explore | round: 1 | project_root: {path} | target_path: {target_path}
 
 ## User Requirement
 {original requirement text}
@@ -92,7 +92,7 @@ Suggested Path: {short/long}
 
 ```markdown
 # Explore Session
-type: explore | round: {N} | project_root: {path}
+type: explore | round: {N} | project_root: {path} | target_path: {target_path}
 
 ## User Requirement
 {original requirement text}

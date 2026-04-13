@@ -235,7 +235,7 @@ loop:
         Round 1:
         ---
         # Explore Session
-        type: explore | round: 1 | project_root: {project_root}
+        type: explore | round: 1 | project_root: {project_root} | target_path: {path}
 
         ## User Requirement
         {user requirement text}
@@ -269,7 +269,7 @@ loop:
         Round 2:
         ---
         # Explore Session
-        type: explore | round: 2 | project_root: {project_root}
+        type: explore | round: 2 | project_root: {project_root} | target_path: {path}
 
         ## User Requirement
         {user requirement text}
