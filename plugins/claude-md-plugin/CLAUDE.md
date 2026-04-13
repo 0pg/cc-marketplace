@@ -481,6 +481,35 @@ post-condition (/spec으로 요구사항 확정 시):
       (entry.refs = 0 ∧ age(entry) > 60d) → entry.stale = true
 ```
 
+### INV-13: Node Dependency Notification
+```
+∀ spec change to node N that modifies ## Data Schemas (exported interface):
+  N.pm_po MUST surface this change as one of:
+    [decision] Agent Observation entry
+    ∨ ## Decision Log entry (DEVELOPERS.md)
+  dependent nodes MAY trigger /impact → /sync cycle
+  ∧ not_feasible rejection from N.pm_po toward a calling party:
+      → escalate via AskUserQuestion before proceeding
+```
+
+### INV-14: Node Access Through PM/PO
+```
+∀ agent A performing cross-node context access to node N:
+  A.node ≠ N ∧ A.role ≠ N.pm_po ∧ A.role ≠ N.developer
+  → A MUST obtain context via Task(po-consultant, N) verdict
+  ∧ A MUST NOT Read(N/CLAUDE.md) or Read(N/DEVELOPERS.md) as judgment input
+
+Permitted exceptions:
+  - project_root/CLAUDE.md: accessible by all agents (auto-loaded, public contract)
+  - DEVELOPER reading own node's spec: permitted (INV-4)
+  - PM/PO reading own node's spec: permitted (INV-4)
+  - /validate, /decompile: system-level read-only scans exempt
+  - /impact: dependency graph traversal exempt (read-only, no judgment)
+  - /status: project health dashboard scan exempt (read-only, no judgment)
+  - /bugfix: multi-module bug tracing exempt (read-only cross-node, doc escalation path)
+  - /sync: PM/PO DEVELOPERS.md partial update (own node) — covered by PM/PO own-node exception
+```
+
 ## Development Principles
 
 1. **ATDD**: Write Gherkin features first, then implement
@@ -488,6 +517,7 @@ post-condition (/spec으로 요구사항 확정 시):
 3. **File-based results**: Agent results are saved to files, only paths are returned
 4. **Simple retry**: Schema validation once, test retry 3 times
 5. **Version management**: Must bump the `version` field in `.claude-plugin/plugin.json` on changes
+6. **Node Ownership**: Each node's PM/PO and DEVELOPER hold full authority over that node's spec. External agents access node context exclusively via po-consultant verdict (INV-14), not direct file reads.
 
 ## Superpowers Coexistence
 
