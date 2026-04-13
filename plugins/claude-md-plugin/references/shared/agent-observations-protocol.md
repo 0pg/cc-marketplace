@@ -15,6 +15,7 @@
    - Unexpected problem and its solution → `[structural]` or `[tactical]`
    - Technical choice with rationale → `[decision]`
    - User-expressed preference → `[preference]`
+   - Technical debt, performance issue, or refactoring need → `[improvement]` (DEVELOPER role only; anchor optional)
 
 ## On Complete (Write Phase)
 
@@ -33,6 +34,7 @@
    ```
 7. If entries > 20: run consolidation
    - Remove `[tactical]` entries with refs=0 and age > 30 days
+   - Remove `[improvement]` entries where anchor=none AND refs=0 AND age > 60 days
    - Merge duplicate-anchor same-type entries (sum refs, keep earliest since)
 8. Write changes to `## Agent Observations` section ONLY (INV-8)
    - If section doesn't exist yet, create it at the end of DEVELOPERS.md

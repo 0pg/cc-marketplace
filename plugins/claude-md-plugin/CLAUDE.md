@@ -12,7 +12,7 @@ and generates source code as a derived artifact.
 
 | Role | Definition | Workflows |
 |------|------------|-----------|
-| **PM/PO** | Any entity (human or AI agent) that manages and modifies spec documents (CLAUDE.md, DEVELOPERS.md) | `/spec`, `/decompile`, `/validate`, `/project-setup`, `/migrate` |
+| **PM/PO** | Any entity (human or AI agent) that manages and modifies spec documents (CLAUDE.md, DEVELOPERS.md) | `/spec`, `/decompile`, `/validate`, `/project-setup`, `/migrate`, `/consult` |
 | **DEVELOPER** | Any entity (human or AI agent) that writes source code based on specs | `/dev`, `/bugfix` (code fix) |
 
 - PM/PO and DEVELOPER are **functional roles**, not job titles. A single AI agent can act as PM/PO in one workflow and DEVELOPER in another.
@@ -74,7 +74,7 @@ module/
 | `## Conventions` | Required at project/module root | X | **Present (override)** — Write only what differs from parent |
 | `## Instructions` | **project root only** | X | AI behavior directives (globally applied from project root) |
 
-### DEVELOPERS.md Schema (v5.0)
+### DEVELOPERS.md Schema (v5.1)
 
 | Section | Required | None Allowed | Content |
 |---------|----------|--------------|---------|
@@ -83,6 +83,7 @@ module/
 | `## Technical Context` | O | O | Module-level implementation context (libraries, patterns, mechanisms) |
 | `## Decision Log` | X | O | ADR style: context/decision/rationale |
 | `## Flows` | X (project root only) | O | System-level use case execution flows |
+| `## Roadmap` | X | O | PM/PO forward planning — Short-term/Long-term/Deferred |
 | `## Agent Observations` | X | O | Agent-managed experiential knowledge (agent-writable only, not auto-added by converge) |
 
 #### Agent Observations Entry Format
@@ -104,6 +105,7 @@ Each entry is an H3 with a type tag:
 | `decision` | Technical choices with rationale | Anchor deletion | Decision Log |
 | `tactical` | Short-lived workarounds | refs=0 + age>30d → auto-remove | (none) |
 | `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
+| `improvement` | Technical debt, performance issues, refactoring needs (DEVELOPER-written) | anchor 있음: anchor 삭제 ∨ Roadmap 흡수; anchor 없음: refs=0 + age>60d → auto-remove | Roadmap short-term |
 
 ### Conventions Section
 
@@ -319,6 +321,7 @@ User: /decompile [path]
 | `refactorer` | DEVELOPER | (none) | REFACTOR — Apply Conventions + regression testing | read-write |
 | `bugfixer` | DEVELOPER | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) | read-write |
 | `spec-quality-reviewer` | PM/PO | (none) | 5-criteria spec quality review (verdict: pass/needs_improvement) | read-only |
+| `po-consultant` | PM/PO | (none) — 판단 작업 | 세 지식층 동원 feasibility 판단. read-only | read-only |
 
 ## Commands
 
@@ -344,6 +347,7 @@ User: /decompile [path]
 | `/impact` | PM/PO: Change impact analysis across module dependency graph (Grep-based, 2-hop) |
 | `/impl-review` | PM/PO: CLAUDE.md + DEVELOPERS.md quality review (deterministic CLI + semantic 5-criteria) |
 | `/status` | PM/PO: Project health dashboard (schema, pairing, drift, conventions) |
+| `/consult` | 외부 추상적 요구사항 → PM/PO 판단 (feasible/partially_feasible/not_feasible + constraints + history + roadmap_fit + suggested_path). Read-only. |
 
 ### Phase 2 (Planned)
 
@@ -397,9 +401,11 @@ PM/PO role:
   /sync      → DEVELOPERS.md Constraints update (partial, preserves other sections)
   /decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
   /validate  → Violation reporting + interactive resolution + Agent Observations cleanup
+               + improvement 항목 Roadmap promote 검토
   /impact    → Read-only impact analysis (no file modifications)
   /impl-review → Read-only quality review (no file modifications)
   /status    → Read-only health dashboard (no file modifications)
+  /consult   → Read-only judgment (no file modifications)
 
 DEVELOPER role:
   /dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
@@ -443,10 +449,65 @@ Tier 2 (LLM): only triggered when CLI result = below_threshold
 ### INV-10: Observation Promotion Path
 ```
 promote(entry) requires:
-  entry.type ∈ {structural, decision, preference}
+  entry.type ∈ {structural, decision, preference, improvement}
   ∧ user_approval = true
 post-condition:
   entry ∉ Agent Observations ∧ promoted_content ∈ target_section
+
+Promotion Target:
+  structural  → Technical Context
+  decision    → Decision Log
+  preference  → Constraints/Conventions
+  improvement → Roadmap short-term
+```
+
+### INV-11: Roadmap Authorship
+```
+∀ modification to DEVELOPERS.md ## Roadmap:
+  modifier.role = PM/PO
+  ∧ Roadmap.item ∉ {already_in_constraints, already_in_requirements}
+  ∧ Deferred.item → Deferred.item.reason ≠ empty
+post-condition (/spec으로 요구사항 확정 시):
+  확정된 Roadmap 항목을 PM/PO가 즉시 Roadmap에서 제거
+```
+
+### INV-12: Improvement Observation Lifecycle
+```
+∀ entry ∈ Agent Observations where entry.type = improvement:
+  entry.source.role = DEVELOPER
+  ∧ entry.anchor ≠ none:
+      (entry.anchor_deleted ∨ entry.promoted_to_roadmap) → entry.stale = true
+  ∧ entry.anchor = none:
+      (entry.refs = 0 ∧ age(entry) > 60d) → entry.stale = true
+```
+
+### INV-13: Node Dependency Notification
+```
+∀ spec change to node N that modifies ## Data Schemas (exported interface):
+  N.pm_po MUST surface this change as one of:
+    [decision] Agent Observation entry
+    ∨ ## Decision Log entry (DEVELOPERS.md)
+  dependent nodes MAY trigger /impact → /sync cycle
+  ∧ not_feasible rejection from N.pm_po toward a calling party:
+      → escalate via AskUserQuestion before proceeding
+```
+
+### INV-14: Node Access Through PM/PO
+```
+∀ agent A performing cross-node context access to node N:
+  A.node ≠ N ∧ A.role ≠ N.pm_po ∧ A.role ≠ N.developer
+  → A MUST obtain context via Task(po-consultant, N) verdict
+  ∧ A MUST NOT Read(N/CLAUDE.md) or Read(N/DEVELOPERS.md) as judgment input
+
+Permitted exceptions:
+  - project_root/CLAUDE.md: accessible by all agents (auto-loaded, public contract)
+  - DEVELOPER reading own node's spec: permitted (INV-4)
+  - PM/PO reading own node's spec: permitted (INV-4)
+  - /validate, /decompile: system-level read-only scans exempt
+  - /impact: dependency graph traversal exempt (read-only, no judgment)
+  - /status: project health dashboard scan exempt (read-only, no judgment)
+  - /bugfix: multi-module bug tracing exempt (read-only cross-node, doc escalation path)
+  - /sync: PM/PO DEVELOPERS.md partial update (own node) — covered by PM/PO own-node exception
 ```
 
 ## Development Principles
@@ -456,6 +517,7 @@ post-condition:
 3. **File-based results**: Agent results are saved to files, only paths are returned
 4. **Simple retry**: Schema validation once, test retry 3 times
 5. **Version management**: Must bump the `version` field in `.claude-plugin/plugin.json` on changes
+6. **Node Ownership**: Each node's PM/PO and DEVELOPER hold full authority over that node's spec. External agents access node context exclusively via po-consultant verdict (INV-14), not direct file reads.
 
 ## Superpowers Coexistence
 
@@ -490,6 +552,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 | validator | verification-before-completion | Evidence-based verification discipline |
 | decompiler | (none) | Extraction work, no process discipline needed |
 | spec-quality-reviewer | (none) | 5-criteria spec quality review, return verdict |
+| po-consultant | (none) | Read-only feasibility judgment — 3-layer reasoning (spec/history/roadmap), return verdict |
 
 ## Instructions
 

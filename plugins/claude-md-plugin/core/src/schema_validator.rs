@@ -1417,7 +1417,7 @@ Old data.
     #[test]
     fn test_converge_developers_md_idempotent_with_data_schemas() {
         // Content already has all required + optional (non-conditional) sections
-        let content = "# Test Module\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n\n## Decision Log\nNone\n\n## Technical Context\nNone\n";
+        let content = "# Test Module\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n\n## Technical Context\nNone\n\n## Decision Log\nNone\n\n## Roadmap\nNone\n";
         let validator = SchemaValidator::new();
         let result = validator.converge_schema(content, "developers_md");
         assert!(result.changes.is_empty(), "Should be idempotent: {:?}", result.changes);

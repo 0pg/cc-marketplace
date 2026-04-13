@@ -35,7 +35,7 @@ CLAUDE.md (Business Spec) + Design Decisions → DEVELOPERS.md (System Spec) →
 | CLAUDE.md | Business Spec (what + why) | PM/PO | PM/PO, DEVELOPER |
 | DEVELOPERS.md | System Spec (how precisely) | PM/PO | DEVELOPER (/dev) |
 
-## Sections (2 required + 4 optional, all allow None)
+## Sections (2 required + 5 optional, all allow None)
 
 > **v5.0 change**: Operations and Public API sections removed. Environment variables moved to Constraints; operational procedures moved to Decision Log. structural observation promotion target changed from Operations to Technical Context.
 
@@ -127,6 +127,29 @@ No date field — only currently valid decisions are recorded. Revoked decisions
 - **Rationale**: Single-instance environment makes Redis overkill
 ```
 
+### ## Roadmap (Optional, None Allowed, PM/PO-Managed)
+
+PM/PO가 node의 전략적 방향을 관리하는 섹션. **아직 Constraints/Requirements로 확정되지 않은 것만 기록한다.**
+이미 Constraints나 Requirements에 존재하는 항목을 중복 등록하지 않는다.
+
+```markdown
+## Roadmap
+
+### Short-term
+- 가까운 시일 내 구현 예정인 개선 항목 (아직 스펙 아님)
+
+### Long-term
+- 아직 Requirements로 확정되지 않은 전략적 의도
+
+### Deferred
+- 보류된 방향과 보류 이유 (Decision Log 참조 또는 인라인 이유 명시)
+```
+
+**작성 원칙:**
+- Short-term/Long-term: 아직 스펙(Constraints/Requirements)이 아닌 것이어야 함
+- Deferred: 보류 이유 없는 항목은 의미 없음 — 반드시 이유 명시
+- 항목이 /spec으로 Requirements로 확정되면 PM/PO가 해당 Roadmap 항목을 즉시 제거
+
 ### ## Agent Observations (Optional, None Allowed, Agent-Managed)
 
 Experiential knowledge recorded by agents during work. **Only agents write to this section.**
@@ -160,6 +183,7 @@ Each entry is an H3 with a type tag and required metadata:
 | `decision` | Technical choices with rationale | Anchor deleted | Decision Log |
 | `tactical` | Short-lived workarounds, temp notes | refs=0 + age>30d | (removed, no promotion) |
 | `preference` | User-expressed coding preferences | User revocation | Constraints/Conventions |
+| `improvement` | Technical debt, perf issues, refactoring needs (DEVELOPER-written) | anchor 있음: anchor 삭제 ∨ Roadmap 흡수 → remove; anchor 없음: refs=0 + age>60d → auto-remove | Roadmap short-term |
 
 **Required Fields:** `since`, `refs`, `source`
 **Optional Fields:** `anchor` (REQ-N or CONST-N)
@@ -203,6 +227,7 @@ Describes cross-module call order and data types. Warning if written in non-proj
 | `/dev` | Test generation source + Agent Observations write | Generates test cases from Constraints; records observations |
 | `/validate` | Drift verification + Agent Observations cleanup | Constraints drift detection; stale observation removal + promotion report |
 | `/bugfix` | L2 diagnosis + Agent Observations write | 3-layer analysis; records structural observations |
+| `/consult` | Read-only (Constraints + Roadmap + Agent Observations) | PM/PO feasibility judgment |
 
 ## Lifecycle
 

@@ -8,49 +8,9 @@
   },
   "plugins": [
     {
-      "name": "orchestrator-guide",
-      "description": "Multi-agent orchestration framework for complex tasks with 5-element delegation protocol. Use /orchestrator for task coordination, /planner for spec generation, /delegator for delegation prompts.",
-      "version": "1.6.2",
-      "author": {
-        "name": "jhk"
-      },
-      "source": "./plugins/orchestrator-guide",
-      "category": "development"
-    },
-    {
-      "name": "project-context-store",
-      "description": "코드 재현에 필요한 컨텍스트를 CLAUDE.md로 자동 문서화. /context-generate로 생성, /context-update로 업데이트, /context-validate로 검증.",
-      "version": "1.6.1",
-      "author": {
-        "name": "jhk"
-      },
-      "source": "./plugins/project-context-store",
-      "category": "documentation"
-    },
-    {
-      "name": "tdd-dev",
-      "description": "TDD/ATDD 원칙 가이드. Outside-In TDD로 테스트가 컴포넌트 인터페이스를 정의합니다. /test-design으로 테스트 설계, /tdd-impl로 구현.",
-      "version": "1.4.1",
-      "author": {
-        "name": "jhk"
-      },
-      "source": "./plugins/tdd-dev",
-      "category": "development"
-    },
-    {
-      "name": "tdd-workflow",
-      "description": "orchestrator-guide용 TDD 워크플로우 어댑터. Red-Green-Refactor 기반 테스트 주도 개발 워크플로우 제공.",
-      "version": "1.0.0",
-      "author": {
-        "name": "jhk"
-      },
-      "source": "./plugins/tdd-workflow",
-      "category": "development"
-    },
-    {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
-      "version": "15.0.0",
+      "version": "15.2.0",
       "author": {
         "name": "jhk"
       },
@@ -65,16 +25,6 @@
         "name": "jhk"
       },
       "source": "./plugins/project-init",
-      "category": "development"
-    },
-    {
-      "name": "project-setup",
-      "description": "프로젝트의 빌드/테스트 커맨드를 파악하고 CLAUDE.md에 저장. /project-setup으로 실행.",
-      "version": "2.0.0",
-      "author": {
-        "name": "jhk"
-      },
-      "source": "./plugins/project-setup",
       "category": "development"
     }
   ]

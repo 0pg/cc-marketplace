@@ -7,7 +7,7 @@ description: |
   "partial spec update", or uses "/sync".
   After PM/PO modifies CLAUDE.md Requirements, updates only the DEVELOPERS.md Constraints
   without running the full /spec workflow (Self Socratic Loop + plan + review).
-  Preserves Technical Context, Decision Log, and Agent Observations.
+  Preserves Technical Context, Decision Log, Agent Observations, and Roadmap.
   Trigger keywords: sync, update constraints, partial update
 user_invocable: true
 allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, Skill, AskUserQuestion]
@@ -93,6 +93,7 @@ Read existing DEVELOPERS.md and extract:
 backup_technical_context = full content of ## Technical Context
 backup_decision_log = full content of ## Decision Log
 backup_agent_observations = full content of ## Agent Observations
+backup_roadmap = full content of ## Roadmap (None if section absent)
 ```
 
 Store each as a string variable (SKILL-level, not written to file).
@@ -163,11 +164,13 @@ Read the updated DEVELOPERS.md and compare preserved sections:
 current_technical_context = ## Technical Context from updated file
 current_decision_log = ## Decision Log from updated file
 current_agent_observations = ## Agent Observations from updated file
+current_roadmap = ## Roadmap from updated file (None if section absent)
 
 Compare with backups from Step 4:
   if current_technical_context != backup_technical_context → RESTORE
   if current_decision_log != backup_decision_log → RESTORE
   if current_agent_observations != backup_agent_observations → RESTORE
+  if current_roadmap != backup_roadmap → RESTORE
 ```
 
 On mismatch:

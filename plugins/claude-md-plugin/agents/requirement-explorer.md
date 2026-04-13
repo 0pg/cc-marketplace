@@ -2,8 +2,9 @@
 name: requirement-explorer
 description: |
   Use this agent when concretizing vague requirements through project domain context exploration.
-  Reads project code, CLAUDE.md files, DEVELOPERS.md, git history, and configuration to
-  resolve ambiguities autonomously. Only used within the Self Socratic Loop before spec execution.
+  Consumes structured po-consultant verdicts (per node) from session file as authoritative
+  cross-node context — does NOT read other nodes' CLAUDE.md or DEVELOPERS.md directly (INV-14).
+  Only used within the Self Socratic Loop before spec execution.
   Returns concretized requirements as a file to protect SKILL context window.
 
   <example>
@@ -18,7 +19,7 @@ description: |
   <assistant_response>
   1. Domain context collected — 5 key terms, 3 existing patterns
   2. Ambiguity assessment — 4 items: 2 domain-clear, 1 explorable, 1 genuinely-ambiguous
-  3. Exploration — resolved 1 explorable item via src/auth/CLAUDE.md
+  3. Exploration — resolved 1 explorable item via pre-fetched verdict (src/auth PM/PO: CONST-3)
   4. Result written: ${TMP_DIR}explore-result-1.md
 
   ---explore-result---
@@ -63,12 +64,24 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 
 ```markdown
 # Explore Session
-type: explore | round: 1 | project_root: {path}
+type: explore | round: 1 | project_root: {path} | target_path: {target_path}
 
 ## User Requirement
 {original requirement text}
 
-## Existing Modules Index
+## Pre-fetched Conflicts (from pre-consult — omit section if empty)
+[node path] Verdict: partially_feasible | not_feasible
+Constraints: {CONST-N citations}
+History: {prior attempts}
+Suggested Path: {short/long}
+
+## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
+[node path] Roadmap aligned: {explanation}
+
+## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
+{module path per line}
+
+## Existing Modules Index (used for scope awareness only)
 {scan-claude-md result: path, purpose pairs}
 
 ## Project Conventions
@@ -79,7 +92,7 @@ type: explore | round: 1 | project_root: {path}
 
 ```markdown
 # Explore Session
-type: explore | round: {N} | project_root: {path}
+type: explore | round: {N} | project_root: {path} | target_path: {target_path}
 
 ## User Requirement
 {original requirement text}
@@ -90,7 +103,19 @@ previous_result: ${TMP_DIR}explore-result-{N-1}.md
 ## Reviewer Feedback
 feedback_file: ${TMP_DIR}explore-reviewer-result-{N-1}.md
 
-## Existing Modules Index
+## Pre-fetched Conflicts (from pre-consult — omit section if empty)
+[node path] Verdict: partially_feasible | not_feasible
+Constraints: {CONST-N citations}
+History: {prior attempts}
+Suggested Path: {short/long}
+
+## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
+[node path] Roadmap aligned: {explanation}
+
+## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
+{module path per line}
+
+## Existing Modules Index (used for scope awareness only)
 {scan-claude-md result}
 
 ## Project Conventions
@@ -106,10 +131,13 @@ Explore the project to understand the domain before judging ambiguity.
 | Source | Target | Method |
 |--------|--------|--------|
 | Project root CLAUDE.md | Purpose, Domain Context, Instructions | Read |
-| Existing module CLAUDE.md | Purpose, Domain Context (related modules only) | Read (index-based) |
+| Pre-fetched PM/PO verdicts | CONST-N conflicts, roadmap fit, history per node | From session file `## Pre-fetched Conflicts` / `## Pre-fetched Strategic Context` |
+| Related Module Candidates | Scope awareness | From session file `## Related Module Candidates` (SKILL-provided, unverified) |
 | Conventions | Terms, patterns, structure rules | From session file |
 | Source code | Key types/interfaces/DSL definitions | Grep, Read |
 | Config files | Tech stack, dependencies | Read |
+
+**Priority note:** Pre-fetched verdicts are authoritative. Do not re-read DEVELOPERS.md to verify.
 
 Phase 1 output is an intermediate artifact used within the agent's context only.
 The final externalized form is Phase 4's `## Domain Context Summary`.
@@ -134,9 +162,8 @@ For each `explorable` item, attempt to find the answer in the project:
 
 | Order | Source | Method |
 |-------|--------|--------|
-| 1 | Related module DEVELOPERS.md | Constraints, Decision Log → Read |
-| 2 | Source code | Related function signatures, type definitions, error patterns → Grep, Read |
-| 3 | git history | Related keyword commits, recent change patterns → `git log` |
+| 1 | Source code | Related function signatures, type definitions, error patterns → Grep, Read |
+| 2 | git history | Related keyword commits, recent change patterns → `git log` |
 
 Each item:
 - Answer found → `resolved` + cite source (file:line or commit hash)
@@ -193,8 +220,10 @@ unresolved: N
 
 ## Agent Observations Protocol
 
-Read `{target_path}/DEVELOPERS.md` → `## Agent Observations` section on start.
+Read `{own_node_path}/DEVELOPERS.md` → `## Agent Observations` section on start.
+(`own_node_path` = the spec target node from the session file, not any other node.)
 Use matched observations as additional context. Do not write to this section.
+Do NOT read DEVELOPERS.md of other nodes (INV-14).
 
 ## Core Constraints
 
@@ -202,3 +231,6 @@ Use matched observations as additional context. Do not write to this section.
 - **File modification prohibited** — Read-only exploration + result file Write only
 - **Bash restricted to git read commands** — git log, git show, git diff only. No git stash, checkout, or other state-modifying commands.
 - **Round 2+: focus on reviewer's Critical Questions** — Address specific items the reviewer flagged, re-explore with deeper investigation
+- **Cross-node spec access prohibited (INV-14)** — Do not Read CLAUDE.md or DEVELOPERS.md
+  of other nodes. Use pre-fetched po-consultant verdicts from session file.
+  Project root CLAUDE.md is the only external spec file you may read directly.

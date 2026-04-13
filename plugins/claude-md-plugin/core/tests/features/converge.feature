@@ -178,6 +178,9 @@ Feature: Schema Convergence (fix-schema converge)
 
       ## Decision Log
       None
+
+      ## Roadmap
+      None
       """
     When I converge the DEVELOPERS.md schema
     Then converge should report no changes

@@ -1,6 +1,6 @@
 ---
 name: spec
-version: 2.0.0
+version: 3.1.0
 aliases: [define, requirements, impl]
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
@@ -54,17 +54,163 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
-### 2.4 Collect Node History (if existing node)
+### 2.1 Pre-consult (Strategic Conflict Detection)
 
-If the target path already has a CLAUDE.md, collect recent change context:
+Detect conflicts with existing constraints/Roadmap and root strategic direction
+**before** requirement concretization. Populates context blocks injected into Step 2.5.
+
+#### 2.1a Determine consult targets
 
 ```bash
 if [ -f "{path}/CLAUDE.md" ]; then
-  $CLI_PATH diff-node-history \
-    --path {path} --root {project_root} --limit 10 \
-    --output "${TMP_DIR}node-history-${dir_safe}.json"
+  # Existing node — consult root + target
+  consult_targets=("." "{path}")
+else
+  # New node — root strategic context only (partial-skip: target has no spec yet)
+  consult_targets=(".")
 fi
+# Deduplicate (handles case where path == project_root)
+consult_targets=($(printf '%s\n' "${consult_targets[@]}" | sort -u))
 ```
+
+#### 2.1b Sibling module candidate hints (no LLM)
+
+From the scan-claude-md index (Step 1), find modules not already in `consult_targets`
+whose `purpose` field shares at least one word (≥ 3 characters) with the requirement text:
+
+```python
+import re
+req_words = set(re.findall(r'\w{3,}', requirement_text.lower()))
+related_module_hints = []
+for module in claude_md_index["modules"]:
+    if module["path"] in consult_targets:
+        continue
+    purpose_words = set(re.findall(r'\w{3,}', module.get("purpose", "").lower()))
+    if req_words & purpose_words:
+        related_module_hints.append(module["path"])
+related_module_hints = related_module_hints[:3]  # top 3 by insertion order
+```
+
+#### 2.1c Prepare consult session files (one per target)
+
+# NOTE: mirrors /consult SKILL Steps 1-3. Update both on format changes.
+
+For each `target` in `consult_targets`:
+
+1. Derive `dir_safe_target`: if target is `.` → `"root"`, else replace `/` with `-`
+2. Read `{target}/CLAUDE.md` (full content) and `{target}/DEVELOPERS.md` (or "absent")
+3. ```bash
+   $CLI_PATH diff-node-history --path {target} --root {project_root} --limit 5 \
+     --output "${TMP_DIR}preconsult-history-${dir_safe_target}.json"
+   ```
+4. Extract from DEVELOPERS.md `## Agent Observations` (if present):
+   Filter types: `structural`, `decision`, `improvement` only (skip `tactical`, `preference`).
+5. Extract `## Roadmap` section from DEVELOPERS.md (or "Roadmap not defined").
+6. Write `${TMP_DIR}consult-session-${dir_safe_target}.md`:
+   ```markdown
+   # Consult Session
+   type: consult | target: {target} | project_root: {project_root}
+   dir_safe: {dir_safe_target}
+
+   ## Request
+   "{requirement_text}"
+
+   ## [1] Current Spec
+
+   ### CLAUDE.md
+   {full CLAUDE.md content}
+
+   ### DEVELOPERS.md
+   {full DEVELOPERS.md content, or "absent"}
+
+   ## [2] Decision History
+
+   ### diff-node-history (limit 5)
+   {parsed JSON from preconsult-history-{dir_safe_target}.json — commits with section changes}
+
+   ### Agent Observations (structural, decision, improvement only)
+   {filtered entries from ## Agent Observations, or "None"}
+
+   ## [3] Strategic Direction
+
+   ### Roadmap
+   {roadmap_content}
+   ```
+
+#### 2.1d Dispatch po-consultant in parallel
+
+Dispatch `Task(po-consultant)` for **all** prepared session files simultaneously
+(single parallel batch):
+
+  For each `target` in `consult_targets`:
+    Task(po-consultant):
+      Session file: ${TMP_DIR}consult-session-${dir_safe_target}.md
+      Save result to ${TMP_DIR} and return only the result block path
+
+Wait for all tasks to complete. Then read each `${TMP_DIR}consult-result-${dir_safe_target}.md`.
+Extract: `verdict`, `roadmap_fit`, `## Constraints` block, `## History` block,
+`## Suggested Path` block, roadmap_fit explanation sentence.
+
+```python
+# Failure handling (non-blocking):
+failed_targets = [t for t in consult_targets if result file missing or unreadable]
+if failed_targets:
+    Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
+```
+
+#### 2.1e Build pre-fetched context blocks
+
+```
+pre_fetched_conflicts = ""    # filled when verdict ∈ {partially_feasible, not_feasible}
+pre_fetched_strategic = ""    # filled when verdict == feasible AND roadmap_fit == aligned
+
+for target, result in consult_results:
+    if result.verdict in ["partially_feasible", "not_feasible"]:
+        entry = f"""[{target}] Verdict: {result.verdict}
+
+Constraints:
+{result.constraints}
+
+History:
+{result.history}
+
+Suggested Path:
+{result.suggested_path}
+"""
+        if result.verdict == "not_feasible":
+            entry += "(⚠ not_feasible: if this requirement intentionally replaces existing behavior, " \
+                     "the explorer must note that explicitly in Concretized Requirements.)\n"
+        pre_fetched_conflicts += entry
+
+    elif result.verdict == "feasible" and result.roadmap_fit == "aligned":
+        pre_fetched_strategic += f"[{target}] Roadmap aligned: {result.roadmap_fit_explanation}\n"
+
+# Sibling modules not covered by pre-consult (explorer judges relevance)
+unconsulted_hints = [p for p in related_module_hints if p not in consult_targets]
+
+# Partially feasible early warning
+partially_feasible_targets = [t for t, r in consult_results if r.verdict == "partially_feasible"]
+if partially_feasible_targets:
+    Output: "ℹ Pre-consult: partially_feasible constraints in {partially_feasible_targets}. Spec will be adjusted."
+
+# Not feasible early warning
+not_feasible_targets = [t for t, r in consult_results if r.verdict == "not_feasible"]
+if not_feasible_targets:
+    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. Proceeding — if intentional replacement, explorer will note explicitly."
+```
+
+### 2.4 Collect Node History (if existing node AND not pre-consulted)
+
+If the target path has a CLAUDE.md **and** the target was NOT included in `consult_targets` (Step 2.1a):
+
+```bash
+$CLI_PATH diff-node-history \
+  --path {path} --root {project_root} --limit 10 \
+  --output "${TMP_DIR}node-history-${dir_safe}.json"
+```
+
+If the target was pre-consulted (target ∈ `consult_targets`): **skip this step**.
+The `po-consultant` agent already captured recent node history in the consult result.
 
 If the output file exists and contains commits (`has_history: true`), include its contents
 in the explore session file as `## Node History` section. See format below in 2.5a.
@@ -89,12 +235,12 @@ loop:
         Round 1:
         ---
         # Explore Session
-        type: explore | round: 1 | project_root: {project_root}
+        type: explore | round: 1 | project_root: {project_root} | target_path: {path}
 
         ## User Requirement
         {user requirement text}
 
-        ## Node History (optional — only when existing node has history)
+        ## Node History (optional — only when existing node has history AND not pre-consulted)
         commits_included: {N} | total_found: {M}
         {for each commit in node-history JSON:}
         ### {short_hash} — {subject}
@@ -103,6 +249,15 @@ loop:
         **{file_type} — {section}**: {changes count} added, {changes count} removed
         {end for}
         {end for}
+
+        ## Pre-fetched Conflicts (from pre-consult — omit section if empty)
+        {pre_fetched_conflicts}
+
+        ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
+        {pre_fetched_strategic}
+
+        ## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
+        {one path per line from unconsulted_hints}
 
         ## Existing Modules Index
         {scan-claude-md result}
@@ -114,7 +269,7 @@ loop:
         Round 2:
         ---
         # Explore Session
-        type: explore | round: 2 | project_root: {project_root}
+        type: explore | round: 2 | project_root: {project_root} | target_path: {path}
 
         ## User Requirement
         {user requirement text}
@@ -124,6 +279,15 @@ loop:
 
         ## Reviewer Feedback
         feedback_file: ${TMP_DIR}explore-reviewer-result-1.md
+
+        ## Pre-fetched Conflicts (from pre-consult — omit section if empty)
+        {pre_fetched_conflicts}
+
+        ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
+        {pre_fetched_strategic}
+
+        ## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
+        {one path per line from unconsulted_hints}
 
         ## Existing Modules Index
         {scan-claude-md result}
