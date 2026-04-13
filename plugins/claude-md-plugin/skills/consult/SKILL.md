@@ -1,6 +1,6 @@
 ---
 name: consult
-version: 1.0.0
+version: 1.1.0
 aliases: [ask-po, feasibility, po-consult]
 description: |
   This skill should be used when the user asks to "consult the PM/PO", "check feasibility",
@@ -56,6 +56,7 @@ $CLI_PATH scan-claude-md --root {target} --output "${TMP_DIR}scan-result.json"
 If no CLAUDE.md found → "No CLAUDE.md found at {path}. Specify a valid module path." → exit.
 
 Set `dir_safe` = target path with `/` replaced by `-` (e.g., `src/auth` → `src-auth`).
+If target path is `.` or empty → `dir_safe = "root"` (ensures deterministic result file path).
 Set `project_root` = nearest ancestor containing project-root CLAUDE.md (has `## Instructions`).
 
 ### 2. Collect knowledge layers
