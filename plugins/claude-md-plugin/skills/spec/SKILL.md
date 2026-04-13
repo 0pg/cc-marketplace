@@ -1,6 +1,6 @@
 ---
 name: spec
-version: 3.0.0
+version: 3.1.0
 aliases: [define, requirements, impl]
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
@@ -91,16 +91,74 @@ for module in claude_md_index["modules"]:
 related_module_hints = related_module_hints[:3]  # top 3 by insertion order
 ```
 
-#### 2.1c Execute consult for each target (sequential)
+#### 2.1c Prepare consult session files (one per target)
+
+# NOTE: mirrors /consult SKILL Steps 1-3. Update both on format changes.
 
 For each `target` in `consult_targets`:
 
 1. Derive `dir_safe_target`: if target is `.` → `"root"`, else replace `/` with `-`
-2. `Skill(/consult, args: "{target} \"{requirement_text}\"")`
-3. Read `${TMP_DIR}consult-result-${dir_safe_target}.md`
-4. Extract: `verdict`, `roadmap_fit`, `## Constraints` block, `## History` block, `## Suggested Path` block
+2. Read `{target}/CLAUDE.md` (full content) and `{target}/DEVELOPERS.md` (or "absent")
+3. ```bash
+   $CLI_PATH diff-node-history --path {target} --root {project_root} --limit 5 \
+     --output "${TMP_DIR}preconsult-history-${dir_safe_target}.json"
+   ```
+4. Extract from DEVELOPERS.md `## Agent Observations` (if present):
+   Filter types: `structural`, `decision`, `improvement` only (skip `tactical`, `preference`).
+5. Extract `## Roadmap` section from DEVELOPERS.md (or "Roadmap not defined").
+6. Write `${TMP_DIR}consult-session-${dir_safe_target}.md`:
+   ```markdown
+   # Consult Session
+   type: consult | target: {target} | project_root: {project_root}
+   dir_safe: {dir_safe_target}
 
-#### 2.1d Build pre-fetched context blocks
+   ## Request
+   "{requirement_text}"
+
+   ## [1] Current Spec
+
+   ### CLAUDE.md
+   {full CLAUDE.md content}
+
+   ### DEVELOPERS.md
+   {full DEVELOPERS.md content, or "absent"}
+
+   ## [2] Decision History
+
+   ### diff-node-history (limit 5)
+   {parsed JSON from preconsult-history-{dir_safe_target}.json — commits with section changes}
+
+   ### Agent Observations (structural, decision, improvement only)
+   {filtered entries from ## Agent Observations, or "None"}
+
+   ## [3] Strategic Direction
+
+   ### Roadmap
+   {roadmap_content}
+   ```
+
+#### 2.1d Dispatch po-consultant in parallel
+
+Dispatch `Task(po-consultant)` for **all** prepared session files simultaneously
+(single parallel batch):
+
+  For each `target` in `consult_targets`:
+    Task(po-consultant):
+      Session file: ${TMP_DIR}consult-session-${dir_safe_target}.md
+      Save result to ${TMP_DIR} and return only the result block path
+
+Wait for all tasks to complete. Then read each `${TMP_DIR}consult-result-${dir_safe_target}.md`.
+Extract: `verdict`, `roadmap_fit`, `## Constraints` block, `## History` block,
+`## Suggested Path` block, roadmap_fit explanation sentence.
+
+```python
+# Failure handling (non-blocking):
+failed_targets = [t for t in consult_targets if result file missing or unreadable]
+if failed_targets:
+    Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
+```
+
+#### 2.1e Build pre-fetched context blocks
 
 ```
 pre_fetched_conflicts = ""    # filled when verdict ∈ {partially_feasible, not_feasible}
@@ -129,6 +187,16 @@ Suggested Path:
 
 # Sibling modules not covered by pre-consult (explorer judges relevance)
 unconsulted_hints = [p for p in related_module_hints if p not in consult_targets]
+
+# Partially feasible early warning
+partially_feasible_targets = [t for t, r in consult_results if r.verdict == "partially_feasible"]
+if partially_feasible_targets:
+    Output: "ℹ Pre-consult: partially_feasible constraints in {partially_feasible_targets}. Spec will be adjusted."
+
+# Not feasible early warning
+not_feasible_targets = [t for t, r in consult_results if r.verdict == "not_feasible"]
+if not_feasible_targets:
+    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. Proceeding — if intentional replacement, explorer will note explicitly."
 ```
 
 ### 2.4 Collect Node History (if existing node AND not pre-consulted)
