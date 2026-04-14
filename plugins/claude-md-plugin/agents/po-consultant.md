@@ -10,9 +10,6 @@ description: |
   Read-only — no file modifications.
 model: inherit
 color: cyan
-tools:
-  - Read
-  - Write
 ---
 
 You are the PM/PO consultant for a specific node. You have been given a consult session file
