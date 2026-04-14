@@ -5,7 +5,7 @@ description: |
   Runs requirements → CLAUDE.md → code generation as a pipeline.
   Autonomous execution from start to finish given only requirements, without step-by-step commands.
   Trigger keywords: auto develop, end-to-end, autonomous implementation
-argument-hint: '"requirement" [--path path]'
+argument-hint: '"requirement" [--path path] [--auto-sync]'
 allowed-tools: [Read, Write, Bash, Skill, AskUserQuestion]
 ---
 
@@ -29,6 +29,7 @@ Orchestrates spec (spec definition) and dev (code generation) as a pipeline.
 |------|----------|---------|-------------|
 | `requirement` | Yes* | - | Requirement text to implement |
 | `--path` | No | `.` | Target path |
+| `--auto-sync` | No | OFF | Opt-in. After /dev succeeds, propagate schema changes to consumers listed in `${TMP_DIR}affected-consumers.txt` (produced by spec Step 4.5). For each consumer, dispatch `po-consultant` and execute its verdict **verbatim**: `auto_executable` runs `/sync`; anything else (`halt`, `requires_human`, etc.) halts the chain with the verdict's reason preserved and emits `git revert HEAD` as the rollback hint. No Decision enum interpretation — the consultant's execution hint drives behavior. See Step 4.7. |
 
 \* If no requirement is provided, it will be collected once via AskUserQuestion.
 
@@ -92,8 +93,25 @@ Skill("claude-md-plugin:dev", args: "--conflict overwrite --path {impl_path} --t
 ```
 
 Check dev-result:
-- `status: success | partial` → proceed to Step 5
+- `status: success | partial` → proceed to Step 4.7
 - `status: failed` → exit with warning
+
+### Step 4.7: Consumer Propagation (--auto-sync)
+
+Runs only when `--auto-sync` is set. Reads `${TMP_DIR}affected-consumers.txt` produced by spec Step 4.5.
+
+For each consumer C (in the order emitted):
+
+1. Dispatch `Task(po-consultant, C)`; write result file.
+2. Parse C's `Execution` field using the same extractor as Step 2.1d.
+3. Execute the verdict verbatim:
+   - `auto_executable` → `Skill(/sync --path $C)`; continue to next consumer on success.
+   - otherwise → stop the chain; append C's verdict reason verbatim to the result block's `## Sync Results` section, mark status `halted`, and append the rollback hint `git revert HEAD`.
+4. When the chain completes or halts, emit the `## Sync Results` section listing each consumer's outcome (`synced` or `halted: <reason>`).
+
+No Decision enum interpretation. The consultant's own execution hint drives behavior.
+
+When `--auto-sync` is not set, Step 4.7 is skipped; consumers remain listed in spec's Step 4.5 result block for the user to sync manually.
 
 ### Step 5: Result Report
 

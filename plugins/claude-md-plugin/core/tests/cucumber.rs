@@ -75,6 +75,9 @@ pub struct TestWorld {
     // Redirect loop fields (Task 6)
     redirect_tmp: Option<TempDir>,
     redirect_rounds_dir: Option<TempDir>,
+    // autodev --auto-sync fields (Task 11)
+    auto_sync_tmp: Option<TempDir>,
+    auto_sync_halt_reason: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -3620,6 +3623,144 @@ fn post_impact_absent_section(world: &mut TestWorld) {
     assert!(
         !body.contains("## Affected Consumers"),
         "result-block unexpectedly contains Affected Consumers:\n{}",
+        body
+    );
+}
+
+// ============== autodev --auto-sync (Task 11) ==============
+
+fn auto_sync_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/autodev_auto_sync.sh")
+}
+
+fn run_auto_sync_chain(world: &mut TestWorld, execution: &str, reason: &str) {
+    let tmp = TempDir::new().expect("tmp");
+    let root = tmp.path();
+    let fixture_dir = root.join("fixtures");
+    fs::create_dir_all(&fixture_dir).expect("mk fixtures");
+
+    // consumers: C (under test) followed by D (a downstream consumer that
+    // must NOT be synced when C halts the chain).
+    let consumers_path = root.join("affected-consumers.txt");
+    fs::write(&consumers_path, "C\nD\n").expect("write consumers");
+
+    // Build C's mock consult-result.
+    let c_result = format!(
+        "## Verdict\nfeasible\n\n## Execution\n{exec}\n\n## Reason\n{reason}\n\n## Roadmap Fit\naligned\n",
+        exec = execution,
+        reason = reason,
+    );
+    fs::write(fixture_dir.join("C.result.md"), c_result).expect("write C");
+
+    // D is always auto_executable; it should only run if C succeeded.
+    fs::write(
+        fixture_dir.join("D.result.md"),
+        "## Verdict\nfeasible\n\n## Execution\nauto_executable\n\n## Reason\n\n\n## Roadmap Fit\naligned\n",
+    )
+    .expect("write D");
+
+    let tmp_dir_str = {
+        let mut s = root.to_path_buf().into_os_string().into_string().unwrap();
+        if !s.ends_with('/') {
+            s.push('/');
+        }
+        s
+    };
+
+    let output = std::process::Command::new("bash")
+        .arg(auto_sync_harness_path())
+        .env("TMP_DIR", &tmp_dir_str)
+        .env("CONSUMERS_FILE", &consumers_path)
+        .env("FIXTURE_DIR", &fixture_dir)
+        .output()
+        .expect("run auto-sync harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    world.auto_sync_tmp = Some(tmp);
+    world.auto_sync_halt_reason = Some(reason.to_string());
+}
+
+#[given("consumer C's po-consultant emits Execution=auto_executable")]
+fn auto_sync_given_auto(world: &mut TestWorld) {
+    run_auto_sync_chain(world, "auto_executable", "");
+}
+
+#[given(regex = r#"^consumer C's po-consultant emits Execution=halt with reason "(.+)"$"#)]
+fn auto_sync_given_halt(world: &mut TestWorld, reason: String) {
+    run_auto_sync_chain(world, "halt", &reason);
+}
+
+#[given("consumer C's po-consultant emits Execution=requires_human")]
+fn auto_sync_given_requires_human(world: &mut TestWorld) {
+    run_auto_sync_chain(world, "requires_human", "human attention required");
+}
+
+#[then("/sync MUST be invoked on C")]
+fn auto_sync_then_c_invoked(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let log = fs::read_to_string(tmp.path().join("sync-invocations.log"))
+        .expect("read sync log");
+    assert!(
+        log.lines().any(|l| l == "C"),
+        "expected sync invocation for C, got:\n{}",
+        log
+    );
+}
+
+#[then("/sync MUST NOT run on C or any subsequent consumer")]
+fn auto_sync_then_no_invocations(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let log = fs::read_to_string(tmp.path().join("sync-invocations.log"))
+        .expect("read sync log");
+    assert!(
+        log.trim().is_empty(),
+        "expected no sync invocations, got:\n{}",
+        log
+    );
+}
+
+#[then("the result block MUST record C's halt reason verbatim")]
+fn auto_sync_then_halt_reason(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let reason = world.auto_sync_halt_reason.as_ref().expect("reason");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains(reason.as_str()),
+        "result-block missing halt reason {:?}:\n{}",
+        reason,
+        body
+    );
+}
+
+#[then("the result block MUST suggest `git revert HEAD`")]
+fn auto_sync_then_rollback(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("git revert HEAD"),
+        "result-block missing rollback hint:\n{}",
+        body
+    );
+}
+
+#[then("the result block MUST record C's reason verbatim")]
+fn auto_sync_then_reason(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let reason = world.auto_sync_halt_reason.as_ref().expect("reason");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains(reason.as_str()),
+        "result-block missing reason {:?}:\n{}",
+        reason,
         body
     );
 }
