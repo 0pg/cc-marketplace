@@ -457,19 +457,20 @@ If `## Reviewer Improvement Notes` is present in the session file but not addres
 > **mode=execute**: Use Requirements/Constraints from plan.md as input.
 > **Existing Single/Parallel modes**: Use content derived from Phases 1-3 as input.
 
-### Phase 4: Smart Merge (when existing documents exist, action=update)
+### Phase 4: Current-State Snapshot (when existing documents exist, action=update)
 
-**CLAUDE.md:**
-1. Read existing CLAUDE.md
-2. Purpose: Extend (preserve existing + reflect new features)
-3. Requirements: Preserve existing items + add new items (maintain REQ-N numbering continuity)
-4. Domain Context: Preserve existing + add new context
+**Outcome:** the updated CLAUDE.md and DEVELOPERS.md must read as the **currently valid spec** after the new requirement is applied — a snapshot, not a changelog. History (what the spec used to be, what was replaced, which iteration added what) lives in git; `diff-node-history` can reconstruct it when needed. The document body is for what is true *now*.
 
-**DEVELOPERS.md:**
-1. Read existing DEVELOPERS.md
-2. Constraints: Preserve unaffected items + update/add items for changed Requirements
-3. Technical Context: Preserve all existing + extend with new context
-4. Decision Log: Preserve all existing entries + add new entries if applicable
+**Judgment you own:**
+- For each existing element (Purpose sentence, Requirement, Constraint, Domain Context entry, Technical Context paragraph), decide whether it is still true after the new requirement, has been superseded, or should be merged. Remove what no longer holds. Keep what still does. Merge when a new item subsumes an older one.
+- Decide on a single, coherent identifier scheme for Requirements and Constraints in the resulting document. A first-time reader should not need to know the history of how the spec was built to parse its identifiers.
+- Strip anything that belongs to the *process of producing* the spec rather than the spec itself — session framings, iteration labels, bundle names, phase designations. If it would not appear in a spec written from scratch today, it does not belong in the snapshot.
+
+**Decision Log is the right place for change rationale.** When a removal or replacement carries rationale worth preserving, record it there — not by leaving the old item in place with a marker.
+
+**Fear-of-loss guard:** hesitation to remove an item because its current validity is unclear is a signal to **ask** (single mode) or to **flag as a warning in the result block** — not a signal to retain it annotated as deprecated inside the document body.
+
+**Reader test:** before returning, read the document as if seeing it for the first time. If any sentence only makes sense by knowing the project's prior state or the sequence of spec-writing sessions, the snapshot is contaminated and must be rewritten.
 
 ### Phase 5: Document Generation
 

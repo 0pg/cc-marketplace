@@ -2,8 +2,9 @@
 name: spec-quality-reviewer
 description: |
   Use this agent when reviewing the quality of CLAUDE.md + DEVELOPERS.md specifications.
-  Evaluates 5 criteria: Purpose clarity, Requirements measurability, REQ→CONST coverage,
-  Constraints precision, and Domain Context sufficiency.
+  Evaluates 8 criteria: Purpose clarity, Requirements measurability, REQ→CONST coverage,
+  Constraints precision, Abstraction level, Snapshot integrity, Identifier coherence,
+  and Domain Context sufficiency.
   Called by /impl-review SKILL after deterministic CLI validation.
   Returns verdict: pass | needs_improvement.
 
@@ -116,7 +117,25 @@ Fail indicators:
 - Ambiguous error handling ("fails gracefully")
 - Cannot be converted to a test
 
-### 5. Domain Context Sufficiency (INFO)
+### 5. Abstraction Level (ERROR)
+
+**Outcome to judge:** each Requirement is stated at a level a stakeholder could observe or accept, not at the level a build script could assert. Implementation-layer detail describes *how*, and belongs in DEVELOPERS.md Constraints.
+
+*Illustrative (not exhaustive):* specific file paths or directory layouts, dependency-manifest contents, crate-internal symbol or macro names, grep / count assertions, build-tool flags. An item that only a builder of this specific codebase could interpret is misplaced — move it to Constraints or reframe it.
+
+### 6. Snapshot Integrity (ERROR)
+
+**Outcome to judge:** the document reads as the *current* spec, not as a narrative of how it evolved. Anything that forces the reader to reconstruct prior state, replaced items, or the sequence of spec-writing sessions contaminates the snapshot. Change rationale, when worth preserving, belongs in Decision Log.
+
+Apply the **reader test:** would a first-time reader understand this sentence without knowing the project's history or the process that produced this document? If no, it is contamination.
+
+*Illustrative contamination (not a match list):* deprecation markers on items that remain in the document, back-references to earlier item IDs, inline "was X, now Y" fragments, section headings or item bodies carrying work-bundle / phase / iteration labels, notes that an item "supersedes" or "replaces" prior content instead of simply *being* the current content.
+
+### 7. Identifier Coherence (ERROR)
+
+**Outcome to judge:** a first-time reader can parse REQ / CONST identifiers without knowing how they were assigned over time. A coherent snapshot uses a single, uniform `REQ-` / `CONST-` sequence. Schemes that encode spec-writing sessions — bundle qualifiers, phase prefixes, skipped numbers — signal merge-without-renumber and should be rejected.
+
+### 8. Domain Context Sufficiency (INFO)
 
 Check:
 - A non-domain expert can understand the business constraints

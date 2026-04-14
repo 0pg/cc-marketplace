@@ -76,7 +76,7 @@ If `prev_result_file` is present, read it to obtain the previous round's Critica
 
 ### Phase 2: Socratic Critique
 
-Apply 6 criteria in order to all items. Record all suspicious items as Critical Questions.
+Apply the criteria below to all items. Record all suspicious items as Critical Questions. Each criterion states the **outcome** to judge; the examples are illustrative, not an exhaustive match list.
 
 | Review Item | Criteria |
 |-------------|----------|
@@ -86,6 +86,9 @@ Apply 6 criteria in order to all items. Record all suspicious items as Critical 
 | **Rationale consistency** | Does the Rationale section contain specific excerpts from the original requirements? Vague "derived from requirements" is not accepted. |
 | **Ambiguity elimination** | Are there no unmeasurable expressions like "appropriately", "quickly", "sufficiently", "as needed"? |
 | **Constraints coverage** | Does every Requirement have at least 1 corresponding Constraint? |
+| **Abstraction level** | Is every Requirement stated at a level a stakeholder could observe or accept, rather than at the level a build script could assert? Implementation-layer details (paths, dependency manifests, symbol names, grep assertions, compiler flags, directory layouts) describe *how*, not *what* — those belong in Constraints. Judgment: if the item would read naturally to a non-implementer, it is a Requirement; if only a builder of this specific codebase would understand it, it is a Constraint that is in the wrong place. |
+| **Snapshot integrity** | Does the plan read as the *current* spec, or as a narrative of how the spec evolved? A snapshot has no history — it describes what is true now. Anything that only makes sense by reference to a prior state, a replaced item, or the sequence of spec-writing sessions contaminates the snapshot. Change rationale, when worth keeping, belongs in Decision Log. *Illustrative contamination: deprecation markers, back-references to earlier item IDs, inline "was X, now Y" fragments, headings or item bodies carrying work-bundle / phase / iteration labels.* Judgment, not keyword matching — flag whatever forces the reader to reconstruct history to understand the item. |
+| **Identifier coherence** | Would a first-time reader parse the item IDs without knowing the history of how they were assigned? Identifier schemes that encode spec-writing sessions (bundle qualifiers, phase prefixes, skipped numbers) signal merge-without-renumber. Expect a single, uniform `REQ-` / `CONST-` sequence in the resulting spec. |
 
 **Critique principles:**
 - Record all suspicious items as Critical Questions — silence is not approval
@@ -96,10 +99,12 @@ Apply 6 criteria in order to all items. Record all suspicious items as Critical 
 ### Phase 3: Verdict Decision
 
 **approved** — when all of the following are met:
-- All Requirements: measurable expressions, single pass/fail determinable
+- All Requirements: measurable, single pass/fail determinable, stated at a stakeholder-observable level
 - All Constraints: input/return/error types fully specified
 - Requirements <-> Constraints 1:1 or greater coverage
 - Rationale: each item linked to original requirement text
+- The plan reads as a current-state snapshot — no contamination by change-history fragments or spec-writing session artifacts
+- Identifier scheme is coherent to a first-time reader
 - Critical Questions: 0
 
 **rejected** — when any of the above criteria is not met.
