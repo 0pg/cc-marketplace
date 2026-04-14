@@ -518,6 +518,36 @@ Permitted exceptions:
 4. **Simple retry**: Schema validation once, test retry 3 times
 5. **Version management**: Must bump the `version` field in `.claude-plugin/plugin.json` on changes
 6. **Node Ownership**: Each node's PM/PO and DEVELOPER hold full authority over that node's spec. External agents access node context exclusively via po-consultant verdict (INV-14), not direct file reads.
+7. **Harness ≠ Cage** (v16): The plugin is a workflow *guide*, not a procedural cage. Stronger future models must benefit from, not be throttled by, our SKILLs and agents. See "Harness Design Principles" below.
+
+## Harness Design Principles
+
+Applied systematically in v16 and enforced for all future plugin changes. When writing or reviewing a SKILL/agent, check every prescriptive element against these three refactors:
+
+| Anti-pattern | Replacement | Why |
+|--------------|-------------|-----|
+| **Number → Criterion** | Arbitrary caps (`max_rounds=3`, `max_retry=N`, `max 3 parallel`) → explicit convergence/outcome criteria + runaway safety net | Counters terminate by timer, not quality. A stronger model can judge "stuck" better than we can pre-declare. Keep numeric bounds only as bug-guards, labeled as such. |
+| **Procedure → Outcome** | Step-by-step parsing/matching algorithms (keyword lists, regex heuristics, lexical scoring) → Goal + Input/Output + delegated judgment | Hardcoded procedures encode our current reasoning and ceiling the model at our level. State the desired outcome and let the model reason. |
+| **Prohibition → Default** | Blanket bans ("never X", "always skip Y") → "default X, exception when Y" with conditions the model judges | Bans block adaptive behavior in edge cases the rule-writer didn't foresee. Defaults with judged exceptions preserve safety without capping intelligence. |
+
+**Legitimate constraints (do NOT relax)**:
+- Invariants (INV-1 ~ INV-14): safety/integrity — never soften
+- Schema validation, security boundaries, INV-8 write scope — deterministic rules
+- TDD discipline (tdd-coder must run before code delivery), Convention hierarchy — workflow correctness
+
+**Red flags when drafting a SKILL/agent instruction**:
+- A fixed integer (`max_*=N`) where `N` isn't justified as a bug-guard
+- "Parallel (up to 3)" or similar arbitrary concurrency caps
+- A parsing rule that encodes "what related means" instead of delegating relatedness judgment
+- Skip rules without re-entry conditions
+- Blanket word bans without context-sensitive exceptions
+
+**Termination signals (prefer model-emitted)**:
+- Reviewer `verdict: approved` — success
+- Reviewer `progress: no` — stuck, surface to user with current state
+- Safety net (`rounds > 10`, etc.) — bug indicator, not convergence criterion
+
+**Coverage heuristic for future audits**: if raising the model's capability by one generation would not change how a SKILL runs, the SKILL is likely over-constraining. Revisit.
 
 ## Superpowers Coexistence
 

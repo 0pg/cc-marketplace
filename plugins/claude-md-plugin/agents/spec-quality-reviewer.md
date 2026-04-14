@@ -73,17 +73,17 @@ Fail indicators:
 
 Check:
 - Each requirement uses `REQ-N:` prefix format
-- No vague/unmeasurable terms:
-  - "appropriately", "properly", "correctly"
-  - "fast", "quickly", "efficiently"  
-  - "handle", "manage", "process" (without specific behavior)
-  - "various", "etc.", "and so on"
+- Qualitative qualifiers ("appropriately", "quickly", "efficiently", "handle", etc.) are
+  permitted in Requirements **only when paired with an example or rationale that grounds
+  them** (e.g., "responds quickly — target p95 < 200ms under normal load"). Bare vague
+  qualifiers without grounding are flagged.
+  The stricter test-derivability rule applies to **Constraints**, not Requirements.
 - Each requirement describes observable behavior from user perspective
-- Requirements are independently verifiable
+- Requirements are independently verifiable (directly, or after refinement into Constraints)
 
 Fail indicators:
 - Missing `REQ-N:` prefix
-- Contains unmeasurable adjectives/adverbs
+- Contains a vague qualifier with **no accompanying example or rationale**
 - Describes implementation rather than behavior
 
 ### 3. REQ → CONST Coverage (WARNING)

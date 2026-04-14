@@ -70,7 +70,10 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 type: explore-reviewer | round: {N}
 explore_result: ${TMP_DIR}explore-result-{N}.md
 original_requirement: ${TMP_DIR}original-requirement.md
+prev_result_file: ${TMP_DIR}explore-reviewer-result-{N-1}.md   # present only when round > 1
 ```
+
+If `prev_result_file` is present, read it to obtain the previous round's Critical Questions. You will use these in Phase 3b to judge `progress`.
 
 ## Workflow
 
@@ -108,6 +111,17 @@ Evaluate all criteria against the domain context from the explore result.
 
 **rejected** — when any criterion is `fail`.
 
+### Phase 3b: Progress Assessment (when round > 1)
+
+When `prev_result_file` was provided, judge whether this round advanced the review:
+
+- `progress: yes` — at least one previous-round Critical Question is now resolved, OR the explore result added/corrected material that addressed a previous concern (even if new issues surfaced).
+- `progress: no` — every current Critical Question is essentially a restatement of a previous-round concern AND no previous concern was addressed. The explore cycle is stuck.
+
+For round == 1, emit `progress: n/a`.
+
+**Judgment is yours.** Assess meaning, not text. When in doubt, prefer `progress: yes`.
+
 ### Phase 4: Write Result + Return
 
 Result file path: `${TMP_DIR}explore-reviewer-result-{round}.md`
@@ -117,6 +131,7 @@ Result file content:
 # Explore Review Result
 round: {N}
 verdict: approved | rejected
+progress: yes | no | n/a            # n/a only on round 1
 
 ## Evaluation
 - Purpose identifiability: pass | pass-with-note | fail — {rationale}
@@ -139,6 +154,7 @@ Return result block:
 ---explore-reviewer-result---
 result_file: ${TMP_DIR}explore-reviewer-result-{round}.md
 verdict: approved | rejected
+progress: yes | no | n/a
 round: {N}
 critical_questions: {N}
 improvement_notes: {N}

@@ -104,7 +104,7 @@ Task(spec-quality-reviewer):
   Save results to ${TMP_DIR} and return only the path
 ```
 
-For `--all` with multiple targets, dispatch up to 3 in parallel.
+For `--all` with multiple targets, dispatch in parallel without a fixed cap.
 
 Extract verdict: `pass` | `needs_improvement`.
 

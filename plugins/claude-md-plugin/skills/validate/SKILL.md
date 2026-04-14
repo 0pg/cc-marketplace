@@ -257,7 +257,7 @@ Module scope limited: includes only {target directory}
 {repeat for each below_threshold file}
 ```
 
-5. Dispatch `Task(validator)` (parallel batch, up to 3):
+5. Dispatch `Task(validator)` in parallel (no fixed cap — harness handles rate limiting):
 ```
 Session file: ${TMP_DIR}validate-session-{dir-safe}.md
 Verification target: {directory}

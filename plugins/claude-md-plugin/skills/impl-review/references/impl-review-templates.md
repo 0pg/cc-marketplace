@@ -42,7 +42,7 @@ pass
 | Criterion | What to Check | Severity |
 |-----------|---------------|----------|
 | Purpose clarity | 1-2 sentences, business value stated | WARNING |
-| Requirements measurability | No vague terms ("appropriately", "quickly"), REQ-N format | ERROR |
+| Requirements measurability | Vague qualifiers allowed only when paired with example/rationale; REQ-N format | ERROR |
 | REQ → CONST coverage | Every REQ-N has at least one corresponding CONST-N | WARNING |
 | Constraints precision | Input/output/error types all specified | ERROR |
 | Domain Context sufficiency | Understandable by non-domain expert | INFO |

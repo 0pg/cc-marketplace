@@ -78,7 +78,10 @@ mapping_file: ${TMP_DIR}test-mapping-{dir-safe}.json
 spec_session_file: ${TMP_DIR}tdd-session-{dir-safe}.md
 implemented_files: [file1, file2, ...]
 test_files: [file1, file2, ...]
+prev_result_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{N-1}.md   # present only when round > 1
 ```
+
+If `prev_result_file` is present, read it to obtain the previous round's Critical Questions. You will use these in Phase 3 to judge `progress`.
 
 ### Phase 2: 5-Criteria Review
 
@@ -123,6 +126,17 @@ General principle:
 
 **rejected** — when any criterion fails.
 
+### Phase 3b: Progress Assessment (when round > 1)
+
+When `prev_result_file` was provided, judge whether this round advanced the review:
+
+- `progress: yes` — at least one previous-round Critical Question is now resolved, OR tdd-coder's revision added/corrected material that addressed a previous concern (even if new issues surfaced).
+- `progress: no` — every current Critical Question is essentially a restatement of a previous-round concern AND no previous concern was addressed. The revise cycle is stuck.
+
+For round == 1, emit `progress: n/a`.
+
+**Judgment is yours.** Assess meaning, not text. When in doubt, prefer `progress: yes`.
+
 ### Phase 4: Write Result + Return
 
 Result file path: `${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md`
@@ -134,6 +148,7 @@ Result file content:
 # Test Review Result
 round: {N}
 verdict: approved | rejected
+progress: yes | no | n/a            # n/a only on round 1
 
 ## Critical Questions
 - {Constraint/Requirement ID}: "{specific critique with evidence from code}"
@@ -147,6 +162,7 @@ Return result block:
 ---test-reviewer-result---
 result_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round}.md
 verdict: approved | rejected
+progress: yes | no | n/a
 round: {N}
 ---end-test-reviewer-result---
 ```

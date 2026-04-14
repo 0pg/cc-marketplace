@@ -181,7 +181,12 @@ Extract `document_language` from the session file header.
 |-----------|--------|
 | `document_language` is non-empty | Use this language for all generated CLAUDE.md and DEVELOPERS.md content |
 | `document_language` is empty + single mode | Ask via AskUserQuestion: "Which language should CLAUDE.md and DEVELOPERS.md be written in? (e.g., English, Korean, Japanese)" |
-| `document_language` is empty + parallel mode | Default to English (AskUserQuestion prohibited) |
+| `document_language` is empty + parallel mode | Resolve via inference chain (below); do NOT ask the user |
+
+**Parallel-mode inference chain** (first match wins):
+1. Parent CLAUDE.md `## Instructions` → `Document language` field (auto-loaded — always readable)
+2. Majority `Document language` among same-depth sibling CLAUDE.md files (tie: English)
+3. Default to English
 
 **All generated document content (Purpose, Requirements, Domain Context, Constraints, etc.) must be written in the resolved language.**
 
@@ -219,10 +224,14 @@ Completeness criteria:
 
 ### Phase 1.5: Dependency Exploration (inline)
 
-**Conditional skip:** When `## Domain Context Summary` is present in the session file,
-skip Phase 1.5 entirely — the requirement-explorer has already performed domain context
-collection and dependency exploration. Proceed directly to Phase 2 (Tiered Clarification)
-or Phase P (Write plan.md).
+**Default:** Skip Phase 1.5 when `## Domain Context Summary` is present in the session file
+— the requirement-explorer has already performed domain context collection and dependency
+exploration. Proceed directly to Phase 2 (Tiered Clarification) or Phase P (Write plan.md).
+
+**Re-enter Phase 1.5** when any of these hold (your judgment):
+- the requirement introduces concepts that are absent from the Summary
+- the Summary appears stale relative to recent spec changes on this node
+- you detect ambiguity during Phase 2 that the Summary does not resolve
 
 When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
 
@@ -266,8 +275,8 @@ round: {N}
 ```
 
 **plan.md writing principles:**
-- Requirements and Constraints: Only measurable expressions. "appropriately", "quickly", and similar vague qualifiers are prohibited in these sections.
-- Constraints: Input type, return type, error type all specified. Vague types ("any", "object") prohibited.
+- **Constraints (DEVELOPERS.md)**: MUST be test-derivable — qualifiers like "quickly" or "appropriately" are prohibited here; use concrete thresholds (e.g., "p95 < 200ms"). Input type, return type, and error type all specified. Vague types ("any", "object") prohibited.
+- **Requirements (CLAUDE.md)**: Qualitative qualifiers are permitted when paired with an example or rationale that enables later refinement into a Constraint (e.g., "responds quickly — target p95 < 200ms under normal load"). Bare vague qualifiers without grounding are still rejected.
 - Rationale and Domain Context: Qualitative descriptions are acceptable when they convey design intent clearly.
 - Rationale: Each item directly excerpts and links to the original requirement text.
 - Reviewer Improvement Notes: When `## Reviewer Improvement Notes` is present in the session file, address each note explicitly. For each note, either (1) add a Requirement or Constraint that covers the concern, or (2) add a Rationale entry explaining why the concern is already covered or does not apply.
@@ -360,10 +369,14 @@ Completeness criteria:
 
 ### Phase 1.5: Dependency Exploration (inline)
 
-**Conditional skip:** When `## Domain Context Summary` is present in the session file,
-skip Phase 1.5 entirely — the requirement-explorer has already performed domain context
-collection and dependency exploration. Proceed directly to Phase 2 (Tiered Clarification)
-or Phase P (Write plan.md).
+**Default:** Skip Phase 1.5 when `## Domain Context Summary` is present in the session file
+— the requirement-explorer has already performed domain context collection and dependency
+exploration. Proceed directly to Phase 2 (Tiered Clarification) or Phase P (Write plan.md).
+
+**Re-enter Phase 1.5** when any of these hold (your judgment):
+- the requirement introduces concepts that are absent from the Summary
+- the Summary appears stale relative to recent spec changes on this node
+- you detect ambiguity during Phase 2 that the Summary does not resolve
 
 When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
 
