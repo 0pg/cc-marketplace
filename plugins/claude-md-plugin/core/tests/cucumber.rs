@@ -69,6 +69,9 @@ pub struct TestWorld {
     verdict_jsonl_lines: Vec<serde_json::Value>,
     // Explorer candidate-node fields
     candidate_nodes: Vec<String>,
+    // Target selection fields (Step 2.1e)
+    target_select_tmp: Option<TempDir>,
+    target_select_no_ask: bool,
 }
 
 // ============== Common Steps ==============
@@ -3145,6 +3148,199 @@ fn fanout_parallel_documentary(_world: &mut TestWorld) {
     assert!(
         skill.contains("Dispatch po-consultant in parallel"),
         "SKILL.md missing parallel dispatch heading"
+    );
+}
+
+// ============== Step 2.1e: Target Selection from Verdicts ==============
+
+fn target_selection_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_target_selection.sh")
+}
+
+fn write_verdict_line(
+    tmp: &Path,
+    target: &str,
+    execution: &str,
+    reason: &str,
+) -> String {
+    let v = serde_json::json!({
+        "target": target,
+        "verdict": "feasible",
+        "execution": execution,
+        "reason": reason,
+        "roadmap_fit": "aligned",
+    });
+    let line = serde_json::to_string(&v).unwrap();
+    let jsonl = tmp.join("verdict-aggregate.jsonl");
+    use std::io::Write as IoWrite;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&jsonl)
+        .expect("open jsonl");
+    writeln!(f, "{}", line).expect("write jsonl line");
+    reason.to_string()
+}
+
+fn run_target_selection(tmp: &Path, no_ask: bool) {
+    let mut tmp_prefix = tmp.to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let harness = target_selection_harness_path();
+    let output = std::process::Command::new("bash")
+        .arg(&harness)
+        .env("TMP_DIR", &tmp_prefix)
+        .env("NO_ASK", if no_ask { "true" } else { "false" })
+        .output()
+        .expect("run target-selection harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[given(
+    "verdicts: A.execution=auto_executable, B.execution=halt, C.execution=requires_human"
+)]
+fn ts_single_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "auto_executable", "A is authoritative");
+    write_verdict_line(tmp.path(), "B", "halt", "B refuses: out of scope");
+    write_verdict_line(tmp.path(), "C", "requires_human", "C needs human review");
+    world.target_select_tmp = Some(tmp);
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then("target_path MUST equal A")]
+fn ts_then_target_is_a(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let p = tmp.path().join("target-path.txt");
+    let content = fs::read_to_string(&p).expect("read target-path.txt");
+    assert_eq!(content.trim(), "A", "expected target A, got {:?}", content);
+    assert!(
+        !tmp.path().join("halt-reason.txt").exists(),
+        "halt-reason.txt must not exist on single-auto"
+    );
+    assert!(
+        !tmp.path().join("ask-question.txt").exists(),
+        "ask-question.txt must not exist on single-auto"
+    );
+}
+
+#[given("verdicts: A.execution=auto_executable, B.execution=auto_executable")]
+fn ts_multi_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "auto_executable", "A claims ownership");
+    write_verdict_line(tmp.path(), "B", "auto_executable", "B claims ownership too");
+    world.target_select_tmp = Some(tmp);
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then(
+    "spec MUST halt with a surface-state reason including A and B and their reasons"
+)]
+fn ts_then_halt_multi(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("read halt-reason.txt");
+    assert!(halt.contains("multiple nodes claim ownership"), "halt: {}", halt);
+    assert!(halt.contains("A") && halt.contains("B"), "halt missing A/B: {}", halt);
+    assert!(
+        halt.contains("A claims ownership"),
+        "halt missing A reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("B claims ownership too"),
+        "halt missing B reason verbatim: {}",
+        halt
+    );
+    assert!(
+        !tmp.path().join("target-path.txt").exists(),
+        "target-path.txt must not exist on multi-auto halt"
+    );
+}
+
+#[given("all candidates have execution in halt or requires_human")]
+fn ts_no_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "halt", "A says no: precedent conflict");
+    write_verdict_line(
+        tmp.path(),
+        "B",
+        "requires_human",
+        "B needs architect decision",
+    );
+    world.target_select_tmp = Some(tmp);
+}
+
+#[given("--no-ask is set")]
+fn ts_no_ask_set(world: &mut TestWorld) {
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[given("--no-ask is NOT set")]
+fn ts_no_ask_unset(world: &mut TestWorld) {
+    world.target_select_no_ask = false;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then("spec MUST halt with each candidate's reason preserved verbatim")]
+fn ts_then_halt_no_auto(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("read halt-reason.txt");
+    assert!(halt.contains("no auto-executable target"), "halt: {}", halt);
+    assert!(
+        halt.contains("A says no: precedent conflict"),
+        "halt missing A reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("B needs architect decision"),
+        "halt missing B reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("[halt]") && halt.contains("[requires_human]"),
+        "halt missing execution tags: {}",
+        halt
+    );
+    assert!(
+        !tmp.path().join("ask-question.txt").exists(),
+        "ask-question.txt must not exist on --no-ask halt"
+    );
+}
+
+#[then("spec MUST AskUserQuestion with each candidate's reason preserved")]
+fn ts_then_ask(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let ask = fs::read_to_string(tmp.path().join("ask-question.txt"))
+        .expect("read ask-question.txt");
+    assert!(
+        ask.contains("A says no: precedent conflict"),
+        "ask missing A reason: {}",
+        ask
+    );
+    assert!(
+        ask.contains("B needs architect decision"),
+        "ask missing B reason: {}",
+        ask
+    );
+    assert!(
+        !tmp.path().join("halt-reason.txt").exists(),
+        "halt-reason.txt must not exist on interactive path"
     );
 }
 

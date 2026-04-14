@@ -203,7 +203,44 @@ for result in ${TMP_DIR}consult-result-*.md; do
 done
 ```
 
-#### 2.1e Build pre-fetched context blocks
+#### 2.1e Target Selection from Verdicts
+
+Read `${TMP_DIR}verdict-aggregate.jsonl`. Filter candidates (excluding root `.`) by
+`execution=="auto_executable"`. Let the verdict tell us what to do — do not re-judge.
+
+```bash
+auto_ok=$(jq -c 'select(.execution=="auto_executable" and .target != ".")' \
+           ${TMP_DIR}verdict-aggregate.jsonl)
+count=$(echo "$auto_ok" | awk 'NF' | wc -l | tr -d ' ')
+
+case "$count" in
+  1)
+    target_path=$(echo "$auto_ok" | jq -r '.target')
+    ;;
+  0)
+    reasons=$(jq -r 'select(.target != ".") | "- \(.target): [\(.execution)] \(.reason)"' \
+               ${TMP_DIR}verdict-aggregate.jsonl)
+    if [ "$NO_ASK" = "true" ]; then
+      emit_halt "no auto-executable target; PM/PO verdicts:\n$reasons"
+    else
+      ask_user_with_reasons "$reasons"
+    fi
+    ;;
+  *)
+    conflicts=$(echo "$auto_ok" | jq -r '"- \(.target): \(.reason)"')
+    if [ "$NO_ASK" = "true" ]; then
+      emit_halt "multiple nodes claim ownership:\n$conflicts"
+    else
+      ask_user_with_reasons "$conflicts"
+    fi
+    ;;
+esac
+```
+
+Rationale: SKILL executes the authorities' verbatim judgment. Single auto_executable →
+proceed; zero or multiple → surface state (no automatic tiebreak).
+
+#### 2.1f Build pre-fetched context blocks
 
 ```
 pre_fetched_conflicts = ""    # filled when verdict ∈ {partially_feasible, not_feasible}
