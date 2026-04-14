@@ -43,6 +43,27 @@ autodev permits at most **1 AskUserQuestion** total across the entire workflow:
 When Step 1 uses AskUserQuestion, autodev passes `--no-ask` to spec.
 When Step 1 is skipped (requirement provided), spec runs without `--no-ask`.
 
+### --no-ask (internal)
+
+`--no-ask` is propagated internally by `/autodev` to `/spec` after the single
+AskUserQuestion budget is consumed at Step 1 (requirement collection). It is not
+a user-facing flag.
+
+Under `--no-ask`, user-facing decisions are **delegated** (not suppressed) to agent
+authorities:
+
+| Decision | Authority | Executed as |
+|----------|-----------|-------------|
+| Which node owns this requirement | each candidate's po-consultant | verdict.execution honored verbatim |
+| Is this requirement feasible here | target's po-consultant | verdict.execution honored verbatim |
+| Should this reroute elsewhere | target's po-consultant | verdict.redirect_to honored |
+| Is the requirement concrete enough | requirement-reviewer | verdict + progress honored |
+| Is the plan good | impl-reviewer | verdict + progress honored |
+| Should consumers sync (with --auto-sync) | each consumer's po-consultant | verdict.execution honored verbatim |
+
+`--no-ask` is not "proceed despite uncertainty" — it is "honor the delegated
+authority's decision verbatim, halt when no authority can decide."
+
 ## Workflow
 
 ### Step 1: Requirement Collection
