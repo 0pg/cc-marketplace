@@ -272,10 +272,14 @@ pub struct CodeAnalyzer {
     rust: RustAnalyzer,
     java: JavaAnalyzer,
     kotlin: KotlinAnalyzer,
+    /// When true, omit model-judgment fields (behaviors, contracts, protocol)
+    /// from results. The Hands layer returns deterministic AST facts only; the
+    /// Brain layer (decompiler agent) judges behavior from raw source.
+    facts_only: bool,
 }
 
 impl CodeAnalyzer {
-    /// Create a new CodeAnalyzer.
+    /// Create a new CodeAnalyzer with full inference (legacy behavior).
     pub fn new() -> Self {
         Self {
             typescript: TypeScriptAnalyzer::new(),
@@ -284,7 +288,17 @@ impl CodeAnalyzer {
             rust: RustAnalyzer::new(),
             java: JavaAnalyzer::new(),
             kotlin: KotlinAnalyzer::new(),
+            facts_only: false,
         }
+    }
+
+    /// Create a facts-only analyzer: returns AST facts without behavior,
+    /// contract, or protocol inference. Callers (decompiler agent) judge
+    /// those from raw source. See plugin CLAUDE.md Harness Design Principles.
+    pub fn facts_only() -> Self {
+        let mut a = Self::new();
+        a.facts_only = true;
+        a
     }
 
     /// Analyze a single file.
@@ -306,6 +320,12 @@ impl CodeAnalyzer {
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
 
+        let (behaviors, contracts, protocol) = if self.facts_only {
+            (Vec::new(), Vec::new(), None)
+        } else {
+            (partial.behaviors, partial.contracts, partial.protocol)
+        };
+
         Ok(AnalysisResult {
             path: path.display().to_string(),
             exports: Exports {
@@ -321,9 +341,9 @@ impl CodeAnalyzer {
                 internal: Vec::new(),
                 internal_raw: partial.internal_deps,
             },
-            behaviors: partial.behaviors,
-            contracts: partial.contracts,
-            protocol: partial.protocol,
+            behaviors,
+            contracts,
+            protocol,
             analyzed_files: vec![file_name],
             env_vars: partial.env_vars,
         })

@@ -120,6 +120,12 @@ enum Commands {
         #[arg(short, long)]
         tree_result: Option<PathBuf>,
 
+        /// Return deterministic AST facts only (exports, dependencies,
+        /// env_vars). Omit behavior / contract / protocol inference —
+        /// those are Brain-layer judgments, not Hands-layer facts.
+        #[arg(long)]
+        facts_only: bool,
+
         /// Output JSON file path
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -363,8 +369,8 @@ fn main() {
             let result = validator.validate(project_root, module_roots.clone());
             output_result(&result, output.as_ref(), "validate-convention")
         }
-        Commands::AnalyzeCode { path, files, tree_result, output } => {
-            let analyzer = CodeAnalyzer::new();
+        Commands::AnalyzeCode { path, files, tree_result, facts_only, output } => {
+            let analyzer = if *facts_only { CodeAnalyzer::facts_only() } else { CodeAnalyzer::new() };
             let file_refs: Option<Vec<&str>> = files.as_ref()
                 .map(|f| f.iter().map(|s| s.as_str()).collect());
             match analyzer.analyze_directory(path, file_refs.as_deref()) {

@@ -95,10 +95,14 @@ Confirm direct file list and subdirectory list from the boundary result.
 ### 3. Code Analysis
 
 ```bash
-$CLI_PATH analyze-code --path {target_dir} --output ${TMP_DIR}decompile-analyze-{dir-safe}.json
+$CLI_PATH analyze-code --path {target_dir} --facts-only --output ${TMP_DIR}decompile-analyze-{dir-safe}.json
 ```
 
-Extract exports, dependencies, behaviors, and contracts from the analysis result.
+`--facts-only` returns deterministic AST facts (exports, dependencies,
+env_vars) without behavior/contract/protocol inference. Those are model
+judgments; derive them directly from the source when generating CLAUDE.md /
+DEVELOPERS.md below. Per plugin CLAUDE.md Harness Design Principles, Hands
+returns facts; Brain judges behavior.
 
 ### 4. Analysis Formatting
 
@@ -106,7 +110,9 @@ Extract exports, dependencies, behaviors, and contracts from the analysis result
 $CLI_PATH format-analysis --input ${TMP_DIR}decompile-analyze-{dir-safe}.json --output ${TMP_DIR}decompile-summary-{dir-safe}.md
 ```
 
-Extract key patterns, dependencies, and behaviors from the LLM-ready summary.
+Extract key patterns and dependencies from the LLM-ready summary. For
+behavior and contract statements, read the source files directly and judge
+what observable behavior each export implements.
 
 ### 5. Document Generation
 
