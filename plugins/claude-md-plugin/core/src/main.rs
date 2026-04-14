@@ -238,6 +238,17 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Diff the `## Data Schemas` section of two DEVELOPERS.md files
+    DetectSchemaChange {
+        /// Path to the "before" DEVELOPERS.md
+        #[arg(long)]
+        before: PathBuf,
+
+        /// Path to the "after" DEVELOPERS.md
+        #[arg(long)]
+        after: PathBuf,
+    },
+
     /// Validate document language consistency
     ValidateLanguage {
         /// File to validate (CLAUDE.md or DEVELOPERS.md)
@@ -484,6 +495,18 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::DetectSchemaChange { before, after } => {
+            match (std::fs::read_to_string(before), std::fs::read_to_string(after)) {
+                (Ok(b), Ok(a)) => {
+                    let changed = claude_md_core::detect_schema_change::changed(&b, &a);
+                    let json = serde_json::json!({ "changed": changed });
+                    println!("{}", serde_json::to_string(&json).unwrap_or_else(|_| json.to_string()));
+                    Ok(())
+                }
+                (Err(e), _) => Err(format!("Failed to read before file '{}': {}", before.display(), e).into()),
+                (_, Err(e)) => Err(format!("Failed to read after file '{}': {}", after.display(), e).into()),
+            }
+        }
         Commands::ValidateLanguage { file, expected, threshold, output } => {
             let validator = claude_md_core::LanguageValidator::new();
             match validator.validate(file, expected, *threshold) {
@@ -512,6 +535,7 @@ fn main() {
             Commands::FormatExports { .. } => "format-exports",
             Commands::FormatAnalysis { .. } => "format-analysis",
             Commands::ValidateLanguage { .. } => "validate-language",
+            Commands::DetectSchemaChange { .. } => "detect-schema-change",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
