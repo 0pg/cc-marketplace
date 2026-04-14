@@ -33,15 +33,30 @@ Orchestrates spec (spec definition) and dev (code generation) as a pipeline.
 
 \* If no requirement is provided, it will be collected once via AskUserQuestion.
 
-## AskUserQuestion Budget
+## AskUserQuestion Policy
 
-autodev permits at most **1 AskUserQuestion** total across the entire workflow:
-- Either in Step 1 (requirement collection when missing)
-- Or in spec's Self Socratic Loop last-resort (when max_rounds exhausted)
-- NOT both.
+**Default:** autodev runs non-interactively. Every decision within the workflow
+is delegated to an agent authority (see the `--no-ask` table below), and the
+orchestrator executes those verdicts verbatim. This is the meaning of
+"autonomous."
 
-When Step 1 uses AskUserQuestion, autodev passes `--no-ask` to spec.
-When Step 1 is skipped (requirement provided), spec runs without `--no-ask`.
+**Exceptions (judged, not arbitrary):** a user-facing prompt is permitted only
+at one of two points, and only when the model judges it genuinely unavoidable:
+
+- **Step 1 — missing requirement.** autodev cannot invent a requirement on the
+  user's behalf; when none is supplied on invocation, one prompt collects it.
+- **Spec Self Socratic Loop last-resort.** When the requirement-reviewer
+  convergence signal fails (the loop would otherwise stall with no authority
+  able to decide), spec may prompt once as a last resort.
+
+These are alternatives, not an additive budget: invoking both means autodev
+stopped being autonomous. When Step 1 uses its prompt, autodev passes
+`--no-ask` to `/spec` — the autonomy exception has already been spent.
+Otherwise `/spec` may exercise the last-resort option at its own discretion.
+
+The spec skill's interior agents (requirement-reviewer, impl-reviewer, etc.)
+remain free to loop on their own convergence signals — agent-internal behavior
+is not user-facing interaction.
 
 ### --no-ask (internal)
 
@@ -82,7 +97,11 @@ After this step, **AskUserQuestion is prohibited for all remaining steps.**
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
+PRE_AUTODEV_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
 ```
+
+`PRE_AUTODEV_SHA` anchors the rollback hint emitted by Step 4.9 when the
+terminal validation gate fails (v17 Phase 1).
 
 ### Step 3: Spec
 
@@ -134,6 +153,22 @@ No Decision enum interpretation. The consultant's own execution hint drives beha
 
 When `--auto-sync` is not set, Step 4.7 is skipped; consumers remain listed in spec's Step 4.5 result block for the user to sync manually.
 
+### Step 4.9: Validation Gate (v17 Phase 1)
+
+Terminal gate between all document/code production and the success report. Runs
+after Step 4 (dev) and, when `--auto-sync` is set, after the consumer
+propagation chain in Step 4.7 completes. Not subject to `--no-ask` delegation —
+this is an orchestrator step, not an authority decision.
+
+```
+Skill("claude-md-plugin:validate", args: "--strict --path {spec_target}")
+```
+
+- `success` → proceed to Step 5 success report.
+- `failed`  → proceed to Step 5 failure report; **do NOT auto-revert**
+  (INV-15: surface state to user verbatim; destructive rollback requires user
+  consent).
+
 ### Step 5: Result Report
 
 **Success:**
@@ -155,6 +190,21 @@ git diff --stat
   Resolve manually with /spec or /dev.
 ```
 
+**Failure at Validation Gate (Step 4.9):**
+
+```
+⚠ autodev terminated at Validation Gate
+  reason: {validate failure summary, verbatim}
+  Commits created during this run:
+  $(git log --oneline ${PRE_AUTODEV_SHA}..HEAD 2>/dev/null)
+  To roll back: git reset --hard ${PRE_AUTODEV_SHA}
+```
+
+The rollback hint enumerates the actual commit chain produced during this run
+(spec auto-commit + one dev auto-commit per target, plus any `/sync` commits
+when `--auto-sync` is set) rather than a single `git revert HEAD`, because the
+run typically produces ≥2 commits.
+
 ## Error Handling
 
 | Situation | Response |
@@ -163,3 +213,4 @@ git diff --stat
 | spec failed | Report error, exit |
 | spec cancelled by user | Report cancellation, exit |
 | dev failed | Report warning, show partial results |
+| validate gate failed (Step 4.9) | Report failure with commit chain + rollback hint; do not auto-revert |

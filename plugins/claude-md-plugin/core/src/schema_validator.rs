@@ -324,6 +324,76 @@ impl SchemaValidator {
         }
     }
 
+    /// Detect duplicate REQ-* / CONST-* identifiers within the raw block of a top-level
+    /// H2 section (scans from the H2 header to the next `## ` or EOF, so H3 subgroupings
+    /// like `### Phase B 묶음 X` under `## Constraints` are included in one scope).
+    /// Identifier match is literal (prefix-aware): `CONST-F-a-1` ≠ `CONST-F-c-1`.
+    pub fn validate_identifier_uniqueness(
+        &self,
+        content: &str,
+        section_name: &str,
+        kind: &str,
+    ) -> Vec<ValidationError> {
+        use std::collections::BTreeMap;
+        static ID_RE: OnceLock<regex::Regex> = OnceLock::new();
+        let re = ID_RE.get_or_init(|| {
+            regex::Regex::new(r"^\s*-\s*(REQ|CONST)-([0-9A-Za-z-]+)\s*:")
+                .expect("ID_RE is a valid hardcoded regex")
+        });
+
+        let lines: Vec<&str> = content.lines().collect();
+        let target_header = format!("## {}", section_name);
+        let mut start: Option<usize> = None;
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim_start().eq_ignore_ascii_case(&target_header)
+                || line.trim_start().to_lowercase().starts_with(&format!("{} ", target_header.to_lowercase()))
+            {
+                start = Some(i + 1);
+                break;
+            }
+        }
+        let start = match start {
+            Some(s) => s,
+            None => return Vec::new(),
+        };
+        let mut end = lines.len();
+        for i in start..lines.len() {
+            if lines[i].trim_start().starts_with("## ") {
+                end = i;
+                break;
+            }
+        }
+
+        let mut seen: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for i in start..end {
+            if let Some(caps) = re.captures(lines[i]) {
+                let captured_kind = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                if !captured_kind.eq_ignore_ascii_case(kind) {
+                    continue;
+                }
+                let id_suffix = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+                let full_id = format!("{}-{}", captured_kind, id_suffix);
+                seen.entry(full_id).or_default().push(i + 1);
+            }
+        }
+
+        let mut errors = Vec::new();
+        for (id, occurrences) in seen {
+            if occurrences.len() > 1 {
+                errors.push(ValidationError {
+                    error_type: "DuplicateIdentifier".to_string(),
+                    message: format!(
+                        "Duplicate identifier '{}' found at lines {:?}",
+                        id, occurrences
+                    ),
+                    line_number: occurrences.first().copied(),
+                    section: Some(section_name.to_string()),
+                });
+            }
+        }
+        errors
+    }
+
     /// Validate CLAUDE.md with strict mode: also checks DEVELOPERS.md presence and schema (INV-3)
     pub fn validate_strict(&self, claude_md_path: &Path) -> ValidationResult {
         self.validate_strict_with_context(claude_md_path, None)
@@ -336,6 +406,15 @@ impl SchemaValidator {
             Some(c) => self.validate_with_context(claude_md_path, c),
             None => self.validate(claude_md_path),
         };
+
+        // Duplicate REQ-* identifier detection in CLAUDE.md Requirements
+        if let Ok(content) = std::fs::read_to_string(claude_md_path) {
+            let dup_errors = self.validate_identifier_uniqueness(&content, "Requirements", "REQ");
+            if !dup_errors.is_empty() {
+                result.errors.extend(dup_errors);
+                result.valid = false;
+            }
+        }
 
         // Check DEVELOPERS.md existence (INV-3)
         let developers_path = claude_md_path
@@ -365,6 +444,20 @@ impl SchemaValidator {
             // Propagate DEVELOPERS.md warnings (e.g., conditional section violations)
             for w in dev_result.warnings {
                 result.warnings.push(format!("DEVELOPERS.md: {}", w));
+            }
+
+            // Duplicate CONST-* identifier detection in DEVELOPERS.md Constraints
+            if let Ok(dev_content) = std::fs::read_to_string(&developers_path) {
+                let dup_errors = self.validate_identifier_uniqueness(&dev_content, "Constraints", "CONST");
+                for err in dup_errors {
+                    result.errors.push(ValidationError {
+                        error_type: format!("DEVELOPERS.md:{}", err.error_type),
+                        message: format!("DEVELOPERS.md: {}", err.message),
+                        line_number: err.line_number,
+                        section: err.section,
+                    });
+                    result.valid = false;
+                }
             }
         }
 

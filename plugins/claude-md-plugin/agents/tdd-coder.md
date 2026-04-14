@@ -112,21 +112,7 @@ For each work item (Constraint or Requirement):
 
 Write test(s) for this item. Write directly to target directory.
 
-**Constraint Type → Test Pattern:**
-
-| Constraint Type | Test Pattern |
-|-----------------|-------------|
-| Numeric limit (`maximum N`) | Boundary value: N OK, N+1 fail |
-| Format constraint (`UTF-8 only`) | Valid input passes, invalid input rejected |
-| Security constraint (`secure storage`) | Security property verification |
-| Business rule | Rule compliance/violation scenarios |
-| I/O contract (`f(a) → b`) | Verify output b for input a |
-
-**Context-aware extensions** — apply when Constraints or Technical Context signal:
-- **Security** (auth, key, token, injection): Add malicious input / privilege escalation tests
-- **Concurrency** (thread, mutex, race): Add concurrent-call and shared-state mutation tests
-- **Async / event-driven** (callback, promise, timeout): Add timeout and ordering tests
-- **External dependency** (HTTP, DB, file I/O): Add error injection tests
+**Test coverage outcome:** tests must exercise the failure modes the Constraint discriminates — boundaries for numeric limits, invalid inputs for format rules, adversarial inputs where the Constraint encodes a security or concurrency property, error paths for external dependencies. Judge each Constraint for which failure modes matter and cover them. Follow superpowers:test-driven-development for design discipline.
 
 **Requirement → Acceptance test:**
 - At least 1 happy path test
@@ -187,9 +173,8 @@ Run this item's tests:
 
 - **All pass** → Proceed to regression check.
 - **Some fail** → Fix code (NEVER fix test assertions). Retry.
-  - `max_retry = 3` per item
-  - Stall detection: if same test fails 2 consecutive retries → mark item as `partial`
-  - On stall → log WARNING, proceed to next item
+  - **Convergence signal (primary):** if the same test fails after a retry and the new failure carries no new information (same assertion, same cause), the cycle is stuck — mark item `partial`, log WARNING, proceed to next item.
+  - **Safety net (bug-guard, not convergence criterion):** `safety_net_retries = 3` per item. Hitting this bound indicates the convergence signal above failed to trigger — treat as a bug, not a normal termination. Report in warnings.
 
 #### Regression Check
 

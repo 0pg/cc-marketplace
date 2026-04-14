@@ -79,10 +79,13 @@ For each DEVELOPERS.md where dry-run reports `"removed: ## Operations"` or `"rem
 1. Read the section content
 2. If content is "None" or empty → skip (converge handles deletion automatically)
 3. If **non-None content exists** → present migration options via AskUserQuestion:
-   - **(a) Auto-migrate**:
-     - Operations > environment variables / Configuration → append to `## Constraints`
-     - Operations > gotchas / procedures → append to `## Decision Log` (ADR format: Context/Decision/Rationale)
-     - Public API entries → append to `## Constraints` as export contract (e.g., `CONST-N: {symbol} must be publicly exported for {consumer} consumption`)
+   - **(a) Auto-migrate**: place each legacy block in the current-schema
+     section whose semantics fit best. Judge by content, not by legacy heading.
+     Statements from which a contract test can be derived today belong in
+     `## Constraints`; rationale-bearing decisions belong in `## Decision Log`
+     (ADR format: Context/Decision/Rationale); forward-planning items belong
+     in `## Roadmap`. When a block genuinely fits none of these, raise a
+     warning and escalate as (b).
    - **(b) Manual**: User migrates content themselves before converge runs
    - **(c) Delete**: Proceed with converge (content will be lost)
 4. If (a): execute migration via Edit tool before converge

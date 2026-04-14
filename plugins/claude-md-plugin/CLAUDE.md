@@ -547,11 +547,33 @@ consultant's verdict, not a decision-maker.
 4. **Simple retry**: Schema validation once, test retry 3 times
 5. **Version management**: Must bump the `version` field in `.claude-plugin/plugin.json` on changes
 6. **Node Ownership**: Each node's PM/PO and DEVELOPER hold full authority over that node's spec. External agents access node context exclusively via po-consultant verdict (INV-14), not direct file reads.
-7. **Harness ≠ Cage** (v16): The plugin is a workflow *guide*, not a procedural cage. Stronger future models must benefit from, not be throttled by, our SKILLs and agents. See "Harness Design Principles" below.
+7. **Harness ≠ Cage** (v16, grounded in Anthropic Managed Agents 2026): The plugin is a **Brain-layer workflow guide**, not a procedural cage. Brain (SKILLs + Agents) guides; Hands (Rust CLI) executes; Session (session files + state.json) persists. Every Brain-layer rule must answer *"Can the model do this itself now?"* — if yes, delete it. Stronger future models must benefit from, not be throttled by, our SKILLs and agents. See "Harness Design Principles" below.
 
 ## Harness Design Principles
 
-Applied systematically in v16 and enforced for all future plugin changes. When writing or reviewing a SKILL/agent, check every prescriptive element against these three refactors:
+**Foundational framework** — Anthropic's Managed Agents architecture (2026) distinguishes three layers that evolve independently:
+
+| Layer | Anthropic definition | Our plugin's implementation |
+|-------|---------------------|----------------------------|
+| **Brain** | Claude + the harness — orchestration logic, control flow, decision-making | SKILLs (`/spec`, `/dev`, `/validate`, ...) and Agents (impl, impl-reviewer, tdd-coder, ...) — Markdown-defined guides |
+| **Hands** | Concrete capabilities the model invokes directly — sandboxes, tools, code execution | Rust CLI in `core/` — deterministic subcommands (parse-tree, validate-schema, diff-node-history, ...) |
+| **Session** | Append-only durable log separate from context window | `${TMP_DIR}*-session-*.md`, `.claude/workflows/{dir-safe}/state.json`, git commit history |
+
+**Guide (Brain) vs Detail (Hands) distinction** — the Brain **guides** the model; the Hands **extend** the model. Conflating these is the root of over-harnessing: encoding in prose what should be a CLI call, or encoding in a CLI what should be left to judgment.
+
+**The guiding question** (Anthropic, verbatim): ***"Can the model do this itself now? If yes, delete it."***
+
+> "Every component in a harness encodes an assumption about what the model can't do on its own, and those assumptions are worth stress testing because they can quickly go stale as models improve." — Anthropic Engineering
+
+> "The scaffolding we built for a Claude 3-level intelligence is a cage for a Claude 4-level one."
+
+**Subtraction discipline** — every Brain-layer instruction (SKILL step, agent criterion, reviewer rule) is a *liability* by default. Its burden of proof is to demonstrate:
+1. A concrete failure mode the model exhibits *today* without it, AND
+2. That the failure is not better addressed by a Hands-layer tool (CLI subcommand) or by richer session context.
+
+If either fails, delete. Deletion is the default move on every audit; addition requires justification.
+
+**Applied systematically in v16 and enforced for all future plugin changes.** When writing or reviewing a SKILL/agent, check every prescriptive element against these three refactors:
 
 | Anti-pattern | Replacement | Why |
 |--------------|-------------|-----|
@@ -577,6 +599,13 @@ Applied systematically in v16 and enforced for all future plugin changes. When w
 - Safety net (`rounds > 10`, etc.) — bug indicator, not convergence criterion
 
 **Coverage heuristic for future audits**: if raising the model's capability by one generation would not change how a SKILL runs, the SKILL is likely over-constraining. Revisit.
+
+**Audit posture** (aligns with Anthropic's "art of subtraction"): every review cycle, walk the Brain layer and ask the guiding question per instruction. A plugin version that *only adds* Brain-layer rules between releases is a red flag — healthy evolution deletes staler scaffolding than it adds. Track deletion ratio in release notes when meaningful.
+
+**Layer migration signals**:
+- A Brain-layer rule that lends itself to regex/AST/schema enforcement → candidate to migrate to Hands (Rust CLI subcommand). E.g., v17 P2-a: duplicate identifier detection moved from reviewer prose to `validate-schema --strict`.
+- A Hands-layer tool whose output the model always reinterprets → candidate to simplify or remove; the Brain already does the work.
+- A piece of prior state that the Brain has to reconstruct from context → candidate for Session promotion (session file / state.json field). E.g., v17 Phase 0 M1: prior CLAUDE.md/DEVELOPERS.md bodies moved into session rather than re-derived.
 
 ## Superpowers Coexistence
 

@@ -103,10 +103,22 @@ Next run: /spec-step --target {target_path}
 
 #### status = awaiting-revise
 
-Check if round >= 5:
-- If so: update state.json `status` = `max-safety-exceeded` and exit
+Convergence signal comes from the reviewer (`verdict: approved` or
+`progress: no`). The round counter here is a **safety net**, not a convergence
+criterion — if it fires, the reviewer loop failed to terminate through its own
+signals and that is a bug, not a normal termination.
+
+```
+safety_net_rounds = 5   # runaway bug-guard; NOT a convergence criterion
+```
+
+If `round >= safety_net_rounds`: update state.json `status` =
+`max-safety-exceeded` and exit. This surfaces a bug to the caller; it is not
+the expected way the loop ends.
   ```
-  ⚠ max_safety(5) reached. Run /spec-step --target {target_path} to execute the execute step.
+  ⚠ safety net (round={round}) tripped — reviewer loop did not converge via
+    its own signals. Run /spec-step --target {target_path} to execute the
+    execute step manually.
   ```
 
 Otherwise:

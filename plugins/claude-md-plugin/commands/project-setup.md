@@ -57,17 +57,13 @@ Check for `## Conventions` in the project_root CLAUDE.md.
 
 #### 3-U-A. When argument content is provided
 
-Auto-determine target subsection via content analysis:
-| Keywords | Target |
-|----------|--------|
-| directory, folder, structure | Project Structure |
-| module, dependency, layer | Module Boundaries |
-| package name, directory name | Naming Conventions |
-| language, version, runtime | Language & Runtime |
-| coding, pattern, rule | Coding Rules |
-| variable name, function name, naming | Naming Rules |
-
-Apply content to the target subsection → user confirmation → save.
+Route the content to the Conventions subsection whose definition best fits its
+meaning — judge from the content's semantics, not from keyword matching. The
+six subsections (Project Structure / Module Boundaries / Naming Conventions /
+Language & Runtime / Coding Rules / Naming Rules) are defined in the root
+CLAUDE.md schema; read that schema and place content where its description
+applies. If the content straddles two subsections, surface the ambiguity via
+AskUserQuestion. Apply → user confirmation → save.
 
 #### 3-U-B. When argument content is not provided (interactive)
 

@@ -344,86 +344,6 @@ action: create | update
 
 ---
 
-## Workflow — Single Mode (no parallel)
-
-### Phase 1: Requirement Extraction
-
-Extract from the session file's `## User Requirement`:
-
-```
----extraction-summary---
-format: natural-language | user-story | structured
-purpose: {extracted} [confirmed | inferred | gap]
-constraints: {extracted} [confirmed | inferred | gap]
-domain_context: {extracted} [confirmed | inferred | gap]
-location: {extracted} [confirmed | gap]
-completeness: high | medium | low
-gaps: [list of gaps]
----end-extraction-summary---
-```
-
-Completeness criteria:
-- **high**: Purpose, Interface, Constraints all clear
-- **medium**: 1-2 items "inferable"
-- **low**: Mostly unclear
-
-### Phase 1.5: Dependency Exploration (inline)
-
-**Default:** Skip Phase 1.5 when `## Domain Context Summary` is present in the session file
-— the requirement-explorer has already performed domain context collection and dependency
-exploration. Proceed directly to Phase 2 (Tiered Clarification) or Phase P (Write plan.md).
-
-**Re-enter Phase 1.5** when any of these hold (your judgment):
-- the requirement introduces concepts that are absent from the Summary
-- the Summary appears stale relative to recent spec changes on this node
-- you detect ambiguity during Phase 2 that the Summary does not resolve
-
-When `## Domain Context Summary` is absent, execute Phase 1.5 as below.
-
-Read `## Existing Modules Index` from the session file:
-1. Evaluate semantic relevance between each module's Purpose and the current requirements
-2. Read related modules' CLAUDE.md to check Requirements/Domain Context
-3. Check external dependencies from package.json/Cargo.toml/go.mod etc.
-
-**4. Parent/sibling module Constraints obligation exploration** (including Parallel mode)
-
-If DEVELOPERS.md exists in the parent directory(ies) of `target_path`:
-- Read the parent DEVELOPERS.md
-- Extract references in the form `{current_module_name}::{function_name}` or `{current_module_path}/{function_name}` from `## Constraints` sections
-- When found: record those functions as additional obligations in the current module's DEVELOPERS.md `## Constraints`
-
-Example:
-```
-Found in orchestrator/DEVELOPERS.md's Constraints:
-  "agent::spawn_agent(tx, issue) → JoinHandle"
-→ Add to agent/DEVELOPERS.md's ## Constraints:
-  - CONST-N: `spawn_agent(tx: Sender<OrchestratorMsg>, issue: Issue) -> JoinHandle<()>` must be publicly exported for orchestrator consumption.
-```
-
-If nothing found, skip.
-
-### Phase 2: Tiered Clarification
-
-Determine question rounds based on completeness (maximum 2 AskUserQuestion):
-
-| Completeness | Round 1 | Round 2 |
-|-------------|---------|---------|
-| high | Skip | Skip |
-| medium | Tier 2+3 (interface + domain) | Skip |
-| low | Tier 1 (core responsibility/location) | Tier 2+3 |
-
-- Tier 1: Core responsibility, location, scope
-- Tier 2: Interface signatures, error scenarios
-- Tier 3: Domain context, business rules
-
-### Phase 3: Target Path Determination
-
-- Determine target path from session file's index + requirements
-- If existing CLAUDE.md exists → merge mode
-- If multiple path candidates → AskUserQuestion
-
-→ Proceed to Phase 4.
-
 ## Workflow — Parallel Mode (parallel: true)
 
 ### Phase 1b: Extract pre-determined information from session file
@@ -459,6 +379,14 @@ If `## Reviewer Improvement Notes` is present in the session file but not addres
 
 ### Phase 4: Current-State Snapshot (when existing documents exist, action=update)
 
+**Input source (v17 Phase 0 M2):** Before beginning Phase 4 judgment, read the
+`## Current CLAUDE.md` and `## Current DEVELOPERS.md` sections from the session
+file. **When these sections are present**, they enumerate the existing elements
+you must judge Remove/Keep/Merge against — this is the authoritative prior state
+for snapshot judgment, not inferred from other sources. When both sections are
+marked with the literal body `absent` (action=create), Phase 4 is a no-op and
+execution proceeds to Phase 5.
+
 **Outcome:** the updated CLAUDE.md and DEVELOPERS.md must read as the **currently valid spec** after the new requirement is applied — a snapshot, not a changelog. History (what the spec used to be, what was replaced, which iteration added what) lives in git; `diff-node-history` can reconstruct it when needed. The document body is for what is true *now*.
 
 **Judgment you own:**
@@ -467,6 +395,21 @@ If `## Reviewer Improvement Notes` is present in the session file but not addres
 - Strip anything that belongs to the *process of producing* the spec rather than the spec itself — session framings, iteration labels, bundle names, phase designations. If it would not appear in a spec written from scratch today, it does not belong in the snapshot.
 
 **Decision Log is the right place for change rationale.** When a removal or replacement carries rationale worth preserving, record it there — not by leaving the old item in place with a marker.
+
+**Decision Log discipline (v17 P2-b):** Decision Log records rationale for
+currently-effective decisions. It is **not** a warehouse for retracted decisions.
+When a prior decision is reversed by the new requirement, remove the original
+entry; reversal history belongs in `git log` and `diff-node-history`. A Decision
+Log entry describing a decision no longer in force is a defect — either remove
+it, or update its content to the current decision.
+
+**Constraints are currently-valid invariants (v17 P2-c):** `## Constraints`
+contains only statements from which a contract test can be derived against code
+as it exists now. Forward-planning items (things the module is expected to
+adopt, migrate to, or revisit later) belong in `DEVELOPERS.md ## Roadmap`.
+Disambiguation test: *"Can a contract test be derived from this item today,
+against code as it exists now?"* If no, route to Roadmap; do not place under
+Constraints regardless of how the item is phrased.
 
 **Fear-of-loss guard:** hesitation to remove an item because its current validity is unclear is a signal to **ask** (single mode) or to **flag as a warning in the result block** — not a signal to retain it annotated as deprecated inside the document body.
 

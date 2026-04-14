@@ -63,6 +63,13 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 Read the session file to extract the `plan_file` path and `round` value.
 Read the `plan_file` to load the full content.
 
+Read `## Current CLAUDE.md` and `## Current DEVELOPERS.md` from the session
+file when present. These sections constitute the **prior state** against which
+the plan's snapshot must be judged (Snapshot integrity / Identifier coherence
+criteria in Phase 2). When both sections are marked with the literal body
+`absent` (action=create), the snapshot criteria apply without a prior-state
+comparison (no false positives on first-time creation).
+
 Session file format:
 ```
 # Spec Reviewer Session
@@ -70,6 +77,12 @@ type: spec-reviewer | round: N
 plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 dir_safe: {dir-safe}
 prev_result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{N-1}.md   # present only when round > 1
+
+## Current CLAUDE.md
+{verbatim CLAUDE.md body of target_path, or "absent"}
+
+## Current DEVELOPERS.md
+{verbatim DEVELOPERS.md body of target_path, or "absent"}
 ```
 
 If `prev_result_file` is present, read it to obtain the previous round's Critical Questions. You will use these in Phase 3 to judge `progress`.
@@ -84,11 +97,13 @@ Apply the criteria below to all items. Record all suspicious items as Critical Q
 | **Requirements verifiability** | Can each item be determined as a single pass/fail? |
 | **Constraints precision** | Are input type, return type, and error type all specified? |
 | **Rationale consistency** | Does the Rationale section contain specific excerpts from the original requirements? Vague "derived from requirements" is not accepted. |
-| **Ambiguity elimination** | Are there no unmeasurable expressions like "appropriately", "quickly", "sufficiently", "as needed"? |
+| **Ambiguity elimination** | Can each item's pass/fail be determined without interpretive judgment? An item is ambiguous when a reasonable reviewer could reach opposite verdicts from the same code. Apply the test to the outcome; do not keyword-match. |
 | **Constraints coverage** | Does every Requirement have at least 1 corresponding Constraint? |
 | **Abstraction level** | Is every Requirement stated at a level a stakeholder could observe or accept, rather than at the level a build script could assert? Implementation-layer details (paths, dependency manifests, symbol names, grep assertions, compiler flags, directory layouts) describe *how*, not *what* — those belong in Constraints. Judgment: if the item would read naturally to a non-implementer, it is a Requirement; if only a builder of this specific codebase would understand it, it is a Constraint that is in the wrong place. |
 | **Snapshot integrity** | Does the plan read as the *current* spec, or as a narrative of how the spec evolved? A snapshot has no history — it describes what is true now. Anything that only makes sense by reference to a prior state, a replaced item, or the sequence of spec-writing sessions contaminates the snapshot. Change rationale, when worth keeping, belongs in Decision Log. *Illustrative contamination: deprecation markers, back-references to earlier item IDs, inline "was X, now Y" fragments, headings or item bodies carrying work-bundle / phase / iteration labels.* Judgment, not keyword matching — flag whatever forces the reader to reconstruct history to understand the item. |
-| **Identifier coherence** | Would a first-time reader parse the item IDs without knowing the history of how they were assigned? Identifier schemes that encode spec-writing sessions (bundle qualifiers, phase prefixes, skipped numbers) signal merge-without-renumber. Expect a single, uniform `REQ-` / `CONST-` sequence in the resulting spec. |
+| **Identifier coherence** | Would a first-time reader parse the item IDs without knowing the history of how they were assigned? Identifier schemes that encode spec-writing sessions (bundle qualifiers, phase prefixes, skipped numbers) signal merge-without-renumber. Expect a single, uniform `REQ-` / `CONST-` sequence in the resulting spec. When `## Current DEVELOPERS.md` is available (v17 Phase 0 M3), judge whether the plan represents a coherent post-snapshot state — a single full-spec rewrite in which Remove/Keep/Merge has actually been performed — rather than a bundle appended on top of prior state. One illustrative pattern: a new identifier group in the plan whose meaning overlaps an existing group in Current DEVELOPERS.md without a corresponding remove decision. Other contamination patterns exist; recognize them by the outcome, not by a closed list of lexical signals. Do not false-positive when impl Phase 4 has properly emitted remove decisions for the prior set and the resulting identifiers form a coherent scheme for the post-snapshot spec (whatever shape that takes — illustrative only: a clean contiguous sequence). |
+| **Decision Log discipline** (v17 P2-b) | Reject when `## Decision Log` in the plan contains entries documenting decisions no longer in force, regardless of the lexical marker used to note supersession. The criterion is whether the entry describes the current effective decision, not whether a specific keyword appears. Reversal history belongs in `git log` / `diff-node-history`, not in the snapshot. |
+| **Roadmap routing / Constraints purity** (v17 P2-c) | Apply the contract-test derivation test to every Constraint: *can a contract test be derived from this item today, against code as it exists now?* If no, the item fails Constraints precision and must be routed to `## Roadmap`. Do not rely on lexical framings (future tense, "will", "should later", etc.) to recognize planning items — apply the test to the outcome. |
 
 **Critique principles:**
 - Record all suspicious items as Critical Questions — silence is not approval

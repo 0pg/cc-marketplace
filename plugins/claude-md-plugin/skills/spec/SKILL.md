@@ -41,6 +41,42 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
+#### Snapshot helper (Phase 0 M1 — v17)
+
+Any session file that feeds an agent performing snapshot judgment (impl Phase 4
+Remove/Keep/Merge, impl-reviewer Snapshot integrity / Identifier coherence, and
+any future consumer with equivalent responsibility) MUST surface the prior-state
+snapshot verbatim:
+
+```
+## Current CLAUDE.md
+{verbatim contents of target_path/CLAUDE.md, or "absent" when the file does not exist}
+
+## Current DEVELOPERS.md
+{verbatim contents of target_path/DEVELOPERS.md, or "absent" when the file does not exist}
+```
+
+Injection is **unconditional**: if the target path is not yet resolved (plan-
+session creation, where `target_path: TBD`), use the `--path` argument as the
+snapshot source; if the files do not exist, render the body as the literal
+token `absent`. Do not summarize or truncate the body.
+
+Bash helper template (inline into each session-creation site below):
+
+```bash
+snapshot_target="${target_path:-${arg_path:-.}}"
+if [ -f "$snapshot_target/CLAUDE.md" ]; then
+  current_claude_md=$(cat "$snapshot_target/CLAUDE.md")
+else
+  current_claude_md="absent"
+fi
+if [ -f "$snapshot_target/DEVELOPERS.md" ]; then
+  current_developers_md=$(cat "$snapshot_target/DEVELOPERS.md")
+else
+  current_developers_md="absent"
+fi
+```
+
 ### 1. Generate existing CLAUDE.md index
 
 ```bash
@@ -63,48 +99,23 @@ visited=()
 MAX_REDIRECT_DEPTH=10   # runaway safety net (bug-guard, not convergence criterion)
 ```
 
-Steps 2.0 through 2.1e run inside this loop. Define `goto_step_2_1` as a bash
-function that encapsulates the Step 2.1 dispatch (2.1c prepare sessions) +
-2.1d aggregate + 2.1e select sequence — this is the idiomatic bash replacement
-for `goto`. After Step 2.1e selects `target_path`, consult the aggregated
-verdict for a `redirect_to` field; if present, re-enter Step 2.1 with the
-redirect target until authority converges (no redirect) or a cycle is detected.
+Steps 2.0 through 2.1e run inside this loop. After Step 2.1e selects
+`target_path`, read the selected target's `consult-result-*.md` file. If its
+`## Redirect To` body names another path, re-enter Step 2.1 at that path and
+append the current `target_path` to `visited`. Continue until the selected
+target has no redirect (authority converged).
 
-```bash
-visited+=("$target_path")
-
-redirect_to=$(jq -r --arg tp "$target_path" \
-              'select(.target==$tp) | .redirect_to // empty' \
-              ${TMP_DIR}verdict-aggregate.jsonl)
-
-if [ -n "$redirect_to" ]; then
-  # Cycle check (safety net — a loop is a bug, not a convergence signal)
-  if printf '%s\n' "${visited[@]}" | grep -qxF "$redirect_to"; then
-    trace=$(IFS=$'\n'; printf '%s' "${visited[*]}" | paste -sd ' → ' -)
-    emit_halt "redirect cycle: ${trace} → ${redirect_to}"
-    exit 0
-  fi
-  # Existence check
-  if [ ! -f "$redirect_to/CLAUDE.md" ]; then
-    emit_halt "redirect target does not exist: $redirect_to"
-    exit 0
-  fi
-  target_path="$redirect_to"
-  consult_targets=("." "$redirect_to")
-  goto_step_2_1      # bash function wrapping Step 2.1 dispatch+aggregate+select
-fi
-
-# Runaway safety net (not convergence): labeled as bug-guard
-if [ ${#visited[@]} -gt "$MAX_REDIRECT_DEPTH" ]; then
-  emit_halt "redirect depth exceeded safety limit (bug guard)"
-  exit 0
-fi
-```
+Halt conditions (bug-guards, not convergence criteria):
+- **Cycle** — the redirect target already appears in `visited`. Halt with
+  the visited trace preserved verbatim.
+- **Missing target** — `{redirect_to}/CLAUDE.md` does not exist. Halt with the
+  redirect target path preserved.
+- **Runaway depth** — `|visited| > MAX_REDIRECT_DEPTH` (10). Halt; this
+  indicates a bug in the domain model, not a normal termination.
 
 Rationale: verdicts self-describe authority; the SKILL honors `redirect_to`
-until the authority chain converges. Cycle and depth guards are bug-guards,
-not policy — a well-formed domain never loops and never exceeds a handful of
-hops.
+verbatim until the chain converges. A well-formed domain never loops and never
+exceeds a handful of hops.
 
 ### Step 2.0: Candidate Identification (runs before Step 2.1)
 
@@ -225,72 +236,24 @@ if failed_targets:
     Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
 ```
 
-Then aggregate each target's verdict-level fields into a single JSONL file so
-downstream steps (target selection, redirect handling) can query with `jq`:
-
-```bash
-extract_section() {
-  # $1 = file, $2 = heading (e.g., "## Reason")
-  awk -v h="$2" '
-    $0 == h { capture=1; next }
-    /^## / { capture=0 }
-    capture { print }
-  ' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-        | awk 'NF' | paste -sd ' ' -
-}
-
-: > ${TMP_DIR}verdict-aggregate.jsonl
-for result in ${TMP_DIR}consult-result-*.md; do
-  target=$(basename "$result" .md | sed 's/^consult-result-//' | tr '-' '/')
-  jq -cn \
-    --arg t   "$target" \
-    --arg v   "$(extract_section "$result" '## Verdict')" \
-    --arg e   "$(extract_section "$result" '## Execution')" \
-    --arg rn  "$(extract_section "$result" '## Reason')" \
-    --arg rf  "$(extract_section "$result" '## Roadmap Fit')" \
-    --arg rd  "$(extract_section "$result" '## Redirect To')" \
-    '{target:$t, verdict:$v, execution:$e, reason:$rn, roadmap_fit:$rf}
-     + ({redirect_to:$rd} | if .redirect_to == "" then del(.redirect_to) else . end)' \
-    >> ${TMP_DIR}verdict-aggregate.jsonl
-done
-```
-
 #### 2.1e Target Selection from Verdicts
 
-Read `${TMP_DIR}verdict-aggregate.jsonl`. Filter candidates (excluding root `.`) by
-`execution=="auto_executable"`. Let the verdict tell us what to do — do not re-judge.
+Read each consult-result file. Per INV-15, the SKILL executes each consultant's
+verdict verbatim — no aggregation schema, no re-interpretation. The outcome to
+achieve:
 
-```bash
-auto_ok=$(jq -c 'select(.execution=="auto_executable" and .target != ".")' \
-           ${TMP_DIR}verdict-aggregate.jsonl)
-count=$(echo "$auto_ok" | awk 'NF' | wc -l | tr -d ' ')
+- Identify non-root candidates (`target ≠ "."`) whose `## Execution` is
+  `auto_executable`.
+- **Exactly one** such candidate → that candidate's path is the target.
+- **Zero** such candidates → halt (when `NO_ASK=true`) with each candidate's
+  verdict reason preserved verbatim, or `AskUserQuestion` with the same reasons
+  (interactive). No automatic tiebreak.
+- **Multiple** such candidates → halt (when `NO_ASK=true`) with each candidate's
+  reason preserved verbatim, or `AskUserQuestion` (interactive). Cross-node
+  ownership is not decided by the SKILL.
 
-case "$count" in
-  1)
-    target_path=$(echo "$auto_ok" | jq -r '.target')
-    ;;
-  0)
-    reasons=$(jq -r 'select(.target != ".") | "- \(.target): [\(.execution)] \(.reason)"' \
-               ${TMP_DIR}verdict-aggregate.jsonl)
-    if [ "$NO_ASK" = "true" ]; then
-      emit_halt "no auto-executable target; PM/PO verdicts:\n$reasons"
-    else
-      ask_user_with_reasons "$reasons"
-    fi
-    ;;
-  *)
-    conflicts=$(echo "$auto_ok" | jq -r '"- \(.target): \(.reason)"')
-    if [ "$NO_ASK" = "true" ]; then
-      emit_halt "multiple nodes claim ownership:\n$conflicts"
-    else
-      ask_user_with_reasons "$conflicts"
-    fi
-    ;;
-esac
-```
-
-Rationale: SKILL executes the authorities' verbatim judgment. Single auto_executable →
-proceed; zero or multiple → surface state (no automatic tiebreak).
+Preserve each `## Reason` body as written by the consultant; do not collapse or
+summarize. INV-15 forbids the SKILL from synthesizing a substitute decision.
 
 #### 2.1f Build pre-fetched context blocks
 
@@ -531,6 +494,12 @@ document_language: {document_language or ""}
 
 ## Project Conventions
 {project root Conventions or "None"}
+
+## Current CLAUDE.md
+{current_claude_md}
+
+## Current DEVELOPERS.md
+{current_developers_md}
 ```
 
 **3b. Dispatch Task(impl, mode=plan)**
@@ -593,6 +562,12 @@ loop:
        dir_safe: {dir-safe}
        {if round > 1:}
        prev_result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round-1}.md
+
+       ## Current CLAUDE.md
+       {current_claude_md}
+
+       ## Current DEVELOPERS.md
+       {current_developers_md}
 
   2. Dispatch Task(impl-reviewer):
        Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
@@ -677,6 +652,12 @@ loop:
        ## Project Conventions
        {project root Conventions or "None"}
 
+       ## Current CLAUDE.md
+       {current_claude_md}
+
+       ## Current DEVELOPERS.md
+       {current_developers_md}
+
   6. Dispatch Task(impl, mode=revise):
        Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
        Project root: {project_root}
@@ -731,6 +712,12 @@ plan_file: {plan_file}
 
 ## Project Conventions
 {project root Conventions or "None"}
+
+## Current CLAUDE.md
+{current_claude_md}
+
+## Current DEVELOPERS.md
+{current_developers_md}
 ```
 
 **3e. Dispatch Task(impl, mode=execute)**
