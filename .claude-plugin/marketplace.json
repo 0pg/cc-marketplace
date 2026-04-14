@@ -10,7 +10,7 @@
     {
       "name": "claude-md-plugin",
       "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
-      "version": "16.0.0",
+      "version": "16.1.1",
       "author": {
         "name": "jhk"
       },
@@ -20,7 +20,7 @@
     {
       "name": "project-init",
       "description": "Multi-language project setup plugin. Sets up code conventions, dependencies, CLAUDE.md, and installs a language-specific convention skill into the target project.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "jhk"
       },

@@ -510,6 +510,35 @@ Permitted exceptions:
   - /sync: PM/PO DEVELOPERS.md partial update (own node) — covered by PM/PO own-node exception
 ```
 
+### INV-15: po-consultant Verdict Execution
+
+Scope: this invariant governs only po-consultant verdicts consumed by `/spec` and
+`/autodev --auto-sync`. Other reviewer agents already follow the v16 `progress`
+convergence pattern and are not affected.
+
+```
+∀ ownership decision D delegated to po-consultant in /spec or /autodev --auto-sync:
+  the consultant's self-described outcome (verdict, execution, reason, redirect_to)
+    MUST be executed verbatim by the orchestrating SKILL
+  ∧ the SKILL MUST NOT re-interpret, override, or synthesize a substitute decision
+  ∧ when no consultant's verdict can resolve D → halt and surface state to the caller
+```
+
+Corollaries (all defaults with explicitly judged exceptions, per Harness Design Principles):
+
+- Default: a single `auto_executable` candidate among peers → proceed.
+- Default: zero `auto_executable` candidates → halt with each consultant's reason preserved.
+  Exception (interactive only): AskUserQuestion with the same reasons.
+- Default: multiple `auto_executable` candidates → halt; surface the ownership conflict.
+  (No authority resolves cross-node ownership; caller must decide.)
+- Default: `redirect_to` honored → re-consult at the new target.
+  Exception: detected cycle (target revisited) → halt with the cycle chain.
+- Default: consumer chain (`--auto-sync`) stops on the first non-`auto_executable` consumer.
+
+This invariant explicitly **does not** introduce hardcoded depth caps, score-based
+tiebreaks, or per-enum decision procedures. The SKILL is an executor of the
+consultant's verdict, not a decision-maker.
+
 ## Development Principles
 
 1. **ATDD**: Write Gherkin features first, then implement

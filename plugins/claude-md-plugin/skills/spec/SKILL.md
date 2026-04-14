@@ -54,6 +54,76 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
+### Step 2 redirect loop (wraps Steps 2.0–2.1e)
+
+At SKILL entry, initialize the visited set and a safety bound:
+
+```bash
+visited=()
+MAX_REDIRECT_DEPTH=10   # runaway safety net (bug-guard, not convergence criterion)
+```
+
+Steps 2.0 through 2.1e run inside this loop. Define `goto_step_2_1` as a bash
+function that encapsulates the Step 2.1 dispatch (2.1c prepare sessions) +
+2.1d aggregate + 2.1e select sequence — this is the idiomatic bash replacement
+for `goto`. After Step 2.1e selects `target_path`, consult the aggregated
+verdict for a `redirect_to` field; if present, re-enter Step 2.1 with the
+redirect target until authority converges (no redirect) or a cycle is detected.
+
+```bash
+visited+=("$target_path")
+
+redirect_to=$(jq -r --arg tp "$target_path" \
+              'select(.target==$tp) | .redirect_to // empty' \
+              ${TMP_DIR}verdict-aggregate.jsonl)
+
+if [ -n "$redirect_to" ]; then
+  # Cycle check (safety net — a loop is a bug, not a convergence signal)
+  if printf '%s\n' "${visited[@]}" | grep -qxF "$redirect_to"; then
+    trace=$(IFS=$'\n'; printf '%s' "${visited[*]}" | paste -sd ' → ' -)
+    emit_halt "redirect cycle: ${trace} → ${redirect_to}"
+    exit 0
+  fi
+  # Existence check
+  if [ ! -f "$redirect_to/CLAUDE.md" ]; then
+    emit_halt "redirect target does not exist: $redirect_to"
+    exit 0
+  fi
+  target_path="$redirect_to"
+  consult_targets=("." "$redirect_to")
+  goto_step_2_1      # bash function wrapping Step 2.1 dispatch+aggregate+select
+fi
+
+# Runaway safety net (not convergence): labeled as bug-guard
+if [ ${#visited[@]} -gt "$MAX_REDIRECT_DEPTH" ]; then
+  emit_halt "redirect depth exceeded safety limit (bug guard)"
+  exit 0
+fi
+```
+
+Rationale: verdicts self-describe authority; the SKILL honors `redirect_to`
+until the authority chain converges. Cycle and depth guards are bug-guards,
+not policy — a well-formed domain never loops and never exceeds a handful of
+hops.
+
+### Step 2.0: Candidate Identification (runs before Step 2.1)
+
+When `target_path` is specified and that node has CLAUDE.md → skip this step; consult_targets = ("." "$target_path").
+
+Otherwise dispatch a lightweight explorer pre-pass:
+
+`Task(requirement-explorer, mode=candidate-only, session=<pre-session>)`
+
+The explorer's result file contains `## Candidate Nodes`. Parse its body into `consult_targets`:
+
+```bash
+awk '/^## Candidate Nodes$/{f=1;next} /^## /{f=0} f && /^- /{sub(/^- /,""); sub(/[ \t]*#.*$/,""); print}' \
+  ${TMP_DIR}explore-candidate-result.md \
+  | awk 'NF' | sort -u > ${TMP_DIR}consult-targets.txt
+```
+
+Safety net (runaway guard only, not convergence): if explorer emits >10 candidates, log a warning and proceed with all of them; no arbitrary truncation.
+
 ### 2.1 Pre-consult (Strategic Conflict Detection)
 
 Detect conflicts with existing constraints/Roadmap and root strategic direction
@@ -61,17 +131,16 @@ Detect conflicts with existing constraints/Roadmap and root strategic direction
 
 #### 2.1a Determine consult targets
 
+Load the explorer-judged candidate set written by Step 2.0 (`${TMP_DIR}consult-targets.txt`):
+
 ```bash
-if [ -f "{path}/CLAUDE.md" ]; then
-  # Existing node — consult root + target
-  consult_targets=("." "{path}")
-else
-  # New node — root strategic context only (partial-skip: target has no spec yet)
-  consult_targets=(".")
-fi
-# Deduplicate (handles case where path == project_root)
-consult_targets=($(printf '%s\n' "${consult_targets[@]}" | sort -u))
+mapfile -t consult_targets < ${TMP_DIR}consult-targets.txt
+# existing v16 parallel dispatch for "${consult_targets[@]}" continues unchanged
 ```
+
+The file already contains deduplicated, explorer-judged nodes (project root + any
+semantically related modules). No additional filtering here: the explorer's judgment
+is authoritative, and Step 2.1d fans out po-consultant across every entry.
 
 #### 2.1b Sibling module relatedness
 
@@ -156,7 +225,74 @@ if failed_targets:
     Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
 ```
 
-#### 2.1e Build pre-fetched context blocks
+Then aggregate each target's verdict-level fields into a single JSONL file so
+downstream steps (target selection, redirect handling) can query with `jq`:
+
+```bash
+extract_section() {
+  # $1 = file, $2 = heading (e.g., "## Reason")
+  awk -v h="$2" '
+    $0 == h { capture=1; next }
+    /^## / { capture=0 }
+    capture { print }
+  ' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        | awk 'NF' | paste -sd ' ' -
+}
+
+: > ${TMP_DIR}verdict-aggregate.jsonl
+for result in ${TMP_DIR}consult-result-*.md; do
+  target=$(basename "$result" .md | sed 's/^consult-result-//' | tr '-' '/')
+  jq -cn \
+    --arg t   "$target" \
+    --arg v   "$(extract_section "$result" '## Verdict')" \
+    --arg e   "$(extract_section "$result" '## Execution')" \
+    --arg rn  "$(extract_section "$result" '## Reason')" \
+    --arg rf  "$(extract_section "$result" '## Roadmap Fit')" \
+    --arg rd  "$(extract_section "$result" '## Redirect To')" \
+    '{target:$t, verdict:$v, execution:$e, reason:$rn, roadmap_fit:$rf}
+     + ({redirect_to:$rd} | if .redirect_to == "" then del(.redirect_to) else . end)' \
+    >> ${TMP_DIR}verdict-aggregate.jsonl
+done
+```
+
+#### 2.1e Target Selection from Verdicts
+
+Read `${TMP_DIR}verdict-aggregate.jsonl`. Filter candidates (excluding root `.`) by
+`execution=="auto_executable"`. Let the verdict tell us what to do — do not re-judge.
+
+```bash
+auto_ok=$(jq -c 'select(.execution=="auto_executable" and .target != ".")' \
+           ${TMP_DIR}verdict-aggregate.jsonl)
+count=$(echo "$auto_ok" | awk 'NF' | wc -l | tr -d ' ')
+
+case "$count" in
+  1)
+    target_path=$(echo "$auto_ok" | jq -r '.target')
+    ;;
+  0)
+    reasons=$(jq -r 'select(.target != ".") | "- \(.target): [\(.execution)] \(.reason)"' \
+               ${TMP_DIR}verdict-aggregate.jsonl)
+    if [ "$NO_ASK" = "true" ]; then
+      emit_halt "no auto-executable target; PM/PO verdicts:\n$reasons"
+    else
+      ask_user_with_reasons "$reasons"
+    fi
+    ;;
+  *)
+    conflicts=$(echo "$auto_ok" | jq -r '"- \(.target): \(.reason)"')
+    if [ "$NO_ASK" = "true" ]; then
+      emit_halt "multiple nodes claim ownership:\n$conflicts"
+    else
+      ask_user_with_reasons "$conflicts"
+    fi
+    ;;
+esac
+```
+
+Rationale: SKILL executes the authorities' verbatim judgment. Single auto_executable →
+proceed; zero or multiple → surface state (no automatic tiebreak).
+
+#### 2.1f Build pre-fetched context blocks
 
 ```
 pre_fetched_conflicts = ""    # filled when verdict ∈ {partially_feasible, not_feasible}
@@ -176,8 +312,10 @@ Suggested Path:
 {result.suggested_path}
 """
         if result.verdict == "not_feasible":
-            entry += "(⚠ not_feasible: if this requirement intentionally replaces existing behavior, " \
-                     "the explorer must note that explicitly in Concretized Requirements.)\n"
+            entry += "(⚠ halt verdict: default = surface to caller. Exception = if the user intentionally\n" \
+                     "replaces existing behavior, the explorer MAY note the override explicitly in\n" \
+                     "Concretized Requirements. This exception is available in interactive mode only;\n" \
+                     "under --no-ask the SKILL defers to the authority's halt verdict verbatim.)\n"
         pre_fetched_conflicts += entry
 
     elif result.verdict == "feasible" and result.roadmap_fit == "aligned":
@@ -194,7 +332,7 @@ if partially_feasible_targets:
 # Not feasible early warning
 not_feasible_targets = [t for t, r in consult_results if r.verdict == "not_feasible"]
 if not_feasible_targets:
-    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. Proceeding — if intentional replacement, explorer will note explicitly."
+    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. (⚠ halt verdict: default = surface to caller. Exception = if the user intentionally replaces existing behavior, the explorer MAY note the override explicitly in Concretized Requirements. This exception is available in interactive mode only; under --no-ask the SKILL defers to the authority's halt verdict verbatim.)"
 ```
 
 ### 2.4 Collect Node History (if existing node AND not pre-consulted)
@@ -652,6 +790,42 @@ Changes:
 
 ```bash
 git diff --stat
+```
+
+### Step 4.5: Post-Spec Impact Surface
+
+After Execute writes CLAUDE.md + DEVELOPERS.md and the commit is made, surface
+downstream consumers *if and only if* the target's `## Data Schemas` section
+changed between the previous commit and the new on-disk content. Schema change
+is the only trigger because it is the single exported surface that can break
+consumers — Constraint-only changes stay internal to the node.
+
+The deterministic CLIs `detect-schema-change` and `impact-scan` do the work; the
+SKILL merely appends an `## Affected Consumers` block to `${TMP_DIR}result-block.md`
+so Step 5 can echo it back to the user alongside the recommendation to run
+`/sync` per consumer (or `/autodev --auto-sync` to delegate).
+
+```bash
+# Step 4.5: Surface affected consumers on schema change
+before=$(git show HEAD:$target_path/DEVELOPERS.md 2>/dev/null || echo "")
+after=$(cat $target_path/DEVELOPERS.md 2>/dev/null || echo "")
+changed=$(core detect-schema-change \
+  --before <(printf '%s' "$before") --after <(printf '%s' "$after") \
+  | jq -r '.changed')
+
+if [ "$changed" = "true" ]; then
+  core impact-scan --target "$target_path" --format list > ${TMP_DIR}affected-consumers.txt
+  if [ -s ${TMP_DIR}affected-consumers.txt ]; then
+    {
+      echo ""
+      echo "## Affected Consumers"
+      while IFS= read -r c; do [ -n "$c" ] && echo "- $c"; done \
+        < ${TMP_DIR}affected-consumers.txt
+      echo ""
+      echo "> Recommend \`/sync\` each consumer, or \`/autodev --auto-sync\` to delegate."
+    } >> ${TMP_DIR}result-block.md
+  fi
+fi
 ```
 
 ### 5. Result

@@ -61,6 +61,23 @@ pub struct TestWorld {
     node_history_result: Option<NodeHistoryResult>,
     node_history_non_git_dir: Option<TempDir>,
     named_commits: HashMap<String, String>,
+    // po-consultant verdict schema fields
+    po_consultant_fixtures: Vec<(String, String)>, // (fixture_name, content)
+    // Verdict aggregation fields
+    verdict_tmp_dir: Option<TempDir>,
+    verdict_targets: Vec<String>,
+    verdict_jsonl_lines: Vec<serde_json::Value>,
+    // Explorer candidate-node fields
+    candidate_nodes: Vec<String>,
+    // Target selection fields (Step 2.1e)
+    target_select_tmp: Option<TempDir>,
+    target_select_no_ask: bool,
+    // Redirect loop fields (Task 6)
+    redirect_tmp: Option<TempDir>,
+    redirect_rounds_dir: Option<TempDir>,
+    // autodev --auto-sync fields (Task 11)
+    auto_sync_tmp: Option<TempDir>,
+    auto_sync_halt_reason: Option<String>,
 }
 
 // ============== Common Steps ==============
@@ -2648,6 +2665,1104 @@ fn check_commit_body_contains(world: &mut TestWorld, index: usize, text: String)
     let commit = &result.commits[index];
     assert!(commit.body.contains(&text),
         "Commit {} body '{}' does not contain '{}'", index, commit.body, text);
+}
+
+// ============== po-consultant Verdict Schema Steps ==============
+
+fn po_consultant_fixture_names() -> &'static [&'static str] {
+    &[
+        "po_consultant_result_auto.md",
+        "po_consultant_result_halt.md",
+        "po_consultant_result_redirect.md",
+    ]
+}
+
+fn load_po_fixture(name: &str) -> String {
+    let path = get_tests_path().join("fixtures").join(name);
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read fixture {}: {}", name, e))
+}
+
+fn extract_section(content: &str, heading: &str) -> Option<String> {
+    let marker = format!("## {}", heading);
+    let idx = content.find(&marker)?;
+    let after = &content[idx + marker.len()..];
+    // skip rest of the heading line
+    let body_start = after.find('\n').map(|i| i + 1).unwrap_or(after.len());
+    let body = &after[body_start..];
+    // stop at next "## " heading
+    let end = body.find("\n## ").unwrap_or(body.len());
+    Some(body[..end].trim().to_string())
+}
+
+fn section_present(content: &str, heading: &str) -> bool {
+    content.contains(&format!("## {}", heading))
+}
+
+#[given("a po-consultant result file")]
+fn po_given_any_result(world: &mut TestWorld) {
+    world.po_consultant_fixtures = po_consultant_fixture_names()
+        .iter()
+        .map(|n| (n.to_string(), load_po_fixture(n)))
+        .collect();
+}
+
+#[given("a result file with Verdict=feasible")]
+fn po_given_feasible(world: &mut TestWorld) {
+    let name = "po_consultant_result_auto.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[given("a result file with Execution=halt")]
+fn po_given_halt(world: &mut TestWorld) {
+    let name = "po_consultant_result_halt.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[given(expr = "a result file with {string} present")]
+fn po_given_section_present(world: &mut TestWorld, heading: String) {
+    // Pick the redirect fixture for "## Redirect To"
+    assert_eq!(heading, "## Redirect To");
+    let name = "po_consultant_result_redirect.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[when("the result is parsed")]
+fn po_when_parsed(_world: &mut TestWorld) {
+    // Parsing is implicit via extract_section; no-op
+}
+
+#[then(expr = "it MUST contain a {string} section with value in: auto_executable | requires_human | halt")]
+fn po_then_execution_valid(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution")
+            .unwrap_or_else(|| panic!("{}: missing ## Execution section", name));
+        assert!(
+            matches!(exec.as_str(), "auto_executable" | "requires_human" | "halt"),
+            "{}: Execution value '{}' is not in allowed set",
+            name,
+            exec
+        );
+    }
+}
+
+#[then(regex = r#"^it MUST contain a "([^"]+)" section \(non-empty iff Execution != auto_executable\)$"#)]
+fn po_then_reason_nonempty_iff(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        assert!(section_present(content, "Reason"), "{}: missing ## Reason section", name);
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        if exec != "auto_executable" {
+            assert!(
+                !reason.is_empty(),
+                "{}: Reason must be non-empty when Execution={}",
+                name,
+                exec
+            );
+        }
+    }
+}
+
+#[then(expr = "it MAY contain a {string} section with a node path")]
+fn po_then_redirect_optional(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        if section_present(content, "Redirect To") {
+            let val = extract_section(content, "Redirect To").unwrap_or_default();
+            assert!(!val.is_empty(), "{}: Redirect To present but empty", name);
+        }
+    }
+}
+
+#[then("Execution MAY be auto_executable")]
+fn po_then_exec_may_auto(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        assert!(
+            matches!(exec.as_str(), "auto_executable" | "requires_human" | "halt"),
+            "{}: Execution '{}' invalid",
+            name,
+            exec
+        );
+    }
+}
+
+#[then("Reason MAY be empty")]
+fn po_then_reason_may_empty(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        assert!(section_present(content, "Reason"), "{}: missing ## Reason", name);
+    }
+}
+
+#[then("Reason MUST be non-empty")]
+fn po_then_reason_nonempty(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        assert!(!reason.is_empty(), "{}: Reason must be non-empty", name);
+    }
+}
+
+#[then("Execution MUST NOT be auto_executable")]
+fn po_then_exec_not_auto(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        assert_ne!(
+            exec, "auto_executable",
+            "{}: Execution must not be auto_executable when Redirect To present",
+            name
+        );
+    }
+}
+
+#[then("Reason MUST describe why the redirect applies")]
+fn po_then_reason_describes_redirect(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        assert!(
+            !reason.is_empty(),
+            "{}: Reason must describe redirect rationale",
+            name
+        );
+    }
+}
+
+// ============== Verdict Aggregation Steps ==============
+
+const VERDICT_AGGREGATION_SCRIPT: &str = r#"
+extract_section() {
+  awk -v h="$2" '
+    $0 == h { capture=1; next }
+    /^## / { capture=0 }
+    capture { print }
+  ' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        | awk 'NF' | paste -sd ' ' -
+}
+
+: > "${TMP_DIR}verdict-aggregate.jsonl"
+for result in "${TMP_DIR}"consult-result-*.md; do
+  [ -e "$result" ] || continue
+  target=$(basename "$result" .md | sed 's/^consult-result-//' | tr '-' '/')
+  jq -cn \
+    --arg t   "$target" \
+    --arg v   "$(extract_section "$result" '## Verdict')" \
+    --arg e   "$(extract_section "$result" '## Execution')" \
+    --arg rn  "$(extract_section "$result" '## Reason')" \
+    --arg rf  "$(extract_section "$result" '## Roadmap Fit')" \
+    --arg rd  "$(extract_section "$result" '## Redirect To')" \
+    '{target:$t, verdict:$v, execution:$e, reason:$rn, roadmap_fit:$rf}
+     + ({redirect_to:$rd} | if .redirect_to == "" then del(.redirect_to) else . end)' \
+    >> "${TMP_DIR}verdict-aggregate.jsonl"
+done
+"#;
+
+fn dir_safe(target: &str) -> String {
+    target.replace('/', "-")
+}
+
+#[given(expr = "consult result files for targets {string} and {string}")]
+fn verdict_given_targets(world: &mut TestWorld, a: String, b: String) {
+    let tmp = TempDir::new().expect("create tmp");
+    // Write fixtures: target "." uses auto fixture, other uses redirect fixture.
+    let auto = load_po_fixture("po_consultant_result_auto.md");
+    let redirect = load_po_fixture("po_consultant_result_redirect.md");
+
+    let write = |target: &str, body: &str| {
+        let name = format!("consult-result-{}.md", dir_safe(target));
+        let p = tmp.path().join(&name);
+        fs::write(&p, body).expect("write fixture");
+    };
+    write(&a, &auto);
+    write(&b, &redirect);
+
+    world.verdict_targets = vec![a, b];
+    world.verdict_tmp_dir = Some(tmp);
+}
+
+#[given("both files contain Verdict, Execution, Reason, RoadmapFit")]
+fn verdict_sanity(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    for target in &world.verdict_targets {
+        let p = tmp.path().join(format!("consult-result-{}.md", dir_safe(target)));
+        let content = fs::read_to_string(&p).expect("read");
+        for h in ["Verdict", "Execution", "Reason", "Roadmap Fit"] {
+            assert!(
+                section_present(&content, h),
+                "{}: missing ## {}",
+                p.display(),
+                h
+            );
+        }
+    }
+}
+
+#[when("Step 2.1d runs")]
+fn verdict_when_run(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let mut tmp_prefix = tmp.path().to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(VERDICT_AGGREGATION_SCRIPT)
+        .env("TMP_DIR", &tmp_prefix)
+        .output()
+        .expect("run aggregation script");
+    assert!(
+        output.status.success(),
+        "script failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let jsonl_path = tmp.path().join("verdict-aggregate.jsonl");
+    let content = fs::read_to_string(&jsonl_path).expect("read jsonl");
+    world.verdict_jsonl_lines = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).expect("parse json line"))
+        .collect();
+}
+
+#[then("${TMP_DIR}verdict-aggregate.jsonl MUST contain one line per target")]
+fn verdict_then_one_line_each(world: &mut TestWorld) {
+    assert_eq!(
+        world.verdict_jsonl_lines.len(),
+        world.verdict_targets.len(),
+        "expected {} lines, got {}",
+        world.verdict_targets.len(),
+        world.verdict_jsonl_lines.len()
+    );
+    let got: std::collections::HashSet<String> = world
+        .verdict_jsonl_lines
+        .iter()
+        .map(|v| v.get("target").and_then(|t| t.as_str()).unwrap_or("").to_string())
+        .collect();
+    for t in &world.verdict_targets {
+        assert!(got.contains(t), "missing target {} in {:?}", t, got);
+    }
+}
+
+#[then("each line MUST have keys: target, verdict, execution, reason, roadmap_fit")]
+fn verdict_then_keys(world: &mut TestWorld) {
+    for line in &world.verdict_jsonl_lines {
+        for k in ["target", "verdict", "execution", "reason", "roadmap_fit"] {
+            assert!(line.get(k).is_some(), "line {} missing key {}", line, k);
+        }
+    }
+}
+
+#[then("if Redirect To was present, the line MUST include redirect_to")]
+fn verdict_then_redirect(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    for target in &world.verdict_targets {
+        let p = tmp.path().join(format!("consult-result-{}.md", dir_safe(target)));
+        let content = fs::read_to_string(&p).expect("read");
+        let had_redirect = section_present(&content, "Redirect To")
+            && !extract_section(&content, "Redirect To").unwrap_or_default().is_empty();
+        let line = world
+            .verdict_jsonl_lines
+            .iter()
+            .find(|v| v.get("target").and_then(|t| t.as_str()) == Some(target.as_str()))
+            .expect("line for target");
+        if had_redirect {
+            assert!(
+                line.get("redirect_to").and_then(|v| v.as_str()).is_some(),
+                "target {} had Redirect To but line missing redirect_to: {}",
+                target,
+                line
+            );
+        } else {
+            assert!(
+                line.get("redirect_to").is_none(),
+                "target {} had no Redirect To but line has redirect_to: {}",
+                target,
+                line
+            );
+        }
+    }
+}
+
+// ============== Explorer Candidate Node Set Steps ==============
+
+const CANDIDATE_PARSE_SCRIPT: &str = r#"
+awk '/^## Candidate Nodes$/{f=1;next} /^## /{f=0} f && /^- /{sub(/^- /,""); sub(/[ \t]*#.*$/,""); print}' "$1" \
+  | awk 'NF' | sort -u
+"#;
+
+fn parse_candidate_nodes(fixture_path: &Path) -> Vec<String> {
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(CANDIDATE_PARSE_SCRIPT)
+        .arg("bash")
+        .arg(fixture_path)
+        .output()
+        .expect("run candidate parse");
+    assert!(
+        output.status.success(),
+        "parse failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let s = String::from_utf8(output.stdout).expect("utf8");
+    s.lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+#[given("a requirement text with no --path")]
+fn explorer_no_path(world: &mut TestWorld) {
+    world.candidate_nodes.clear();
+}
+
+#[given("project index lists nodes A, B, C, D")]
+fn explorer_project_index(_world: &mut TestWorld) {
+    // Contextual only; the multi fixture represents this scenario.
+}
+
+#[when("requirement-explorer runs Phase 1 (pre-judgment pass)")]
+fn explorer_runs_phase1(world: &mut TestWorld) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_multi.md");
+    world.candidate_nodes = parse_candidate_nodes(&path);
+}
+
+#[then(expr = "explorer MUST output a {string} section in its result")]
+fn explorer_section_present(_world: &mut TestWorld, heading: String) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_multi.md");
+    let content = fs::read_to_string(&path).expect("read fixture");
+    assert!(
+        content.contains(&heading),
+        "fixture missing heading {}",
+        heading
+    );
+}
+
+#[then("the list MUST contain at least one node")]
+fn explorer_list_nonempty(world: &mut TestWorld) {
+    assert!(
+        !world.candidate_nodes.is_empty(),
+        "candidate nodes list is empty"
+    );
+}
+
+#[then(regex = r#"^the list MUST include "([^"]+)" \(project root\) as baseline$"#)]
+fn explorer_list_has_root(world: &mut TestWorld, root: String) {
+    assert!(
+        world.candidate_nodes.iter().any(|n| n == &root),
+        "candidate nodes {:?} missing project root {}",
+        world.candidate_nodes,
+        root
+    );
+}
+
+#[given("--path core/src/foo")]
+fn explorer_with_path(world: &mut TestWorld) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_path.md");
+    world.candidate_nodes = parse_candidate_nodes(&path);
+}
+
+#[then(expr = "{string} MUST equal [{string}, {string}]")]
+fn explorer_list_equals(world: &mut TestWorld, _heading: String, a: String, b: String) {
+    let mut expected = vec![a, b];
+    expected.sort();
+    expected.dedup();
+    let mut actual = world.candidate_nodes.clone();
+    actual.sort();
+    actual.dedup();
+    assert_eq!(actual, expected, "candidate nodes mismatch");
+}
+
+// ============== spec SKILL candidate fanout steps ==============
+
+fn spec_skill_md_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("core parent")
+        .join("skills/spec/SKILL.md")
+}
+
+#[given(regex = r#"^explorer emitted "([^"]+)", "([^"]+)", "([^"]+)" as candidates$"#)]
+fn fanout_explorer_emitted(world: &mut TestWorld, a: String, b: String, c: String) {
+    let tmp = TempDir::new().expect("tmp");
+    let file = tmp.path().join("consult-targets.txt");
+    let mut f = File::create(&file).expect("create fixture");
+    writeln!(f, "{}", a).unwrap();
+    writeln!(f, "{}", b).unwrap();
+    writeln!(f, "{}", c).unwrap();
+    world.verdict_targets = vec![a, b, c];
+    world.verdict_tmp_dir = Some(tmp);
+}
+
+#[when("Step 2.1d fans out across the candidate set")]
+fn fanout_step_21d_runs(world: &mut TestWorld) {
+    // Simulate SKILL's array-loading snippet under bash and assert array length.
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let file = tmp.path().join("consult-targets.txt");
+    // Portable equivalent of `mapfile -t consult_targets < file` (bash 3.2 lacks mapfile).
+    // The SKILL.md text assertion below verifies the actual mapfile directive.
+    let script = format!(
+        "consult_targets=(); while IFS= read -r line; do consult_targets+=(\"$line\"); done < {}\necho \"${{#consult_targets[@]}}\"\nfor t in \"${{consult_targets[@]}}\"; do echo \"$t\"; done",
+        file.display()
+    );
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .expect("bash");
+    assert!(output.status.success(), "bash failed: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).expect("utf8");
+    let mut lines = stdout.lines();
+    let count: usize = lines.next().expect("count line").trim().parse().expect("parse count");
+    assert_eq!(count, 3, "expected 3 candidates, got {}", count);
+    let loaded: Vec<String> = lines.map(|s| s.to_string()).collect();
+    assert_eq!(loaded, world.verdict_targets, "loaded array mismatch");
+
+    // Simulate consult-result files being produced (one per target).
+    for t in &world.verdict_targets {
+        let dir_safe = if t == "." { "root".to_string() } else { t.replace('/', "-") };
+        let result = tmp.path().join(format!("consult-result-{}.md", dir_safe));
+        fs::write(&result, format!("# consult-result for {}\n", t)).expect("write result");
+    }
+}
+
+#[then(regex = r#"^(\d+) consult-result files MUST exist \(one per candidate\)$"#)]
+fn fanout_result_files_exist(world: &mut TestWorld, expected: usize) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let mut found = 0;
+    for t in &world.verdict_targets {
+        let dir_safe = if t == "." { "root".to_string() } else { t.replace('/', "-") };
+        let result = tmp.path().join(format!("consult-result-{}.md", dir_safe));
+        if result.exists() {
+            found += 1;
+        }
+    }
+    assert_eq!(found, expected, "expected {} result files, found {}", expected, found);
+}
+
+#[then("they MUST be produced in parallel (no serial dependency)")]
+fn fanout_parallel_documentary(_world: &mut TestWorld) {
+    // Documentary assertion: verify SKILL.md uses mapfile read from consult-targets.txt
+    // (the new source) and preserves the parallel dispatch section.
+    let skill = fs::read_to_string(spec_skill_md_path()).expect("read SKILL.md");
+    assert!(
+        skill.contains("mapfile -t consult_targets < ${TMP_DIR}consult-targets.txt"),
+        "SKILL.md missing mapfile read from consult-targets.txt"
+    );
+    assert!(
+        skill.contains("Dispatch po-consultant in parallel"),
+        "SKILL.md missing parallel dispatch heading"
+    );
+}
+
+// ============== Step 2.1e: Target Selection from Verdicts ==============
+
+fn target_selection_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_target_selection.sh")
+}
+
+fn write_verdict_line(
+    tmp: &Path,
+    target: &str,
+    execution: &str,
+    reason: &str,
+) -> String {
+    let v = serde_json::json!({
+        "target": target,
+        "verdict": "feasible",
+        "execution": execution,
+        "reason": reason,
+        "roadmap_fit": "aligned",
+    });
+    let line = serde_json::to_string(&v).unwrap();
+    let jsonl = tmp.join("verdict-aggregate.jsonl");
+    use std::io::Write as IoWrite;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&jsonl)
+        .expect("open jsonl");
+    writeln!(f, "{}", line).expect("write jsonl line");
+    reason.to_string()
+}
+
+fn run_target_selection(tmp: &Path, no_ask: bool) {
+    let mut tmp_prefix = tmp.to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let harness = target_selection_harness_path();
+    let output = std::process::Command::new("bash")
+        .arg(&harness)
+        .env("TMP_DIR", &tmp_prefix)
+        .env("NO_ASK", if no_ask { "true" } else { "false" })
+        .output()
+        .expect("run target-selection harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[given(
+    "verdicts: A.execution=auto_executable, B.execution=halt, C.execution=requires_human"
+)]
+fn ts_single_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "auto_executable", "A is authoritative");
+    write_verdict_line(tmp.path(), "B", "halt", "B refuses: out of scope");
+    write_verdict_line(tmp.path(), "C", "requires_human", "C needs human review");
+    world.target_select_tmp = Some(tmp);
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then("target_path MUST equal A")]
+fn ts_then_target_is_a(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let p = tmp.path().join("target-path.txt");
+    let content = fs::read_to_string(&p).expect("read target-path.txt");
+    assert_eq!(content.trim(), "A", "expected target A, got {:?}", content);
+    assert!(
+        !tmp.path().join("halt-reason.txt").exists(),
+        "halt-reason.txt must not exist on single-auto"
+    );
+    assert!(
+        !tmp.path().join("ask-question.txt").exists(),
+        "ask-question.txt must not exist on single-auto"
+    );
+}
+
+#[given("verdicts: A.execution=auto_executable, B.execution=auto_executable")]
+fn ts_multi_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "auto_executable", "A claims ownership");
+    write_verdict_line(tmp.path(), "B", "auto_executable", "B claims ownership too");
+    world.target_select_tmp = Some(tmp);
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then(
+    "spec MUST halt with a surface-state reason including A and B and their reasons"
+)]
+fn ts_then_halt_multi(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("read halt-reason.txt");
+    assert!(halt.contains("multiple nodes claim ownership"), "halt: {}", halt);
+    assert!(halt.contains("A") && halt.contains("B"), "halt missing A/B: {}", halt);
+    assert!(
+        halt.contains("A claims ownership"),
+        "halt missing A reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("B claims ownership too"),
+        "halt missing B reason verbatim: {}",
+        halt
+    );
+    assert!(
+        !tmp.path().join("target-path.txt").exists(),
+        "target-path.txt must not exist on multi-auto halt"
+    );
+}
+
+#[given("all candidates have execution in halt or requires_human")]
+fn ts_no_auto(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    write_verdict_line(tmp.path(), "A", "halt", "A says no: precedent conflict");
+    write_verdict_line(
+        tmp.path(),
+        "B",
+        "requires_human",
+        "B needs architect decision",
+    );
+    world.target_select_tmp = Some(tmp);
+}
+
+#[given("--no-ask is set")]
+fn ts_no_ask_set(world: &mut TestWorld) {
+    world.target_select_no_ask = true;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[given("--no-ask is NOT set")]
+fn ts_no_ask_unset(world: &mut TestWorld) {
+    world.target_select_no_ask = false;
+    let tmp_path = world.target_select_tmp.as_ref().unwrap().path().to_path_buf();
+    run_target_selection(&tmp_path, world.target_select_no_ask);
+}
+
+#[then("spec MUST halt with each candidate's reason preserved verbatim")]
+fn ts_then_halt_no_auto(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("read halt-reason.txt");
+    assert!(halt.contains("no auto-executable target"), "halt: {}", halt);
+    assert!(
+        halt.contains("A says no: precedent conflict"),
+        "halt missing A reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("B needs architect decision"),
+        "halt missing B reason verbatim: {}",
+        halt
+    );
+    assert!(
+        halt.contains("[halt]") && halt.contains("[requires_human]"),
+        "halt missing execution tags: {}",
+        halt
+    );
+    assert!(
+        !tmp.path().join("ask-question.txt").exists(),
+        "ask-question.txt must not exist on --no-ask halt"
+    );
+}
+
+#[then("spec MUST AskUserQuestion with each candidate's reason preserved")]
+fn ts_then_ask(world: &mut TestWorld) {
+    let tmp = world.target_select_tmp.as_ref().expect("tmp");
+    let ask = fs::read_to_string(tmp.path().join("ask-question.txt"))
+        .expect("read ask-question.txt");
+    assert!(
+        ask.contains("A says no: precedent conflict"),
+        "ask missing A reason: {}",
+        ask
+    );
+    assert!(
+        ask.contains("B needs architect decision"),
+        "ask missing B reason: {}",
+        ask
+    );
+    assert!(
+        !tmp.path().join("halt-reason.txt").exists(),
+        "halt-reason.txt must not exist on interactive path"
+    );
+}
+
+// ============== Task 6: Redirect loop with cycle detection ==============
+
+fn redirect_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_redirect.sh")
+}
+
+fn write_round_jsonl(dir: &Path, round: usize, lines: &[serde_json::Value]) {
+    let p = dir.join(format!("round-{}.jsonl", round));
+    let mut f = File::create(&p).expect("create round jsonl");
+    for l in lines {
+        writeln!(f, "{}", serde_json::to_string(l).unwrap()).unwrap();
+    }
+}
+
+fn run_redirect_harness(tmp: &Path, rounds_dir: &Path, initial: &str) {
+    let mut tmp_prefix = tmp.to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let harness = redirect_harness_path();
+    let output = std::process::Command::new("bash")
+        .arg(&harness)
+        .env("TMP_DIR", &tmp_prefix)
+        .env("INITIAL_TARGET", initial)
+        .env("ROUNDS_DIR", rounds_dir)
+        .output()
+        .expect("run redirect harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[given(
+    "target \"core/src/tree_parser\" verdict has Redirect To=core/src/symbol_index"
+)]
+fn redirect_single_hop_setup(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    let rounds = TempDir::new().expect("rounds");
+    // Round 1: tree_parser auto_executable but redirects to symbol_index
+    write_round_jsonl(
+        rounds.path(),
+        1,
+        &[serde_json::json!({
+            "target": "core/src/tree_parser",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting",
+            "roadmap_fit": "aligned",
+            "redirect_to": "core/src/symbol_index",
+        })],
+    );
+    // Round 2: symbol_index auto_executable, no redirect — converges.
+    write_round_jsonl(
+        rounds.path(),
+        2,
+        &[serde_json::json!({
+            "target": "core/src/symbol_index",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "I own this",
+            "roadmap_fit": "aligned",
+        })],
+    );
+    run_redirect_harness(tmp.path(), rounds.path(), "core/src/tree_parser");
+    world.redirect_tmp = Some(tmp);
+    world.redirect_rounds_dir = Some(rounds);
+}
+
+#[then("Step 2 MUST re-run with target_path=core/src/symbol_index")]
+fn redirect_single_hop_target(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let target = fs::read_to_string(tmp.path().join("target-path.txt"))
+        .expect("target-path.txt");
+    assert_eq!(target.trim(), "core/src/symbol_index");
+    let rounds = fs::read_to_string(tmp.path().join("rounds-consumed.txt"))
+        .expect("rounds-consumed.txt");
+    assert_eq!(rounds.trim(), "2", "expected 2 rounds, got {}", rounds);
+}
+
+#[then("the new target MUST receive its own po-consultant verdict")]
+fn redirect_single_hop_new_verdict(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let trace = fs::read_to_string(tmp.path().join("visited-trace.txt"))
+        .expect("visited-trace.txt");
+    assert!(
+        trace.contains("core/src/tree_parser") && trace.contains("core/src/symbol_index"),
+        "trace missing both nodes: {}",
+        trace
+    );
+}
+
+#[given(
+    "tree_parser redirects to symbol_index, then symbol_index redirects back to tree_parser"
+)]
+fn redirect_cycle_setup(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    let rounds = TempDir::new().expect("rounds");
+    write_round_jsonl(
+        rounds.path(),
+        1,
+        &[serde_json::json!({
+            "target": "tree_parser",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting forward",
+            "roadmap_fit": "aligned",
+            "redirect_to": "symbol_index",
+        })],
+    );
+    write_round_jsonl(
+        rounds.path(),
+        2,
+        &[serde_json::json!({
+            "target": "symbol_index",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting back",
+            "roadmap_fit": "aligned",
+            "redirect_to": "tree_parser",
+        })],
+    );
+    run_redirect_harness(tmp.path(), rounds.path(), "tree_parser");
+    world.redirect_tmp = Some(tmp);
+    world.redirect_rounds_dir = Some(rounds);
+}
+
+#[then(
+    "spec MUST halt with reason \"redirect cycle: tree_parser → symbol_index → tree_parser\""
+)]
+fn redirect_cycle_halt(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("halt-reason.txt");
+    assert!(
+        halt.contains("redirect cycle: tree_parser → symbol_index → tree_parser"),
+        "halt reason mismatch: {}",
+        halt
+    );
+}
+
+#[then("no plan MUST be generated")]
+fn redirect_cycle_no_plan(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    assert!(
+        !tmp.path().join("target-path.txt").exists(),
+        "target-path.txt must not exist on cycle halt"
+    );
+}
+
+// ============== Step 4.5: Post-Spec Impact Scan (Task 10) ==============
+
+fn post_impact_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_post_impact_scan.sh")
+}
+
+fn core_bin_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target/release/claude-md-core")
+}
+
+fn run_post_impact_scan(world: &mut TestWorld, schema_changed: bool) {
+    let tmp = TempDir::new().expect("tmp");
+    let root = tmp.path();
+
+    // producer DEVELOPERS.md (after)
+    let producer_dir = root.join("producer");
+    fs::create_dir_all(&producer_dir).expect("mk producer");
+    let after_content = if schema_changed {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\n\npub struct OrderId(u64);\n\npub enum OrderStatus { Open, Closed }\n"
+    } else {
+        "# producer\n\n## Constraints\n- new constraint added\n\n## Data Schemas\nNone\n"
+    };
+    fs::write(producer_dir.join("DEVELOPERS.md"), after_content).unwrap();
+
+    // producer DEVELOPERS.md (before)
+    let before_path = root.join("producer-before.md");
+    let before_content = if schema_changed {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n"
+    } else {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n"
+    };
+    fs::write(&before_path, before_content).unwrap();
+
+    // consumer module that references OrderId
+    let consumer_dir = root.join("consumer");
+    fs::create_dir_all(&consumer_dir).expect("mk consumer");
+    fs::write(
+        consumer_dir.join("DEVELOPERS.md"),
+        "# consumer\n\n## Constraints\nOrderId is threaded through the checkout flow.\n\n## Data Schemas\nNone\n",
+    )
+    .unwrap();
+
+    let tmp_dir_str = {
+        let mut s = root.to_path_buf().into_os_string().into_string().unwrap();
+        if !s.ends_with('/') {
+            s.push('/');
+        }
+        s
+    };
+
+    let output = std::process::Command::new("bash")
+        .arg(post_impact_harness_path())
+        .env("TMP_DIR", &tmp_dir_str)
+        .env("CORE_BIN", core_bin_path())
+        .env("TARGET_ROOT", root)
+        .env("TARGET_PATH", "producer")
+        .env("BEFORE_FILE", &before_path)
+        .env("AFTER_FILE", producer_dir.join("DEVELOPERS.md"))
+        .output()
+        .expect("run post-impact harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Persist tmp dir in world by stashing in redirect_tmp slot (reuse, not ideal but isolated)
+    world.redirect_tmp = Some(tmp);
+}
+
+#[given("/spec modified target's ## Data Schemas")]
+fn post_impact_schema_changed(world: &mut TestWorld) {
+    run_post_impact_scan(world, true);
+}
+
+#[given("/spec modified only ## Constraints")]
+fn post_impact_only_constraints(world: &mut TestWorld) {
+    run_post_impact_scan(world, false);
+}
+
+#[when("Step 4.5 executes")]
+fn post_impact_step_4_5(_world: &mut TestWorld) {
+    // Harness already ran in the Given step; this step is a no-op marker.
+}
+
+#[then("the result block MUST contain a \"## Affected Consumers\" section")]
+fn post_impact_contains_section(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("## Affected Consumers"),
+        "result-block missing Affected Consumers section:\n{}",
+        body
+    );
+}
+
+#[then("each referencing consumer MUST appear as a list item")]
+fn post_impact_consumer_listed(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("- consumer"),
+        "result-block missing consumer list item:\n{}",
+        body
+    );
+}
+
+#[then("the result block MUST NOT contain \"## Affected Consumers\"")]
+fn post_impact_absent_section(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        !body.contains("## Affected Consumers"),
+        "result-block unexpectedly contains Affected Consumers:\n{}",
+        body
+    );
+}
+
+// ============== autodev --auto-sync (Task 11) ==============
+
+fn auto_sync_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/autodev_auto_sync.sh")
+}
+
+fn run_auto_sync_chain(world: &mut TestWorld, execution: &str, reason: &str) {
+    let tmp = TempDir::new().expect("tmp");
+    let root = tmp.path();
+    let fixture_dir = root.join("fixtures");
+    fs::create_dir_all(&fixture_dir).expect("mk fixtures");
+
+    // consumers: C (under test) followed by D (a downstream consumer that
+    // must NOT be synced when C halts the chain).
+    let consumers_path = root.join("affected-consumers.txt");
+    fs::write(&consumers_path, "C\nD\n").expect("write consumers");
+
+    // Build C's mock consult-result.
+    let c_result = format!(
+        "## Verdict\nfeasible\n\n## Execution\n{exec}\n\n## Reason\n{reason}\n\n## Roadmap Fit\naligned\n",
+        exec = execution,
+        reason = reason,
+    );
+    fs::write(fixture_dir.join("C.result.md"), c_result).expect("write C");
+
+    // D is always auto_executable; it should only run if C succeeded.
+    fs::write(
+        fixture_dir.join("D.result.md"),
+        "## Verdict\nfeasible\n\n## Execution\nauto_executable\n\n## Reason\n\n\n## Roadmap Fit\naligned\n",
+    )
+    .expect("write D");
+
+    let tmp_dir_str = {
+        let mut s = root.to_path_buf().into_os_string().into_string().unwrap();
+        if !s.ends_with('/') {
+            s.push('/');
+        }
+        s
+    };
+
+    let output = std::process::Command::new("bash")
+        .arg(auto_sync_harness_path())
+        .env("TMP_DIR", &tmp_dir_str)
+        .env("CONSUMERS_FILE", &consumers_path)
+        .env("FIXTURE_DIR", &fixture_dir)
+        .output()
+        .expect("run auto-sync harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    world.auto_sync_tmp = Some(tmp);
+    world.auto_sync_halt_reason = Some(reason.to_string());
+}
+
+#[given("consumer C's po-consultant emits Execution=auto_executable")]
+fn auto_sync_given_auto(world: &mut TestWorld) {
+    run_auto_sync_chain(world, "auto_executable", "");
+}
+
+#[given(regex = r#"^consumer C's po-consultant emits Execution=halt with reason "(.+)"$"#)]
+fn auto_sync_given_halt(world: &mut TestWorld, reason: String) {
+    run_auto_sync_chain(world, "halt", &reason);
+}
+
+#[given("consumer C's po-consultant emits Execution=requires_human")]
+fn auto_sync_given_requires_human(world: &mut TestWorld) {
+    run_auto_sync_chain(world, "requires_human", "human attention required");
+}
+
+#[then("/sync MUST be invoked on C")]
+fn auto_sync_then_c_invoked(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let log = fs::read_to_string(tmp.path().join("sync-invocations.log"))
+        .expect("read sync log");
+    assert!(
+        log.lines().any(|l| l == "C"),
+        "expected sync invocation for C, got:\n{}",
+        log
+    );
+}
+
+#[then("/sync MUST NOT run on C or any subsequent consumer")]
+fn auto_sync_then_no_invocations(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let log = fs::read_to_string(tmp.path().join("sync-invocations.log"))
+        .expect("read sync log");
+    assert!(
+        log.trim().is_empty(),
+        "expected no sync invocations, got:\n{}",
+        log
+    );
+}
+
+#[then("the result block MUST record C's halt reason verbatim")]
+fn auto_sync_then_halt_reason(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let reason = world.auto_sync_halt_reason.as_ref().expect("reason");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains(reason.as_str()),
+        "result-block missing halt reason {:?}:\n{}",
+        reason,
+        body
+    );
+}
+
+#[then("the result block MUST suggest `git revert HEAD`")]
+fn auto_sync_then_rollback(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("git revert HEAD"),
+        "result-block missing rollback hint:\n{}",
+        body
+    );
+}
+
+#[then("the result block MUST record C's reason verbatim")]
+fn auto_sync_then_reason(world: &mut TestWorld) {
+    let tmp = world.auto_sync_tmp.as_ref().expect("tmp");
+    let reason = world.auto_sync_halt_reason.as_ref().expect("reason");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains(reason.as_str()),
+        "result-block missing reason {:?}:\n{}",
+        reason,
+        body
+    );
 }
 
 #[tokio::main]

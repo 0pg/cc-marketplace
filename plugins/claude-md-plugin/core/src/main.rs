@@ -238,6 +238,17 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Diff the `## Data Schemas` section of two DEVELOPERS.md files
+    DetectSchemaChange {
+        /// Path to the "before" DEVELOPERS.md
+        #[arg(long)]
+        before: PathBuf,
+
+        /// Path to the "after" DEVELOPERS.md
+        #[arg(long)]
+        after: PathBuf,
+    },
+
     /// Validate document language consistency
     ValidateLanguage {
         /// File to validate (CLAUDE.md or DEVELOPERS.md)
@@ -255,6 +266,21 @@ enum Commands {
         /// Output JSON file path
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+
+    /// Enumerate nodes whose DEVELOPERS.md mentions any exported name from target's Data Schemas
+    ImpactScan {
+        /// Target node path (relative to root)
+        #[arg(short, long)]
+        target: String,
+
+        /// Project root directory
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output format (only "list" supported)
+        #[arg(short, long, default_value = "list")]
+        format: String,
     },
 }
 
@@ -484,11 +510,34 @@ fn main() {
                 ).into()),
             }
         }
+        Commands::DetectSchemaChange { before, after } => {
+            match (std::fs::read_to_string(before), std::fs::read_to_string(after)) {
+                (Ok(b), Ok(a)) => {
+                    let changed = claude_md_core::detect_schema_change::changed(&b, &a);
+                    let json = serde_json::json!({ "changed": changed });
+                    println!("{}", serde_json::to_string(&json).unwrap_or_else(|_| json.to_string()));
+                    Ok(())
+                }
+                (Err(e), _) => Err(format!("Failed to read before file '{}': {}", before.display(), e).into()),
+                (_, Err(e)) => Err(format!("Failed to read after file '{}': {}", after.display(), e).into()),
+            }
+        }
         Commands::ValidateLanguage { file, expected, threshold, output } => {
             let validator = claude_md_core::LanguageValidator::new();
             match validator.validate(file, expected, *threshold) {
                 Ok(result) => output_result(&result, output.as_ref(), "validate-language"),
                 Err(e) => Err(e.to_string().into()),
+            }
+        }
+        Commands::ImpactScan { target, root, format: _ } => {
+            match claude_md_core::impact_scan::scan(root, target) {
+                Ok(consumers) => {
+                    for c in &consumers {
+                        println!("{}", c);
+                    }
+                    Ok(())
+                }
+                Err(e) => Err(format!("impact-scan failed: {}", e).into()),
             }
         }
     };
@@ -512,6 +561,8 @@ fn main() {
             Commands::FormatExports { .. } => "format-exports",
             Commands::FormatAnalysis { .. } => "format-analysis",
             Commands::ValidateLanguage { .. } => "validate-language",
+            Commands::DetectSchemaChange { .. } => "detect-schema-change",
+            Commands::ImpactScan { .. } => "impact-scan",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
