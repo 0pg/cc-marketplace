@@ -792,6 +792,42 @@ Changes:
 git diff --stat
 ```
 
+### Step 4.5: Post-Spec Impact Surface
+
+After Execute writes CLAUDE.md + DEVELOPERS.md and the commit is made, surface
+downstream consumers *if and only if* the target's `## Data Schemas` section
+changed between the previous commit and the new on-disk content. Schema change
+is the only trigger because it is the single exported surface that can break
+consumers — Constraint-only changes stay internal to the node.
+
+The deterministic CLIs `detect-schema-change` and `impact-scan` do the work; the
+SKILL merely appends an `## Affected Consumers` block to `${TMP_DIR}result-block.md`
+so Step 5 can echo it back to the user alongside the recommendation to run
+`/sync` per consumer (or `/autodev --auto-sync` to delegate).
+
+```bash
+# Step 4.5: Surface affected consumers on schema change
+before=$(git show HEAD:$target_path/DEVELOPERS.md 2>/dev/null || echo "")
+after=$(cat $target_path/DEVELOPERS.md 2>/dev/null || echo "")
+changed=$(core detect-schema-change \
+  --before <(printf '%s' "$before") --after <(printf '%s' "$after") \
+  | jq -r '.changed')
+
+if [ "$changed" = "true" ]; then
+  core impact-scan --target "$target_path" --format list > ${TMP_DIR}affected-consumers.txt
+  if [ -s ${TMP_DIR}affected-consumers.txt ]; then
+    {
+      echo ""
+      echo "## Affected Consumers"
+      while IFS= read -r c; do [ -n "$c" ] && echo "- $c"; done \
+        < ${TMP_DIR}affected-consumers.txt
+      echo ""
+      echo "> Recommend \`/sync\` each consumer, or \`/autodev --auto-sync\` to delegate."
+    } >> ${TMP_DIR}result-block.md
+  fi
+fi
+```
+
 ### 5. Result
 
 ```

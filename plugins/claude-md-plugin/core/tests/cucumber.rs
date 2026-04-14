@@ -3500,6 +3500,130 @@ fn redirect_cycle_no_plan(world: &mut TestWorld) {
     );
 }
 
+// ============== Step 4.5: Post-Spec Impact Scan (Task 10) ==============
+
+fn post_impact_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_post_impact_scan.sh")
+}
+
+fn core_bin_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target/release/claude-md-core")
+}
+
+fn run_post_impact_scan(world: &mut TestWorld, schema_changed: bool) {
+    let tmp = TempDir::new().expect("tmp");
+    let root = tmp.path();
+
+    // producer DEVELOPERS.md (after)
+    let producer_dir = root.join("producer");
+    fs::create_dir_all(&producer_dir).expect("mk producer");
+    let after_content = if schema_changed {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\n\npub struct OrderId(u64);\n\npub enum OrderStatus { Open, Closed }\n"
+    } else {
+        "# producer\n\n## Constraints\n- new constraint added\n\n## Data Schemas\nNone\n"
+    };
+    fs::write(producer_dir.join("DEVELOPERS.md"), after_content).unwrap();
+
+    // producer DEVELOPERS.md (before)
+    let before_path = root.join("producer-before.md");
+    let before_content = if schema_changed {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n"
+    } else {
+        "# producer\n\n## Constraints\nNone\n\n## Data Schemas\nNone\n"
+    };
+    fs::write(&before_path, before_content).unwrap();
+
+    // consumer module that references OrderId
+    let consumer_dir = root.join("consumer");
+    fs::create_dir_all(&consumer_dir).expect("mk consumer");
+    fs::write(
+        consumer_dir.join("DEVELOPERS.md"),
+        "# consumer\n\n## Constraints\nOrderId is threaded through the checkout flow.\n\n## Data Schemas\nNone\n",
+    )
+    .unwrap();
+
+    let tmp_dir_str = {
+        let mut s = root.to_path_buf().into_os_string().into_string().unwrap();
+        if !s.ends_with('/') {
+            s.push('/');
+        }
+        s
+    };
+
+    let output = std::process::Command::new("bash")
+        .arg(post_impact_harness_path())
+        .env("TMP_DIR", &tmp_dir_str)
+        .env("CORE_BIN", core_bin_path())
+        .env("TARGET_ROOT", root)
+        .env("TARGET_PATH", "producer")
+        .env("BEFORE_FILE", &before_path)
+        .env("AFTER_FILE", producer_dir.join("DEVELOPERS.md"))
+        .output()
+        .expect("run post-impact harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Persist tmp dir in world by stashing in redirect_tmp slot (reuse, not ideal but isolated)
+    world.redirect_tmp = Some(tmp);
+}
+
+#[given("/spec modified target's ## Data Schemas")]
+fn post_impact_schema_changed(world: &mut TestWorld) {
+    run_post_impact_scan(world, true);
+}
+
+#[given("/spec modified only ## Constraints")]
+fn post_impact_only_constraints(world: &mut TestWorld) {
+    run_post_impact_scan(world, false);
+}
+
+#[when("Step 4.5 executes")]
+fn post_impact_step_4_5(_world: &mut TestWorld) {
+    // Harness already ran in the Given step; this step is a no-op marker.
+}
+
+#[then("the result block MUST contain a \"## Affected Consumers\" section")]
+fn post_impact_contains_section(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("## Affected Consumers"),
+        "result-block missing Affected Consumers section:\n{}",
+        body
+    );
+}
+
+#[then("each referencing consumer MUST appear as a list item")]
+fn post_impact_consumer_listed(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        body.contains("- consumer"),
+        "result-block missing consumer list item:\n{}",
+        body
+    );
+}
+
+#[then("the result block MUST NOT contain \"## Affected Consumers\"")]
+fn post_impact_absent_section(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let body = fs::read_to_string(tmp.path().join("result-block.md"))
+        .expect("read result-block.md");
+    assert!(
+        !body.contains("## Affected Consumers"),
+        "result-block unexpectedly contains Affected Consumers:\n{}",
+        body
+    );
+}
+
 #[tokio::main]
 async fn main() {
     TestWorld::run("tests/features").await;
