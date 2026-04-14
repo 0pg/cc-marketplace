@@ -63,6 +63,10 @@ pub struct TestWorld {
     named_commits: HashMap<String, String>,
     // po-consultant verdict schema fields
     po_consultant_fixtures: Vec<(String, String)>, // (fixture_name, content)
+    // Verdict aggregation fields
+    verdict_tmp_dir: Option<TempDir>,
+    verdict_targets: Vec<String>,
+    verdict_jsonl_lines: Vec<serde_json::Value>,
 }
 
 // ============== Common Steps ==============
@@ -2806,6 +2810,162 @@ fn po_then_reason_describes_redirect(world: &mut TestWorld) {
             "{}: Reason must describe redirect rationale",
             name
         );
+    }
+}
+
+// ============== Verdict Aggregation Steps ==============
+
+const VERDICT_AGGREGATION_SCRIPT: &str = r#"
+extract_section() {
+  awk -v h="$2" '
+    $0 == h { capture=1; next }
+    /^## / { capture=0 }
+    capture { print }
+  ' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        | awk 'NF' | paste -sd ' ' -
+}
+
+: > "${TMP_DIR}verdict-aggregate.jsonl"
+for result in "${TMP_DIR}"consult-result-*.md; do
+  [ -e "$result" ] || continue
+  target=$(basename "$result" .md | sed 's/^consult-result-//' | tr '-' '/')
+  jq -cn \
+    --arg t   "$target" \
+    --arg v   "$(extract_section "$result" '## Verdict')" \
+    --arg e   "$(extract_section "$result" '## Execution')" \
+    --arg rn  "$(extract_section "$result" '## Reason')" \
+    --arg rf  "$(extract_section "$result" '## Roadmap Fit')" \
+    --arg rd  "$(extract_section "$result" '## Redirect To')" \
+    '{target:$t, verdict:$v, execution:$e, reason:$rn, roadmap_fit:$rf}
+     + ({redirect_to:$rd} | if .redirect_to == "" then del(.redirect_to) else . end)' \
+    >> "${TMP_DIR}verdict-aggregate.jsonl"
+done
+"#;
+
+fn dir_safe(target: &str) -> String {
+    target.replace('/', "-")
+}
+
+#[given(expr = "consult result files for targets {string} and {string}")]
+fn verdict_given_targets(world: &mut TestWorld, a: String, b: String) {
+    let tmp = TempDir::new().expect("create tmp");
+    // Write fixtures: target "." uses auto fixture, other uses redirect fixture.
+    let auto = load_po_fixture("po_consultant_result_auto.md");
+    let redirect = load_po_fixture("po_consultant_result_redirect.md");
+
+    let write = |target: &str, body: &str| {
+        let name = format!("consult-result-{}.md", dir_safe(target));
+        let p = tmp.path().join(&name);
+        fs::write(&p, body).expect("write fixture");
+    };
+    write(&a, &auto);
+    write(&b, &redirect);
+
+    world.verdict_targets = vec![a, b];
+    world.verdict_tmp_dir = Some(tmp);
+}
+
+#[given("both files contain Verdict, Execution, Reason, RoadmapFit")]
+fn verdict_sanity(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    for target in &world.verdict_targets {
+        let p = tmp.path().join(format!("consult-result-{}.md", dir_safe(target)));
+        let content = fs::read_to_string(&p).expect("read");
+        for h in ["Verdict", "Execution", "Reason", "Roadmap Fit"] {
+            assert!(
+                section_present(&content, h),
+                "{}: missing ## {}",
+                p.display(),
+                h
+            );
+        }
+    }
+}
+
+#[when("Step 2.1d runs")]
+fn verdict_when_run(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let mut tmp_prefix = tmp.path().to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(VERDICT_AGGREGATION_SCRIPT)
+        .env("TMP_DIR", &tmp_prefix)
+        .output()
+        .expect("run aggregation script");
+    assert!(
+        output.status.success(),
+        "script failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let jsonl_path = tmp.path().join("verdict-aggregate.jsonl");
+    let content = fs::read_to_string(&jsonl_path).expect("read jsonl");
+    world.verdict_jsonl_lines = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).expect("parse json line"))
+        .collect();
+}
+
+#[then("${TMP_DIR}verdict-aggregate.jsonl MUST contain one line per target")]
+fn verdict_then_one_line_each(world: &mut TestWorld) {
+    assert_eq!(
+        world.verdict_jsonl_lines.len(),
+        world.verdict_targets.len(),
+        "expected {} lines, got {}",
+        world.verdict_targets.len(),
+        world.verdict_jsonl_lines.len()
+    );
+    let got: std::collections::HashSet<String> = world
+        .verdict_jsonl_lines
+        .iter()
+        .map(|v| v.get("target").and_then(|t| t.as_str()).unwrap_or("").to_string())
+        .collect();
+    for t in &world.verdict_targets {
+        assert!(got.contains(t), "missing target {} in {:?}", t, got);
+    }
+}
+
+#[then("each line MUST have keys: target, verdict, execution, reason, roadmap_fit")]
+fn verdict_then_keys(world: &mut TestWorld) {
+    for line in &world.verdict_jsonl_lines {
+        for k in ["target", "verdict", "execution", "reason", "roadmap_fit"] {
+            assert!(line.get(k).is_some(), "line {} missing key {}", line, k);
+        }
+    }
+}
+
+#[then("if Redirect To was present, the line MUST include redirect_to")]
+fn verdict_then_redirect(world: &mut TestWorld) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    for target in &world.verdict_targets {
+        let p = tmp.path().join(format!("consult-result-{}.md", dir_safe(target)));
+        let content = fs::read_to_string(&p).expect("read");
+        let had_redirect = section_present(&content, "Redirect To")
+            && !extract_section(&content, "Redirect To").unwrap_or_default().is_empty();
+        let line = world
+            .verdict_jsonl_lines
+            .iter()
+            .find(|v| v.get("target").and_then(|t| t.as_str()) == Some(target.as_str()))
+            .expect("line for target");
+        if had_redirect {
+            assert!(
+                line.get("redirect_to").and_then(|v| v.as_str()).is_some(),
+                "target {} had Redirect To but line missing redirect_to: {}",
+                target,
+                line
+            );
+        } else {
+            assert!(
+                line.get("redirect_to").is_none(),
+                "target {} had no Redirect To but line has redirect_to: {}",
+                target,
+                line
+            );
+        }
     }
 }
 

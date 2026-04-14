@@ -156,6 +156,36 @@ if failed_targets:
     Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
 ```
 
+Then aggregate each target's verdict-level fields into a single JSONL file so
+downstream steps (target selection, redirect handling) can query with `jq`:
+
+```bash
+extract_section() {
+  # $1 = file, $2 = heading (e.g., "## Reason")
+  awk -v h="$2" '
+    $0 == h { capture=1; next }
+    /^## / { capture=0 }
+    capture { print }
+  ' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        | awk 'NF' | paste -sd ' ' -
+}
+
+: > ${TMP_DIR}verdict-aggregate.jsonl
+for result in ${TMP_DIR}consult-result-*.md; do
+  target=$(basename "$result" .md | sed 's/^consult-result-//' | tr '-' '/')
+  jq -cn \
+    --arg t   "$target" \
+    --arg v   "$(extract_section "$result" '## Verdict')" \
+    --arg e   "$(extract_section "$result" '## Execution')" \
+    --arg rn  "$(extract_section "$result" '## Reason')" \
+    --arg rf  "$(extract_section "$result" '## Roadmap Fit')" \
+    --arg rd  "$(extract_section "$result" '## Redirect To')" \
+    '{target:$t, verdict:$v, execution:$e, reason:$rn, roadmap_fit:$rf}
+     + ({redirect_to:$rd} | if .redirect_to == "" then del(.redirect_to) else . end)' \
+    >> ${TMP_DIR}verdict-aggregate.jsonl
+done
+```
+
 #### 2.1e Build pre-fetched context blocks
 
 ```
