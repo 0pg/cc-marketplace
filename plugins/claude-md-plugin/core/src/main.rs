@@ -267,6 +267,21 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Enumerate nodes whose DEVELOPERS.md mentions any exported name from target's Data Schemas
+    ImpactScan {
+        /// Target node path (relative to root)
+        #[arg(short, long)]
+        target: String,
+
+        /// Project root directory
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+
+        /// Output format (only "list" supported)
+        #[arg(short, long, default_value = "list")]
+        format: String,
+    },
 }
 
 fn main() {
@@ -514,6 +529,17 @@ fn main() {
                 Err(e) => Err(e.to_string().into()),
             }
         }
+        Commands::ImpactScan { target, root, format: _ } => {
+            match claude_md_core::impact_scan::scan(root, target) {
+                Ok(consumers) => {
+                    for c in &consumers {
+                        println!("{}", c);
+                    }
+                    Ok(())
+                }
+                Err(e) => Err(format!("impact-scan failed: {}", e).into()),
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -536,6 +562,7 @@ fn main() {
             Commands::FormatAnalysis { .. } => "format-analysis",
             Commands::ValidateLanguage { .. } => "validate-language",
             Commands::DetectSchemaChange { .. } => "detect-schema-change",
+            Commands::ImpactScan { .. } => "impact-scan",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");
