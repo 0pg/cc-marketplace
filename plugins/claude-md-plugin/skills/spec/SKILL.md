@@ -312,8 +312,10 @@ Suggested Path:
 {result.suggested_path}
 """
         if result.verdict == "not_feasible":
-            entry += "(⚠ not_feasible: if this requirement intentionally replaces existing behavior, " \
-                     "the explorer must note that explicitly in Concretized Requirements.)\n"
+            entry += "(⚠ halt verdict: default = surface to caller. Exception = if the user intentionally\n" \
+                     "replaces existing behavior, the explorer MAY note the override explicitly in\n" \
+                     "Concretized Requirements. This exception is available in interactive mode only;\n" \
+                     "under --no-ask the SKILL defers to the authority's halt verdict verbatim.)\n"
         pre_fetched_conflicts += entry
 
     elif result.verdict == "feasible" and result.roadmap_fit == "aligned":
@@ -330,7 +332,7 @@ if partially_feasible_targets:
 # Not feasible early warning
 not_feasible_targets = [t for t, r in consult_results if r.verdict == "not_feasible"]
 if not_feasible_targets:
-    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. Proceeding — if intentional replacement, explorer will note explicitly."
+    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. (⚠ halt verdict: default = surface to caller. Exception = if the user intentionally replaces existing behavior, the explorer MAY note the override explicitly in Concretized Requirements. This exception is available in interactive mode only; under --no-ask the SKILL defers to the authority's halt verdict verbatim.)"
 ```
 
 ### 2.4 Collect Node History (if existing node AND not pre-consulted)
