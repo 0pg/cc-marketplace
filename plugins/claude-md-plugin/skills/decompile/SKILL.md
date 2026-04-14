@@ -94,7 +94,7 @@ Target: {path}
 Save results to ${TMP_DIR} and return only the path
 ```
 
-Independent directories at the same depth can be executed in parallel (up to 3).
+Independent directories at the same depth can be executed in parallel. No fixed cap.
 
 Check decompiler result status:
 - `success`: proceed to next module

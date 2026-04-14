@@ -69,7 +69,10 @@ Session file format:
 type: spec-reviewer | round: N
 plan_file: ${TMP_DIR}spec-plan-{dir-safe}.md
 dir_safe: {dir-safe}
+prev_result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{N-1}.md   # present only when round > 1
 ```
+
+If `prev_result_file` is present, read it to obtain the previous round's Critical Questions. You will use these in Phase 3 to judge `progress`.
 
 ### Phase 2: Socratic Critique
 
@@ -101,6 +104,19 @@ Apply 6 criteria in order to all items. Record all suspicious items as Critical 
 
 **rejected** — when any of the above criteria is not met.
 
+### Phase 3b: Progress Assessment (when round > 1)
+
+When `prev_result_file` was provided, judge whether this round advanced the review:
+
+- `progress: yes` — at least one of:
+  - a previous-round Critical Question is now resolved (not raised again), OR
+  - the plan added/corrected material that previously warranted critique (even if new issues surfaced)
+- `progress: no` — every current Critical Question is essentially a restatement of a previous-round concern AND no previous concern was addressed. The revise cycle is stuck.
+
+For round == 1, omit this field (or emit `progress: n/a`).
+
+**Judgment is yours.** Do not keyword-match; assess meaning. When in doubt, prefer `progress: yes` — stalling is surfaced only when genuinely stuck.
+
 ### Phase 4: Write Result + Return
 
 Result file path: `${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md`
@@ -112,6 +128,7 @@ Result file content:
 # Review Result
 round: {N}
 verdict: approved | rejected
+progress: yes | no | n/a            # n/a only on round 1
 
 ## Critical Questions
 - {item ID}: "{specific critique content}"
@@ -125,6 +142,7 @@ Return result block (minimize SKILL context):
 ---spec-reviewer-result---
 result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md
 verdict: approved | rejected
+progress: yes | no | n/a
 round: {N}
 ---end-spec-reviewer-result---
 ```

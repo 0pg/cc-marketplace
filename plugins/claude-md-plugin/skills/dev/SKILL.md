@@ -83,7 +83,7 @@ Normal operation continues even if absent.
 ### 4. Determine dependency order (leaf-first)
 
 Sort by directory depth (deepest first).
-Independent modules at the same depth can be executed in parallel (up to 3).
+Independent modules at the same depth can be executed in parallel. No fixed cap — the harness handles rate limiting.
 
 ### 5. `--dry-run` handling
 
@@ -176,7 +176,7 @@ This is display-only. No user confirmation required. Workflow proceeds to Step 7
 
 ### 7. Task(tdd-coder) — Red-Green-Refactor cycles
 
-Dispatch tdd-coder per target. Parallel batches for independent modules at same depth (max 3).
+Dispatch tdd-coder per target. Parallel batches for independent modules at the same depth — no fixed cap.
 
 ```
 Dispatch Task(tdd-coder):
@@ -223,7 +223,9 @@ For each completed module:
 ### 9. Task(test-reviewer) — Post-TDD verification
 
 ```
-round = 1, max_rounds = 3
+round = 1, max_safety = 10 (runaway safety net; not a convergence criterion)
+
+Termination is **reviewer-driven** via the `progress` field: the loop exits when the reviewer signals it has no new concerns (`progress: no`) or approves.
 
 loop:
   9a. Create test-reviewer session file:
@@ -237,19 +239,25 @@ loop:
       spec_session_file: ${TMP_DIR}tdd-session-{dir-safe}.md
       implemented_files: [{from tdd-result or previous revise result}]
       test_files: [{from tdd-result or previous revise result}]
+      {if round > 1:}
+      prev_result_file: ${TMP_DIR}test-reviewer-result-{dir-safe}-v{round-1}.md
       ```
 
   9b. Dispatch Task(test-reviewer):
       Session file: ${TMP_DIR}test-reviewer-session-{dir-safe}-v{round}.md
       Save results to ${TMP_DIR} and return only the path
 
-      Extract verdict from result block.
+      Extract verdict and progress from result block.
 
   9c. if verdict == "approved":
         break → Step 10
 
-  9d. if round >= max_rounds:
-        Log: "⚠ [REVIEW INCOMPLETE] {path}: proceeding with {N} known gaps"
+  9c2. if round > 1 AND progress == "no":
+        Log: "⚠ [REVIEW STUCK] {path}: reviewer reports no progress; proceeding with {N} known gaps"
+        break → Step 10
+
+  9d. if round >= max_safety:
+        Log: "⚠ [REVIEW RUNAWAY] {path}: hit safety net after {max_safety} rounds (indicates bug); proceeding"
         break → Step 10
 
   9e. Create tdd-coder revise session:
@@ -401,21 +409,19 @@ validate: {status} (when --validate is used)
 ---end-dev-result---
 ```
 
-## DO / DON'T
+## Pipeline Discipline
 
-**DO:**
-- Follow leaf-first order
-- Complete Convention hierarchy resolution when creating session files
-- Follow tdd-coder → test-reviewer → refactorer order
-- Handle DELETE tasks directly via SKILL before the TDD pipeline
-- Verify agent results by running tests directly (Steps 8, 11)
-- Dispatch refactorer only when Conventions exist
+**Invariants (must hold):**
+- Leaf-first traversal order (INV-1 dependency safety)
+- Complete Convention hierarchy resolution before session-file creation
+- `tdd-coder` MUST run before any code is delivered (TDD discipline)
+- SKILL MUST run test verification after each code-producing agent (Steps 8, 11) — never trust agent self-reports
+- CLAUDE.md is read-only (pass via session file; never pass its path directly to an agent)
 
-**DON'T:**
-- Modify CLAUDE.md (read-only)
-- Pass CLAUDE.md path directly to Agent (pass via session file)
-- Skip SKILL test verification (Steps 8, 11) — never trust agent self-reports
-- Enter refactorer without test-reviewer completion
+**Conditional steps (skip when the condition holds):**
+- `test-reviewer`: skip when the target's Constraints are empty (nothing to verify traceability against)
+- `refactorer`: skip when `validate-convention` already reports clean for the target, OR when no `## Conventions` apply to the target's language
+- When `test-reviewer` runs, it must complete before `refactorer`
 
 ## Error Handling
 

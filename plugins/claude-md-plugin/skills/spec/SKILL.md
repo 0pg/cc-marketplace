@@ -73,23 +73,21 @@ fi
 consult_targets=($(printf '%s\n' "${consult_targets[@]}" | sort -u))
 ```
 
-#### 2.1b Sibling module candidate hints (no LLM)
+#### 2.1b Sibling module relatedness
 
-From the scan-claude-md index (Step 1), find modules not already in `consult_targets`
-whose `purpose` field shares at least one word (≥ 3 characters) with the requirement text:
+No lexical pre-filter. The full scan-claude-md index (each module's `path` + `purpose`)
+is already injected into the explorer session (Step 2.5a → `## Existing Modules Index`);
+the requirement-explorer judges semantic relatedness itself (domain overlap, data flow,
+shared concepts — not limited to string matching).
 
 ```python
-import re
-req_words = set(re.findall(r'\w{3,}', requirement_text.lower()))
-related_module_hints = []
-for module in claude_md_index["modules"]:
-    if module["path"] in consult_targets:
-        continue
-    purpose_words = set(re.findall(r'\w{3,}', module.get("purpose", "").lower()))
-    if req_words & purpose_words:
-        related_module_hints.append(module["path"])
-related_module_hints = related_module_hints[:3]  # top 3 by insertion order
+related_module_hints = []   # retained as empty for downstream compatibility; explorer reads the full index
 ```
+
+**Rationale**: lexical matching (shared ≥3-char words) produced both false negatives
+(synonyms like "login"/"auth") and false positives (common words like "data"/"user").
+Delegating the judgment to the explorer — which already has the full index — is strictly
+more expressive and costs no additional tokens.
 
 #### 2.1c Prepare consult session files (one per target)
 
@@ -226,7 +224,9 @@ cat > "${TMP_DIR}original-requirement.md" << 'REQEOF'
 REQEOF
 ```
 
-`round = 1`, `max_rounds = 2`
+`round = 1`, `max_safety = 10` (runaway safety net; not a convergence criterion)
+
+Termination is **reviewer-driven** via the `progress` field: the loop exits when the reviewer signals it has no new concerns (`progress: no`) or approves.
 
 ```
 loop:
@@ -256,8 +256,7 @@ loop:
         ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
         {pre_fetched_strategic}
 
-        ## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
-        {one path per line from unconsulted_hints}
+        ## Related Module Candidates (omitted — explorer judges relatedness from Existing Modules Index below)
 
         ## Existing Modules Index
         {scan-claude-md result}
@@ -286,8 +285,7 @@ loop:
         ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
         {pre_fetched_strategic}
 
-        ## Related Module Candidates (keyword match — explorer judges relevance — omit if empty)
-        {one path per line from unconsulted_hints}
+        ## Related Module Candidates (omitted — explorer judges relatedness from Existing Modules Index below)
 
         ## Existing Modules Index
         {scan-claude-md result}
@@ -320,13 +318,15 @@ loop:
         type: explore-reviewer | round: {round}
         explore_result: ${TMP_DIR}explore-result-{round}.md
         original_requirement: ${TMP_DIR}original-requirement.md
+        {if round > 1:}
+        prev_result_file: ${TMP_DIR}explore-reviewer-result-{round-1}.md
         ---
 
   2.5f. Task(requirement-reviewer):
         Session file: ${TMP_DIR}explore-reviewer-session-{round}.md
         Save results to ${TMP_DIR} and return only the path
 
-        Extract verdict, critical_questions, improvement_notes from result block.
+        Extract verdict, progress, critical_questions, improvement_notes from result block.
 
   2.5g. if verdict == "approved":
           concretized_requirement = Read ## Concretized Requirements from explore-result
@@ -338,7 +338,9 @@ loop:
           explore_status = "approved"
           break
 
-  2.5h. if round >= max_rounds OR early termination:
+  2.5h. if (round > 1 AND progress == "no") OR round >= max_safety OR early termination:
+          # progress=="no": reviewer has no new concerns — stuck; surface to user.
+          # max_safety: runaway guard, expected to never trigger in normal operation.
           if --no-ask flag is set:
             concretized_requirement = Read ## Concretized Requirements from explore-result
             domain_context_summary = Read ## Domain Context Summary from explore-result
@@ -439,7 +441,9 @@ sed -i '' "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" "$WORKFLOW_DIR/state.json"
 
 **3c. Socratic Loop**
 
-`round = 1`, `max_safety = 5`
+`round = 1`, `max_safety = 10` (runaway safety net; not a convergence criterion)
+
+Termination is **reviewer-driven** via the `progress` field: the loop exits when the reviewer signals it has no new concerns (`progress: no`) or approves.
 
 ```
 loop:
@@ -449,12 +453,14 @@ loop:
        type: spec-reviewer | round: {round}
        plan_file: {plan_file}
        dir_safe: {dir-safe}
+       {if round > 1:}
+       prev_result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round-1}.md
 
   2. Dispatch Task(impl-reviewer):
        Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
        Save results to ${TMP_DIR} and return only the path
 
-     Extract verdict from result block.
+     Extract verdict and progress from result block.
 
      2-1. Promote artifact + update state.json (reflecting verdict):
      ```bash
@@ -476,9 +482,26 @@ loop:
   3. if verdict == "approved":
        break
 
+  3b. if round > 1 AND progress == "no":
+       ⚠ Reviewer reports no progress — revise cycle is stuck.
+         Surfacing current plan with unresolved Critical Questions.
+     ```bash
+     python3 -c "
+     import json
+     from datetime import datetime, timezone
+     with open('.claude/workflows/{dir-safe}/state.json') as f:
+         s = json.load(f)
+     s['status'] = 'stuck-no-progress'
+     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
+         json.dump(s, f, indent=2, ensure_ascii=False)
+     "
+     ```
+       break
+
   4. if round >= max_safety:
-       ⚠ Socratic loop terminated after {max_safety} iterations.
-         Proceeding with the best available plan.
+       ⚠ Socratic loop hit runaway safety net ({max_safety} iterations).
+         This indicates a bug or pathological input; proceeding with the best available plan.
      ```bash
      python3 -c "
      import json

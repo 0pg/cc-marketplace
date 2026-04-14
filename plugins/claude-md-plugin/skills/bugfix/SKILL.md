@@ -103,8 +103,9 @@ if --file 제공:
 
 else:
   선정된 CLAUDE.md 디렉토리 내 소스 파일 목록 (Glob)
-  파일 수 ≤ 10: 내용 포함
-  파일 수 > 10: 목록만 포함 (agent가 필요 시 직접 Read)
+  누적 바이트 ≤ 50KB: 내용 포함
+  이후 파일: 목록만 포함 (agent가 필요 시 직접 Read)
+  # 50KB ≈ ~12K tokens; 파일 수가 아니라 실제 비용을 기준으로 함
 ```
 
 언어 감지: 소스 파일 확장자 기반 (`.ts/.tsx` → typescript, `.rs` → rust, `.py` → python, `.go` → go)
