@@ -54,6 +54,24 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
+### Step 2.0: Candidate Identification (runs before Step 2.1)
+
+When `target_path` is specified and that node has CLAUDE.md → skip this step; consult_targets = ("." "$target_path").
+
+Otherwise dispatch a lightweight explorer pre-pass:
+
+`Task(requirement-explorer, mode=candidate-only, session=<pre-session>)`
+
+The explorer's result file contains `## Candidate Nodes`. Parse its body into `consult_targets`:
+
+```bash
+awk '/^## Candidate Nodes$/{f=1;next} /^## /{f=0} f && /^- /{sub(/^- /,""); sub(/[ \t]*#.*$/,""); print}' \
+  ${TMP_DIR}explore-candidate-result.md \
+  | awk 'NF' | sort -u > ${TMP_DIR}consult-targets.txt
+```
+
+Safety net (runaway guard only, not convergence): if explorer emits >10 candidates, log a warning and proceed with all of them; no arbitrary truncation.
+
 ### 2.1 Pre-consult (Strategic Conflict Detection)
 
 Detect conflicts with existing constraints/Roadmap and root strategic direction

@@ -122,7 +122,33 @@ Suggested Path: {short/long}
 {Conventions or "None"}
 ```
 
+## Invocation Modes
+
+| Mode | Behavior |
+|------|----------|
+| default (absent) | Run Phase 1 → Phase 4 as documented below. |
+| `mode=candidate-only` | Run Phase 1a only. Write a result file containing **only** the `## Candidate Nodes` section. Skip Domain Context exploration, ambiguity assessment, and concretization. Return the result file path. |
+
 ## Workflow
+
+### Phase 1a: Candidate Node Judgment (only when target_path is unspecified)
+
+Given the full project index and the requirement text, judge which existing nodes could plausibly own this requirement. Use semantic relatedness — domain overlap, shared data flow, overlapping Purpose — not lexical token matching. Prefer over-inclusion to exclusion; each candidate will receive a po-consultant verdict that judges feasibility authoritatively.
+
+Emit a markdown section:
+
+```
+## Candidate Nodes
+- .                          # project root always included
+- core/src/foo               # included because it handles schema X which this requirement mentions
+- core/src/bar               # included because the requirement references behavior listed in its Roadmap
+```
+
+One node per line; a trailing `# reason` comment is optional and for human review — the SKILL ignores it.
+
+When `target_path` is specified by the user, this section contains exactly `.` and that path. Do not second-guess an explicit user target.
+
+When you judge no existing node is relevant (greenfield), emit only `.` — SKILL will proceed as new-node creation.
 
 ### Phase 1: Domain Context Collection
 

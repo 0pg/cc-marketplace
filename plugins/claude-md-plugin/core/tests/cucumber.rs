@@ -67,6 +67,8 @@ pub struct TestWorld {
     verdict_tmp_dir: Option<TempDir>,
     verdict_targets: Vec<String>,
     verdict_jsonl_lines: Vec<serde_json::Value>,
+    // Explorer candidate-node fields
+    candidate_nodes: Vec<String>,
 }
 
 // ============== Common Steps ==============
@@ -2967,6 +2969,101 @@ fn verdict_then_redirect(world: &mut TestWorld) {
             );
         }
     }
+}
+
+// ============== Explorer Candidate Node Set Steps ==============
+
+const CANDIDATE_PARSE_SCRIPT: &str = r#"
+awk '/^## Candidate Nodes$/{f=1;next} /^## /{f=0} f && /^- /{sub(/^- /,""); sub(/[ \t]*#.*$/,""); print}' "$1" \
+  | awk 'NF' | sort -u
+"#;
+
+fn parse_candidate_nodes(fixture_path: &Path) -> Vec<String> {
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(CANDIDATE_PARSE_SCRIPT)
+        .arg("bash")
+        .arg(fixture_path)
+        .output()
+        .expect("run candidate parse");
+    assert!(
+        output.status.success(),
+        "parse failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let s = String::from_utf8(output.stdout).expect("utf8");
+    s.lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+#[given("a requirement text with no --path")]
+fn explorer_no_path(world: &mut TestWorld) {
+    world.candidate_nodes.clear();
+}
+
+#[given("project index lists nodes A, B, C, D")]
+fn explorer_project_index(_world: &mut TestWorld) {
+    // Contextual only; the multi fixture represents this scenario.
+}
+
+#[when("requirement-explorer runs Phase 1 (pre-judgment pass)")]
+fn explorer_runs_phase1(world: &mut TestWorld) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_multi.md");
+    world.candidate_nodes = parse_candidate_nodes(&path);
+}
+
+#[then(expr = "explorer MUST output a {string} section in its result")]
+fn explorer_section_present(_world: &mut TestWorld, heading: String) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_multi.md");
+    let content = fs::read_to_string(&path).expect("read fixture");
+    assert!(
+        content.contains(&heading),
+        "fixture missing heading {}",
+        heading
+    );
+}
+
+#[then("the list MUST contain at least one node")]
+fn explorer_list_nonempty(world: &mut TestWorld) {
+    assert!(
+        !world.candidate_nodes.is_empty(),
+        "candidate nodes list is empty"
+    );
+}
+
+#[then(regex = r#"^the list MUST include "([^"]+)" \(project root\) as baseline$"#)]
+fn explorer_list_has_root(world: &mut TestWorld, root: String) {
+    assert!(
+        world.candidate_nodes.iter().any(|n| n == &root),
+        "candidate nodes {:?} missing project root {}",
+        world.candidate_nodes,
+        root
+    );
+}
+
+#[given("--path core/src/foo")]
+fn explorer_with_path(world: &mut TestWorld) {
+    let path = get_tests_path()
+        .join("fixtures")
+        .join("explorer_candidates_path.md");
+    world.candidate_nodes = parse_candidate_nodes(&path);
+}
+
+#[then(expr = "{string} MUST equal [{string}, {string}]")]
+fn explorer_list_equals(world: &mut TestWorld, _heading: String, a: String, b: String) {
+    let mut expected = vec![a, b];
+    expected.sort();
+    expected.dedup();
+    let mut actual = world.candidate_nodes.clone();
+    actual.sort();
+    actual.dedup();
+    assert_eq!(actual, expected, "candidate nodes mismatch");
 }
 
 #[tokio::main]
