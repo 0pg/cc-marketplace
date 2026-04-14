@@ -54,6 +54,58 @@ Read the `## Conventions` section from project root CLAUDE.md if present.
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
 If not found, set `document_language` to empty (the agent will ask the user).
 
+### Step 2 redirect loop (wraps Steps 2.0–2.1e)
+
+At SKILL entry, initialize the visited set and a safety bound:
+
+```bash
+visited=()
+MAX_REDIRECT_DEPTH=10   # runaway safety net (bug-guard, not convergence criterion)
+```
+
+Steps 2.0 through 2.1e run inside this loop. Define `goto_step_2_1` as a bash
+function that encapsulates the Step 2.1 dispatch (2.1c prepare sessions) +
+2.1d aggregate + 2.1e select sequence — this is the idiomatic bash replacement
+for `goto`. After Step 2.1e selects `target_path`, consult the aggregated
+verdict for a `redirect_to` field; if present, re-enter Step 2.1 with the
+redirect target until authority converges (no redirect) or a cycle is detected.
+
+```bash
+visited+=("$target_path")
+
+redirect_to=$(jq -r --arg tp "$target_path" \
+              'select(.target==$tp) | .redirect_to // empty' \
+              ${TMP_DIR}verdict-aggregate.jsonl)
+
+if [ -n "$redirect_to" ]; then
+  # Cycle check (safety net — a loop is a bug, not a convergence signal)
+  if printf '%s\n' "${visited[@]}" | grep -qxF "$redirect_to"; then
+    trace=$(IFS=$'\n'; printf '%s' "${visited[*]}" | paste -sd ' → ' -)
+    emit_halt "redirect cycle: ${trace} → ${redirect_to}"
+    exit 0
+  fi
+  # Existence check
+  if [ ! -f "$redirect_to/CLAUDE.md" ]; then
+    emit_halt "redirect target does not exist: $redirect_to"
+    exit 0
+  fi
+  target_path="$redirect_to"
+  consult_targets=("." "$redirect_to")
+  goto_step_2_1      # bash function wrapping Step 2.1 dispatch+aggregate+select
+fi
+
+# Runaway safety net (not convergence): labeled as bug-guard
+if [ ${#visited[@]} -gt "$MAX_REDIRECT_DEPTH" ]; then
+  emit_halt "redirect depth exceeded safety limit (bug guard)"
+  exit 0
+fi
+```
+
+Rationale: verdicts self-describe authority; the SKILL honors `redirect_to`
+until the authority chain converges. Cycle and depth guards are bug-guards,
+not policy — a well-formed domain never loops and never exceeds a handful of
+hops.
+
 ### Step 2.0: Candidate Identification (runs before Step 2.1)
 
 When `target_path` is specified and that node has CLAUDE.md → skip this step; consult_targets = ("." "$target_path").

@@ -72,6 +72,9 @@ pub struct TestWorld {
     // Target selection fields (Step 2.1e)
     target_select_tmp: Option<TempDir>,
     target_select_no_ask: bool,
+    // Redirect loop fields (Task 6)
+    redirect_tmp: Option<TempDir>,
+    redirect_rounds_dir: Option<TempDir>,
 }
 
 // ============== Common Steps ==============
@@ -3341,6 +3344,159 @@ fn ts_then_ask(world: &mut TestWorld) {
     assert!(
         !tmp.path().join("halt-reason.txt").exists(),
         "halt-reason.txt must not exist on interactive path"
+    );
+}
+
+// ============== Task 6: Redirect loop with cycle detection ==============
+
+fn redirect_harness_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/spec_redirect.sh")
+}
+
+fn write_round_jsonl(dir: &Path, round: usize, lines: &[serde_json::Value]) {
+    let p = dir.join(format!("round-{}.jsonl", round));
+    let mut f = File::create(&p).expect("create round jsonl");
+    for l in lines {
+        writeln!(f, "{}", serde_json::to_string(l).unwrap()).unwrap();
+    }
+}
+
+fn run_redirect_harness(tmp: &Path, rounds_dir: &Path, initial: &str) {
+    let mut tmp_prefix = tmp.to_path_buf().into_os_string().into_string().unwrap();
+    if !tmp_prefix.ends_with('/') {
+        tmp_prefix.push('/');
+    }
+    let harness = redirect_harness_path();
+    let output = std::process::Command::new("bash")
+        .arg(&harness)
+        .env("TMP_DIR", &tmp_prefix)
+        .env("INITIAL_TARGET", initial)
+        .env("ROUNDS_DIR", rounds_dir)
+        .output()
+        .expect("run redirect harness");
+    assert!(
+        output.status.success(),
+        "harness failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[given(
+    "target \"core/src/tree_parser\" verdict has Redirect To=core/src/symbol_index"
+)]
+fn redirect_single_hop_setup(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    let rounds = TempDir::new().expect("rounds");
+    // Round 1: tree_parser auto_executable but redirects to symbol_index
+    write_round_jsonl(
+        rounds.path(),
+        1,
+        &[serde_json::json!({
+            "target": "core/src/tree_parser",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting",
+            "roadmap_fit": "aligned",
+            "redirect_to": "core/src/symbol_index",
+        })],
+    );
+    // Round 2: symbol_index auto_executable, no redirect — converges.
+    write_round_jsonl(
+        rounds.path(),
+        2,
+        &[serde_json::json!({
+            "target": "core/src/symbol_index",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "I own this",
+            "roadmap_fit": "aligned",
+        })],
+    );
+    run_redirect_harness(tmp.path(), rounds.path(), "core/src/tree_parser");
+    world.redirect_tmp = Some(tmp);
+    world.redirect_rounds_dir = Some(rounds);
+}
+
+#[then("Step 2 MUST re-run with target_path=core/src/symbol_index")]
+fn redirect_single_hop_target(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let target = fs::read_to_string(tmp.path().join("target-path.txt"))
+        .expect("target-path.txt");
+    assert_eq!(target.trim(), "core/src/symbol_index");
+    let rounds = fs::read_to_string(tmp.path().join("rounds-consumed.txt"))
+        .expect("rounds-consumed.txt");
+    assert_eq!(rounds.trim(), "2", "expected 2 rounds, got {}", rounds);
+}
+
+#[then("the new target MUST receive its own po-consultant verdict")]
+fn redirect_single_hop_new_verdict(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let trace = fs::read_to_string(tmp.path().join("visited-trace.txt"))
+        .expect("visited-trace.txt");
+    assert!(
+        trace.contains("core/src/tree_parser") && trace.contains("core/src/symbol_index"),
+        "trace missing both nodes: {}",
+        trace
+    );
+}
+
+#[given(
+    "tree_parser redirects to symbol_index, then symbol_index redirects back to tree_parser"
+)]
+fn redirect_cycle_setup(world: &mut TestWorld) {
+    let tmp = TempDir::new().expect("tmp");
+    let rounds = TempDir::new().expect("rounds");
+    write_round_jsonl(
+        rounds.path(),
+        1,
+        &[serde_json::json!({
+            "target": "tree_parser",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting forward",
+            "roadmap_fit": "aligned",
+            "redirect_to": "symbol_index",
+        })],
+    );
+    write_round_jsonl(
+        rounds.path(),
+        2,
+        &[serde_json::json!({
+            "target": "symbol_index",
+            "verdict": "feasible",
+            "execution": "auto_executable",
+            "reason": "redirecting back",
+            "roadmap_fit": "aligned",
+            "redirect_to": "tree_parser",
+        })],
+    );
+    run_redirect_harness(tmp.path(), rounds.path(), "tree_parser");
+    world.redirect_tmp = Some(tmp);
+    world.redirect_rounds_dir = Some(rounds);
+}
+
+#[then(
+    "spec MUST halt with reason \"redirect cycle: tree_parser → symbol_index → tree_parser\""
+)]
+fn redirect_cycle_halt(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    let halt = fs::read_to_string(tmp.path().join("halt-reason.txt"))
+        .expect("halt-reason.txt");
+    assert!(
+        halt.contains("redirect cycle: tree_parser → symbol_index → tree_parser"),
+        "halt reason mismatch: {}",
+        halt
+    );
+}
+
+#[then("no plan MUST be generated")]
+fn redirect_cycle_no_plan(world: &mut TestWorld) {
+    let tmp = world.redirect_tmp.as_ref().expect("tmp");
+    assert!(
+        !tmp.path().join("target-path.txt").exists(),
+        "target-path.txt must not exist on cycle halt"
     );
 }
 
