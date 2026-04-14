@@ -79,17 +79,16 @@ Detect conflicts with existing constraints/Roadmap and root strategic direction
 
 #### 2.1a Determine consult targets
 
+Load the explorer-judged candidate set written by Step 2.0 (`${TMP_DIR}consult-targets.txt`):
+
 ```bash
-if [ -f "{path}/CLAUDE.md" ]; then
-  # Existing node — consult root + target
-  consult_targets=("." "{path}")
-else
-  # New node — root strategic context only (partial-skip: target has no spec yet)
-  consult_targets=(".")
-fi
-# Deduplicate (handles case where path == project_root)
-consult_targets=($(printf '%s\n' "${consult_targets[@]}" | sort -u))
+mapfile -t consult_targets < ${TMP_DIR}consult-targets.txt
+# existing v16 parallel dispatch for "${consult_targets[@]}" continues unchanged
 ```
+
+The file already contains deduplicated, explorer-judged nodes (project root + any
+semantically related modules). No additional filtering here: the explorer's judgment
+is authoritative, and Step 2.1d fans out po-consultant across every entry.
 
 #### 2.1b Sibling module relatedness
 

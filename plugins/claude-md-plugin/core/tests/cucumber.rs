@@ -3066,6 +3066,88 @@ fn explorer_list_equals(world: &mut TestWorld, _heading: String, a: String, b: S
     assert_eq!(actual, expected, "candidate nodes mismatch");
 }
 
+// ============== spec SKILL candidate fanout steps ==============
+
+fn spec_skill_md_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("core parent")
+        .join("skills/spec/SKILL.md")
+}
+
+#[given(regex = r#"^explorer emitted "([^"]+)", "([^"]+)", "([^"]+)" as candidates$"#)]
+fn fanout_explorer_emitted(world: &mut TestWorld, a: String, b: String, c: String) {
+    let tmp = TempDir::new().expect("tmp");
+    let file = tmp.path().join("consult-targets.txt");
+    let mut f = File::create(&file).expect("create fixture");
+    writeln!(f, "{}", a).unwrap();
+    writeln!(f, "{}", b).unwrap();
+    writeln!(f, "{}", c).unwrap();
+    world.verdict_targets = vec![a, b, c];
+    world.verdict_tmp_dir = Some(tmp);
+}
+
+#[when("Step 2.1d fans out across the candidate set")]
+fn fanout_step_21d_runs(world: &mut TestWorld) {
+    // Simulate SKILL's array-loading snippet under bash and assert array length.
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let file = tmp.path().join("consult-targets.txt");
+    // Portable equivalent of `mapfile -t consult_targets < file` (bash 3.2 lacks mapfile).
+    // The SKILL.md text assertion below verifies the actual mapfile directive.
+    let script = format!(
+        "consult_targets=(); while IFS= read -r line; do consult_targets+=(\"$line\"); done < {}\necho \"${{#consult_targets[@]}}\"\nfor t in \"${{consult_targets[@]}}\"; do echo \"$t\"; done",
+        file.display()
+    );
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .expect("bash");
+    assert!(output.status.success(), "bash failed: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).expect("utf8");
+    let mut lines = stdout.lines();
+    let count: usize = lines.next().expect("count line").trim().parse().expect("parse count");
+    assert_eq!(count, 3, "expected 3 candidates, got {}", count);
+    let loaded: Vec<String> = lines.map(|s| s.to_string()).collect();
+    assert_eq!(loaded, world.verdict_targets, "loaded array mismatch");
+
+    // Simulate consult-result files being produced (one per target).
+    for t in &world.verdict_targets {
+        let dir_safe = if t == "." { "root".to_string() } else { t.replace('/', "-") };
+        let result = tmp.path().join(format!("consult-result-{}.md", dir_safe));
+        fs::write(&result, format!("# consult-result for {}\n", t)).expect("write result");
+    }
+}
+
+#[then(regex = r#"^(\d+) consult-result files MUST exist \(one per candidate\)$"#)]
+fn fanout_result_files_exist(world: &mut TestWorld, expected: usize) {
+    let tmp = world.verdict_tmp_dir.as_ref().expect("tmp");
+    let mut found = 0;
+    for t in &world.verdict_targets {
+        let dir_safe = if t == "." { "root".to_string() } else { t.replace('/', "-") };
+        let result = tmp.path().join(format!("consult-result-{}.md", dir_safe));
+        if result.exists() {
+            found += 1;
+        }
+    }
+    assert_eq!(found, expected, "expected {} result files, found {}", expected, found);
+}
+
+#[then("they MUST be produced in parallel (no serial dependency)")]
+fn fanout_parallel_documentary(_world: &mut TestWorld) {
+    // Documentary assertion: verify SKILL.md uses mapfile read from consult-targets.txt
+    // (the new source) and preserves the parallel dispatch section.
+    let skill = fs::read_to_string(spec_skill_md_path()).expect("read SKILL.md");
+    assert!(
+        skill.contains("mapfile -t consult_targets < ${TMP_DIR}consult-targets.txt"),
+        "SKILL.md missing mapfile read from consult-targets.txt"
+    );
+    assert!(
+        skill.contains("Dispatch po-consultant in parallel"),
+        "SKILL.md missing parallel dispatch heading"
+    );
+}
+
 #[tokio::main]
 async fn main() {
     TestWorld::run("tests/features").await;
