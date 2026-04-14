@@ -84,6 +84,17 @@ Save to `${TMP_DIR}consult-result-${dir_safe}.md`:
 ## Verdict
 {feasible | partially_feasible | not_feasible}
 
+## Execution
+<self-assessed actionability — one of: auto_executable | requires_human | halt>
+
+## Reason
+<free-form short reason describing the verdict. MUST be non-empty when Execution != auto_executable.
+ Captures WHY this verdict was reached so downstream SKILLs can surface it verbatim without re-interpretation.>
+
+## Redirect To
+<optional node path — include ONLY when the verdict author judges that a different node is the correct owner.
+ Omit the entire section otherwise. Existence implies Execution != auto_executable.>
+
 ## Constraints
 {List each conflicting CONST-N or REQ-N:
   - CONST-N: {conflict description}
@@ -110,6 +121,8 @@ Long:  {What becomes possible with Roadmap integration or spec changes}
 - not_feasible → discuss architectural changes with PM/PO before any action
 - Roadmap update needed → PM/PO modifies ## Roadmap directly, then re-consult if needed
 ```
+
+> `Execution` is your own judgment of whether your verdict is safe for the caller to execute without human intervention. Prefer `auto_executable` only when the change is congruent with this node's Purpose, Constraints, and Roadmap. Use `requires_human` when reasonable people would disagree on the right path; use `halt` when you are confident the request should not proceed at all. State your reason in plain language — do not encode a decision code.
 
 Return:
 ```

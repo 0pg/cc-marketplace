@@ -61,6 +61,8 @@ pub struct TestWorld {
     node_history_result: Option<NodeHistoryResult>,
     node_history_non_git_dir: Option<TempDir>,
     named_commits: HashMap<String, String>,
+    // po-consultant verdict schema fields
+    po_consultant_fixtures: Vec<(String, String)>, // (fixture_name, content)
 }
 
 // ============== Common Steps ==============
@@ -2648,6 +2650,163 @@ fn check_commit_body_contains(world: &mut TestWorld, index: usize, text: String)
     let commit = &result.commits[index];
     assert!(commit.body.contains(&text),
         "Commit {} body '{}' does not contain '{}'", index, commit.body, text);
+}
+
+// ============== po-consultant Verdict Schema Steps ==============
+
+fn po_consultant_fixture_names() -> &'static [&'static str] {
+    &[
+        "po_consultant_result_auto.md",
+        "po_consultant_result_halt.md",
+        "po_consultant_result_redirect.md",
+    ]
+}
+
+fn load_po_fixture(name: &str) -> String {
+    let path = get_tests_path().join("fixtures").join(name);
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read fixture {}: {}", name, e))
+}
+
+fn extract_section(content: &str, heading: &str) -> Option<String> {
+    let marker = format!("## {}", heading);
+    let idx = content.find(&marker)?;
+    let after = &content[idx + marker.len()..];
+    // skip rest of the heading line
+    let body_start = after.find('\n').map(|i| i + 1).unwrap_or(after.len());
+    let body = &after[body_start..];
+    // stop at next "## " heading
+    let end = body.find("\n## ").unwrap_or(body.len());
+    Some(body[..end].trim().to_string())
+}
+
+fn section_present(content: &str, heading: &str) -> bool {
+    content.contains(&format!("## {}", heading))
+}
+
+#[given("a po-consultant result file")]
+fn po_given_any_result(world: &mut TestWorld) {
+    world.po_consultant_fixtures = po_consultant_fixture_names()
+        .iter()
+        .map(|n| (n.to_string(), load_po_fixture(n)))
+        .collect();
+}
+
+#[given("a result file with Verdict=feasible")]
+fn po_given_feasible(world: &mut TestWorld) {
+    let name = "po_consultant_result_auto.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[given("a result file with Execution=halt")]
+fn po_given_halt(world: &mut TestWorld) {
+    let name = "po_consultant_result_halt.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[given(expr = "a result file with {string} present")]
+fn po_given_section_present(world: &mut TestWorld, heading: String) {
+    // Pick the redirect fixture for "## Redirect To"
+    assert_eq!(heading, "## Redirect To");
+    let name = "po_consultant_result_redirect.md";
+    world.po_consultant_fixtures = vec![(name.to_string(), load_po_fixture(name))];
+}
+
+#[when("the result is parsed")]
+fn po_when_parsed(_world: &mut TestWorld) {
+    // Parsing is implicit via extract_section; no-op
+}
+
+#[then(expr = "it MUST contain a {string} section with value in: auto_executable | requires_human | halt")]
+fn po_then_execution_valid(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution")
+            .unwrap_or_else(|| panic!("{}: missing ## Execution section", name));
+        assert!(
+            matches!(exec.as_str(), "auto_executable" | "requires_human" | "halt"),
+            "{}: Execution value '{}' is not in allowed set",
+            name,
+            exec
+        );
+    }
+}
+
+#[then(regex = r#"^it MUST contain a "([^"]+)" section \(non-empty iff Execution != auto_executable\)$"#)]
+fn po_then_reason_nonempty_iff(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        assert!(section_present(content, "Reason"), "{}: missing ## Reason section", name);
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        if exec != "auto_executable" {
+            assert!(
+                !reason.is_empty(),
+                "{}: Reason must be non-empty when Execution={}",
+                name,
+                exec
+            );
+        }
+    }
+}
+
+#[then(expr = "it MAY contain a {string} section with a node path")]
+fn po_then_redirect_optional(world: &mut TestWorld, _heading: String) {
+    for (name, content) in &world.po_consultant_fixtures {
+        if section_present(content, "Redirect To") {
+            let val = extract_section(content, "Redirect To").unwrap_or_default();
+            assert!(!val.is_empty(), "{}: Redirect To present but empty", name);
+        }
+    }
+}
+
+#[then("Execution MAY be auto_executable")]
+fn po_then_exec_may_auto(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        assert!(
+            matches!(exec.as_str(), "auto_executable" | "requires_human" | "halt"),
+            "{}: Execution '{}' invalid",
+            name,
+            exec
+        );
+    }
+}
+
+#[then("Reason MAY be empty")]
+fn po_then_reason_may_empty(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        assert!(section_present(content, "Reason"), "{}: missing ## Reason", name);
+    }
+}
+
+#[then("Reason MUST be non-empty")]
+fn po_then_reason_nonempty(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        assert!(!reason.is_empty(), "{}: Reason must be non-empty", name);
+    }
+}
+
+#[then("Execution MUST NOT be auto_executable")]
+fn po_then_exec_not_auto(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let exec = extract_section(content, "Execution").unwrap_or_default();
+        assert_ne!(
+            exec, "auto_executable",
+            "{}: Execution must not be auto_executable when Redirect To present",
+            name
+        );
+    }
+}
+
+#[then("Reason MUST describe why the redirect applies")]
+fn po_then_reason_describes_redirect(world: &mut TestWorld) {
+    for (name, content) in &world.po_consultant_fixtures {
+        let reason = extract_section(content, "Reason").unwrap_or_default();
+        assert!(
+            !reason.is_empty(),
+            "{}: Reason must describe redirect rationale",
+            name
+        );
+    }
 }
 
 #[tokio::main]
