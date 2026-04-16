@@ -2,9 +2,12 @@
 //!
 //! The impl agent declares, in its rationale sidecar, which sections it copied
 //! verbatim from the prior DEVELOPERS.md. This module verifies that claim by
-//! comparing section bodies byte-for-byte. Semantic Remove/Keep/Merge judgment
-//! stays in the Brain layer (impl); this Hands-layer tool only checks whether
-//! declared preservation actually held.
+//! comparing section bodies after trailing-whitespace normalization (each line is
+//! passed through `str::trim_end` before comparison). Trailing whitespace, CR from
+//! CRLF line endings, and the exact final newline are therefore ignored; all other
+//! differences (including leading whitespace and blank-line count) are surfaced as
+//! `body_changed`. Semantic Remove/Keep/Merge judgment stays in the Brain layer
+//! (impl); this Hands-layer tool only checks whether declared preservation held.
 
 use serde::Serialize;
 
@@ -51,12 +54,23 @@ pub fn audit(prior: &str, new: &str, sections: &[&str]) -> PreservationAudit {
 
 /// Extract a section body by H2 heading. Returns `None` when the heading is absent.
 /// Body spans from the line after the heading up to (but excluding) the next `## ` heading or EOF.
+/// H2 headings inside fenced code blocks (```) are treated as literal content, not boundaries.
 fn extract_section(doc: &str, heading: &str) -> Option<String> {
     let mut in_section = false;
     let mut found = false;
+    let mut in_code_fence = false;
     let mut out = String::new();
     for line in doc.lines() {
-        if line.starts_with("## ") {
+        let trimmed_start = line.trim_start();
+        if trimmed_start.starts_with("```") {
+            in_code_fence = !in_code_fence;
+            if in_section {
+                out.push_str(line.trim_end());
+                out.push('\n');
+            }
+            continue;
+        }
+        if !in_code_fence && line.starts_with("## ") {
             if in_section {
                 break;
             }

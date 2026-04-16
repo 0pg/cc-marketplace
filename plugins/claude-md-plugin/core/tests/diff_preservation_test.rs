@@ -49,3 +49,37 @@ fn section_absent_in_prior_but_declared_is_noop() {
     assert_eq!(result.drifted.len(), 1);
     assert_eq!(result.drifted[0].reason, "absent_in_prior");
 }
+
+#[test]
+fn h2_inside_fenced_code_block_is_not_a_terminator() {
+    // Regression guard: a Decision Log entry that quotes literal markdown (H2 heading
+    // inside a ``` fence) must not be misread as the start of a new section. The
+    // prior and new bodies differ ONLY in content that appears AFTER the fenced H2.
+    // A fence-unaware parser stops at the fake H2, sees identical prefixes, and
+    // incorrectly reports the section as preserved — a false-negative drift miss.
+    let prior = "## Decision Log\n\
+Intro paragraph.\n\
+```markdown\n\
+## This is literal markdown, not a section header\n\
+```\n\
+Prior conclusion.\n\
+## Technical Context\n\
+Uses X\n";
+    let new_ = "## Decision Log\n\
+Intro paragraph.\n\
+```markdown\n\
+## This is literal markdown, not a section header\n\
+```\n\
+New conclusion with different wording.\n\
+## Technical Context\n\
+Uses X\n";
+    let result = diff_preservation::audit(prior, new_, &["Decision Log"]);
+    assert_eq!(
+        result.drifted.len(),
+        1,
+        "fence-aware parser must detect the post-fence body change, got drifted={:?}",
+        result.drifted
+    );
+    assert_eq!(result.drifted[0].section, "Decision Log");
+    assert_eq!(result.drifted[0].reason, "body_changed");
+}

@@ -21,6 +21,7 @@ use claude_md_core::code_analyzer::{
 };
 use claude_md_core::language_validator::{LanguageValidator, LanguageValidationResult};
 use claude_md_core::node_history::{NodeHistoryDiffer, NodeHistoryResult};
+use claude_md_core::diff_preservation;
 
 #[derive(Debug, Default, World)]
 pub struct TestWorld {
@@ -78,6 +79,10 @@ pub struct TestWorld {
     // autodev --auto-sync fields (Task 11)
     auto_sync_tmp: Option<TempDir>,
     auto_sync_halt_reason: Option<String>,
+    // Preservation audit fields (diff-preservation)
+    preservation_prior: Option<String>,
+    preservation_new: Option<String>,
+    preservation_audit: Option<diff_preservation::PreservationAudit>,
 }
 
 // ============== Common Steps ==============
@@ -3762,6 +3767,169 @@ fn auto_sync_then_reason(world: &mut TestWorld) {
         "result-block missing reason {:?}:\n{}",
         reason,
         body
+    );
+}
+
+// ============== diff-preservation Steps ==============
+
+fn render_section(name: &str, body: &str) -> String {
+    format!("## {}\n{}\n", name, body)
+}
+
+#[given(expr = "a prior DEVELOPERS.md with sections {string} and {string}")]
+fn preservation_prior_two_sections(world: &mut TestWorld, a: String, b: String) {
+    let prior = format!("{}{}", render_section(&a, "body A"), render_section(&b, "body B"));
+    world.preservation_prior = Some(prior);
+}
+
+#[given("a new DEVELOPERS.md where those sections are byte-identical")]
+fn preservation_new_identical(world: &mut TestWorld) {
+    let prior = world.preservation_prior.clone().expect("prior must be set first");
+    world.preservation_new = Some(prior);
+}
+
+#[given(expr = "a prior section {string} body {string}")]
+fn preservation_prior_named_body(world: &mut TestWorld, section: String, body: String) {
+    world.preservation_prior = Some(render_section(&section, &body));
+}
+
+#[given(expr = "a new section {string} body {string}")]
+fn preservation_new_named_body(world: &mut TestWorld, section: String, body: String) {
+    world.preservation_new = Some(render_section(&section, &body));
+}
+
+#[given(expr = "a prior DEVELOPERS.md with a {string} section")]
+fn preservation_prior_with_section(world: &mut TestWorld, section: String) {
+    world.preservation_prior = Some(render_section(&section, "body content"));
+}
+
+#[given(expr = "a new DEVELOPERS.md without a {string} section")]
+fn preservation_new_without_section(world: &mut TestWorld, section: String) {
+    let _ = section;
+    world.preservation_new = Some("## Technical Context\nunrelated body\n".to_string());
+}
+
+#[given(expr = "a prior DEVELOPERS.md without a {string} section")]
+fn preservation_prior_without_section(world: &mut TestWorld, section: String) {
+    let _ = section;
+    world.preservation_prior = Some("## Technical Context\nunrelated body\n".to_string());
+}
+
+#[given(expr = "a new DEVELOPERS.md with a {string} section")]
+fn preservation_new_with_section(world: &mut TestWorld, section: String) {
+    world.preservation_new = Some(render_section(&section, "newly added body"));
+}
+
+#[given(expr = "a prior and new DEVELOPERS.md differing only in {string}")]
+fn preservation_differ_only_in(world: &mut TestWorld, section: String) {
+    let stable = "## Technical Context\nstable body\n";
+    let prior = format!("{}{}", stable, render_section(&section, "prior body"));
+    let new_ = format!("{}{}", stable, render_section(&section, "new body"));
+    world.preservation_prior = Some(prior);
+    world.preservation_new = Some(new_);
+}
+
+#[given(expr = "a prior {string} section containing a fenced code block with a literal {string} line followed by {string}")]
+fn preservation_prior_with_fence(
+    world: &mut TestWorld,
+    section: String,
+    literal_h2: String,
+    tail: String,
+) {
+    let body = format!(
+        "Intro paragraph.\n```markdown\n{}\n```\n{}",
+        literal_h2, tail
+    );
+    world.preservation_prior = Some(render_section(&section, &body));
+}
+
+#[given(expr = "a new {string} section containing the same fenced block followed by {string}")]
+fn preservation_new_with_fence(world: &mut TestWorld, section: String, tail: String) {
+    let prior = world
+        .preservation_prior
+        .clone()
+        .expect("prior must be set first");
+    // Re-use the same fenced block from prior, swap only the tail line.
+    let body = {
+        let mut lines: Vec<&str> = prior.lines().collect();
+        if let Some(last) = lines.last_mut() {
+            *last = tail.as_str();
+        }
+        // Strip the leading "## <section>\n" so we can re-wrap below.
+        let header = format!("## {}", section);
+        let idx = lines.iter().position(|l| *l == header).expect("section header");
+        let body_lines: Vec<&str> = lines[idx + 1..].to_vec();
+        body_lines.join("\n")
+    };
+    world.preservation_new = Some(render_section(&section, &body));
+}
+
+#[when(expr = "diff-preservation is run with sections {string}")]
+fn preservation_run(world: &mut TestWorld, sections: String) {
+    let prior = world
+        .preservation_prior
+        .clone()
+        .expect("preservation_prior must be set");
+    let new_ = world
+        .preservation_new
+        .clone()
+        .expect("preservation_new must be set");
+    let section_list: Vec<&str> = sections
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    world.preservation_audit = Some(diff_preservation::audit(&prior, &new_, &section_list));
+}
+
+#[then("the drifted list MUST be empty")]
+fn preservation_then_drifted_empty(world: &mut TestWorld) {
+    let audit = world
+        .preservation_audit
+        .as_ref()
+        .expect("audit must have run");
+    assert!(
+        audit.drifted.is_empty(),
+        "expected drifted list empty, got {:?}",
+        audit.drifted
+    );
+}
+
+#[then(expr = "the drifted list MUST contain {string}")]
+fn preservation_then_drifted_contains(world: &mut TestWorld, section: String) {
+    let audit = world
+        .preservation_audit
+        .as_ref()
+        .expect("audit must have run");
+    assert!(
+        audit.drifted.iter().any(|d| d.section == section),
+        "expected drifted list to contain {:?}, got {:?}",
+        section,
+        audit.drifted
+    );
+}
+
+#[then(expr = "its reason MUST be {string}")]
+fn preservation_then_reason(world: &mut TestWorld, reason: String) {
+    let audit = world
+        .preservation_audit
+        .as_ref()
+        .expect("audit must have run");
+    assert_eq!(audit.drifted.len(), 1, "expected exactly one drifted entry for reason check, got {:?}", audit.drifted);
+    assert_eq!(audit.drifted[0].reason, reason);
+}
+
+#[then("the preserved list MUST contain both sections")]
+fn preservation_then_preserved_both(world: &mut TestWorld) {
+    let audit = world
+        .preservation_audit
+        .as_ref()
+        .expect("audit must have run");
+    assert_eq!(
+        audit.preserved.len(),
+        2,
+        "expected 2 preserved sections, got {:?}",
+        audit.preserved
     );
 }
 

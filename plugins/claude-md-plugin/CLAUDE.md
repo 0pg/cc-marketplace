@@ -341,7 +341,7 @@ User: /decompile [path]
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
 | `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer (judgment internalized in bugfixer agent) |
 | `/impact` | PM/PO: Change impact analysis across module dependency graph (Grep-based, 2-hop) |
-| `/inspect` | PM/PO: Unified read-only inspection. `--focus health \| quality \| feasibility \| all` (default `all` = health + quality). Absorbs former `/status`, `/impl-review`, `/consult`. |
+| `/inspect` | PM/PO: Unified read-only inspection. `--focus health \| quality \| feasibility \| all` (default `health`; `all` = health + quality is opt-in). Absorbs former `/status`, `/impl-review`, `/consult`. |
 
 ### Phase 2 (Planned)
 
