@@ -227,7 +227,7 @@ Describes cross-module call order and data types. Warning if written in non-proj
 | `/dev` | Test generation source + Agent Observations write | Generates test cases from Constraints; records observations |
 | `/validate` | Drift verification + Agent Observations cleanup | Constraints drift detection; stale observation removal + promotion report |
 | `/bugfix` | L2 diagnosis + Agent Observations write | 3-layer analysis; records structural observations |
-| `/consult` | Read-only (Constraints + Roadmap + Agent Observations) | PM/PO feasibility judgment |
+| `/inspect --focus feasibility` | Read-only (Constraints + Roadmap + Agent Observations) | PM/PO feasibility judgment |
 
 ## Lifecycle
 

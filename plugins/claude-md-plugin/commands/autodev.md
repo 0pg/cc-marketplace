@@ -29,7 +29,7 @@ Orchestrates spec (spec definition) and dev (code generation) as a pipeline.
 |------|----------|---------|-------------|
 | `requirement` | Yes* | - | Requirement text to implement |
 | `--path` | No | `.` | Target path |
-| `--auto-sync` | No | OFF | Opt-in. After /dev succeeds, propagate schema changes to consumers listed in `${TMP_DIR}affected-consumers.txt` (produced by spec Step 4.5). For each consumer, dispatch `po-consultant` and execute its verdict **verbatim**: `auto_executable` runs `/sync`; anything else (`halt`, `requires_human`, etc.) halts the chain with the verdict's reason preserved and emits `git revert HEAD` as the rollback hint. No Decision enum interpretation — the consultant's execution hint drives behavior. See Step 4.7. |
+| `--auto-sync` | No | OFF | Opt-in. After /dev succeeds, propagate schema changes to consumers listed in `${TMP_DIR}affected-consumers.txt` (produced by spec Step 4.5). For each consumer, dispatch `po-consultant` and execute its verdict **verbatim**: `auto_executable` runs `/spec --resync --no-ask`; anything else (`halt`, `requires_human`, etc.) halts the chain with the verdict's reason preserved and emits `git revert HEAD` as the rollback hint. No Decision enum interpretation — the consultant's execution hint drives behavior. See Step 4.7. |
 
 \* If no requirement is provided, it will be collected once via AskUserQuestion.
 
@@ -145,7 +145,7 @@ For each consumer C (in the order emitted):
 1. Dispatch `Task(po-consultant, C)`; write result file.
 2. Parse C's `Execution` field using the same extractor as Step 2.1d.
 3. Execute the verdict verbatim:
-   - `auto_executable` → `Skill(/sync --path $C)`; continue to next consumer on success.
+   - `auto_executable` → `Skill(/spec --resync --path $C --no-ask)`; continue to next consumer on success.
    - otherwise → stop the chain; append C's verdict reason verbatim to the result block's `## Sync Results` section, mark status `halted`, and append the rollback hint `git revert HEAD`.
 4. When the chain completes or halts, emit the `## Sync Results` section listing each consumer's outcome (`synced` or `halted: <reason>`).
 
@@ -201,7 +201,7 @@ git diff --stat
 ```
 
 The rollback hint enumerates the actual commit chain produced during this run
-(spec auto-commit + one dev auto-commit per target, plus any `/sync` commits
+(spec auto-commit + one dev auto-commit per target, plus any `/spec --resync` commits
 when `--auto-sync` is set) rather than a single `git revert HEAD`, because the
 run typically produces ≥2 commits.
 

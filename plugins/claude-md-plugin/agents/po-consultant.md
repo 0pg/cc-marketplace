@@ -114,7 +114,7 @@ Long:  {What becomes possible with Roadmap integration or spec changes}
 ## Downstream Actions
 {Based on verdict:}
 - feasible → proceed with /dev
-- partially_feasible (spec change needed) → /spec (new REQ) or /sync (Constraints update) → /dev
+- partially_feasible (spec change needed) → /spec (new REQ) or /spec --resync (Constraints update only) → /dev
 - not_feasible → discuss architectural changes with PM/PO before any action
 - Roadmap update needed → PM/PO modifies ## Roadmap directly, then re-consult if needed
 ```

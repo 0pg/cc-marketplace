@@ -1,7 +1,7 @@
 {
   "name": "claude-md-plugin",
-  "version": "17.0.1",
-  "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction.",
+  "version": "18.1.0",
+  "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction, /bugfix for 3-layer bug tracing, /impact for change impact analysis, /inspect for unified read-only inspection (health/quality/feasibility).",
   "author": {
     "name": "jhk"
   },

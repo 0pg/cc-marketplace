@@ -5,7 +5,7 @@ description: |
   Evaluates 8 criteria: Purpose clarity, Requirements measurability, REQ→CONST coverage,
   Constraints precision, Abstraction level, Snapshot integrity, Identifier coherence,
   and Domain Context sufficiency.
-  Called by /impl-review SKILL after deterministic CLI validation.
+  Called by /inspect SKILL (focus=quality) after deterministic CLI validation.
   Returns verdict: pass | needs_improvement.
 
   <example>

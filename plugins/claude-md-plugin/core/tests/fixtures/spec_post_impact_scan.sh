@@ -52,7 +52,7 @@ if [ "$changed" = "true" ]; then
         [ -n "$c" ] && echo "- $c"
       done < "${TMP_DIR}affected-consumers.txt"
       echo ""
-      echo "> Recommend \`/sync\` each consumer, or \`/autodev --auto-sync\` to delegate."
+      echo "> Recommend \`/spec --resync\` each consumer, or \`/autodev --auto-sync\` to delegate."
     } >> "${TMP_DIR}result-block.md"
   fi
 fi

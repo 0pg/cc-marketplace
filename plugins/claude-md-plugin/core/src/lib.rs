@@ -73,6 +73,7 @@ pub mod node_history;
 pub mod language_validator;
 pub mod detect_schema_change;
 pub mod impact_scan;
+pub mod diff_preservation;
 
 pub use tree_parser::TreeParser;
 pub use boundary_resolver::BoundaryResolver;
