@@ -1,0 +1,20 @@
+{
+  "name": "flow",
+  "version": "0.1.0",
+  "description": "DAG-based task execution engine. Turns a user request into atomic subtasks, builds a DAG with deterministic per-node validators, executes independent nodes in parallel via git-worktree-isolated agents, and performs merge+validate as an independent cascade step (git-conflict → project tests → LLM semantic review). Persistent state under .claude/workflows/flow/{task-id}/ enables resume. Commands: /flow, /flow-status, /flow-resume, /flow-graph.",
+  "author": {
+    "name": "jhk"
+  },
+  "repository": "https://github.com/0pg/cc-marketplace",
+  "homepage": "https://github.com/0pg/cc-marketplace/tree/main/plugins/flow",
+  "license": "MIT",
+  "keywords": [
+    "dag",
+    "workflow",
+    "task-graph",
+    "parallel-execution",
+    "git-worktree",
+    "atdd",
+    "orchestration"
+  ]
+}
