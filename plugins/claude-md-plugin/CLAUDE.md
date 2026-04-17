@@ -79,6 +79,18 @@ v19 rebuild (steps 4–5).
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
 
+### SessionStart Philosophy Reminder (v19.3.0)
+
+A plugin-owned `SessionStart` hook injects the v19 node-agent-tree
+philosophy into every session on `startup`, `resume`, `clear`, and
+`compact`. The purpose is to keep the model grounded in the agent-tree
+model across context resets — projects that install this plugin are
+opting into that architecture.
+
+- `hooks/hooks.json` — registers the hook with matcher `"*"`
+- `hooks/session-start.sh` — emits the reminder on stdout
+- `hooks/philosophy-reminder.md` — the reminder content
+
 ### Reference Design
 
 - `references/agent-tree/README.md` — index and reading order
@@ -112,7 +124,7 @@ claude-md-plugin/
 ├── agents/            — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── skills/            — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── commands/          — (empty — awaiting v19 rebuild, Roadmap step 4)
-├── hooks/             — (empty — no hooks in v19 baseline; re-add if needed)
+├── hooks/             — SessionStart philosophy-reminder hook (v19.3.0)
 ├── scripts/           — (empty — utility scripts re-added as agent tools need them)
 ├── core/              — (empty — awaiting Roadmap step 5 re-scope / rebuild)
 └── references/        — reference materials

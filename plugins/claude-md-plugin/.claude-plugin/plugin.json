@@ -1,6 +1,6 @@
 {
   "name": "claude-md-plugin",
-  "version": "19.2.0",
+  "version": "19.3.0",
   "description": "Node-agent tree plugin (v19). Each directory is an agent: its CLAUDE.md is the agent's prompt, its source code is the agent's tool set, and cohesive sub-domains become child agents to whom the parent delegates. v19 is an in-progress redesign; v18 workflows (/spec, /dev, /validate, /decompile, /bugfix, /impact, /inspect, /autodev) are pending teardown.",
   "author": {
     "name": "jhk"
