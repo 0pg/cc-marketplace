@@ -69,14 +69,25 @@ them as authoritative.
 
 ### Rebuild Roadmap
 
-| Step | Scope |
-|------|-------|
-| 1 | **Philosophy (this document)** |
-| 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention |
-| 3 | Teardown — remove `agents/`, `skills/`, `commands/` contents |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model |
-| 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses |
-| 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) |
+| Step | Scope | Status |
+|------|-------|--------|
+| 1 | **Philosophy (this document)** | done (v19.0.0) |
+| 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
+| 3 | Teardown — remove `agents/`, `skills/`, `commands/` contents | pending |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | pending |
+| 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses | pending |
+| 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
+
+### Reference Design
+
+- `references/agent-tree/README.md` — index and reading order
+- `references/agent-tree/node-prompt-template.md` — required shape of a node's CLAUDE.md
+- `references/agent-tree/source-as-tool.md` — tool invocation conventions
+- `references/agent-tree/delegation.md` — parent↔child contract
+- `references/agent-tree/decomposition.md` — when/where to split a node
+
+The legacy `references/inspect/` and `references/shared/` directories remain
+only until Roadmap step 3; treat them as v18 artifacts, not current design.
 
 ## Instructions
 
