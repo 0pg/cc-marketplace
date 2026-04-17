@@ -83,7 +83,7 @@ Follow systematic-debugging's iron law: **NO FIXES WITHOUT ROOT CAUSE INVESTIGAT
 ## Input
 
 ```
-Session file: <path>   (bugfix session file, pre-extracted by SKILL)
+Session file: <path>   (bugfix session file — minimal: bug description + target path + optional error/file)
 Target path: <directory>
 ```
 
@@ -91,24 +91,33 @@ Target path: <directory>
 
 ```bash
 TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
+CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 ```
 
 ## Workflow
 
-### 1. Read Session File
+### 1. Read Session + Load Layers
 
-Parse:
-- `## Bug Description`: extract `expected` (E) and `actual` (A)
-- `## Layer 1`: CLAUDE.md Requirements list (REQ-N items)
-- `## Layer 2`: DEVELOPERS.md Constraints list (CONST-N items)
-- `## Layer 3`: source file list and contents
-- `## Recent Spec Changes`: `all_requirements`, `source_changed`, `changed_requirements`
+From the session file, parse:
+- `## Bug Description`: `expected` (E) and `actual` (A)
+- `target_path`: the selected node's directory
+- `error_message`, `target_file` (optional hints)
 
 If E is vague or absent, return:
 ```
 status: escalated, judgment: ambiguous
 reason: "E itself is unclear — cannot determine expected behavior"
 ```
+
+Then self-load layer content for judgment:
+
+- **Layer 1**: Read `{target_path}/CLAUDE.md` — extract `## Purpose`, `## Requirements`, `## Domain Context`.
+- **Layer 2**: Read `{target_path}/DEVELOPERS.md` — extract `## Constraints`, `## Technical Context`. If file absent, treat L2 as `none`.
+- **Layer 3**: Enumerate source files under `{target_path}` via `Glob`. If `target_file` was provided, start with that file + same-directory siblings. For files totaling ≤50KB, Read contents; beyond that, Read on demand driven by the judgment in Step 3.
+- **Recent spec changes**: `$CLI_PATH diff-node-history --path {target_path} --root {project_root} --limit 5` — derive `all_requirements` (true when no spec commits exist for this node), `changed_requirements` (REQ-N list), `source_changed` (whether source files changed in the range).
+
+The SKILL does NOT pre-extract these — that reduces the Brain layer in the SKILL
+and lets you investigate with full fidelity.
 
 ### 2. Judgment Algorithm
 

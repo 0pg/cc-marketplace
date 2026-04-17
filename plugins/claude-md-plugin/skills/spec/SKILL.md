@@ -1,11 +1,12 @@
 ---
 name: spec
-version: 3.1.0
+version: 4.0.0
 aliases: [define, requirements, impl]
 description: |
   This skill should be used when the user asks to "define requirements", "write spec",
   "create CLAUDE.md from requirements", "define behavior before coding", or uses "/spec".
-  Analyzes natural language requirements and generates CLAUDE.md without implementing code.
+  Analyzes natural language requirements and generates CLAUDE.md + DEVELOPERS.md in a
+  single-pass workflow (cross-node authority resolution → impl generation → optional gate).
   Follows ATDD principle: specification first, then code generation via /dev.
   Trigger keywords: define requirements, write spec, spec first
 user_invocable: true
@@ -27,9 +28,10 @@ Performs requirement definition only **without code implementation**, following 
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `requirement` | Yes | - | Requirement text |
+| `requirement` | Yes* | - | Requirement text. \*Omit when `--resync` is set. |
 | `--path` | No | `.` | Target path |
-| `--no-ask` | No | false | Suppress AskUserQuestion in Self Socratic Loop. When set, max_rounds exhaustion uses best-effort instead of asking the user. |
+| `--resync` | No | false | Regenerate DEVELOPERS.md to match the current CLAUDE.md (which the user has manually edited). Skips pre-consult, skips new-requirement processing. Requires the target's CLAUDE.md to already exist. Replaces the obsolete `/sync` skill. |
+| `--no-ask` | No | false | Suppress AskUserQuestion. When set, impl agent skips Tiered Clarification and Plan Preview; cross-node ambiguity halts verbatim with authority reasons preserved. |
 
 ## Workflow
 
@@ -41,12 +43,11 @@ TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
 ```
 
-#### Snapshot helper (Phase 0 M1 — v17)
+#### Snapshot helper
 
-Any session file that feeds an agent performing snapshot judgment (impl Phase 4
-Remove/Keep/Merge, impl-reviewer Snapshot integrity / Identifier coherence, and
-any future consumer with equivalent responsibility) MUST surface the prior-state
-snapshot verbatim:
+Any session file that feeds an agent performing snapshot judgment (impl Phase 7
+Remove/Keep/Merge, impl-reviewer Snapshot integrity / Identifier coherence) MUST
+surface the prior-state snapshot verbatim:
 
 ```
 ## Current CLAUDE.md
@@ -56,10 +57,9 @@ snapshot verbatim:
 {verbatim contents of target_path/DEVELOPERS.md, or "absent" when the file does not exist}
 ```
 
-Injection is **unconditional**: if the target path is not yet resolved (plan-
-session creation, where `target_path: TBD`), use the `--path` argument as the
-snapshot source; if the files do not exist, render the body as the literal
-token `absent`. Do not summarize or truncate the body.
+Injection is **unconditional**: if the target path is not yet resolved, use the
+`--path` argument as the snapshot source; if the files do not exist, render the
+body as the literal token `absent`. Do not summarize or truncate the body.
 
 Bash helper template (inline into each session-creation site below):
 
@@ -77,6 +77,24 @@ else
 fi
 ```
 
+### --resync short-path
+
+When `--resync` is set:
+
+1. Verify `{target_path}/CLAUDE.md` exists. If not, halt with
+   `⚠ --resync requires existing CLAUDE.md at {target_path}. Use /spec without --resync to create.`
+2. Skip Steps 2.0–2.1 (pre-consult unnecessary; no new concretization).
+3. Skip Step 2.4 (node history unused).
+4. Proceed directly to Step 3 with:
+   - `resync: true` injected into the spec session
+   - `## User Requirement` body set to
+     `"(resync: no new requirement; regenerate DEVELOPERS.md from current CLAUDE.md)"`
+   - `action: update` forced
+
+All other Step 3 semantics (impl → impl-reviewer gate → optional 1 revision →
+commit) apply unchanged. The reviewer still runs; impl's self-critique catches
+stale Constraints under resync conditions.
+
 ### 1. Generate existing CLAUDE.md index
 
 ```bash
@@ -88,7 +106,7 @@ $CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-ind
 Read the `## Conventions` section from project root CLAUDE.md if present.
 
 Read the `## Instructions` section from project root CLAUDE.md and extract the `Document language` value.
-If not found, set `document_language` to empty (the agent will ask the user).
+If not found, set `document_language` to empty (the impl agent will ask the user, or infer in scope=parallel).
 
 ### Step 2 redirect loop (wraps Steps 2.0–2.1e)
 
@@ -138,7 +156,7 @@ Safety net (runaway guard only, not convergence): if explorer emits >10 candidat
 ### 2.1 Pre-consult (Strategic Conflict Detection)
 
 Detect conflicts with existing constraints/Roadmap and root strategic direction
-**before** requirement concretization. Populates context blocks injected into Step 2.5.
+**before** impl dispatch. Populates context blocks injected into Step 3.
 
 #### 2.1a Determine consult targets
 
@@ -156,22 +174,11 @@ is authoritative, and Step 2.1d fans out po-consultant across every entry.
 #### 2.1b Sibling module relatedness
 
 No lexical pre-filter. The full scan-claude-md index (each module's `path` + `purpose`)
-is already injected into the explorer session (Step 2.5a → `## Existing Modules Index`);
-the requirement-explorer judges semantic relatedness itself (domain overlap, data flow,
-shared concepts — not limited to string matching).
-
-```python
-related_module_hints = []   # retained as empty for downstream compatibility; explorer reads the full index
-```
-
-**Rationale**: lexical matching (shared ≥3-char words) produced both false negatives
-(synonyms like "login"/"auth") and false positives (common words like "data"/"user").
-Delegating the judgment to the explorer — which already has the full index — is strictly
-more expressive and costs no additional tokens.
+is already injected into the explorer session (Step 2.0); the requirement-explorer
+judges semantic relatedness itself (domain overlap, data flow, shared concepts —
+not limited to string matching).
 
 #### 2.1c Prepare consult session files (one per target)
-
-# NOTE: mirrors /consult SKILL Steps 1-3. Update both on format changes.
 
 For each `target` in `consult_targets`:
 
@@ -229,12 +236,8 @@ Wait for all tasks to complete. Then read each `${TMP_DIR}consult-result-${dir_s
 Extract: `verdict`, `roadmap_fit`, `## Constraints` block, `## History` block,
 `## Suggested Path` block, roadmap_fit explanation sentence.
 
-```python
-# Failure handling (non-blocking):
-failed_targets = [t for t in consult_targets if result file missing or unreadable]
-if failed_targets:
-    Output warning: "⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results."
-```
+Failure handling (non-blocking): if any result file is missing or unreadable,
+emit warning `⚠ Pre-consult failed for {failed_targets}. Proceeding with partial results.`
 
 #### 2.1e Target Selection from Verdicts
 
@@ -276,26 +279,22 @@ Suggested Path:
 """
         if result.verdict == "not_feasible":
             entry += "(⚠ halt verdict: default = surface to caller. Exception = if the user intentionally\n" \
-                     "replaces existing behavior, the explorer MAY note the override explicitly in\n" \
-                     "Concretized Requirements. This exception is available in interactive mode only;\n" \
-                     "under --no-ask the SKILL defers to the authority's halt verdict verbatim.)\n"
+                     "replaces existing behavior, impl MAY note the override explicitly in Rationale.\n" \
+                     "This exception is available in interactive mode only; under --no-ask the SKILL\n" \
+                     "defers to the authority's halt verdict verbatim.)\n"
         pre_fetched_conflicts += entry
 
     elif result.verdict == "feasible" and result.roadmap_fit == "aligned":
         pre_fetched_strategic += f"[{target}] Roadmap aligned: {result.roadmap_fit_explanation}\n"
 
-# Sibling modules not covered by pre-consult (explorer judges relevance)
-unconsulted_hints = [p for p in related_module_hints if p not in consult_targets]
-
-# Partially feasible early warning
+# Partially / not-feasible early warnings
 partially_feasible_targets = [t for t, r in consult_results if r.verdict == "partially_feasible"]
 if partially_feasible_targets:
     Output: "ℹ Pre-consult: partially_feasible constraints in {partially_feasible_targets}. Spec will be adjusted."
 
-# Not feasible early warning
 not_feasible_targets = [t for t, r in consult_results if r.verdict == "not_feasible"]
 if not_feasible_targets:
-    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. (⚠ halt verdict: default = surface to caller. Exception = if the user intentionally replaces existing behavior, the explorer MAY note the override explicitly in Concretized Requirements. This exception is available in interactive mode only; under --no-ask the SKILL defers to the authority's halt verdict verbatim.)"
+    Output: "⚠ Pre-consult: not_feasible conflict in {not_feasible_targets}. (⚠ halt verdict: default = surface to caller. Exception = if the user intentionally replaces existing behavior, impl MAY note the override explicitly in Rationale. This exception is available in interactive mode only; under --no-ask the SKILL defers to the authority's halt verdict verbatim.)"
 ```
 
 ### 2.4 Collect Node History (if existing node AND not pre-consulted)
@@ -311,404 +310,46 @@ $CLI_PATH diff-node-history \
 If the target was pre-consulted (target ∈ `consult_targets`): **skip this step**.
 The `po-consultant` agent already captured recent node history in the consult result.
 
-If the output file exists and contains commits (`has_history: true`), include its contents
-in the explore session file as `## Node History` section. See format below in 2.5a.
+The node-history JSON feeds into the spec session as `## Node History` (Step 3a).
 
-### 2.5 Self Socratic Loop
+### 3. Spec execution (single-pass with optional gate)
 
-Concretize vague requirements through project domain context exploration before spec execution.
+The impl agent runs as a single pass: extract → draft → self-critique → snapshot-
+judge → generate CLAUDE.md + DEVELOPERS.md + rationale sidecar. The impl-reviewer
+acts as a single optional gate on the generated documents. On rejection, the SKILL
+re-dispatches impl once with reviewer feedback injected; on a second rejection
+the SKILL halts with the verdict surfaced.
 
-```bash
-# Preserve original requirement
-cat > "${TMP_DIR}original-requirement.md" << 'REQEOF'
-{user requirement text}
-REQEOF
-```
+Compute `dir_safe`: replace slashes with hyphens in target_path (root `.` → `root`).
 
-`round = 1`, `max_safety = 10` (runaway safety net; not a convergence criterion)
+**3a. Create spec session file**
 
-Termination is **reviewer-driven** via the `progress` field: the loop exits when the reviewer signals it has no new concerns (`progress: no`) or approves.
-
-```
-loop:
-  2.5a. Create ${TMP_DIR}explore-session-{round}.md:
-
-        Round 1:
-        ---
-        # Explore Session
-        type: explore | round: 1 | project_root: {project_root} | target_path: {path}
-
-        ## User Requirement
-        {user requirement text}
-
-        ## Node History (optional — only when existing node has history AND not pre-consulted)
-        commits_included: {N} | total_found: {M}
-        {for each commit in node-history JSON:}
-        ### {short_hash} — {subject}
-        timestamp: {timestamp} | breaking: {true|false}
-        {for each file_diff:}
-        **{file_type} — {section}**: {changes count} added, {changes count} removed
-        {end for}
-        {end for}
-
-        ## Pre-fetched Conflicts (from pre-consult — omit section if empty)
-        {pre_fetched_conflicts}
-
-        ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
-        {pre_fetched_strategic}
-
-        ## Related Module Candidates (omitted — explorer judges relatedness from Existing Modules Index below)
-
-        ## Existing Modules Index
-        {scan-claude-md result}
-
-        ## Project Conventions
-        {project root Conventions or "None"}
-        ---
-
-        Round 2:
-        ---
-        # Explore Session
-        type: explore | round: 2 | project_root: {project_root} | target_path: {path}
-
-        ## User Requirement
-        {user requirement text}
-
-        ## Previous Concretization
-        previous_result: ${TMP_DIR}explore-result-1.md
-
-        ## Reviewer Feedback
-        feedback_file: ${TMP_DIR}explore-reviewer-result-1.md
-
-        ## Pre-fetched Conflicts (from pre-consult — omit section if empty)
-        {pre_fetched_conflicts}
-
-        ## Pre-fetched Strategic Context (from pre-consult — omit section if empty)
-        {pre_fetched_strategic}
-
-        ## Related Module Candidates (omitted — explorer judges relatedness from Existing Modules Index below)
-
-        ## Existing Modules Index
-        {scan-claude-md result}
-
-        ## Project Conventions
-        {project root Conventions or "None"}
-        ---
-
-  2.5b. Task(requirement-explorer):
-        Session file: ${TMP_DIR}explore-session-{round}.md
-        Save results to ${TMP_DIR} and return only the path
-
-        Extract total, domain_clear, resolved, unresolved from result block.
-
-  2.5c. Short-circuit check:
-        if total == 0 (no ambiguity assessment needed) OR
-           (domain_clear + resolved == total, unresolved == 0):
-          concretized_requirement = Read ## Concretized Requirements from explore-result
-          domain_context_summary = Read ## Domain Context Summary from explore-result
-          explore_status = "short-circuited"
-          break (skip reviewer — requirements already clear)
-
-  2.5d. Early termination check:
-        if all unresolved items are genuinely-ambiguous AND no explorable items remain:
-          → jump to 2.5h (AskUserQuestion) immediately
-
-  2.5e. Create ${TMP_DIR}explore-reviewer-session-{round}.md:
-        ---
-        # Explore Reviewer Session
-        type: explore-reviewer | round: {round}
-        explore_result: ${TMP_DIR}explore-result-{round}.md
-        original_requirement: ${TMP_DIR}original-requirement.md
-        {if round > 1:}
-        prev_result_file: ${TMP_DIR}explore-reviewer-result-{round-1}.md
-        ---
-
-  2.5f. Task(requirement-reviewer):
-        Session file: ${TMP_DIR}explore-reviewer-session-{round}.md
-        Save results to ${TMP_DIR} and return only the path
-
-        Extract verdict, progress, critical_questions, improvement_notes from result block.
-
-  2.5g. if verdict == "approved":
-          concretized_requirement = Read ## Concretized Requirements from explore-result
-          domain_context_summary = Read ## Domain Context Summary from explore-result
-          if improvement_notes > 0:
-            reviewer_notes = Read ## Improvement Notes from ${TMP_DIR}explore-reviewer-result-{round}.md
-          else:
-            reviewer_notes = ""
-          explore_status = "approved"
-          break
-
-  2.5h. if (round > 1 AND progress == "no") OR round >= max_safety OR early termination:
-          # progress=="no": reviewer has no new concerns — stuck; surface to user.
-          # max_safety: runaway guard, expected to never trigger in normal operation.
-          if --no-ask flag is set:
-            concretized_requirement = Read ## Concretized Requirements from explore-result
-            domain_context_summary = Read ## Domain Context Summary from explore-result
-            explore_status = "best-effort"
-            break
-
-          Summarize Critical Questions (or Remaining Ambiguities for early termination)
-          → AskUserQuestion (last resort):
-            "Requirements concretization attempted but these remain unclear:
-             - {Critical Question 1}
-             - {Critical Question 2}
-             Can you provide specifics?"
-
-          Incorporate user answer into a new explore session → 1 more explorer run:
-          Create ${TMP_DIR}explore-session-{round+1}.md with user answer appended to
-          ## User Requirement section.
-          Task(requirement-explorer) → extract result.
-          concretized_requirement = result's ## Concretized Requirements
-          domain_context_summary = result's ## Domain Context Summary
-          explore_status = "user-resolved"
-          break
-
-  2.5i. round++ → return to 2.5a
-```
-
-### 3. Spec execution (plan → review → execute)
-
-**3a. Create Plan session file**
-
-`${TMP_DIR}spec-plan-session-{dir-safe}.md`:
+Prepare `${TMP_DIR}spec-session-{dir-safe}.md`:
 
 ```markdown
-# Spec Plan Session
-type: spec-plan | mode: plan | round: 1 | project_root: {project_root}
-target_path: TBD
-action: TBD
-document_language: {document_language or ""}
-
-## User Requirement
-{full user requirement text}
-
-## Domain Context Summary
-{domain_context_summary if explore_status in ["approved", "short-circuited"], else omit this section}
-
-## Reviewer Improvement Notes
-{reviewer_notes if reviewer_notes != "", else omit this section}
-
-## Existing Modules Index
-{scan-claude-md result: path, purpose pairs}
-
-## Project Conventions
-{project root Conventions or "None"}
-
-## Current CLAUDE.md
-{current_claude_md}
-
-## Current DEVELOPERS.md
-{current_developers_md}
-```
-
-**3b. Dispatch Task(impl, mode=plan)**
-
-```
-Task(impl):
-  Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-  Project root: {project_root}
-
-  Read the session file and generate an execution plan (plan.md) in mode=plan.
-```
-
-Extract `plan_file`, `target_path`, `action`, `dir-safe` from the result block.
-
-> `dir_safe`: replace slashes with hyphens in target_path (e.g., `src/auth` → `src-auth`)
-
-**3b-1. Initialize workflow state**
-
-```bash
-WORKFLOW_DIR=".claude/workflows/{dir-safe}"
-mkdir -p "$WORKFLOW_DIR"
-cp "{plan_file}" "$WORKFLOW_DIR/spec-plan.md"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-cat > "$WORKFLOW_DIR/state.json" << 'STATEOF'
-{
-  "workflow_id": "{dir-safe}-TIMESTAMP_PLACEHOLDER",
-  "target_path": "{target_path}",
-  "dir_safe": "{dir-safe}",
-  "action": "{action}",
-  "status": "awaiting-review",
-  "round": 1,
-  "plan_file": ".claude/workflows/{dir-safe}/spec-plan.md",
-  "last_reviewer_result": "",
-  "project_root": "{project_root}",
-  "user_requirement": "{first 500 chars of user requirement text — escape JSON special chars (\" \\ newlines)}",
-  "explore_round": {round from Step 2.5},
-  "explore_status": "{explore_status from Step 2.5}",
-  "explore_result_file": "${TMP_DIR}explore-result-{round}.md",
-  "created_at": "TIMESTAMP_PLACEHOLDER",
-  "updated_at": "TIMESTAMP_PLACEHOLDER"
-}
-STATEOF
-# Replace TIMESTAMP_PLACEHOLDER with actual timestamp
-sed -i '' "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" "$WORKFLOW_DIR/state.json"
-```
-
-**3c. Socratic Loop**
-
-`round = 1`, `max_safety = 10` (runaway safety net; not a convergence criterion)
-
-Termination is **reviewer-driven** via the `progress` field: the loop exits when the reviewer signals it has no new concerns (`progress: no`) or approves.
-
-```
-loop:
-  1. Create Reviewer session file:
-     ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md:
-       # Spec Reviewer Session
-       type: spec-reviewer | round: {round}
-       plan_file: {plan_file}
-       dir_safe: {dir-safe}
-       {if round > 1:}
-       prev_result_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round-1}.md
-
-       ## Current CLAUDE.md
-       {current_claude_md}
-
-       ## Current DEVELOPERS.md
-       {current_developers_md}
-
-  2. Dispatch Task(impl-reviewer):
-       Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}-v{round}.md
-       Save results to ${TMP_DIR} and return only the path
-
-     Extract verdict and progress from result block.
-
-     2-1. Promote artifact + update state.json (reflecting verdict):
-     ```bash
-     cp "${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md" \
-        ".claude/workflows/{dir-safe}/reviewer-v{round}.md"
-     python3 -c "
-     import json
-     from datetime import datetime, timezone
-     with open('.claude/workflows/{dir-safe}/state.json') as f:
-         s = json.load(f)
-     s['status'] = 'approved' if '{verdict}' == 'approved' else 'awaiting-revise'
-     s['last_reviewer_result'] = '.claude/workflows/{dir-safe}/reviewer-v{round}.md'
-     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
-         json.dump(s, f, indent=2, ensure_ascii=False)
-     "
-     ```
-
-  3. if verdict == "approved":
-       break
-
-  3b. if round > 1 AND progress == "no":
-       ⚠ Reviewer reports no progress — revise cycle is stuck.
-         Surfacing current plan with unresolved Critical Questions.
-     ```bash
-     python3 -c "
-     import json
-     from datetime import datetime, timezone
-     with open('.claude/workflows/{dir-safe}/state.json') as f:
-         s = json.load(f)
-     s['status'] = 'stuck-no-progress'
-     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
-         json.dump(s, f, indent=2, ensure_ascii=False)
-     "
-     ```
-       break
-
-  4. if round >= max_safety:
-       ⚠ Socratic loop hit runaway safety net ({max_safety} iterations).
-         This indicates a bug or pathological input; proceeding with the best available plan.
-     ```bash
-     python3 -c "
-     import json
-     from datetime import datetime, timezone
-     with open('.claude/workflows/{dir-safe}/state.json') as f:
-         s = json.load(f)
-     s['status'] = 'max-safety-exceeded'
-     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
-         json.dump(s, f, indent=2, ensure_ascii=False)
-     "
-     ```
-       break
-
-  5. Create Revise session file:
-     ${TMP_DIR}spec-plan-session-{dir-safe}.md (overwrite):
-       # Spec Plan Session
-       type: spec-plan | mode: revise | round: {round+1} | project_root: {project_root}
-       target_path: {target_path}
-       action: {action}
-       document_language: {document_language or ""}
-
-       ## User Requirement
-       {full user requirement text}
-
-       ## Reviewer Feedback File
-       feedback_file: ${TMP_DIR}spec-reviewer-result-{dir-safe}-v{round}.md
-
-       ## Existing Plan File
-       existing_plan_file: {plan_file}
-
-       ## Existing Modules Index
-       {scan-claude-md result}
-
-       ## Project Conventions
-       {project root Conventions or "None"}
-
-       ## Current CLAUDE.md
-       {current_claude_md}
-
-       ## Current DEVELOPERS.md
-       {current_developers_md}
-
-  6. Dispatch Task(impl, mode=revise):
-       Session file: ${TMP_DIR}spec-plan-session-{dir-safe}.md
-       Project root: {project_root}
-
-       Read the session file and improve the execution plan in mode=revise.
-
-     Verify plan_file update from result block.
-
-     6-1. Promote revise artifact + update state.json:
-     ```bash
-     cp "${TMP_DIR}spec-plan-{dir-safe}.md" ".claude/workflows/{dir-safe}/spec-plan.md"
-     python3 -c "
-     import json
-     from datetime import datetime, timezone
-     with open('.claude/workflows/{dir-safe}/state.json') as f:
-         s = json.load(f)
-     s['status'] = 'awaiting-review'
-     s['round'] = {round} + 1
-     s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-     with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
-         json.dump(s, f, indent=2, ensure_ascii=False)
-     "
-     ```
-
-  7. round++
-  → return to 1
-```
-
-**3d. Create Execute session file**
-
-```bash
-$CLI_PATH scan-claude-md --root {project_root} --output "${TMP_DIR}claude-md-index-exec.json"
-```
-
-`${TMP_DIR}spec-execute-session-{dir-safe}.md`:
-
-```markdown
-# Spec Execute Session
-type: spec-execute | mode: execute | project_root: {project_root}
+# Spec Session
+type: spec | project_root: {project_root}
 target_path: {target_path}
-action: {action}
+action: create | update   # derived from whether target_path/CLAUDE.md exists; --resync forces update
+scope: single
+resync: true | false   # true when --resync flag was passed
+no_ask: true | false   # true when --no-ask flag was passed; impl skips Tiered Clarification + Plan Preview
 document_language: {document_language or ""}
 
-## Approved Plan File
-plan_file: {plan_file}
-
 ## User Requirement
-{full user requirement text}
+{full user requirement text, or "(resync: no new requirement; regenerate DEVELOPERS.md from current CLAUDE.md)" when resync=true}
+
+## Pre-fetched Conflicts
+{pre_fetched_conflicts or omit section if empty}
+
+## Pre-fetched Strategic Context
+{pre_fetched_strategic or omit section if empty}
+
+## Node History
+{parsed node-history JSON or omit section if absent}
 
 ## Existing Modules Index
-{latest scan-claude-md result}
+{scan-claude-md result}
 
 ## Project Conventions
 {project root Conventions or "None"}
@@ -720,23 +361,123 @@ plan_file: {plan_file}
 {current_developers_md}
 ```
 
-**3e. Dispatch Task(impl, mode=execute)**
+**3b. First dispatch: Task(impl)**
 
 ```
 Task(impl):
-  Session file: ${TMP_DIR}spec-execute-session-{dir-safe}.md
+  Session file: ${TMP_DIR}spec-session-{dir-safe}.md
   Project root: {project_root}
 
-  Read the session file and generate CLAUDE.md + DEVELOPERS.md in mode=execute.
+  Read the session file and generate CLAUDE.md + DEVELOPERS.md.
 ```
 
-**3e-1. Update state + auto-commit after Execute completion**
+Extract from the result block: `claude_md_file`, `developers_md_file`,
+`rationale_file`, `status`, `action`, `target_path`, `warnings`.
 
-**Commit message construction:**
+Handle terminal statuses:
+- `status: cancelled_by_user` → exit; no files saved
+- `status: failed` → exit with warnings surfaced
 
-The SKILL executor constructs the commit message after Execute completion following these rules:
+On `status: success`, proceed to 3c.
 
-1. **summary**: one-line summary based on Purpose and Requirements from the CLAUDE.md generated by impl agent
+**3c. Review gate: Task(impl-reviewer)**
+
+**Preservation audit (action=update only).** Before dispatching the reviewer,
+when `action=update` and the rationale sidecar contains a `## Preserved
+Sections` subsection, run `diff-preservation` to deterministically verify that
+every declared section is byte-identical between the prior and new
+DEVELOPERS.md. The resulting JSON is injected into the reviewer session so the
+reviewer can treat any drift as an unconditional rejection.
+
+```bash
+preserved_sections=$(awk '/^## Preserved Sections$/{f=1;next} /^## /{f=0} f && /^- /{sub(/^- /,""); print}' "${rationale_file}" | paste -sd ',' -)
+audit_file=""
+if [ -n "$preserved_sections" ]; then
+  prior_tmp="${TMP_DIR}prior-developers-${dir_safe}.md"
+  printf '%s' "$current_developers_md" > "$prior_tmp"
+  audit_file="${TMP_DIR}preservation-audit-${dir_safe}.json"
+  $CLI_PATH diff-preservation \
+    --prior "$prior_tmp" \
+    --new "${target_path}/DEVELOPERS.md" \
+    --sections "$preserved_sections" \
+    > "$audit_file"
+fi
+```
+
+Prepare `${TMP_DIR}spec-reviewer-session-{dir-safe}.md`:
+
+```markdown
+# Spec Reviewer Session
+type: spec-reviewer | round: 1
+target_path: {target_path}
+dir_safe: {dir-safe}
+rationale_file: {rationale_file from impl result}
+action: {action}
+
+## Prior CLAUDE.md
+{current_claude_md when action=update, omit section when action=create}
+
+## Prior DEVELOPERS.md
+{current_developers_md when action=update, omit section when action=create}
+
+## Preservation Audit
+{contents of audit_file when present, omit section otherwise}
+```
+
+Dispatch:
+
+```
+Task(impl-reviewer):
+  Session file: ${TMP_DIR}spec-reviewer-session-{dir-safe}.md
+  Save results to ${TMP_DIR} and return only the path
+```
+
+Extract `verdict` and `result_file` from the reviewer result block.
+
+- `verdict: approved` → proceed to 3e (commit).
+- `verdict: rejected` → proceed to 3d (one revision).
+
+**3d. Revision (at most once)**
+
+Overwrite `${TMP_DIR}spec-session-{dir-safe}.md` with the prior session content
+plus a `## Reviewer Feedback` section appended:
+
+```markdown
+## Reviewer Feedback
+feedback_file: {result_file from reviewer round 1}
+```
+
+Leave all other sections unchanged (the impl agent already has the requirement,
+pre-fetched context, modules index, conventions, and prior-state snapshot).
+
+Re-dispatch:
+
+```
+Task(impl):
+  Session file: ${TMP_DIR}spec-session-{dir-safe}.md
+  Project root: {project_root}
+
+  Read the session file. The ## Reviewer Feedback section is present; apply
+  feedback to revise CLAUDE.md + DEVELOPERS.md.
+```
+
+Extract the new result block. Handle `cancelled_by_user` / `failed` terminals as in 3b.
+
+Prepare `${TMP_DIR}spec-reviewer-session-{dir-safe}.md` (overwrite) with `round: 2`
+and re-dispatch `Task(impl-reviewer)`.
+
+- Second-round `verdict: approved` → proceed to 3e.
+- Second-round `verdict: rejected` → halt. Surface the reviewer's Critical
+  Questions verbatim to the user and exit with status `spec rejected after 1 revision`.
+  Generated CLAUDE.md + DEVELOPERS.md remain on disk (not committed) so the user
+  can inspect and either re-run `/spec` with refined input or edit manually. Do
+  not delete the files; do not commit.
+
+**3e. Auto-commit**
+
+Construct the commit message after approval:
+
+1. **summary**: one-line summary based on Purpose and Requirements from the generated CLAUDE.md
 2. **[BREAKING]** (optional): include only when Requirements are deleted or there is a major direction change
 3. **Transition context**: 1-2 sentences
    - `create` action: "New module creation" + Purpose summary
@@ -744,24 +485,10 @@ The SKILL executor constructs the commit message after Execute completion follow
    - Good example: "Introducing OAuth2 as an additional authentication path alongside session-based auth. Maintaining sessions for legacy client support."
    - Bad example: "Update authentication system" (no directionality)
 4. **Changes**: derived from `git diff HEAD -- {target_path}/CLAUDE.md {target_path}/DEVELOPERS.md`
-   - added: newly added Requirements/Constraints items
-   - modified: changed Requirements/Constraints items
-   - removed: deleted Requirements/Constraints items
-   - omit categories that don't apply
+   - added / modified / removed items (omit categories that don't apply)
 
 ```bash
-python3 -c "
-import json
-from datetime import datetime, timezone
-with open('.claude/workflows/{dir-safe}/state.json') as f:
-    s = json.load(f)
-s['status'] = 'executed'
-s['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-with open('.claude/workflows/{dir-safe}/state.json', 'w') as f:
-    json.dump(s, f, indent=2, ensure_ascii=False)
-"
-
-# Commit only CLAUDE.md + DEVELOPERS.md (exclude TMP files and workflow state)
+# Commit only CLAUDE.md + DEVELOPERS.md (exclude TMP files)
 git add "{target_path}/CLAUDE.md" "{target_path}/DEVELOPERS.md"
 git commit -m "spec({target_path}): [BREAKING] {summary}
 
@@ -776,25 +503,25 @@ Changes:
 ### 4. Display changes
 
 ```bash
-git diff --stat
+git diff --stat HEAD~1
 ```
 
 ### Step 4.5: Post-Spec Impact Surface
 
-After Execute writes CLAUDE.md + DEVELOPERS.md and the commit is made, surface
-downstream consumers *if and only if* the target's `## Data Schemas` section
-changed between the previous commit and the new on-disk content. Schema change
-is the only trigger because it is the single exported surface that can break
-consumers — Constraint-only changes stay internal to the node.
+After the commit is made, surface downstream consumers *if and only if* the target's
+`## Data Schemas` section changed between the previous commit and the new on-disk
+content. Schema change is the only trigger because it is the single exported
+surface that can break consumers — Constraint-only changes stay internal to the
+node.
 
 The deterministic CLIs `detect-schema-change` and `impact-scan` do the work; the
-SKILL merely appends an `## Affected Consumers` block to `${TMP_DIR}result-block.md`
+SKILL appends an `## Affected Consumers` block to `${TMP_DIR}result-block.md`
 so Step 5 can echo it back to the user alongside the recommendation to run
-`/sync` per consumer (or `/autodev --auto-sync` to delegate).
+`/autodev --auto-sync` (or re-run `/spec` per consumer).
 
 ```bash
 # Step 4.5: Surface affected consumers on schema change
-before=$(git show HEAD:$target_path/DEVELOPERS.md 2>/dev/null || echo "")
+before=$(git show HEAD~1:$target_path/DEVELOPERS.md 2>/dev/null || echo "")
 after=$(cat $target_path/DEVELOPERS.md 2>/dev/null || echo "")
 changed=$(core detect-schema-change \
   --before <(printf '%s' "$before") --after <(printf '%s' "$after") \
@@ -809,7 +536,7 @@ if [ "$changed" = "true" ]; then
       while IFS= read -r c; do [ -n "$c" ] && echo "- $c"; done \
         < ${TMP_DIR}affected-consumers.txt
       echo ""
-      echo "> Recommend \`/sync\` each consumer, or \`/autodev --auto-sync\` to delegate."
+      echo "> Recommend \`/autodev --auto-sync\` to propagate, or run \`/spec --resync --path <consumer>\` per consumer."
     } >> ${TMP_DIR}result-block.md
   fi
 fi
@@ -824,23 +551,27 @@ modules:
 ---end-spec-result---
 ```
 
+Followed by the `## Affected Consumers` block from Step 4.5 when present.
+
 ## DO / DON'T
 
 **DO:**
-- Run Self Socratic Loop before spec execution
-- Complete Socratic review loop (impl-reviewer) before execute
-- Notify user about any warnings from impl agent
+- Complete cross-node authority resolution (Steps 2.0–2.1e) before dispatching impl
+- Run the impl-reviewer gate after impl completes
+- Surface reviewer rejection verbatim when revision fails a second time
 
 **DON'T:**
-- Skip Self Socratic Loop
-- Skip Socratic review loop (impl-reviewer)
-- Dispatch impl without plan mode first
+- Re-interpret po-consultant verdicts (INV-15)
+- Loop impl-reviewer beyond 2 rounds total (impl does its own self-critique internally)
+- Commit files when reviewer rejected after revision (surface to user for manual resolution)
 
 ## Error Handling
 
 | Situation | Response |
 |-----------|----------|
 | CLI build failure | install-cli.sh handles automatic build |
-| No requirement argument | Collect requirements via AskUserQuestion |
-| impl agent failure | warn, report error and exit |
-
+| No requirement argument | Collect requirement via AskUserQuestion |
+| impl status: failed | Exit with warnings surfaced |
+| impl status: cancelled_by_user | Exit cleanly; no files saved |
+| impl-reviewer rejected after 1 revision | Halt, surface Critical Questions, leave generated files uncommitted for user inspection |
+| Redirect loop cycle / missing target / runaway depth | Halt with visited trace |

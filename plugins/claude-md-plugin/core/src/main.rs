@@ -288,6 +288,21 @@ enum Commands {
         #[arg(short, long, default_value = "list")]
         format: String,
     },
+
+    /// Audit that caller-declared preserved sections are byte-identical between prior and new documents
+    DiffPreservation {
+        /// Path to the prior document
+        #[arg(long)]
+        prior: PathBuf,
+
+        /// Path to the new document
+        #[arg(long)]
+        new: PathBuf,
+
+        /// Comma-separated list of section names (without the leading `## `)
+        #[arg(long)]
+        sections: String,
+    },
 }
 
 fn main() {
@@ -546,6 +561,27 @@ fn main() {
                 Err(e) => Err(format!("impact-scan failed: {}", e).into()),
             }
         }
+        Commands::DiffPreservation { prior, new, sections } => {
+            match (std::fs::read_to_string(prior), std::fs::read_to_string(new)) {
+                (Ok(p), Ok(n)) => {
+                    let section_list: Vec<&str> = sections
+                        .split(',')
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    let audit = claude_md_core::diff_preservation::audit(&p, &n, &section_list);
+                    match serde_json::to_string_pretty(&audit) {
+                        Ok(json) => {
+                            println!("{}", json);
+                            Ok(())
+                        }
+                        Err(e) => Err(format!("serialize audit: {}", e).into()),
+                    }
+                }
+                (Err(e), _) => Err(format!("Failed to read prior file '{}': {}", prior.display(), e).into()),
+                (_, Err(e)) => Err(format!("Failed to read new file '{}': {}", new.display(), e).into()),
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -569,6 +605,7 @@ fn main() {
             Commands::ValidateLanguage { .. } => "validate-language",
             Commands::DetectSchemaChange { .. } => "detect-schema-change",
             Commands::ImpactScan { .. } => "impact-scan",
+            Commands::DiffPreservation { .. } => "diff-preservation",
         };
         eprintln!("Error in '{}' command: {}", command_name, e);
         eprintln!("Hint: Use --help for usage information");

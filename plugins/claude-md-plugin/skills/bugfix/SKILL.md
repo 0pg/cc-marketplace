@@ -1,21 +1,20 @@
 ---
 name: bugfix
-version: 1.0.0
+version: 2.0.0
 aliases: [fix, debug]
 description: |
   This skill should be used when the user reports a bug, unexpected behavior, or asks to
   "fix this bug", "debug this", "something is broken", "not working as expected", or uses "/bugfix".
-  Traces root cause through 3 layers: CLAUDE.md (requirements) → DEVELOPERS.md (constraints)
-  → source code. Fixes at the highest affected layer following Fix-Highest-Layer-First principle.
-  Never patches code while leaving CLAUDE.md inconsistent.
+  Delegates 3-layer root cause analysis (CLAUDE.md → DEVELOPERS.md → source code) to the
+  bugfixer agent, which traces the root cause and fixes at the highest affected layer.
   Trigger keywords: fix bug, debug, unexpected behavior, broken, not working
 user_invocable: true
-allowed-tools: [Bash, Read, Glob, Grep, Write, Edit, Task, AskUserQuestion, Skill]
+allowed-tools: [Bash, Read, Glob, Write, Edit, Task, AskUserQuestion, Skill]
 ---
 
 # /bugfix
 
-Traces the root cause of a reported bug through 3 layers and fixes at the highest affected layer.
+Delegates 3-layer root cause tracing to the bugfixer agent; executes the agent's verdict.
 
 ## Triggers
 
@@ -27,26 +26,10 @@ Traces the root cause of a reported bug through 3 layers and fixes at the highes
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `description` | Yes | — | 버그 설명 (expected vs actual behavior) |
-| `--path` | No | `.` | 대상 경로 |
-| `--error` | No | — | 에러 메시지 또는 스택 트레이스 |
-| `--file` | No | — | 버그가 있는 특정 파일 경로 |
-
-## Invariants
-
-```
-INV-bugfix-1: Conflict Resolution
-  Code always defers to CLAUDE.md.
-  - CLAUDE.md correct → fix code (Layer 3)
-  - CLAUDE.md incorrect → fix CLAUDE.md first (Layer 1), then regenerate code
-  Never patch code while leaving CLAUDE.md inconsistent.
-
-INV-bugfix-2: Ambiguity Escalation
-  Layer 3 (code): autonomous fix when judgment is unambiguous.
-  Layer 1/2 (SSOT documents): always require user approval before modification,
-    even when judgment is unambiguous. Modifying the SSOT has broader impact than a code fix.
-  Any degree of ambiguity (any layer) → escalate to user with structured context.
-```
+| `description` | Yes | — | Bug description (expected vs actual) |
+| `--path` | No | `.` | Target path |
+| `--error` | No | — | Error message or stack trace |
+| `--file` | No | — | File where the bug is observed |
 
 ## Workflow
 
@@ -56,205 +39,77 @@ INV-bugfix-2: Ambiguity Escalation
 CLI_PATH=$("${CLAUDE_PLUGIN_ROOT}/scripts/install-cli.sh")
 TMP_DIR="/tmp/claude-md/${CLAUDE_SESSION_ID:+${CLAUDE_SESSION_ID}/}"
 mkdir -p "$TMP_DIR"
+dir_safe=$(echo "${path:-.}" | tr '/' '-')
 ```
 
-> `dir-safe`: path의 슬래시를 하이픈으로 치환 (e.g., `src/auth` → `src-auth`).
-> Used as a suffix for all TMP_DIR files related to this bugfix target.
+### 1. Bug report collection
 
-### 1. Bug Context 수집
+Parse `description` for E (expected) and A (actual). If E is absent or unclear,
+`AskUserQuestion` once to clarify expected vs actual behavior. Record `--error`
+and `--file` arguments.
 
-`description` 인수에서 E (expected), A (actual) 파싱.
+### 2. Target CLAUDE.md selection
 
-E가 불명확하면:
-```
-AskUserQuestion:
-  "버그를 좀 더 구체적으로 설명해주세요.
-  - 기대하는 동작 (expected): ?
-  - 실제 동작 (actual): ?"
-```
+- `--file` provided: walk up from `--file` directory until the nearest CLAUDE.md.
+- otherwise: `$CLI_PATH scan-claude-md --root {path}` → pick shallowest node under `--path`.
+- If none found: exit with `"CLAUDE.md를 찾을 수 없습니다. --path 또는 --file을 확인하세요."`
 
-### 2. CLAUDE.md 및 소스 파일 선정
+Let `selected_node_path` = directory of the selected CLAUDE.md.
 
-#### 2a. CLAUDE.md 선정
+### 3. Session file
 
-```
-if --file 제공:
-  --file 경로에서 상위로 올라가며 첫 번째 CLAUDE.md 탐색
-  예) src/auth/login.ts → src/auth/CLAUDE.md → src/CLAUDE.md → CLAUDE.md
+`${TMP_DIR}bugfix-session-{dir-safe}.md`:
 
-else (--path 사용):
-  $CLI_PATH scan-claude-md --root {path} --output "${TMP_DIR}claude-md-index.json"
-  {path} 내 최상위 CLAUDE.md 선택 (index 내 depth가 가장 낮은 항목)
-```
+```markdown
+# Bugfix Session
+target_path: {selected_node_path}
+error_message: {--error value or "none"}
+target_file: {--file value or "none"}
 
-Conventions: 프로젝트 루트 CLAUDE.md에서 `## Conventions` 섹션 추출 (계층 상속).
-
-CLAUDE.md를 찾지 못하면: `"CLAUDE.md를 찾을 수 없습니다. --path 또는 --file을 확인하세요."` → exit.
-
-#### 2b. DEVELOPERS.md 선정
-
-선정된 CLAUDE.md와 같은 디렉토리의 `DEVELOPERS.md`. 없으면 세션 파일에 "none" 기록.
-
-#### 2c. 소스 파일 선정
-
-```
-if --file 제공:
-  해당 파일 + 같은 디렉토리의 소스 파일 목록 (Glob)
-
-else:
-  선정된 CLAUDE.md 디렉토리 내 소스 파일 목록 (Glob)
-  누적 바이트 ≤ 50KB: 내용 포함
-  이후 파일: 목록만 포함 (agent가 필요 시 직접 Read)
-  # 50KB ≈ ~12K tokens; 파일 수가 아니라 실제 비용을 기준으로 함
+## Bug Description
+expected: {E}
+actual: {A}
 ```
 
-언어 감지: 소스 파일 확장자 기반 (`.ts/.tsx` → typescript, `.rs` → rust, `.py` → python, `.go` → go)
+The bugfixer agent reads CLAUDE.md, DEVELOPERS.md, source files, and
+`diff-node-history` directly from `selected_node_path` — no pre-extraction needed.
 
-#### 2d. diff-node-history 실행
-
-```bash
-$CLI_PATH diff-node-history \
-  --path {selected_dir_path} \
-  --root {project_root} \
-  --limit 5 \
-  --output "${TMP_DIR}node-history-${dir_safe}.json"
-```
-
-### 3. Session File 생성
-
-`${TMP_DIR}bugfix-session-{dir-safe}.md`
-
-Format: `skills/bugfix/references/bugfix-templates.md` "Bugfix Session File Format" 참고.
-
-Include all of:
-- Bug Description (E, A from Step 1)
-- Error Message (`--error` value or "none")
-- Target File (`--file` value or "none")
-- Layer 1: selected CLAUDE.md content (Purpose + Requirements + Domain Context)
-- Layer 2: DEVELOPERS.md content (Constraints + Technical Context) or "none"
-- Layer 3: source file list (content if ≤ 10 files, listing only if > 10)
-- Node History: parsed diff-node-history JSON output (replaces diff-spec-range)
-- Conventions: hierarchy-resolved from project root
-
-### 4. Task(bugfixer) dispatch
+### 4. Dispatch bugfixer
 
 ```
 Task(bugfixer):
   Session file: ${TMP_DIR}bugfix-session-{dir-safe}.md
-  Target path: {path}
+  Target path: {selected_node_path}
 ```
 
-Extract from result block: `status`, `root_cause_layer`, `judgment`, `fix_type`, `fix_description`, `test_result`, `escalation` (if present), `proposed_change` (if present).
+Extract the result block: `status`, `root_cause_layer`, `judgment`,
+`fix_type`, `fix_description`, `test_result`, `escalation` (optional),
+`proposed_change` (optional).
 
-> `proposed_change` and `escalation` are optional fields defined in `skills/bugfix/references/bugfix-templates.md` Result Block Format — they extend the base spec result block.
+### 5. Execute the agent's verdict
 
-### 5. Result 처리
+The agent decides root cause and fix type; the SKILL executes the decision.
+Layer 1 / Layer 2 edits always require user approval (INV-bugfix-2).
 
-#### status == not_a_bug
+| verdict | SKILL action |
+|---------|--------------|
+| `status: not_a_bug` | Print summary, exit |
+| `status: escalated` | Present `escalation` context + relevant choices via `AskUserQuestion`, then re-run Step 5 as if the user's choice had come from the agent |
+| `root_cause_layer: 1` | `AskUserQuestion` to approve CLAUDE.md edit → Edit → `git commit -m "spec({path}): fix requirement — {summary}"` → `Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")` |
+| `root_cause_layer: 2` | `AskUserQuestion` to approve DEVELOPERS.md edit → Edit → `Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")` |
+| `root_cause_layer: 3`, `test_result: passed` | Bugfix commit (Step 6) |
+| `root_cause_layer: 3`, `test_result: skipped` (spec changed, code not regenerated) | `Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")` |
+| `root_cause_layer: 3`, `test_result: failed` | Print `fix_description`, exit with status `failed` |
+| `root_cause_layer: multi` | Iterate through layers in order L1 → L2 → L3 using the rows above |
+| `status: failed` | Print `fix_description` + recommend `/validate` or manual review, exit |
 
-```
-현재 동작이 기대 동작과 일치합니다. 버그가 없거나 이미 수정되었습니다.
-Expected: {E}
-Actual: {A}
-```
-Exit.
+When `status: escalated`, construct the choice set from the escalation context:
+- Include "CLAUDE.md에 요구사항을 추가/명확화한다" when L1 issue
+- Include "코드만 수정한다" when L3-only case (spec and code both intended E)
+- Include "CLAUDE.md와 코드를 함께 수정한다" when both L1 and L3 apply
+- Always include "현재 동작(A)이 올바름 (버그 아님)"
 
-#### judgment == ambiguous
-
-Construct choices dynamically based on which layers have issues, then call AskUserQuestion:
-
-Present a situation summary including:
-- 사용자 기대 (E): `{escalation.expected}`
-- 현재 동작 (A): `{escalation.actual}`
-- CLAUDE.md 스펙 (S): `{escalation.spec}`
-- 모호한 이유: `{escalation.reason}`
-
-Then construct options from the applicable set below — include only those relevant to the situation:
-- If S is missing or ambiguous (L1 issue): include "CLAUDE.md에 요구사항을 추가/명확화한다 → spec commit → /dev 재생성"
-- If code diverges from spec independently (L3 issue): include "코드만 수정한다 (스펙과 코드 모두 E를 의도했던 경우)"
-- If both L1 and L3 are involved: include "CLAUDE.md와 코드를 함께 수정한다 (복합 원인)"
-- Always include: "현재 동작(A)이 올바름 (버그 아님) → 버그 리포트 종료"
-
-Map the user's choice to `root_cause_layer` and proceed:
-- CLAUDE.md 수정 포함 → treat as `root_cause_layer: 1` → Step 5a
-- 코드만 수정 → treat as `root_cause_layer: 3` → Step 5c
-- 버그 아님 → exit
-
-#### root_cause_layer == 1 (unambiguous 또는 사용자가 A/B 선택)
-
-Step 5a:
-```
-AskUserQuestion:
-  "CLAUDE.md를 다음과 같이 수정하겠습니다.
-  파일: {CLAUDE.md path}
-  수정 내용: {proposed_change or fix_description}
-  
-  진행할까요?"
-```
-
-승인 시:
-1. Edit CLAUDE.md (apply proposed change)
-2. Commit:
-   ```bash
-   git add {CLAUDE.md path}
-   git commit -m "spec({path}): fix requirement — {fix_description one-liner}"
-   ```
-3. /dev 재생성:
-   ```
-   Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")
-   ```
-
-Exit (no bugfix commit for L1 fix).
-
-#### root_cause_layer == 2 (unambiguous)
-
-Step 5b:
-```
-AskUserQuestion:
-  "DEVELOPERS.md를 다음과 같이 수정하겠습니다.
-  파일: {DEVELOPERS.md path}
-  수정 내용: {proposed_change or fix_description}
-  
-  진행할까요?"
-```
-
-승인 시:
-1. Edit DEVELOPERS.md (apply proposed change)
-2. /dev 재생성:
-   ```
-   Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")
-   ```
-
-Exit (no bugfix commit for L2 fix; /dev creates dev commit internally).
-
-#### root_cause_layer == 3 (unambiguous)
-
-Read `test_result` from result block:
-- `passed` → proceed to Step 6 (bugfix commit)
-- `failed` → `"테스트 실패. fix_description: {fix_description}"` → exit status=failed
-- `skipped` (fix_description mentions "/dev rerun"):
-  ```
-  Skill("claude-md-plugin:dev", args: "--path {path} --conflict overwrite")
-  ```
-  Exit (no bugfix commit; /dev creates dev commit).
-
-#### root_cause_layer == multi
-
-Process in order:
-1. If L1 present → Step 5a (L1 fix with approval + spec commit + /dev)
-2. If L2 present → Step 5b (L2 fix with approval + /dev)
-3. Check if L3 issue remains after /dev rerun. If yes, and test_result == passed → Step 6.
-4. If test_result == failed → exit status=failed.
-
-#### status == failed
-
-```
-"버그 수정에 실패했습니다.
-원인: {fix_description}
-권고: DEVELOPERS.md Constraints를 검토하고 /dev를 재실행하거나, 직접 코드를 수정하세요."
-```
-
-### 6. bugfix commit (L3 fix 포함 시에만)
+### 6. Bugfix commit (L3 fixes only)
 
 ```bash
 git add {modified source files} {added test files}
@@ -265,6 +120,8 @@ Root cause: Layer 3 — {fix_description}
 Changes:
 - {list of modified/added files}"
 ```
+
+L1/L2 fixes are committed by `spec` / `dev` respectively — no separate bugfix commit.
 
 ### 7. Result
 
@@ -277,26 +134,19 @@ summary: {one sentence}
 ---end-bugfix-complete---
 ```
 
+## Invariants
+
+The two bugfix invariants live inside the bugfixer agent (judgment) and this
+SKILL's Step 5 table (execution). Stated here for reference only:
+
+- **INV-bugfix-1** Code always defers to CLAUDE.md — never patch code while leaving CLAUDE.md inconsistent.
+- **INV-bugfix-2** Layer 1/2 edits always require user approval; Layer 3 unambiguous fixes proceed autonomously.
+
 ## Error Handling
 
 | Situation | Response |
 |-----------|----------|
-| E가 description에서 불명확 | AskUserQuestion: expected 동작 구체화 |
-| CLAUDE.md 없음 | "CLAUDE.md를 찾을 수 없습니다." → exit |
-| bugfixer agent 실패 | warn + escalate to user with raw error |
-| /dev 재생성 실패 | report + exit status=failed |
-| Layer 3: 테스트 3회 실패 | systematic-debugging 아키텍처 이슈 의심, 사용자 상담 요청 |
-
-## DO / DON'T
-
-**DO:**
-- Always select CLAUDE.md before creating session file
-- Include diff-spec-range output in session file
-- Process L1 → L2 → L3 in that order for multi-layer
-- Always ask user approval before modifying CLAUDE.md or DEVELOPERS.md
-
-**DON'T:**
-- Patch code without checking CLAUDE.md first (INV-bugfix-1)
-- Skip user approval for L1/L2 modifications (INV-bugfix-2)
-- Create bugfix commit for L1/L2 fixes (spec + dev commits are sufficient)
-- Dispatch bugfixer agent without a complete session file
+| E unclear in `description` | `AskUserQuestion` to clarify expected behavior |
+| CLAUDE.md not found | Exit with guidance message |
+| bugfixer failure | Surface raw error to user |
+| /dev regeneration failure | Report + exit `status=failed` |

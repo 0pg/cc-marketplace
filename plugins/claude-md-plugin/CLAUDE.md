@@ -12,7 +12,7 @@ and generates source code as a derived artifact.
 
 | Role | Definition | Workflows |
 |------|------------|-----------|
-| **PM/PO** | Any entity (human or AI agent) that manages and modifies spec documents (CLAUDE.md, DEVELOPERS.md) | `/spec`, `/decompile`, `/validate`, `/project-setup`, `/migrate`, `/consult` |
+| **PM/PO** | Any entity (human or AI agent) that manages and modifies spec documents (CLAUDE.md, DEVELOPERS.md) | `/spec`, `/decompile`, `/validate`, `/inspect`, `/project-setup`, `/migrate` |
 | **DEVELOPER** | Any entity (human or AI agent) that writes source code based on specs | `/dev`, `/bugfix` (code fix) |
 
 - PM/PO and DEVELOPER are **functional roles**, not job titles. A single AI agent can act as PM/PO in one workflow and DEVELOPER in another.
@@ -153,46 +153,44 @@ SKILL (Entry Point)
 #### /spec (Requirements → CLAUDE.md)
 
 ```
-User: /spec "requirements"
+User: /spec "requirements" [--resync] [--path P] [--no-ask]
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ spec SKILL                                  │
+│ spec SKILL (single-pass)                    │
 │                                             │
 │ 1. Bash(scan-claude-md) → Build index       │
-│ 2. Self Socratic Loop:                      │
-│    Task(requirement-explorer) →             │
-│    Task(requirement-reviewer) →             │
-│    approved | last-resort AskUserQuestion   │
-│ 3. Spec execution:                          │
-│    3a. Task(impl, mode=plan) → plan.md      │
-│    3b. Socratic Loop:                       │
-│        Task(impl-reviewer) → verdict        │
-│        reject → Task(impl, mode=revise)     │
-│    3c. Task(impl, mode=execute)             │
-│        → CLAUDE.md + DEVELOPERS.md          │
-│    3d. Auto-commit                          │
+│ 2. Pre-consult (skipped when --resync)      │
+│    Task(po-consultant, cross-node) if needed│
+│ 3. Single-pass spec execution:              │
+│    3a. Write spec session file              │
+│        (resync flag + prior docs if update) │
+│    3b. Task(impl) → CLAUDE.md+DEVELOPERS.md │
+│        + rationale sidecar                  │
+│    3c. Task(impl-reviewer) → verdict        │
+│        rejected → inject ## Reviewer        │
+│        Feedback, re-dispatch (max 1 retry)  │
+│    3d. 2nd reject → halt, surface questions │
+│    3e. Auto-commit on approval              │
 │ 4. Show git diff                            │
 └─────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ impl AGENT                                  │
+│ impl AGENT (single-pass)                    │
 │ ⚡ Skill("superpowers:brainstorming")       │
 │                                             │
-│ mode=plan:                                  │
-│   1. Extract requirements + completeness    │
-│   2. Dependency exploration (inline, index) │
-│   3. AskUserQuestion → Clarify (max 2)     │
-│   4. Write plan.md (Requirements+Constraints)│
-│                                             │
-│ mode=revise:                                │
-│   Address reviewer Critical Questions       │
-│   Update plan.md                            │
-│                                             │
-│ mode=execute:                               │
-│   Generate CLAUDE.md + DEVELOPERS.md        │
-│   from approved plan.md                     │
+│ 1. Extract → draft → self-critique          │
+│ 2. Snapshot judgment (Remove/Keep/Merge)    │
+│    across Requirements, Constraints,        │
+│    Data Schemas, Flows, Roadmap             │
+│ 3. Diff-aware preservation (action=update)  │
+│    unaffected sections copied verbatim      │
+│    Agent Observations verbatim (INV-8)      │
+│ 4. Resync shortcut: trivial Phase 5,        │
+│    regenerate Constraints only              │
+│ 5. Generate CLAUDE.md + DEVELOPERS.md       │
+│    + rationale sidecar                      │
 └─────────────────────────────────────────────┘
 ```
 
@@ -310,10 +308,10 @@ User: /decompile [path]
 
 | Agent | Functional Role | Superpowers Composition | Description | Observations |
 |-------|----------------|------------------------|-------------|--------------|
-| `impl` | PM/PO | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation | read-write |
-| `impl-reviewer` | PM/PO | (none) | Socratic review of spec plan.md (verdict: approved/rejected) | — |
-| `requirement-explorer` | PM/PO | (none) | Domain-context exploration → requirement concretization | read-only |
-| `requirement-reviewer` | PM/PO | (none) | 5-criteria evaluation of concretized requirements | — |
+| `impl` | PM/PO | brainstorming | Single-pass: Requirements analysis + CLAUDE.md/DEVELOPERS.md generation + rationale sidecar. Diff-aware on update. | read-write |
+| `impl-reviewer` | PM/PO | (none) | Reviews generated CLAUDE.md/DEVELOPERS.md + rationale (verdict: approved/rejected, max 1 retry) | — |
+| `requirement-explorer` | PM/PO | (none) | Domain-context exploration → requirement concretization (retained for future reuse; not called by /spec) | read-only |
+| `requirement-reviewer` | PM/PO | (none) | 5-criteria evaluation of concretized requirements (retained for future reuse; not called by /spec) | — |
 | `validator` | PM/PO | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) | read-write |
 | `decompiler` | PM/PO | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction | read-write |
 | `tdd-coder` | DEVELOPER | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation | read-write |
@@ -330,24 +328,20 @@ User: /decompile [path]
 | `/project-setup` | Create/update Instructions + Conventions in CLAUDE.md (absorbed convention-update) |
 | `/migrate` | Version upgrade migration (v6→v7, v9→v10, etc.) |
 | `/autodev` | Thin orchestrator: Skill(spec) + Skill(dev). Autonomous end-to-end execution. |
-| `/spec-step` | Resume an interrupted spec workflow from persisted state.json |
 
 ## Skills
 
-### Core Skills (v11)
+### Core Skills (v18)
 
 | Skill | Role |
 |-------|------|
-| `/spec` | Requirements → CLAUDE.md (Requirements) + DEVELOPERS.md (Constraints). Self Socratic Loop for requirement concretization, then plan → review → execute. |
+| `/spec` | Requirements → CLAUDE.md + DEVELOPERS.md. Single-pass (extract → draft → self-critique → snapshot judgment → generate) with optional reviewer gate (max 1 retry). `--resync` shortcut regenerates Constraints only. |
 | `/dev` | CLAUDE.md + DEVELOPERS.md → Source code (Per-Constraint R-G-R via tdd-coder + post-TDD review). Displays spec change summary before TDD pipeline. |
 | `/validate` | Document-code consistency check (Deterministic CLI + semantic drift + auto-fix) |
 | `/decompile` | Source code → CLAUDE.md + DEVELOPERS.md extraction |
-| `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer |
-| `/sync` | PM/PO: DEVELOPERS.md partial update for changed Requirements (skips full /spec workflow) |
+| `/bugfix` | Source code bug → 3-layer tracing (CLAUDE.md/DEVELOPERS.md/code) → fix at highest affected layer (judgment internalized in bugfixer agent) |
 | `/impact` | PM/PO: Change impact analysis across module dependency graph (Grep-based, 2-hop) |
-| `/impl-review` | PM/PO: CLAUDE.md + DEVELOPERS.md quality review (deterministic CLI + semantic 5-criteria) |
-| `/status` | PM/PO: Project health dashboard (schema, pairing, drift, conventions) |
-| `/consult` | 외부 추상적 요구사항 → PM/PO 판단 (feasible/partially_feasible/not_feasible + constraints + history + roadmap_fit + suggested_path). Read-only. |
+| `/inspect` | PM/PO: Unified read-only inspection. `--focus health \| quality \| feasibility \| all` (default `health`; `all` = health + quality is opt-in). Absorbs former `/status`, `/impl-review`, `/consult`. |
 
 ### Phase 2 (Planned)
 
@@ -397,15 +391,14 @@ In --strict mode, absence of DEVELOPERS.md is reported as a warning
 ### INV-4: Update Responsibility
 ```
 PM/PO role:
-  /spec      → CLAUDE.md + DEVELOPERS.md (document definition)
-  /sync      → DEVELOPERS.md Constraints update (partial, preserves other sections)
-  /decompile → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
-  /validate  → Violation reporting + interactive resolution + Agent Observations cleanup
-               + improvement 항목 Roadmap promote 검토
-  /impact    → Read-only impact analysis (no file modifications)
-  /impl-review → Read-only quality review (no file modifications)
-  /status    → Read-only health dashboard (no file modifications)
-  /consult   → Read-only judgment (no file modifications)
+  /spec               → CLAUDE.md + DEVELOPERS.md (document definition; diff-aware on update)
+  /spec --resync      → DEVELOPERS.md Constraints update (partial, preserves other sections verbatim)
+  /decompile          → CLAUDE.md + DEVELOPERS.md (document extraction) + Agent Observations (append-only)
+  /validate           → Violation reporting + interactive resolution + Agent Observations cleanup
+                        + improvement 항목 Roadmap promote 검토
+  /impact             → Read-only impact analysis (no file modifications)
+  /inspect            → Read-only: health dashboard + quality review + feasibility judgment
+                        (--focus health | quality | feasibility | all)
 
 DEVELOPER role:
   /dev       → Source Code + DEVELOPERS.md:Agent Observations (append-only)
@@ -487,7 +480,7 @@ post-condition (/spec으로 요구사항 확정 시):
   N.pm_po MUST surface this change as one of:
     [decision] Agent Observation entry
     ∨ ## Decision Log entry (DEVELOPERS.md)
-  dependent nodes MAY trigger /impact → /sync cycle
+  dependent nodes MAY trigger /impact → /spec --resync cycle
   ∧ not_feasible rejection from N.pm_po toward a calling party:
       → escalate via AskUserQuestion before proceeding
 ```
@@ -505,9 +498,9 @@ Permitted exceptions:
   - PM/PO reading own node's spec: permitted (INV-4)
   - /validate, /decompile: system-level read-only scans exempt
   - /impact: dependency graph traversal exempt (read-only, no judgment)
-  - /status: project health dashboard scan exempt (read-only, no judgment)
+  - /inspect: health dashboard + quality review scans exempt (read-only, no judgment)
   - /bugfix: multi-module bug tracing exempt (read-only cross-node, doc escalation path)
-  - /sync: PM/PO DEVELOPERS.md partial update (own node) — covered by PM/PO own-node exception
+  - /spec --resync: PM/PO DEVELOPERS.md partial update (own node) — covered by PM/PO own-node exception
 ```
 
 ### INV-15: po-consultant Verdict Execution
@@ -615,7 +608,7 @@ claude-md composes superpowers domain components to create the "document-driven 
 
 | Layer | Owner | Tools |
 |-------|-------|-------|
-| Spec definition, validation, tracking | claude-md | /spec, /sync, /validate, /decompile, /impact, /impl-review, /status |
+| Spec definition, validation, tracking | claude-md | /spec (with --resync), /validate, /decompile, /impact, /inspect |
 | TDD code generation | claude-md | /dev (per-Constraint R-G-R via tdd-coder) |
 | TDD process discipline | superpowers | test-driven-development (composed by tdd-coder) |
 | Process discipline | superpowers | brainstorming, plans, debugging, verification |
@@ -632,8 +625,8 @@ claude-md composes superpowers domain components to create the "document-driven 
 
 | Agent | Superpowers Component | Composition Method |
 |-------|----------------------|-------------------|
-| impl | brainstorming | Load brainstorming before requirements exploration/design |
-| impl-reviewer | (none) | Socratic review of spec plan.md, return verdict |
+| impl | brainstorming | Single-pass: extract → draft → self-critique → snapshot-judge → generate (diff-aware on update) |
+| impl-reviewer | (none) | Reviews generated CLAUDE.md/DEVELOPERS.md + rationale sidecar, return verdict (max 1 retry) |
 | tdd-coder | test-driven-development | Per-Constraint R-G-R cycle with TDD iron law |
 | test-reviewer | (none) | Post-TDD traceability + honesty verification, return verdict |
 | refactorer | (none) | Apply Conventions + regression protection |

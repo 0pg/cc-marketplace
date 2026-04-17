@@ -1,4 +1,4 @@
-# claude-md-plugin (v11)
+# claude-md-plugin (v18)
 
 > CLAUDE.md = Primary SSOT (PM Requirements), Source Code = Derived Artifact
 
@@ -8,14 +8,17 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    claude-md-plugin v11                       │
+│                    claude-md-plugin v18                       │
 │                                                              │
 │   CLAUDE.md (Primary SSOT — PM Requirements)                 │
 │         │                                                    │
 │         ├──── /spec ──→     Requirements → CLAUDE.md        │
 │         ├──── /dev ──→      CLAUDE.md → Code Generation     │
 │         ├──── /validate ──→ Doc-Code Consistency Check      │
-│         └──── /decompile ──→ Source Code → CLAUDE.md        │
+│         ├──── /decompile ──→ Source Code → CLAUDE.md        │
+│         ├──── /bugfix ──→   3-layer root cause + fix        │
+│         ├──── /impact ──→   Change impact (2-hop graph)     │
+│         └──── /inspect ──→  health / quality / feasibility  │
 │                                                              │
 │   DEVELOPERS.md (System Spec — on-demand)                    │
 │         └──── Constraints = test generation source           │
@@ -62,6 +65,9 @@ Install the superpowers plugin before using `/spec` or `/dev`.
 | Generate code from spec | `/dev` | Source code + tests (from DEVELOPERS.md Constraints) |
 | Check doc-code consistency | `/validate` | Drift report + interactive auto-fix |
 | Document existing code | `/decompile` | CLAUDE.md + DEVELOPERS.md extraction |
+| Trace and fix a bug | `/bugfix "description"` | 3-layer root cause trace + fix at highest affected layer |
+| Preview change blast radius | `/impact --path src/auth` | Downstream consumers (2-hop Grep) |
+| Inspect project / spec / feasibility | `/inspect --focus {health\|quality\|feasibility}` | Read-only dashboard (default `health`) |
 
 ## 2-Document System
 
@@ -85,14 +91,17 @@ module/
 | `## Conventions` | project/module root | No | Unified coding rules (6 subsections) |
 | `## Instructions` | project root only | No | AI behavior directives |
 
-### DEVELOPERS.md Schema
+### DEVELOPERS.md Schema (v5.1)
 
 | Section | Required | None Allowed | Description |
 |---------|----------|-------------|-------------|
 | `## Constraints` | Yes | Yes | Precise I/O contracts — test-convertible |
+| `## Data Schemas` | No | Yes | Public type definitions referenced by other modules |
 | `## Technical Context` | Yes | Yes | Technology choices + rationale |
 | `## Decision Log` | No | Yes | ADR-style: Context/Decision/Rationale |
-| `## Operations` | No | Yes | Deployment, monitoring, troubleshooting |
+| `## Flows` | No (project root only) | Yes | System-level use case execution flows |
+| `## Roadmap` | No | Yes | PM/PO forward planning — Short/Long/Deferred |
+| `## Agent Observations` | No | Yes | Agent-managed experiential knowledge (INV-8 write scope) |
 
 ### Conventions (6 Required Subsections)
 
@@ -105,14 +114,15 @@ module/
 - `### Coding Rules` — Coding rules not enforceable by linters
 - `### Naming Rules` — Variable/function/class/constant naming
 
-## Core Skills (v11)
+## Core Skills (v18)
 
 ### `/spec` — Requirements → CLAUDE.md + DEVELOPERS.md
 
-Analyzes requirements and generates CLAUDE.md (Purpose, Requirements, Domain Context) + DEVELOPERS.md (Constraints, Technical Context).
+Analyzes requirements and generates CLAUDE.md (Purpose, Requirements, Domain Context) + DEVELOPERS.md (Constraints, Technical Context) in a single pass (extract → draft → self-critique → snapshot judgment → generate). An `impl-reviewer` gate may reject once, triggering one retry with `## Reviewer Feedback` injected. On update, unaffected sections — including Agent Observations (INV-8) — are copied verbatim (diff-aware preservation).
 
 ```bash
 /spec "JWT token validation authentication module"
+/spec --resync --path src/auth         # Regenerate only DEVELOPERS.md Constraints after manual CLAUDE.md edits
 ```
 
 ### `/dev` — CLAUDE.md → Source Code
@@ -174,6 +184,25 @@ Traces a reported bug through all three layers (CLAUDE.md Requirements → DEVEL
 /bugfix "description" --error "TypeError: cannot read property..."
 ```
 
+### `/impact` — Change Impact Analysis
+
+Traverses the module dependency graph (Grep-based, 2-hop) to surface downstream effects of a change.
+
+```bash
+/impact --path src/auth
+```
+
+### `/inspect` — Unified Read-only Inspection
+
+Single entry point covering project health, spec quality review, and feasibility consultation. Replaces former `/status`, `/impl-review`, `/consult`. Dispatches to `references/inspect/{health,quality,feasibility}.md` so each invocation only loads the focus it needs.
+
+```bash
+/inspect                                      # default --focus health (lightweight dashboard)
+/inspect --focus quality --path src/auth      # 5-criteria semantic review
+/inspect --focus feasibility --path src/auth "Can we add OAuth2?"
+/inspect --focus all                          # opt-in: health + quality together
+```
+
 ## Commands
 
 | Command | Description |
@@ -181,16 +210,12 @@ Traces a reported bug through all three layers (CLAUDE.md Requirements → DEVEL
 | `/project-setup` | Initialize/update Instructions + Conventions in project CLAUDE.md |
 | `/migrate` | Migrate to new schema version (v6→v7, v9→v10 supported) |
 | `/autodev` | Autonomously run requirements → CLAUDE.md → code → validation loop without manual steps |
-| `/spec-step` | Resume an interrupted `/spec` workflow by reading persisted state.json |
 
-## Phase 2 Skills (planned)
+## Planned Skills
 
 | Skill | Role |
 |-------|------|
-| `/spec-review` | CLAUDE.md quality review |
-| `/impact` | Change impact analysis |
 | `/diff-spec` | Semantic diff between spec versions |
-| `/status` | Project health dashboard |
 | `/refactor` | Module split/merge |
 
 ## Workflow Examples
@@ -217,7 +242,7 @@ Edit CLAUDE.md → /dev → /validate
 
 ### Session File Pattern
 
-v11's core interface: Skills extract context into session files, Agents consume them.
+v18's core interface: Skills extract context into session files, Agents consume them.
 
 ```
 SKILL (Entry Point)
@@ -237,13 +262,15 @@ SKILL (Entry Point)
 
 | Agent | Superpowers Composition | Role |
 |-------|------------------------|------|
-| `impl` | brainstorming | Requirements analysis + CLAUDE.md/DEVELOPERS.md generation |
+| `impl` | brainstorming | Single-pass Requirements analysis + CLAUDE.md/DEVELOPERS.md generation (diff-aware on update) |
 | `tdd-coder` | test-driven-development | Per-Constraint R-G-R cycle: test + impl + mapping generation |
 | `test-reviewer` | (none) | Post-TDD verification: traceability, boundary, assertion, honesty |
 | `refactorer` | (none) | REFACTOR — conventions application + regression tests |
 | `validator` | verification-before-completion | Semantic drift detection (Requirements, Convention, DEVELOPERS.md) |
 | `decompiler` | (none) | Source code → CLAUDE.md/DEVELOPERS.md extraction |
-| `impl-reviewer` | (none) | Socratic review of spec plan.md (verdict: approved/rejected) |
+| `impl-reviewer` | (none) | Reviews generated CLAUDE.md/DEVELOPERS.md + rationale (max 1 retry) |
+| `spec-quality-reviewer` | (none) | 5-criteria spec quality review for /inspect |
+| `po-consultant` | (none) | Read-only feasibility judgment (spec/history/roadmap layers) |
 | `bugfixer` | systematic-debugging | 3-layer root cause analysis + Layer 3 code fix (or doc escalation) |
 
 ### Design Principles
@@ -275,16 +302,21 @@ Each CLAUDE.md must be self-contained within its boundary.
 ```bash
 claude-md-core scan-claude-md --root .                    # Project-wide CLAUDE.md index
 claude-md-core diff-compile-targets --root .              # Changed CLAUDE.md/DEVELOPERS.md detection
+claude-md-core diff-node-history --path src/auth --root . # Section-level diffs from recent commits
+claude-md-core detect-schema-change --before a --after b  # Data Schemas change detection
 claude-md-core parse-tree --root .                        # Directory tree analysis
 claude-md-core resolve-boundary --path src/auth           # Boundary resolution
 claude-md-core analyze-code --path src/auth               # Code analysis (6 languages)
 claude-md-core parse-claude-md --file CLAUDE.md           # CLAUDE.md → JSON
 claude-md-core validate-schema --file CLAUDE.md           # Schema validation
 claude-md-core validate-convention --project-root .       # Convention validation
+claude-md-core validate-language --file CLAUDE.md         # Document-language validation
 claude-md-core fix-schema --file CLAUDE.md                # Auto-add missing sections
 claude-md-core contract-hash --file CLAUDE.md             # SHA-256 hash for change detection
 claude-md-core format-exports --input analysis.json       # Exports markdown generation
 claude-md-core format-analysis --input analysis.json      # Analysis summary generation
+claude-md-core impact-scan --target src/auth --root .     # Downstream consumers (2-hop)
+claude-md-core diff-preservation --prior P --new N --sections "A,B"  # v18.1: preservation audit
 ```
 
 ## License
