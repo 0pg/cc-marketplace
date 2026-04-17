@@ -1,7 +1,7 @@
 {
   "name": "flow",
   "version": "0.1.0",
-  "description": "DAG-based task execution engine. Turns a user request into atomic subtasks, builds a DAG with deterministic per-node validators, executes independent nodes in parallel via git-worktree-isolated agents, and performs merge+validate as an independent cascade step (git-conflict → project tests → LLM semantic review). Persistent state under .claude/workflows/flow/{task-id}/ enables resume. Commands: /flow, /flow-status, /flow-resume, /flow-graph.",
+  "description": "DAG-based task execution engine. Turns a user request into atomic subtasks, builds a DAG with deterministic per-node validators, executes independent nodes in parallel via git-worktree-isolated agents, and performs merge+validate as an independent cascade step (git-conflict → project tests → LLM semantic review). Persistent state under .claude/workflows/flow/{task-id}/ enables resume.",
   "author": {
     "name": "jhk"
   },

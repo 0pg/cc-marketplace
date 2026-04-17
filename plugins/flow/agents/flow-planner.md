@@ -34,7 +34,7 @@ description: |
   </assistant_response>
   </example>
 model: inherit
-color: purple
+color: magenta
 tools:
   - Read
   - Write
