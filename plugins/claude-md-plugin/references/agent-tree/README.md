@@ -16,6 +16,7 @@ Reference design for the v19 node-agent tree model. Companion to
 | 2 | `source-as-tool.md` | How an agent treats source files inside its node as callable tools. |
 | 3 | `delegation.md` | How a parent agent discovers, invokes, and consumes results from child agents. |
 | 4 | `decomposition.md` | When and how to split a node — cohesion/boundary heuristics. |
+| 5 | `orchestration.md` | Main-ctx orchestration: plan-first, execute-second protocol used with the `node-agent` subagent. |
 
 ## Core Vocabulary
 

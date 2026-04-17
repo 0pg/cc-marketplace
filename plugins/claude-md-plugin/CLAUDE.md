@@ -75,7 +75,7 @@ v19 rebuild (steps 4–5).
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | pending |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.4.0 — `node-agent` subagent + orchestration doc) |
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
 
@@ -98,6 +98,14 @@ opting into that architecture.
 - `references/agent-tree/source-as-tool.md` — tool invocation conventions
 - `references/agent-tree/delegation.md` — parent↔child contract
 - `references/agent-tree/decomposition.md` — when/where to split a node
+- `references/agent-tree/orchestration.md` — main-ctx plan-first/execute-second workflow with `node-agent`
+
+### Subagents
+
+- `agents/node-agent.md` — node-scoped planning agent. Loads a target
+  node's `CLAUDE.md`, adopts that node's identity, and returns a
+  structured work plan (Identity / In-Scope / Delegated / Escalated /
+  Open Questions). Planning-only; execution mode is a follow-up.
 
 ## Instructions
 
@@ -121,7 +129,7 @@ claude-md-plugin/
 ├── CLAUDE.md          — this file (plugin agent prompt)
 ├── README.md          — (v18 legacy; rewrite deferred to step 4+)
 ├── DEVELOPERS.md      — (v18 legacy; rewrite deferred to step 4+)
-├── agents/            — (empty — awaiting v19 rebuild, Roadmap step 4)
+├── agents/            — `node-agent` subagent (v19.4.0); more pending
 ├── skills/            — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── commands/          — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── hooks/             — SessionStart philosophy-reminder hook (v19.3.0)
