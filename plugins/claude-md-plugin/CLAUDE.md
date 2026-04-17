@@ -62,10 +62,11 @@ This plugin is mid-rewrite. The v18 execution model (doc-as-SSOT, `/spec`,
 `/dev`, `/validate`, `/decompile`, `/bugfix`, `/impact`, `/inspect`,
 `/autodev`, `/project-setup`, `/migrate`, paired `DEVELOPERS.md`, INV-1 ~
 INV-15, session-file pattern, `po-consultant` verdict protocol, Agent
-Observations, spec-quality reviewer) is **retired in principle**. Concrete
-files under `agents/`, `skills/`, `commands/`, and much of `core/` still
-reflect v18 and are **pending teardown**. Do not extend them; do not treat
-them as authoritative.
+Observations, spec-quality reviewer) is **retired**. As of Roadmap step 3,
+all v18 agents, skills, commands, hooks, the `core/` Rust CLI, and v18
+reference docs have been removed. `agents/`, `skills/`, `commands/`,
+`hooks/`, `scripts/`, and `core/` are now empty placeholders awaiting the
+v19 rebuild (steps 4–5).
 
 ### Rebuild Roadmap
 
@@ -73,9 +74,9 @@ them as authoritative.
 |------|-------|--------|
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
-| 3 | Teardown — remove `agents/`, `skills/`, `commands/` contents | pending |
+| 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
 | 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | pending |
-| 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses | pending |
+| 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
 
 ### Reference Design
@@ -85,9 +86,6 @@ them as authoritative.
 - `references/agent-tree/source-as-tool.md` — tool invocation conventions
 - `references/agent-tree/delegation.md` — parent↔child contract
 - `references/agent-tree/decomposition.md` — when/where to split a node
-
-The legacy `references/inspect/` and `references/shared/` directories remain
-only until Roadmap step 3; treat them as v18 artifacts, not current design.
 
 ## Instructions
 
@@ -107,45 +105,27 @@ only until Roadmap step 3; treat them as v18 artifacts, not current design.
 
 ```
 claude-md-plugin/
-├── core/              — Rust CLI engine (scope under review; Roadmap step 5)
-│   ├── src/
-│   ├── tests/
-│   └── Cargo.toml
-├── skills/            — (pending teardown — Roadmap step 3)
-├── agents/            — (pending teardown — Roadmap step 3)
-├── commands/          — (pending teardown — Roadmap step 3)
-├── hooks/             — Hook definitions
-├── scripts/           — Shell utility scripts
-└── references/        — Reference materials
+├── .claude-plugin/    — plugin manifest (plugin.json)
+├── CLAUDE.md          — this file (plugin agent prompt)
+├── README.md          — (v18 legacy; rewrite deferred to step 4+)
+├── DEVELOPERS.md      — (v18 legacy; rewrite deferred to step 4+)
+├── agents/            — (empty — awaiting v19 rebuild, Roadmap step 4)
+├── skills/            — (empty — awaiting v19 rebuild, Roadmap step 4)
+├── commands/          — (empty — awaiting v19 rebuild, Roadmap step 4)
+├── hooks/             — (empty — no hooks in v19 baseline; re-add if needed)
+├── scripts/           — (empty — utility scripts re-added as agent tools need them)
+├── core/              — (empty — awaiting Roadmap step 5 re-scope / rebuild)
+└── references/        — reference materials
+    └── agent-tree/    — v19 reference design (step 2 draft)
 ```
 
-### Language & Runtime
+### Naming Conventions (plugin authoring)
 
-- Rust, edition 2021, stable toolchain — only inside `core/`.
-- Skills / agents / commands / hooks: Markdown + shell, consumed by Claude Code.
-
-### Naming Conventions
-
-- Rust source files: `snake_case.rs`
 - Skill, agent, command files: `kebab-case.md`
-- CLI subcommand names: `kebab-case`
-- Sub-modules under `core/src/`: `snake_case/`
+- Shell scripts: `kebab-case.sh`
 
-### Coding Rules (Rust `core/`)
-
-- Custom error types use `thiserror::Error`; no ad-hoc `String` or
-  `Box<dyn Error>` for library errors.
-- `serde` for every data type that crosses the CLI boundary (stdout JSON,
-  stderr errors).
-- No `unwrap()` / `expect()` in library code; return `Result`.
-- No async in production code; async is restricted to the Tokio test runtime.
-
-### Naming Rules
-
-- Functions and locals: `snake_case`
-- Structs, enums, traits: `PascalCase`
-- Constants and statics: `SCREAMING_SNAKE_CASE`
-- Enum variants: `PascalCase`
+Language-specific conventions (Rust, etc.) will return in the relevant node's
+`CLAUDE.md` when that node is rebuilt in step 5.
 
 ## Domain Context
 
