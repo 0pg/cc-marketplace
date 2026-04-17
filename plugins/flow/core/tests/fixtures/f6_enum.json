@@ -1,0 +1,8 @@
+{
+  "task_id": "t6",
+  "created_at": "2026-04-17T10:00:00Z",
+  "spec_ref": "spec.md",
+  "nodes": [
+    {"id": "parse", "type": "work", "deps": [], "agent": "flow-fixer", "title": "p", "spec": "...", "validator": {"kind": "magic", "command": "foo", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t6/p"}}
+  ]
+}

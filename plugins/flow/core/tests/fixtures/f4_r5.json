@@ -1,0 +1,10 @@
+{
+  "task_id": "t4",
+  "created_at": "2026-04-17T10:00:00Z",
+  "spec_ref": "spec.md",
+  "nodes": [
+    {"id": "parse-a", "type": "work", "deps": [], "agent": "flow-worker", "title": "pa", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t4/pa"}},
+    {"id": "parse-b", "type": "work", "deps": [], "agent": "flow-worker", "title": "pb", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t4/pb"}},
+    {"id": "render", "type": "work", "deps": ["parse-a", "parse-b"], "agent": "flow-worker", "title": "r", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t4/r"}}
+  ]
+}
