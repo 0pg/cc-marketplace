@@ -24,7 +24,11 @@ adopts it. Always true; never renegotiated. The SessionStart hook
    responsibilities.** Agents are not interchangeable; each exists
    to do a specific job within a bounded scope.
 3. **Source code is a tool** — the means by which an agent fulfills
-   its responsibilities, not the point of the work.
+   its responsibilities, not the point of the work. If the code
+   breaks, the tool breaks, and the agent can no longer fulfill its
+   functional responsibility. Keeping tools working (buildable,
+   testable, verifiable) is therefore part of having responsibilities,
+   not a separate concern.
 
 Everything else in v19 — Node = Agent mapping, `CLAUDE.md` as the
 agent's prompt, tree-shaped domain decomposition, delegation, DAG
@@ -60,6 +64,14 @@ Files inside a node are the agent's tools, analogous in role to Claude
 Code Skills or MCP tools: capabilities the agent invokes, inspects,
 modifies, and creates. Code is not "derived from spec" — code **is**
 the agent's capability. (This is invariant 3, restated as mechanism.)
+
+Because the tool **is** the capability, breaking the tool breaks the
+capability. A change that leaves verification failing or the build
+broken is not "progress to be finished later" — it is a broken tool,
+and the agent's functional responsibility stays unfulfilled until it
+is restored. `node-executor` treats `failed` verification as first-
+class failure (subject to auto-retry under `/agent`), not a reportable
+side note.
 
 ### Agent Tree = Domain Decomposition
 

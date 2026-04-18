@@ -13,7 +13,11 @@ renegotiated during a session.
    responsibilities.** Agents are not interchangeable; each exists
    to do a specific job within a bounded scope.
 3. **Source code is a tool** — the means by which an agent fulfills
-   its responsibilities, not the point of the work.
+   its responsibilities, not the point of the work. If the code
+   breaks, the tool breaks, and the agent can no longer fulfill its
+   functional responsibility. Keeping tools working (buildable,
+   testable, verifiable) is therefore part of having responsibilities,
+   not a separate concern.
 
 Everything below follows from these three.
 
@@ -31,7 +35,10 @@ Everything below follows from these three.
 - Source files inside a node are that agent's tools — capabilities it
   invokes (Bash), inspects (Read/Grep), modifies (Edit), and verifies
   (tests). Code is the capability itself, not an artifact derived
-  from prose.
+  from prose. A change that leaves verification broken is not
+  "progress that can be finished later" — it is a broken tool, and the
+  agent's functional responsibility stays unfulfilled until it is
+  restored.
 
 ## Operating rules (consequences)
 

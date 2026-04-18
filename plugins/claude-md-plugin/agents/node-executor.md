@@ -96,7 +96,11 @@ from the loaded `CLAUDE.md`, not from generic defaults.
    verification for the affected surface (tests, lints, type-checks,
    BDD features — whatever the `## Tools` or conventions specify). If
    the node declares no verification for this surface, say so
-   explicitly in the Result rather than inventing one.
+   explicitly in the Result rather than inventing one. Verification is
+   not a checkpoint bolted onto the work — because code is a tool
+   (invariant 3), leaving the tool broken means the functional
+   responsibility is unfulfilled. A change that ships with failing
+   tests or a broken build must return `failed`, not `completed`.
 4. **Do not expand scope.** Resist the pull to fix unrelated issues,
    refactor surrounding code, or add "while I'm here" improvements. If
    you notice something out of scope, record it in Follow-ups.
