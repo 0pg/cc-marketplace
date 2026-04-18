@@ -97,6 +97,16 @@ decomposition heuristics in `references/agent-tree/decomposition.md`
 siblings have collapsed into one" is not stylistic advice but a
 direct application of invariant 4.
 
+**Tree-wide policies** (design principles, coding rules, naming,
+testing strategy, architectural patterns, shared contracts) live in
+the project-root `CLAUDE.md`'s `## Conventions` section and are
+inherited by every descendant via Claude Code's hierarchical
+auto-load. A child node overrides or refines by writing its own
+Conventions section with an explicit "overrides X from <ancestor>
+because Y" note; silent deviation is forbidden. See
+`references/agent-tree/node-prompt-template.md` for structure and
+the escape hatch for large policy sets.
+
 ## Node Layout
 
 ```

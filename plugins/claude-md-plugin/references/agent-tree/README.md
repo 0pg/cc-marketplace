@@ -26,6 +26,7 @@ Invariants Manifest** sections).
 | **Tool** (in this plugin's sense) | A source file or subset of source inside the node that the agent invokes via Bash/Edit/Read to do work. Not to be confused with Claude Code's framework tools (Bash, Edit, Read, Task, …). |
 | **Delegation** | Parent agent handing off a task to a specific child agent whose domain contains the task. |
 | **Boundary** | The set of files a node agent is authorized to read and modify. Equal to the node's own files plus, via delegation, whatever its children expose. |
+| **Conventions** | Tree-wide policies (design principles, coding rules, naming, testing strategy, architectural patterns, shared contracts). Declared in the project-root `CLAUDE.md`'s `## Conventions` section; inherited by every descendant via Claude Code's hierarchical auto-load. Overrides are documented in the deviating node's own Conventions section. |
 
 ## Non-Goals
 
