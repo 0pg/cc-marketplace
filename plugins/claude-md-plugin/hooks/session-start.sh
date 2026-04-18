@@ -18,3 +18,5 @@ REMINDER_FILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/hooks/ph
 if [ -f "$REMINDER_FILE" ]; then
   cat "$REMINDER_FILE"
 fi
+
+exit 0
