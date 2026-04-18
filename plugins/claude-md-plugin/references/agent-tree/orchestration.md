@@ -1,8 +1,14 @@
 # Main-Ctx Orchestration (v19 draft)
 
 How the top-level conversation (**main ctx**) drives work through the
-agent tree. Companion to `delegation.md` (which defines the contract)
-and to the `node-agent` subagent (which embodies one node's role).
+agent tree. Companion to `delegation.md` (which defines the contract),
+the `node-agent` subagent (planning), and the `node-executor` subagent
+(execution).
+
+**Main ctx is pure orchestration.** It never Edits, Writes, or runs
+side-effecting Bash against the working tree directly. All changes
+pass through a `node-executor` dispatch so that the owning node's
+boundary, tools, and verification are honored.
 
 ## Core Pattern: Plan-First, Execute-Second
 
@@ -28,7 +34,8 @@ plans into a **dependency DAG**, then executes with full visibility.
 6. main ctx: once every Delegated item across the tree has either been
    dispatched and returned, or been resolved via Open Questions /
    Escalations, assemble all returned plans into a single DAG and
-   execute it.
+   execute it via per-item `node-executor` dispatches (topological
+   order; independent items may run in parallel).
 ```
 
 ## Why Main Ctx Holds the Recursion
@@ -116,24 +123,87 @@ The DAG is the execution artifact — linear transcripts are not.
 
 ## Execution Phase (step 6)
 
-Design currently underspecified; the DAG framing above constrains the
-design space. Likely shape:
+Main ctx performs topological execution of the assembled DAG. It is
+**pure orchestration** during this phase — no direct Edit/Write/Bash
+touches the node tree. Every executable item is delegated to a
+`node-executor` subagent whose boundary is the item's owning node.
 
-- Main ctx performs topological execution of the DAG. Independent
-  nodes (no edge between them) **may** be executed in parallel; nodes
-  on a dependency edge must be serialized.
-- Per-item execution still goes through a node-agent call (because
-  Edit/Write must happen inside the owning node's boundary). A
-  future `node-agent` execution mode, or a dedicated executor
-  subagent, would receive the specific plan item(s) to execute and
-  return a result.
-- Failure handling, retries, and plan invalidation on failure are
-  open design questions. The `flow` plugin's DAG execution loop is a
-  useful precedent; whether to integrate or re-implement remains open.
+### Loop
 
-The current `node-agent` definition is **planning-only**. Adding an
-execution mode is a follow-up; the planning contract does not depend
-on it.
+```
+execute_dag(dag):
+  while ∃ item in dag where item.status = pending
+                         ∧ ∀dep ∈ item.deps: dep.status = completed:
+      ready = [those items]
+      for each item in ready (parallelizable across disjoint boundaries):
+          dispatch node-executor(
+              node        = item.owning_node,
+              item        = <the plan line from the item's origin plan>,
+              upstream    = optional summaries from item.deps outputs
+          )
+      for each returned result:
+          record {status, changed_files, verification, summary, notes,
+                  follow_ups}
+          if status = completed:
+              item.status = completed
+          if status = failed:
+              halt the dag locally at this item; surface to main ctx's
+              caller (the user) — revert, retry-with-fix, or accept are
+              user decisions, not executor decisions
+          if status = blocked:
+              halt the affected branch; surface the blocker so main ctx
+              can re-plan (typically by re-dispatching the relevant
+              node-agent with a refined instruction)
+  terminate when all items are completed, or when halted items block
+  the remainder of the DAG
+```
+
+### Main ctx's responsibilities during execution
+
+- Choose the next ready batch from the DAG. **Independent items**
+  (no transitive edge between them) are eligible for parallel
+  dispatch; dependent items are serialized.
+- Construct each `node-executor` message with exactly the plan-item
+  text, the owning node path, and any required upstream summaries.
+- Route returned results: persist outcomes (in-session recording or
+  optional state file), propagate completion to unblock successors,
+  and surface failures/blocks to the user.
+- **Never** perform the edit itself, even if the work looks trivial.
+  Boundary ownership belongs to the node. Editing without going
+  through `node-executor` breaks the node's invariants, loses
+  verification, and erodes the architecture.
+
+### Parallelism and boundaries
+
+Two items can run in parallel when they belong to **disjoint
+boundaries** — i.e., different nodes with no ancestor/descendant
+relationship. Two items in the same node are sequential by default,
+because their executors operate on the same filesystem region and may
+interfere.
+
+When in doubt, serialize. Parallelism here is a performance
+optimization, not a correctness property; the DAG's dependency edges
+are the correctness property.
+
+### Failure handling (current defaults, open to refinement)
+
+- **failed**: executor made changes but verification failed. Main ctx
+  halts successors that depend on this item, records the failure, and
+  returns control to the user. Retry / revert / accept is a user
+  decision, not an automated loop. A future iteration may add bounded
+  auto-retry with a fix hint, following the pattern in the `flow`
+  plugin.
+- **blocked**: executor did not change the tree — usually a boundary
+  violation, missing `CLAUDE.md`, or ambiguous item. Main ctx halts
+  the branch and re-dispatches the relevant `node-agent` with a
+  sharpened instruction (typically the blocker itself as feedback).
+- **completed**: successors become eligible. No further action needed.
+
+The `flow` plugin's DAG execution loop (see `plugins/flow/CLAUDE.md`
+— node dispatch, state persistence, cascading validators, retry
+bounds) is a useful precedent. Whether to integrate directly with
+`flow` or keep the agent-tree execution loop standalone remains an
+open question for a later revision.
 
 ## Anti-Patterns
 
