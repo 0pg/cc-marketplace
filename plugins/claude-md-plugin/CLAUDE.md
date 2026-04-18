@@ -10,7 +10,30 @@ agent's tool set. Because a single god-agent cannot hold a whole project in its
 context window, the plugin decomposes responsibility into child agents by domain
 cohesion, and parent agents delegate to them.
 
-## Core Philosophy (v19)
+## Invariants (v19)
+
+Three foundational premises about this plugin and any project that
+adopts it. Always true; never renegotiated. The SessionStart hook
+(`hooks/philosophy-reminder.md`) injects them into every session on
+`startup`, `resume`, `clear`, and `compact`.
+
+1. **A project using this plugin is one agent system, composed of
+   multiple agents.** Not a codebase with automation on top. The
+   project's identity is multi-agent.
+2. **Every agent has its own purpose, domain context, and
+   responsibilities.** Agents are not interchangeable; each exists
+   to do a specific job within a bounded scope.
+3. **Source code is a tool** — the means by which an agent fulfills
+   its responsibilities, not the point of the work.
+
+Everything else in v19 — Node = Agent mapping, `CLAUDE.md` as the
+agent's prompt, tree-shaped domain decomposition, delegation, DAG
+orchestration, the `node-agent` / `node-executor` / `node-bootstrapper`
+split, main-ctx as pure orchestrator — is a **consequence** of these
+three plus the practical constraints of Claude Code (context windows,
+subagent non-recursion).
+
+## How the Invariants Manifest
 
 > Prior to v19, this plugin treated `CLAUDE.md` as the Primary SSOT and source
 > code as a derived artifact. **That premise is retired.** Documents-as-SSOT did
@@ -18,34 +41,35 @@ cohesion, and parent agents delegate to them.
 > code is the substance; `CLAUDE.md` is prompt engineering for the agent that
 > owns the node.
 
-### 1. Node = Agent
+### Node = Agent
 
-Every node (directory or package) in the project corresponds to exactly one
-agent. The agent has authority and responsibility scoped to its node boundary,
-and nothing beyond.
+Every node (directory or package) with a `CLAUDE.md` is one of those
+agents. The agent has authority and responsibility scoped to its node
+boundary, and nothing beyond.
 
-### 2. CLAUDE.md = Agent Prompt
+### CLAUDE.md = Agent Prompt
 
-A node's `CLAUDE.md` is the **system prompt** for that node's agent. It carries
-the agent's role, responsibilities, domain context, interaction contracts with
-parents and children, and any invariants the agent must uphold — every piece of
-context the agent needs to make judgments inside its boundary. `CLAUDE.md` is
-**instruction**, not **truth of record**.
+A node's `CLAUDE.md` is the **system prompt** for that node's agent —
+role, responsibilities, domain context, interaction contracts with
+parents and children, and any rules the agent must uphold. `CLAUDE.md`
+is **instruction**, not **truth of record**.
 
-### 3. Source Code = Tools
+### Source Code = Tools
 
-Files inside a node are the agent's tools, analogous in role to Claude Code
-Skills or MCP tools: capabilities the agent invokes, inspects, modifies, and
-creates. Code is not "derived from spec" — code **is** the agent's capability.
+Files inside a node are the agent's tools, analogous in role to Claude
+Code Skills or MCP tools: capabilities the agent invokes, inspects,
+modifies, and creates. Code is not "derived from spec" — code **is**
+the agent's capability. (This is invariant 3, restated as mechanism.)
 
-### 4. Agent Tree = Domain Decomposition
+### Agent Tree = Domain Decomposition
 
-A single agent cannot hold the whole project; context windows forbid it.
-Cohesive sub-domains become child nodes, each with its own agent. A parent
-agent knows its children's roles (by reading each child's `CLAUDE.md`
-summary) and **delegates** out-of-scope work to the child whose domain
-contains it. Trees are dependency-shaped: parents may depend on children;
-children do not reach up to parents; siblings do not cross-reference directly.
+A single agent cannot hold the whole project; context windows forbid
+it. Cohesive sub-domains become child nodes, each with its own agent.
+A parent agent knows its children's roles (by reading each child's
+`CLAUDE.md` summary) and **delegates** out-of-scope work to the child
+whose domain contains it. Trees are dependency-shaped: parents may
+depend on children; children do not reach up to parents; siblings do
+not cross-reference directly.
 
 ## Node Layout
 
@@ -77,7 +101,7 @@ v19 rebuild (steps 4–5).
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
 | 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.7.0 — `/agent` command + `node-bootstrapper` + DAG state model + auto-retry) |
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
-| 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
+| 6 | New invariant set — three foundational premises (multi-agent system; per-agent purpose/context/responsibility; code as tool). Injected via SessionStart hook and documented in this file. | done (v19.8.0) |
 
 ### SessionStart Philosophy Reminder (v19.3.0)
 
