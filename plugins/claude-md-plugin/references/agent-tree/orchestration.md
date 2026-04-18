@@ -14,6 +14,26 @@ side-effecting Bash against the working tree directly. All changes
 pass through a `node-executor` dispatch so that the owning node's
 boundary, tools, and verification are honored.
 
+## Locating the Root Node
+
+Before planning starts, main ctx must identify the **root node** —
+the topmost node (directory) owning a `CLAUDE.md` that covers the
+user's instruction.
+
+Resolution rules:
+
+1. If `cwd/CLAUDE.md` exists, it is the root of the current invocation.
+2. Otherwise, walk up from `cwd` to find the nearest ancestor with a
+   `CLAUDE.md`; that is the root.
+3. If no ancestor up to the filesystem root has a `CLAUDE.md`, the
+   project has not yet been declared as an agent system. Main ctx
+   surfaces this to the user with two options: (a) dispatch
+   `node-bootstrapper` against `cwd` (or a user-specified directory)
+   with `intended_role` = the user's instruction, then retry; (b)
+   narrow the instruction to a subtree that is declared.
+
+Main ctx does not silently pick a root; ambiguity is surfaced.
+
 ## Core Pattern: Plan-First, Execute-Second
 
 Node agents are **planners** during discovery: when main ctx invokes a
@@ -170,7 +190,9 @@ execute_dag(dag, max_retries=3):
           dispatch node-executor(
               node     = item.owning_node,
               item     = <the plan line from the item's origin plan>,
-              upstream = optional summaries from item.deps outputs
+              upstream = optional free-form Markdown summary of
+                         dep outputs (verification failures on retry,
+                         non-filesystem values, contracts, decisions)
           )
       for each returned result:
           record {status, changed_files, verification, summary,

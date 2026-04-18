@@ -12,7 +12,7 @@ cohesion, and parent agents delegate to them.
 
 ## Invariants (v19)
 
-Three foundational premises about this plugin and any project that
+Four foundational premises about this plugin and any project that
 adopts it. Always true; never renegotiated. The SessionStart hook
 (`hooks/philosophy-reminder.md`) injects them into every session on
 `startup`, `resume`, `clear`, and `compact`.
@@ -41,7 +41,7 @@ Everything else in v19 — Node = Agent mapping, `CLAUDE.md` as the
 agent's prompt, tree-shaped domain decomposition, delegation, DAG
 orchestration, the `node-agent` / `node-executor` / `node-bootstrapper`
 split, main-ctx as pure orchestrator — is a **consequence** of these
-three plus the practical constraints of Claude Code (context windows,
+four plus the practical constraints of Claude Code (context windows,
 subagent non-recursion).
 
 ## How the Invariants Manifest
@@ -125,7 +125,7 @@ v19 rebuild (steps 4–5).
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.7.0 — `/agent` command + `node-bootstrapper` + DAG state model + auto-retry) |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | done (v19.10.0 — `/agent` + 3 subagents + 6 reference docs + SessionStart hook; `skills/` remains intentionally empty — see step 5) |
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — three foundational premises (multi-agent system; per-agent purpose/context/responsibility; code as tool). Injected via SessionStart hook and documented in this file. | done (v19.8.0) |
 
@@ -192,9 +192,10 @@ directly.
 ## Instructions
 
 - Document language: English.
-- Treat **Core Philosophy** above as the authority during the v19 rewrite.
-  Anything in this repo that contradicts it (v18 agent/skill/command files,
-  v18 CLI subcommands, stale README content) is legacy pending removal.
+- Treat the **Invariants** and **How the Invariants Manifest** sections
+  above as the authority during the v19 rewrite. Anything in this repo
+  that contradicts them (stale README content, surviving v18 references)
+  is legacy pending removal.
 - Do not author new workflows, agents, or CLI subcommands against the v18
   model.
 - Version bumps remain mandatory per the marketplace rule: update
@@ -213,11 +214,10 @@ claude-md-plugin/
 ├── DEVELOPERS.md      — (v18 legacy; rewrite deferred to step 4+)
 ├── agents/            — `node-agent` + `node-executor` + `node-bootstrapper`
 ├── commands/          — `/agent` (orchestration entry point)
-├── skills/            — (empty — awaiting v19 rebuild, Roadmap step 4)
-├── commands/          — (empty — awaiting v19 rebuild, Roadmap step 4)
-├── hooks/             — SessionStart philosophy-reminder hook (v19.3.0)
+├── skills/            — (intentionally empty — v19 baseline has no plugin-level skills)
+├── hooks/             — SessionStart philosophy-reminder hook
 ├── scripts/           — (empty — utility scripts re-added as agent tools need them)
-├── core/              — (empty — awaiting Roadmap step 5 re-scope / rebuild)
+├── core/              — (empty — Roadmap step 5: pending decision)
 └── references/        — reference materials
     └── agent-tree/    — v19 reference design (step 2 draft)
 ```

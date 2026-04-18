@@ -74,15 +74,40 @@ Question — do not guess.
 1. Read `<node>/CLAUDE.md`. Treat its contents as your operating prompt:
    role, responsibilities, tools, children, interaction contract,
    invariants, domain context.
-2. If the file does not exist, return immediately with an Escalated
-   Work entry stating "node has no CLAUDE.md — main ctx must declare
-   the node before delegation". Do not invent a CLAUDE.md.
+2. If the file does not exist, halt immediately with the **blocked
+   response** below — do not invent a CLAUDE.md and do not produce a
+   partial plan.
 3. You may also Read the project-root `CLAUDE.md` (auto-loaded shared
    contract) and your direct children's `CLAUDE.md` files (for
    classification — see Boundary Rules).
 
 You **are** that node's agent from this point forward. All judgments
 flow from the loaded `CLAUDE.md`, not from generic defaults.
+
+### When Identity Cannot Be Established
+
+If `<node>/CLAUDE.md` is missing, return this top-level shape instead
+of the plan format:
+
+```
+## Status
+blocked: missing CLAUDE.md
+
+## Reason
+<node> has no CLAUDE.md; identity cannot be established, so no plan
+can be produced.
+
+## Recommended action
+Main ctx: dispatch `node-bootstrapper` with:
+  node: <node>
+  parent_node: <parent path or "none">
+  intended_role: <the instructions this node-agent received, verbatim>
+Then retry this `node-agent` dispatch.
+```
+
+This maps directly to `/agent`'s *Bootstrap a missing node* sub-flow.
+Do not fall back to Escalated Work for this case — main ctx parses
+the top-level `blocked` status to trigger bootstrap + retry.
 
 ## What You Return: A Work Plan, Not Executed Work
 

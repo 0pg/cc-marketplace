@@ -60,10 +60,12 @@ Main ctx passes three parameters in the user message:
   `CLAUDE.md`.
 - **`item:`** the plan item to execute — the exact line (or lines) from
   the plan: `[<id>] <description> [— deps: [...]] — <rationale>`.
-- **`upstream:`** (optional) a concise summary of upstream DAG items'
-  outcomes that you may need — typically absent, because the working
-  tree already reflects completed upstream edits. Provided only when a
-  non-filesystem signal matters (a decision, a value, a contract).
+- **`upstream:`** (optional) a **free-form Markdown block** summarizing
+  upstream DAG items' outcomes you may need — typically absent, because
+  the working tree already reflects completed upstream edits. Provided
+  only when a non-filesystem signal matters (a decision, a value, a
+  contract, or a verification failure to address on retry). No JSON
+  schema; prose is fine.
 
 If a parameter is missing or ambiguous, halt with a `blocked` result —
 do not guess.
