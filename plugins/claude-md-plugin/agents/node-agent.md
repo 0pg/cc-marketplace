@@ -166,6 +166,16 @@ from the loaded CLAUDE.md>
   loads its own CLAUDE.md and does not see your reasoning trace.
   Phrase the forwarded task as a standalone instruction, not "continue
   what I was doing".
+- **Forwarded instructions describe outcomes (WHAT), not the child's
+  internal layout (HOW).** File paths, naming conventions, module
+  structure, and test organization inside the child are the child's own
+  decision — they live in the child's `CLAUDE.md` and are specialized
+  by its own node-agent. Your job is the contract (endpoint, payload,
+  behavior, invariant); the child decides where and how. If you
+  genuinely need to reference a child-internal path, you must have
+  **read it from the child's CLAUDE.md first** — never invent one.
+  Inventing a path that contradicts the child's declared layout forces
+  the child to raise an Open Question, which is wasted orchestration.
 - Do not delegate to a child whose `CLAUDE.md`'s scope clearly does
   not include the work. If no child fits, the work is either in-scope
   for you or escalated.

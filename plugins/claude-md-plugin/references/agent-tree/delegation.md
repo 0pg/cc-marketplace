@@ -89,6 +89,34 @@ The parent's invocation message to a child should carry:
 Keep the message as short as it can be. The child prompt already defines its
 boundary and tools; the parent adds only the task-specific delta.
 
+### WHAT, not HOW
+
+**Forwarded instructions describe outcomes (WHAT), not the child's
+internal layout (HOW).** File paths, naming conventions, module
+structure, and test organization inside the child are the child's own
+decisions — they are described in the child's `CLAUDE.md` and
+specialized by the child's own node-agent when it plans.
+
+The parent specifies the **contract**: the endpoint name, the payload
+shape, the invariant to preserve, the interface other nodes depend on.
+The child determines the HOW consistent with its own conventions.
+
+If the parent genuinely needs to reference a child-internal path (for
+a cross-cutting coordination that cannot be expressed any other way),
+the parent must have **read that path from the child's `CLAUDE.md`**
+first — not invented it. Inventing an internal path that contradicts
+the child's declared layout forces the child to surface an Open
+Question, which is wasted orchestration.
+
+Examples:
+
+- ✅ "Add a `GET /health` endpoint returning the standard envelope
+  `{status:ok, data:null, error:null}`; cover it with a test."
+- ❌ "Add a handler at `api/routes.py:health()` and a test at
+  `api/tests/test_health.py`." — imposes the child's internal layout;
+  if the child's CLAUDE.md puts tests flat at `api/test_*.py`, this
+  is an invented path.
+
 ## Result Shape
 
 The child returns a final message containing:
