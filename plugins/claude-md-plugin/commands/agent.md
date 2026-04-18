@@ -30,7 +30,7 @@ Writes, or runs side-effecting Bash directly.
 
 You are **main ctx** for this invocation. Follow the workflow below.
 The companion design lives in
-`plugins/claude-md-plugin/references/agent-tree/orchestration.md` —
+`${CLAUDE_PLUGIN_ROOT}/references/agent-tree/orchestration.md` —
 consult it when the protocol is ambiguous.
 
 ### 1. Receive instruction

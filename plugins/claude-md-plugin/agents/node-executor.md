@@ -1,5 +1,7 @@
 ---
 name: node-executor
+model: inherit
+color: green
 description: |
   Node-scoped execution agent for the claude-md-plugin v19 architecture.
   Executes a **single plan item** from the assembled DAG within a specific

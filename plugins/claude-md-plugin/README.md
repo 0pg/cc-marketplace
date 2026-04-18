@@ -56,7 +56,7 @@ starts injecting the four invariants into every session.
 
 Create a `CLAUDE.md` at your project root describing the root agent's
 role, responsibilities, tools, and children. Use the template at
-`plugins/claude-md-plugin/references/agent-tree/node-prompt-template.md`.
+`references/agent-tree/node-prompt-template.md` (inside this plugin).
 
 ### 2. Declare child agents as the domain grows
 

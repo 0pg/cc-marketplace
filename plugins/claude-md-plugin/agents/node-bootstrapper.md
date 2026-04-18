@@ -1,5 +1,7 @@
 ---
 name: node-bootstrapper
+model: inherit
+color: yellow
 description: |
   Bootstraps a missing `CLAUDE.md` for a target node so the node can be
   treated as an agent. Inspects the node's contents and the parent's

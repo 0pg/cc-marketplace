@@ -1,5 +1,7 @@
 ---
 name: node-agent
+model: inherit
+color: cyan
 description: |
   Node-scoped planning agent for the claude-md-plugin v19 architecture.
   Adopts the identity of a specific node by loading its `CLAUDE.md` first,
