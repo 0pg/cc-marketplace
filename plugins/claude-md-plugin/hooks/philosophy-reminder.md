@@ -18,6 +18,13 @@ renegotiated during a session.
    functional responsibility. Keeping tools working (buildable,
    testable, verifiable) is therefore part of having responsibilities,
    not a separate concern.
+4. **Each agent satisfies hierarchical single-responsibility, and the
+   context it owns has high cohesion.** At its level in the tree, an
+   agent has one clear responsibility — not a grab bag. The purpose,
+   domain context, tools, and child sub-domains it owns form a
+   cohesive whole. Fragmented context or multiple unrelated
+   responsibilities are signs that the agent should be split (or that
+   the responsibilities should be reassigned).
 
 Everything below follows from these three.
 
@@ -29,9 +36,11 @@ Everything below follows from these three.
   interaction contract. `CLAUDE.md` is instruction, not an SSOT
   record; it is not a spec that code is derived from.
 - Agents are organized as a tree by domain cohesion, because a single
-  agent cannot fit the whole system in its context window. Cohesive
+  agent cannot fit the whole system in its context window and because
+  each agent must satisfy hierarchical SRP (invariant 4). Cohesive
   sub-domains become child agents; out-of-scope work is delegated to
-  the child whose domain contains it.
+  the child whose domain contains it. An agent whose owned context
+  loses cohesion as the project grows is a candidate for split.
 - Source files inside a node are that agent's tools — capabilities it
   invokes (Bash), inspects (Read/Grep), modifies (Edit), and verifies
   (tests). Code is the capability itself, not an artifact derived

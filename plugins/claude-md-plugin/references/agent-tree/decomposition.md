@@ -1,5 +1,11 @@
 # Domain Decomposition (v19 draft)
 
+Operationalizes **invariant 4** (each agent satisfies hierarchical SRP
+and the context it owns has high cohesion). The signals and
+anti-patterns below are the practical answers to "when does the
+current agent's owned context stop being cohesive enough to count as
+one responsibility?"
+
 Heuristics for deciding **when** to split a node into child nodes, and
 **where** to draw the boundary.
 

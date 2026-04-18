@@ -29,6 +29,13 @@ adopts it. Always true; never renegotiated. The SessionStart hook
    functional responsibility. Keeping tools working (buildable,
    testable, verifiable) is therefore part of having responsibilities,
    not a separate concern.
+4. **Each agent satisfies hierarchical single-responsibility, and the
+   context it owns has high cohesion.** At its level in the tree, an
+   agent has one clear responsibility — not a grab bag. The purpose,
+   domain context, tools, and child sub-domains it owns form a
+   cohesive whole. Fragmented context or multiple unrelated
+   responsibilities are signs that the agent should be split, or that
+   responsibilities should be reassigned across the tree.
 
 Everything else in v19 — Node = Agent mapping, `CLAUDE.md` as the
 agent's prompt, tree-shaped domain decomposition, delegation, DAG
@@ -82,6 +89,13 @@ A parent agent knows its children's roles (by reading each child's
 whose domain contains it. Trees are dependency-shaped: parents may
 depend on children; children do not reach up to parents; siblings do
 not cross-reference directly.
+
+The tree's *shape* is governed by invariant 4: every agent must hold
+hierarchical SRP and high context cohesion. This grounds the
+decomposition heuristics in `references/agent-tree/decomposition.md`
+— "split when the prompt is straddling two domains; merge when two
+siblings have collapsed into one" is not stylistic advice but a
+direct application of invariant 4.
 
 ## Node Layout
 
