@@ -1,12 +1,11 @@
 # Agent-Tree Reference (v19)
 
 Reference design for the v19 node-agent tree model. Companion to
-`../../CLAUDE.md` → **Core Philosophy (v19)**.
+`../../CLAUDE.md` (specifically the **Invariants** and **How the
+Invariants Manifest** sections).
 
-> Status: **draft**. These documents ground the rebuild (Roadmap steps 3–6).
-> Expect revisions as the rebuild surfaces concrete needs. The v18 references
-> under `../inspect/` and `../shared/` are retained temporarily and will be
-> removed in Roadmap step 3.
+> Status: baseline complete (v19 rewrite closed as of v19.13.0).
+> Expect revisions as the model is exercised against real projects.
 
 ## Reading Order
 
@@ -35,5 +34,8 @@ Reference design for the v19 node-agent tree model. Companion to
 - Prescribing a deterministic verdict protocol like v18's `po-consultant`. The
   parent agent judges delegation targets; we specify the contract, not the
   algorithm.
-- Replacing the v18 Rust CLI wholesale. `core/` stays while the rebuild
-  figures out which subcommands the new model actually needs (Roadmap step 5).
+- Shipping a deterministic CLI core. v18 had a Rust crate for schema
+  validation and code analysis; v19 has no equivalent because no v19
+  subagent or command needs one. If a future requirement surfaces
+  (e.g., DAG cycle detection in main ctx, large-scale tree scans), a
+  fresh `core/` can be introduced then — not carried forward from v18.
