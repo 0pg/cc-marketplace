@@ -124,7 +124,7 @@ closed.
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | done (v19.10.0 — `/agent` + 3 subagents + 6 reference docs + SessionStart hook; `skills/` remains intentionally empty — see step 5) |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | done (v19.10.0 — `/agent` command + 3 subagents + 6 reference docs + SessionStart hook; no plugin-level skills are needed in the v19 baseline) |
 | 5 | Re-scope `core/` Rust CLI | done (v19.13.0 — `core/` removed entirely; no v19 subagent or command needs a deterministic CLI. If a future requirement surfaces, a fresh `core/` can be introduced then) |
 | 6 | New invariant set — three foundational premises (multi-agent system; per-agent purpose/context/responsibility; code as tool). Injected via SessionStart hook and documented in this file. | done (v19.8.0) |
 
@@ -212,9 +212,7 @@ claude-md-plugin/
 ├── README.md          — user-facing plugin docs (v19)
 ├── agents/            — `node-agent` + `node-executor` + `node-bootstrapper`
 ├── commands/          — `/agent` (orchestration entry point)
-├── skills/            — (intentionally empty — v19 baseline has no plugin-level skills)
 ├── hooks/             — SessionStart philosophy-reminder hook
-├── scripts/           — (empty — utility scripts re-added as agent tools need them)
 └── references/        — reference materials
     └── agent-tree/    — v19 reference design
 ```
