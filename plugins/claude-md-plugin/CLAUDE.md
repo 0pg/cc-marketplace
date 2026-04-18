@@ -210,8 +210,7 @@ directly.
 claude-md-plugin/
 ├── .claude-plugin/    — plugin manifest (plugin.json)
 ├── CLAUDE.md          — this file (plugin agent prompt)
-├── README.md          — (v18 legacy; rewrite deferred to step 4+)
-├── DEVELOPERS.md      — (v18 legacy; rewrite deferred to step 4+)
+├── README.md          — user-facing plugin docs (v19)
 ├── agents/            — `node-agent` + `node-executor` + `node-bootstrapper`
 ├── commands/          — `/agent` (orchestration entry point)
 ├── skills/            — (intentionally empty — v19 baseline has no plugin-level skills)
