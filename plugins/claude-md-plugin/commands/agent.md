@@ -118,6 +118,7 @@ By blocker type:
 | `blocked: boundary violation` | Re-dispatch the relevant `node-agent` (the planner of the affected branch) with the blocker text as feedback. Merge the refined plan into the DAG; resume execution. |
 | `blocked: ambiguous instructions` | Same as boundary violation — re-plan the affected branch with sharper instructions. |
 | `blocked: invariant conflict` | Do not auto-retry. Surface to the user with the invariant text, the item, and the executor's reasoning. |
+| `blocked: environment prerequisite unmet` | Do not auto-retry. Installing runtimes, dependencies, or system tools is outside main ctx's authority. Surface to the user with the executor's `verification.command` and the missing prerequisite; the user installs (or authorizes installation by a specific node-executor), then invokes `/agent` again or resumes. Mark `halted` for this item if the user declines. |
 | Any other blocker the model judges as not auto-resolvable | Surface to the user; mark `halted`. |
 
 When the retry budget is exhausted, transition the item to `halted` and

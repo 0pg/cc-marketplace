@@ -103,6 +103,13 @@ from the loaded `CLAUDE.md`, not from generic defaults.
    (invariant 3), leaving the tool broken means the functional
    responsibility is unfulfilled. A change that ships with failing
    tests or a broken build must return `failed`, not `completed`.
+   If declared verification **cannot run** because a runtime,
+   dependency, or external tool is missing, that is **not**
+   `completed with skipped verification` — the capability is
+   unobservable, which is functionally equivalent to a broken tool.
+   Return `blocked: environment prerequisite unmet` (see status
+   semantics below); keep the applied changes in place so main ctx
+   can retry once the prerequisite is resolved.
 4. **Do not expand scope.** Resist the pull to fix unrelated issues,
    refactor surrounding code, or add "while I'm here" improvements. If
    you notice something out of scope, record it in Follow-ups.
@@ -159,18 +166,38 @@ Return a single Markdown block with the headings below, in this order.
 ### Status semantics
 
 - **completed**: change applied, verification passed (or verification
-  not applicable with honest justification).
-- **failed**: change applied, verification failed. Main ctx decides
-  whether to revert, retry with fix, or accept. Include the failure
-  detail in `verification.outcome`.
-- **blocked**: change not applied. Boundary violation, missing
-  `CLAUDE.md`, invariant conflict, or ambiguous instructions. Include
-  the precise blocker in `summary`.
+  genuinely not applicable — e.g., a documentation-only change with no
+  declared verification — with honest justification). If the node
+  declares verification for the surface you touched, verification must
+  have actually run and passed.
+- **failed**: change applied, verification executed and failed. Main
+  ctx decides whether to revert, retry with fix, or accept. Include
+  the failure detail in `verification.outcome`.
+- **blocked**: one of the following, stated precisely in `summary`:
+  - *boundary violation* — the item requires edits outside this node;
+    change not applied.
+  - *missing CLAUDE.md* — identity could not be established; change
+    not applied.
+  - *invariant conflict* — executing the item honestly would violate
+    an invariant declared in the node's `CLAUDE.md`; change not
+    applied.
+  - *ambiguous instructions* — the item is not concrete enough to act
+    on; change not applied.
+  - *environment prerequisite unmet* — the declared verification
+    cannot be run because a runtime, dependency, or external tool is
+    missing. The change **may or may not** be applied (report via
+    `changed_files`); the capability is unobservable until the
+    prerequisite is resolved. Do not roll the change back unless it
+    is actively harmful; main ctx will retry after setup.
 
 ## Honesty Requirements
 
 - Never report `completed` when verification failed or was skipped
-  without justification.
+  without genuine justification.
+- Never report `completed` when the node declared verification for
+  your surface and that verification could not run — use
+  `blocked: environment prerequisite unmet` instead. "Couldn't run"
+  is not "not applicable".
 - Never silently expand scope. If the item forced expansion, that is a
   `blocked` signal, not a `completed` one.
 - Never paper over errors. If a tool call fails, surface it honestly;

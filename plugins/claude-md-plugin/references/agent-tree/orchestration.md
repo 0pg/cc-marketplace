@@ -250,6 +250,7 @@ something; never re-dispatch with identical input.
 | `blocked: boundary violation` | Re-dispatch the relevant `node-agent` (planner of the affected branch) with the blocker as feedback; merge the refined plan back into the DAG; resume. |
 | `blocked: ambiguous instructions` | Same — re-plan the affected branch with sharper instructions. |
 | `blocked: invariant conflict` | Do not auto-retry; surface to the user with the invariant text, the item, and the executor's reasoning. |
+| `blocked: environment prerequisite unmet` | Do not auto-retry. Installing runtimes, dependencies, or external tools is outside main ctx's authority. Surface to the user with the executor's `verification.command` and the missing prerequisite; the user installs (or authorizes installation), then resumes via `/agent`. Mark `halted` if declined. Changes already applied are left in place so retry-after-setup picks up where execution stopped. |
 | Other (model judges as not auto-resolvable) | Surface to the user; mark `halted`. |
 
 Budget exhaustion sets `halted`. Halted items are surfaced with their
