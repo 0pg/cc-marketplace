@@ -2,8 +2,12 @@
 
 How the top-level conversation (**main ctx**) drives work through the
 agent tree. Companion to `delegation.md` (which defines the contract),
-the `node-agent` subagent (planning), and the `node-executor` subagent
-(execution).
+the `node-agent` subagent (planning), the `node-executor` subagent
+(execution), and the `node-bootstrapper` subagent (CLAUDE.md
+generation for unprepared nodes).
+
+The `/agent` slash command (`commands/agent.md`) is the user-facing
+entry point that runs this workflow end-to-end.
 
 **Main ctx is pure orchestration.** It never Edits, Writes, or runs
 side-effecting Bash against the working tree directly. All changes
@@ -106,6 +110,32 @@ predecessors (they still may be successors via a Delegated wiring).
 
 The DAG is the execution artifact — linear transcripts are not.
 
+## DAG Item State Model
+
+Once the DAG is assembled, main ctx tracks each item through these
+states for the duration of the session:
+
+| State | Meaning |
+|-------|---------|
+| `pending` | Ready to dispatch when all `deps` are `completed` |
+| `in-progress` | A `node-executor` has been dispatched and not yet returned |
+| `completed` | Executor returned `completed` |
+| `failed` | Executor returned `failed`; subject to auto-retry |
+| `blocked` | Executor returned `blocked`; subject to auto-retry or bootstrap |
+| `halted` | Retry budget exhausted; awaiting user decision |
+
+Transitions:
+
+```
+pending ─dispatch→ in-progress ─return→ {completed, failed, blocked}
+failed/blocked ─auto-retry→ in-progress    (budget-aware)
+failed/blocked ─exhaust→ halted
+```
+
+State persistence is **in-memory** for v19.7 — if the session is
+interrupted, the user restarts with `/agent`. Persistent state
+(`.claude/workflows/agent-tree/{task-id}/`) is a future option.
+
 ## Recursion Discipline
 
 - **One level per Task call.** A node-agent never transitively delegates
@@ -131,31 +161,29 @@ touches the node tree. Every executable item is delegated to a
 ### Loop
 
 ```
-execute_dag(dag):
-  while ∃ item in dag where item.status = pending
-                         ∧ ∀dep ∈ item.deps: dep.status = completed:
-      ready = [those items]
-      for each item in ready (parallelizable across disjoint boundaries):
+execute_dag(dag, max_retries=3):
+  while ∃ item ∈ dag where item.state ∈ {pending, in-progress}:
+      ready = [item ∈ dag : item.state = pending
+                          ∧ ∀dep ∈ item.deps: dep.state = completed]
+      for each item ∈ ready (parallelizable across disjoint boundaries):
+          item.state = in-progress
           dispatch node-executor(
-              node        = item.owning_node,
-              item        = <the plan line from the item's origin plan>,
-              upstream    = optional summaries from item.deps outputs
+              node     = item.owning_node,
+              item     = <the plan line from the item's origin plan>,
+              upstream = optional summaries from item.deps outputs
           )
       for each returned result:
-          record {status, changed_files, verification, summary, notes,
-                  follow_ups}
+          record {status, changed_files, verification, summary,
+                  notes, follow_ups}
           if status = completed:
-              item.status = completed
-          if status = failed:
-              halt the dag locally at this item; surface to main ctx's
-              caller (the user) — revert, retry-with-fix, or accept are
-              user decisions, not executor decisions
-          if status = blocked:
-              halt the affected branch; surface the blocker so main ctx
-              can re-plan (typically by re-dispatching the relevant
-              node-agent with a refined instruction)
-  terminate when all items are completed, or when halted items block
-  the remainder of the DAG
+              item.state = completed
+          else if status ∈ {failed, blocked}:
+              if item.attempts < max_retries:
+                  apply auto-retry strategy (see below); item.state = pending
+              else:
+                  item.state = halted
+                  surface to the user with the full attempt history
+  terminate when no item.state ∈ {pending, in-progress}
 ```
 
 ### Main ctx's responsibilities during execution
@@ -165,9 +193,10 @@ execute_dag(dag):
   dispatch; dependent items are serialized.
 - Construct each `node-executor` message with exactly the plan-item
   text, the owning node path, and any required upstream summaries.
-- Route returned results: persist outcomes (in-session recording or
-  optional state file), propagate completion to unblock successors,
-  and surface failures/blocks to the user.
+- Route returned results: update item state, propagate completion to
+  unblock successors, and apply the auto-retry strategy on
+  `failed` / `blocked` until the budget is exhausted (then surface as
+  `halted`).
 - **Never** perform the edit itself, even if the work looks trivial.
   Boundary ownership belongs to the node. Editing without going
   through `node-executor` breaks the node's invariants, loses
@@ -185,25 +214,45 @@ When in doubt, serialize. Parallelism here is a performance
 optimization, not a correctness property; the DAG's dependency edges
 are the correctness property.
 
-### Failure handling (current defaults, open to refinement)
+### Auto-retry and bootstrap
 
-- **failed**: executor made changes but verification failed. Main ctx
-  halts successors that depend on this item, records the failure, and
-  returns control to the user. Retry / revert / accept is a user
-  decision, not an automated loop. A future iteration may add bounded
-  auto-retry with a fix hint, following the pattern in the `flow`
-  plugin.
-- **blocked**: executor did not change the tree — usually a boundary
-  violation, missing `CLAUDE.md`, or ambiguous item. Main ctx halts
-  the branch and re-dispatches the relevant `node-agent` with a
-  sharpened instruction (typically the blocker itself as feedback).
-- **completed**: successors become eligible. No further action needed.
+Main ctx auto-retries `failed` and `blocked` items with a bounded
+budget (default 3 per item, treated as a bug-guard, not a convergence
+criterion — overridable via `--max-retries`). Each retry must change
+something; never re-dispatch with identical input.
+
+| Blocker | Strategy |
+|---------|----------|
+| `failed` (verification failed) | Re-dispatch the same `node-executor` with the verification output appended to `upstream:` so the executor can address the failure. |
+| `blocked: missing CLAUDE.md` | Run **Bootstrap** (below); re-dispatch the original (planner or executor) verbatim. |
+| `blocked: boundary violation` | Re-dispatch the relevant `node-agent` (planner of the affected branch) with the blocker as feedback; merge the refined plan back into the DAG; resume. |
+| `blocked: ambiguous instructions` | Same — re-plan the affected branch with sharper instructions. |
+| `blocked: invariant conflict` | Do not auto-retry; surface to the user with the invariant text, the item, and the executor's reasoning. |
+| Other (model judges as not auto-resolvable) | Surface to the user; mark `halted`. |
+
+Budget exhaustion sets `halted`. Halted items are surfaced with their
+full retry history. Do not silently abandon work.
+
+#### Bootstrap on Missing CLAUDE.md
+
+When a dispatch returns `blocked: missing CLAUDE.md`, main ctx invokes
+`node-bootstrapper` against the affected node before retrying. The
+bootstrapper inspects the node's contents and the parent's intended
+role, then writes a `CLAUDE.md` per `node-prompt-template.md`. On
+`completed`, main ctx retries the original dispatch verbatim. On
+`blocked` (insufficient context to draft a meaningful prompt), main
+ctx surfaces to the user — never write a placeholder.
+
+This is the primary path by which the agent tree grows. Plans surface
+needs (delegation to a child not yet declared); the bootstrap + retry
+cycle realizes the child without main ctx having to know the child's
+domain in advance.
 
 The `flow` plugin's DAG execution loop (see `plugins/flow/CLAUDE.md`
 — node dispatch, state persistence, cascading validators, retry
-bounds) is a useful precedent. Whether to integrate directly with
-`flow` or keep the agent-tree execution loop standalone remains an
-open question for a later revision.
+bounds) is a useful precedent. For v19 we keep the agent-tree
+execution loop independent (see `commands/agent.md`); integration
+with `flow` remains an open option for a later revision.
 
 ## Anti-Patterns
 

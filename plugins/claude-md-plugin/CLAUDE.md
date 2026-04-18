@@ -75,7 +75,7 @@ v19 rebuild (steps 4–5).
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.6.0 — `node-agent` planner + `node-executor` + DAG orchestration) |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.7.0 — `/agent` command + `node-bootstrapper` + DAG state model + auto-retry) |
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
 
@@ -115,11 +115,29 @@ opting into that architecture.
   whatever the node declares as verification, returns a structured
   Result (`completed` | `failed` | `blocked`) plus notes and
   follow-ups.
+- `agents/node-bootstrapper.md` — **bootstrapper**. Parameters:
+  `node:`, `parent_node:` (optional), `intended_role:` (optional).
+  Inspects an unprepared node and writes its `CLAUDE.md` per the v19
+  template. Main ctx invokes when a planner or executor returns
+  `blocked: missing CLAUDE.md`, then retries the original dispatch.
+
+### Commands
+
+- `commands/agent.md` — `/agent "<instruction>" [--max-retries N]`.
+  End-to-end orchestration entry point: clarifies, plans recursively
+  via `node-agent`, assembles a DAG, executes via `node-executor`
+  with state tracking (`pending` | `in-progress` | `completed` |
+  `failed` | `blocked` | `halted`) and bounded auto-retry, runs the
+  bootstrap sub-flow on missing `CLAUDE.md`, surfaces halted items
+  to the user. Frontmatter restricts main-ctx tools to
+  `[Read, Glob, Grep, Task, AskUserQuestion]` so Edit/Write/Bash
+  cannot bypass the executor.
 
 Main ctx is pure orchestration: it dispatches `node-agent` for
 planning, assembles the returned plans into a DAG, then dispatches one
-`node-executor` per DAG item in topological order. Main ctx never
-edits the working tree directly.
+`node-executor` per DAG item in topological order — auto-retrying or
+bootstrapping as needed. Main ctx never edits the working tree
+directly.
 
 ## Instructions
 
@@ -143,7 +161,8 @@ claude-md-plugin/
 ├── CLAUDE.md          — this file (plugin agent prompt)
 ├── README.md          — (v18 legacy; rewrite deferred to step 4+)
 ├── DEVELOPERS.md      — (v18 legacy; rewrite deferred to step 4+)
-├── agents/            — `node-agent` (planner) + `node-executor` (executor)
+├── agents/            — `node-agent` + `node-executor` + `node-bootstrapper`
+├── commands/          — `/agent` (orchestration entry point)
 ├── skills/            — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── commands/          — (empty — awaiting v19 rebuild, Roadmap step 4)
 ├── hooks/             — SessionStart philosophy-reminder hook (v19.3.0)
