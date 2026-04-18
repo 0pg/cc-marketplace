@@ -25,24 +25,28 @@ description: |
   and routing between auth/, billing/, api/.
 
   ## In-Scope Work
-  - Update project-root CLAUDE.md routing notes if rate limiting becomes a
-    cross-cutting concern referenced by multiple children.
+  - [root-1] Update project-root CLAUDE.md routing notes — rate limiting
+    becomes a cross-cutting concern referenced by multiple children.
 
   ## Delegated Work
-  - api/ → "Add rate-limit middleware that reads tenant_id from JWT and
-    consults a per-tenant limit config; surface 429 with retry-after."
-    (api/ owns request middleware)
-  - auth/ → "Confirm tenant_id claim is reliably set on all authenticated
-    requests; document the contract." (auth/ owns JWT issuance)
-  - billing/ → "Expose per-tenant rate-limit config as a billing setting
-    surfaced in the dashboard." (billing/ owns tenant-config UI)
+  - [deleg-api] api/ → "Add rate-limit middleware that reads tenant_id
+    from JWT and consults a per-tenant limit config; surface 429 with
+    retry-after." — api/ owns request middleware.
+  - [deleg-auth] auth/ → "Confirm tenant_id claim is reliably set on all
+    authenticated requests; document the contract." — auth/ owns JWT
+    issuance.
+  - [deleg-billing] billing/ → "Expose per-tenant rate-limit config as a
+    billing setting surfaced in the dashboard." — deps: [deleg-api]
+    (billing needs the rate-limit config schema from api/) — billing/
+    owns tenant-config UI.
 
   ## Escalated Work
   - None.
 
   ## Open Questions
-  - Default limit for tenants without an explicit override? Need product
-    answer before billing/ can finalize the dashboard default.
+  - [q-default] Default limit for tenants without an explicit override?
+    Need product answer before billing/ can finalize the dashboard
+    default.
   </assistant_response>
   </example>
 ---
@@ -93,24 +97,39 @@ Bash commands are forbidden in planning mode.
 from the loaded CLAUDE.md>
 
 ## In-Scope Work
-- <step> — <rationale grounded in your CLAUDE.md responsibilities and tools>
+- [<id>] <step> — [deps: [<id>, ...]] — <rationale grounded in your
+  CLAUDE.md responsibilities and tools>
 ...
 
 ## Delegated Work
-- <child path> → <instructions to forward to that child> — <why this child>
+- [<id>] <child path> → <instructions to forward to that child> —
+  [deps: [<id>, ...]] — <why this child>
 ...
 
 ## Escalated Work
-- <item> — <why it is outside your boundary; where it probably belongs>
+- [<id>] <item> — <why it is outside your boundary; where it probably
+  belongs>
 ...
 
 ## Open Questions
-- <question> — <what you need from main ctx (or the user) to proceed>
+- [<id>] <question> — <what you need from main ctx (or the user) to
+  proceed>
 ...
 ```
 
-If a section has no entries, write `None` underneath rather than omitting
-the heading. Main ctx parses this format.
+### Item IDs and deps
+
+- Each item starts with a kebab-case `[<id>]` that is unique within
+  **this plan** (main ctx namespaces it globally when assembling the
+  DAG).
+- `deps: [<id>, ...]` lists IDs of other items in this same plan that
+  must complete before this one. Omit the `deps: []` segment when an
+  item has no intra-plan dependencies.
+- Cross-node dependencies are not declared here — main ctx infers them
+  when it wires delegated items to the corresponding child plan during
+  DAG assembly.
+- If a section has no entries, write `None` underneath rather than
+  omitting the heading.
 
 ## Delegation Rules
 

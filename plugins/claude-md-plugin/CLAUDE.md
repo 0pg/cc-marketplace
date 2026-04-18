@@ -75,7 +75,7 @@ v19 rebuild (steps 4–5).
 | 1 | **Philosophy (this document)** | done (v19.0.0) |
 | 2 | Agent-tree reference design — root-agent template, delegation contract, child-discovery convention | draft (v19.1.0) — see `references/agent-tree/` |
 | 3 | Teardown — remove v18 `agents/`, `skills/`, `commands/`, `hooks/`, `scripts/`, `core/`, and legacy references | done (v19.2.0) |
-| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.4.0 — `node-agent` subagent + orchestration doc) |
+| 4 | Rebuild: new skills, commands, and reference agent files under the v19 model | in progress (v19.5.0 — `node-agent` subagent + orchestration doc with DAG assembly) |
 | 5 | Re-scope `core/` Rust CLI — keep only subcommands the agent tree actually uses (rebuild from scratch if warranted) | pending |
 | 6 | New invariant set — boundary, delegation, tool access (derived from v19 model, not ported from v18) | pending |
 
