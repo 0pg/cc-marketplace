@@ -1,20 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
-input=$(cat)
+# claude-md-plugin SessionStart hook — v19
+#
+# Fires on: startup, resume, clear, compact (matcher "*" in hooks.json).
+# Emits the node-agent tree philosophy reminder on stdout so it is
+# injected into the session's context (visible in transcript).
 
-if command -v jq &> /dev/null; then
-  session_id=$(echo "$input" | jq -r '.session_id // ""')
-  source=$(echo "$input" | jq -r '.source // ""')
-else
-  session_id=$(echo "$input" | grep -oE '"session_id" *: *"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"') || session_id=""
-  source=$(echo "$input" | grep -oE '"source" *: *"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"') || source=""
-fi
+# Drain stdin — Claude Code pipes a JSON payload we don't need.
+cat > /dev/null
 
-session_id=$(echo "$session_id" | tr -cd 'a-zA-Z0-9_-')
+# Resolve the reminder path. ${CLAUDE_PLUGIN_ROOT} is provided by Claude
+# Code when running plugin hooks; fall back to script directory so the
+# hook also works outside the plugin harness (for local testing).
+REMINDER_FILE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/hooks/philosophy-reminder.md"
 
-if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${session_id:-}" ]; then
-  echo "export CLAUDE_SESSION_ID=\"${session_id}\"" >> "$CLAUDE_ENV_FILE"
+if [ -f "$REMINDER_FILE" ]; then
+  cat "$REMINDER_FILE"
 fi
 
 exit 0

@@ -1,7 +1,7 @@
 {
   "name": "claude-md-plugin",
-  "version": "18.1.0",
-  "description": "CLAUDE.md Primary SSOT document-code sync plugin. Business layer that composes superpowers domain components. /spec for spec definition, /dev for code generation, /validate for verification, /decompile for extraction, /bugfix for 3-layer bug tracing, /impact for change impact analysis, /inspect for unified read-only inspection (health/quality/feasibility).",
+  "version": "19.18.0",
+  "description": "Node-agent tree plugin (v19). Each directory is an agent: its CLAUDE.md is the agent's prompt, its source code is the agent's tool set, and cohesive sub-domains become child agents to whom the parent delegates. v19 is an in-progress redesign; v18 workflows (/spec, /dev, /validate, /decompile, /bugfix, /impact, /inspect, /autodev) are pending teardown.",
   "author": {
     "name": "jhk"
   },
@@ -10,11 +10,10 @@
   "license": "MIT",
   "keywords": [
     "claude-md",
-    "documentation",
-    "source-of-truth",
-    "code-sync",
-    "code-generation",
-    "tdd",
-    "atdd"
+    "node-agent",
+    "agent-tree",
+    "domain-decomposition",
+    "delegation",
+    "prompt-engineering"
   ]
 }
