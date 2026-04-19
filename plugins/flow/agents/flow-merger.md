@@ -123,6 +123,8 @@ Interpret the reviewer's verdict:
 - `semantic_pass: true` → `status: pass` → cascade valid, break.
 - `semantic_pass: false` → `status: fail` → cascade invalid.
 
+**Reviewer surfacing fields passthrough**: regardless of `semantic_pass`, if the reviewer's return block contains non-empty `unverified_criteria[]` or `simulation_code[]`, capture them verbatim for inclusion in `validators.json` top-level fields (see schema below). These are surfacing data for the SKILL's Step 7 warning channel — they do NOT change merger's pass/fail judgment (INV-F3 unchanged).
+
 ### Write `validators.json`
 
 ```json
@@ -135,9 +137,17 @@ Interpret the reviewer's verdict:
     {"step": 4, "kind": "semantic-review",   "result": "pass|fail|skipped-*|not-reached"}
   ],
   "overall": "valid | invalid",
-  "reason": "first step to pass, or the failure reason"
+  "reason": "first step to pass, or the failure reason",
+  "unverified_criteria": [
+    {"criterion": "<text>", "reason": "<short excerpt>"}
+  ],
+  "simulation_code": [
+    {"path": "<file>", "reason": "<short excerpt>"}
+  ]
 }
 ```
+
+The `unverified_criteria` and `simulation_code` arrays are populated verbatim from the reviewer's return block when cascade step 4 runs; omit or leave empty when step 4 did not run (e.g., step 1 PASS terminated the cascade).
 
 Persist to `$MERGE_DIR/validators.json`. Also write `$MERGE_DIR/status` containing one of `valid`, `invalid`.
 
@@ -152,8 +162,12 @@ validators_path: {absolute}
 pass_step: {1 | 2 | 4 | none}
 reason: {"first-pass-at-step-N" | "merge-conflict" | "test-failure" | "semantic-rejection"}
 conflicts: [{files, when step1 fails}]
+unverified_criteria_count: {int, 0 if step 4 not run or reviewer reported none}
+simulation_code_count: {int, 0 if step 4 not run or reviewer reported none}
 ---end-flow-merger-result---
 ```
+
+SKILL reads `unverified_criteria_count` / `simulation_code_count` from the return block. If either count > 0, SKILL loads `validators_path` for the full arrays and emits a SILENT-FALLBACK WARNING in the Step 7 final report.
 
 ## Rules
 

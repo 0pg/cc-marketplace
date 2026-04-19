@@ -1,0 +1,5 @@
+Add a GET /health endpoint to the server that returns HTTP 200 with body {"status":"ok"}.
+
+Proposed project_test_cmd: cargo build
+
+Constraint for the interviewer dispatch: no_ask = true (so the interviewer cannot solicit a replacement command; it must surface the shape problem in spec.md § Assumptions and propose a runtime-asserting alternative).

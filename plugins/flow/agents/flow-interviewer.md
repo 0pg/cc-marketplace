@@ -72,7 +72,13 @@ The SKILL hands you a session file path with the fields:
    - `pytest tests/`
    - If no test framework exists: write `"none"` literally. DO NOT leave this field blank.
 
-5. **Self-critique.** Ask: "Could a planner build a DAG from this spec without re-consulting me?" If not, identify the gap and — if `no_ask` is false — use AskUserQuestion to fill it. Aim for ≤2 AskUserQuestion rounds total.
+5. **Self-critique.** Ask two questions in order:
+   - *Completeness*: "Could a planner build a DAG from this spec without re-consulting me?"
+   - *Command-shape rigor*: examine the literal string of `project_test_cmd` and answer:
+     - Does it exercise **runtime behavior** (process starts, API call, file effect) or only **static compilation** (`cargo build`, `tsc --noEmit`, `mypy --strict`)? Pure static ≠ acceptance verification — reject.
+     - Does it include **failure-tolerant constructs** that swallow non-zero exits? Examples: `|| true`, `; true`, `set +e`, `cp -f` (silently overwrites without erroring on target-type mismatch), `rm -f` (no error on missing), trailing `&` backgrounding. Any such construct — reject.
+     - Does it explicitly **assert an observable outcome**? Examples of acceptable shapes: `golem invoke X && grep expected response.json`, `pytest -k test_new_behavior`, `curl -f http://... | jq .status`. Examples of ambiguous shapes (not per se rejected, but require flagging): bare `cargo test`, `pytest tests/` (may pass tautologically if no covering test is written yet — reviewer's concern, see `flow-reviewer.md`).
+   - If `no_ask` is false and any gap remains, AskUserQuestion to obtain a concrete runtime-asserting command. If `no_ask` is true, record the best-effort in `## Assumptions` with the shape-analysis rationale. Aim for ≤2 AskUserQuestion rounds total.
 
 6. **Write `spec.md`** into `task_dir/spec.md` with the schema below.
 

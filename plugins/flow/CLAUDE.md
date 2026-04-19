@@ -292,6 +292,30 @@ If either fails, delete. Deletion is the default move on every audit; addition r
 
 **Audit posture**: if raising the model's capability by one generation would not change how `/flow` runs, the SKILL is over-constraining. A release that only *adds* Brain-layer rules is a red flag — healthy evolution deletes staler scaffolding than it adds.
 
+### Applicability — buildable partitionability first, then tetra-axis
+
+**Before invoking /flow, answer two structural questions in order**:
+
+1. Is the work scope composed of ≥2 **independently buildable units** (multi-crate workspace, multi-package monorepo, multi-service repo)? If **No** (single crate, single module, single file) → parallelism axis is **structurally zero**. This is not a bug to fix; it is a property of the build system. Do not try to extract parallelism by splitting the single unit into fake sub-nodes — every sub-node must leave the unit compilable, forcing a serial chain that pays dispatch overhead without gain.
+2. If Yes: do the units form a **non-trivial parallel subgraph** in the dependency order? Three crates layered A → B → C are independently buildable but serially dependent — parallelism axis is still zero for that layering. Parallelism axis is "available" only when ≥2 units can be built (and tested) without waiting for each other's output.
+
+If both answers are Yes → parallelism axis is actually available. Proceed to tetra-axis evaluation. If either is No, axis 1 is zero regardless of buildability — the rest of the axes still determine whether /flow pays its cost.
+
+Once partitionability is determined, evaluate `/flow`'s four value axes:
+
+| Axis | Mechanism | Scope requirement |
+|------|-----------|-------------------|
+| 1. **Parallelism** | `Task.parallel` of ready nodes, per-node worktrees | Requires multi-buildable-unit scope (see above) |
+| 2. **Durability** | `state.json` + `/flow-resume` + persisted worktrees | Scope-independent. Value scales with task duration. |
+| 3. **Per-node verification** | `validator.kind=command` per work node + halt-on-exhaustion surfacing (INV-F6) | Scope-independent. Value scales with silent-fallback risk. |
+| 4. **Integration cascade** | Merger's step1→step2→step4 (INV-F3). **Escalation-time** acceptance-criterion observability via reviewer when step 1 or step 2 fails. **Happy-path** (step 1 clean merge) observability is NOT covered by v0.1 cascade — see follow-up. | Requires ≥1 merge node (fan-in ≥2). Scope-independent given that. |
+
+Axes 2–4 are parallelism-independent. A single-crate task with multi-hour build cycle and prior silent-fallback history still benefits from /flow as a **serial pipeline**: durability survives session interruptions, per-node validators force observable-outcome checks, and if any merge exists, the cascade blocks silent regressions.
+
+**Decision heuristic**: invoke /flow when ≥2 of the four axes apply strongly. Refuse /flow only when all four are weak (short task, no silent-fallback risk, no merge concern, and partitionability is No). The common error is to conflate "parallelism absent" with "no value" — axes 2–4 are independent.
+
+**Evidence hygiene for future /flow-fitness arguments**: "/flow let X pass last time" claims MUST cite the prior task's `attempts.jsonl` / `validator.json` / `spec.md`. Inference from memory is not sufficient — prior-run primary evidence or escalate to actual re-read.
+
 ## Instructions
 
 - Document language: English.

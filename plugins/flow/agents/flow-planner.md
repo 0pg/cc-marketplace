@@ -127,6 +127,18 @@ Session file with:
 - If the spec's `project_test_cmd` is `"none"`, every work node MUST have `validator.kind = "none"` AND a review successor.
 - **Never** rewrite `spec.md` — it is the contract.
 
+### Shared external resources
+
+Detection trigger (mechanical, default-serialize): grep each node's `spec` for **external literals** — port numbers (`:9881`, `localhost:8080`), service/component names (arg to `golem component X`, `docker compose up X`), connection strings (`postgres://...`, Redis URLs), deploy target names, singleton filesystem paths (`/var/run/*.sock`, lockfiles).
+
+**Default rule (no judgment escape)**: if the same literal appears in ≥2 node specs, serialize those nodes via a `deps` edge. Do NOT filter by "mutation intent" — even read-only access that shares a lockfile or port can collide. Over-serializing benign pairs is cheaper than missing a real conflict.
+
+**Exception**: only drop the deps edge if the node spec explicitly documents why the access is safe to parallelize (e.g., read-only HTTP GET to a stateless endpoint). Record this rationale in the node's `spec` field.
+
+**Abstract-reference blind spot**: if a node spec says "deploy the component" without naming the target literal, the grep cannot fire. Refuse such specs — return a `rejected` status with `reason: "abstract external reference; re-interview to concretize literal"`. The interviewer must then concretize the literal in `spec.md`.
+
+Direct consequence: fan-out is sacrificed for shared-resource nodes. Prefer a serial chain over an artificial parallel DAG.
+
 ## Output (return block)
 
 ```
