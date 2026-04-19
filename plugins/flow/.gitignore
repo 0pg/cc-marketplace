@@ -1,2 +1,5 @@
 core/target/
+.claude/settings.local.json
+.claude/
+.serena/
 **/.DS_Store

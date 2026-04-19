@@ -137,9 +137,9 @@ A small Rust crate at `plugins/flow/core/` exposes a single binary `flow-core` w
 |------------|---------|
 | `validate-dag <path>` | Validates `dag.json` against the schema and all structural invariants (R3, R4, R5, INV-F2, enums). Stdout: `{valid, errors[]}`. Exit 0 = valid, 1 = invalid, 2 = I/O or parse error. |
 
-Build: `cd plugins/flow/core && cargo build --release` produces `target/release/flow-core`.
+Build (one-time after install): `cd "$CLAUDE_PLUGIN_ROOT/core" && cargo build --release` produces `$CLAUDE_PLUGIN_ROOT/core/target/release/flow-core`.
 
-The SKILL invokes `${CLAUDE_PLUGIN_ROOT}/core/target/release/flow-core validate-dag` before accepting planner output. Validation errors are machine-readable codes (`CYCLE`, `UNRESOLVED_DEP`, `R5_WORK_MULTIPARENT`, `R3_TERMINAL_KIND_NONE`, `ENUM_AGENT`, `ENUM_VALIDATOR_KIND`, `NO_TERMINAL`, `DUPLICATE_NODE_ID`) that the planner-agent uses for self-correction on retry.
+The SKILL invokes `$CLAUDE_PLUGIN_ROOT/core/target/release/flow-core validate-dag` before accepting planner output. Validation errors are machine-readable codes (`CYCLE`, `UNRESOLVED_DEP`, `R5_WORK_MULTIPARENT`, `R3_TERMINAL_KIND_NONE`, `ENUM_AGENT`, `ENUM_VALIDATOR_KIND`, `NO_TERMINAL`, `DUPLICATE_NODE_ID`) that the planner-agent uses for self-correction on retry.
 
 ### DAG schema (`dag.json`)
 
