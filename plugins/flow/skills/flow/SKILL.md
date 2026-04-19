@@ -1,6 +1,6 @@
 ---
 name: flow
-version: 0.2.0
+version: 0.3.0
 aliases: [dag-run, run-dag, flow-run]
 description: |
   This skill should be used when the user asks to "run as DAG", "execute in parallel with merge gates",
@@ -43,6 +43,8 @@ This SKILL is the **Brain layer** in Anthropic's Managed Agents architecture —
 3. **Error surfacing** — halt with full context, never silent fallback.
 
 If a rule here could be replaced by "let the agent judge," prefer deletion. Numeric caps are bug-guards, not convergence criteria.
+
+For applicability beyond parallelism — when /flow pays its cost as a serial pipeline — see `CLAUDE.md § Applicability — buildable partitionability first, then tetra-axis`.
 
 ## Workflow
 
@@ -195,6 +197,15 @@ On loop exit, print a summary:
 - If `halted`: failure excerpt per failed node + `Use /flow-resume {task-id}` hint.
 
 Print `state.json` path for machine-readable follow-up.
+
+For every merge node, additionally read the merger's return block for `unverified_criteria_count` and `simulation_code_count` (populated by `flow-reviewer` during cascade step 4; zero when cascade terminated at step 1 or step 2 — see INV-F3). If either count is > 0 for any merge node:
+
+- Load the merge's `validators.json` at `$task_dir/merges/{merge-id}/validators.json` and read the `unverified_criteria[]` / `simulation_code[]` arrays verbatim.
+- Append a **SILENT-FALLBACK WARNING** section to the final report listing them verbatim, between the per-node summary and the integration-branch checkout hint.
+- The task status remains as determined by node statuses — do NOT auto-halt on warnings (policy decision deferred). The warning is a surfacing channel, not a pass/fail flip.
+- Reason: a task that passes all validators but has unverified criteria or simulation-only code is the exact failure mode that `cp -f` / sim-mode silent-fallback previously exploited.
+
+This is a report-layer addition only — `evaluate_validator` below remains unchanged; cascade pass/fail judgment (INV-F3) is still merger's responsibility.
 
 ## Validator evaluation
 

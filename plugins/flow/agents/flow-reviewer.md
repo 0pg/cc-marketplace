@@ -77,6 +77,16 @@ Load `superpowers:verification-before-completion`.
    - `semantic_pass: true` iff every acceptance criterion is `covered` AND no `regressed` AND any step-2 failure is non-blocking.
    - `semantic_pass: false` otherwise. Be specific about which criterion fails and why.
 
+### Acceptance-criterion observability check
+
+For each acceptance criterion in `spec.md`:
+1. Point to a **specific observable event** in the integration diff that demonstrates this criterion is met — a new test that asserts the exact behavior, a new log line at runtime, a new API route handler, a new file with expected content, a new runtime assertion path.
+2. If the integration diff contains only refactors / comments / indirect changes / stub implementations, mark the criterion as **unverified** in the return block with `unverified_criteria: [{criterion: "<text>", reason: "<short excerpt>"}, ...]`.
+3. **Tautological-test detection**: if `project_test_cmd` is bare `cargo test` / `pytest tests/` / similar coverage-dependent command, cross-check that **at least one new or modified test in the diff asserts the criterion**. If no covering test exists in the diff, record as unverified (the test_cmd may pass trivially).
+4. **Simulation / skeleton detection**: if the diff contains `cp` of pre-built artifacts, stub function bodies (`unimplemented!()`, `pass`, `return null`), or "simulation mode" branches that bypass real execution, record in `simulation_code: [{path: "<file>", reason: "<short excerpt>"}, ...]` — these are not acceptance-verifying even if test_cmd passes.
+
+Silent pass is forbidden. Any `unverified_criteria` or `simulation_code` field with non-empty contents MUST appear in the return block — they do NOT automatically flip `semantic_pass`, but they MUST be surfaced for the SKILL's downstream warning channel.
+
 ## Rules
 
 - **Read-only.** You never write to the repo or edit any file other than the return block the SKILL captures.
@@ -93,6 +103,8 @@ reason: "one-sentence summary"
 covered_criteria: [1, 2, ...]
 not_covered_criteria: [n, ...]
 regressed_criteria: [n, ...]
+unverified_criteria: [{criterion: "<text>", reason: "<short excerpt>"}, ...]
+simulation_code: [{path: "<file>", reason: "<short excerpt>"}, ...]
 concerns: ["concise notes, each citing diff location or criterion"]
 ---end-flow-reviewer-result---
 ```

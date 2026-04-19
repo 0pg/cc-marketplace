@@ -30,7 +30,7 @@
     {
       "name": "flow",
       "description": "DAG-based task execution engine. Turns a user request into atomic subtasks, builds a DAG with deterministic per-node validators, executes independent nodes in parallel via git-worktree-isolated agents, and performs merge+validate as an independent cascade step (git-conflict → project tests → LLM semantic review). Persistent state under .claude/workflows/flow/{task-id}/ enables resume.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "jhk"
       },
