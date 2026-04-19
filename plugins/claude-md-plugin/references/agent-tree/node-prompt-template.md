@@ -73,6 +73,27 @@ Escape hatch when Conventions grows large:
   may Read these sibling files (extension of the existing "project-root
   CLAUDE.md as shared contract" boundary allowance).
 
+## Workspace Provisioning
+Project-root nodes should declare who owns tree-wide build/test
+infrastructure (`package.json`, `tsconfig.json`, `pnpm-workspace.yaml`,
+`Cargo.toml`, lockfiles, etc.). Two patterns:
+
+- **Root-owned**: the root node itself owns these files as tools. List
+  them in `## Tools` and declare the commands needed to install
+  dependencies and run tree-wide verification (e.g. `pnpm install`,
+  `pnpm -w test`). Under this pattern, when a descendant executor
+  reports `environment prerequisite unmet`, main ctx may auto-recover
+  by dispatching a root-level executor to scaffold the missing
+  artifact.
+- **Out-of-tree**: the user, CI, or an external provisioning system
+  owns these files. Declare the expected location and the reproduction
+  command (e.g. "run `./scripts/bootstrap.sh` from repo root"). Under
+  this pattern, `environment prerequisite unmet` surfaces directly to
+  the user — main ctx does not attempt cross-boundary setup.
+
+Omit this section at non-root nodes; provisioning is inherited from
+the root by default.
+
 ## Invariants
 Rules this agent must uphold while operating. Scoped narrowly to this node.
 Prefer checkable invariants (schema, boundary, naming) over abstract ones.
@@ -93,6 +114,9 @@ from code or children.
 - **Conventions**: required at project-root whenever the project has any
   tree-wide policy; optional at other nodes, and used only to override or
   refine an inherited rule.
+- **Workspace Provisioning**: recommended at project-root when the tree
+  has any shared build/test infrastructure (almost always); omit at
+  non-root nodes.
 - **Invariants, Domain Context**: optional; include only when the content
   materially changes agent behavior.
 

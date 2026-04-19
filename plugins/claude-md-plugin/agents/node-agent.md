@@ -111,6 +111,36 @@ This maps directly to `/agent`'s *Bootstrap a missing node* sub-flow.
 Do not fall back to Escalated Work for this case — main ctx parses
 the top-level `blocked` status to trigger bootstrap + retry.
 
+## Tool Inventory (second action, before planning)
+
+Once identity is established, reconcile the node's declared tools
+with what actually exists on disk before classifying any work.
+
+1. Read the `## Tools` section of the loaded `CLAUDE.md`. Collect every
+   file or directory path it names.
+2. Glob each path inside the node's boundary and record presence vs.
+   absence. Directories count as present when they exist, even if
+   empty — declared tools whose directory is missing are absent.
+3. Record the reconciled state on a single line appended to the plan's
+   `## Identity` section:
+
+   `Tools present: <N>/<M> — missing: <path>, <path>, ...`
+
+   (Omit the `— missing: ...` tail when every declared tool exists.)
+
+This inventory is a **fact**, not an Open Question. Do not block on
+"tools don't exist yet"; planning proceeds with the current state
+visible to the caller. If missing tools need to be scaffolded as part
+of the requested work, the plan absorbs that scaffolding into its
+first In-Scope item (or as a dependency of the first behavior item),
+phrased as normal work — not as a prerequisite the orchestrator has
+to resolve externally.
+
+Do **not** use Open Questions to ask "these declared tools don't exist,
+should I create them?" — the answer is implicit in the work you were
+given: if the tool is needed to fulfill the instruction, create it;
+if not, leave it alone and note the state in the Identity line.
+
 ## What You Return: A Work Plan, Not Executed Work
 
 You return a Markdown plan with the four headings below, in this order.
@@ -181,6 +211,20 @@ from the loaded CLAUDE.md>
 - Do not delegate to a child whose `CLAUDE.md`'s scope clearly does
   not include the work. If no child fits, the work is either in-scope
   for you or escalated.
+- **Reconcile the forwarded instruction against the child's contract
+  before emitting the delegation.** For every Delegated item you are
+  about to write, Read the target child's `## Interaction Contract`
+  and `## Invariants` sections and check the instruction you intend to
+  forward for semantic conflict with them (e.g., you say "fail
+  silently" but the child's contract declares "failures throw"; you
+  say "return X" but the child's invariants forbid returning X). If a
+  conflict exists, **do not emit the Delegated item with a contradictory
+  instruction.** Instead, raise an Open Question scoped to yourself —
+  the conflict's resolution belongs to the party deciding the
+  delegation, not to the child. Forwarding a contradiction and letting
+  the child's planner bounce it back is round-trip waste; your
+  reconciliation eliminates a class of child-to-parent Open Questions
+  before they happen.
 
 ## Boundary Rules (non-negotiable)
 

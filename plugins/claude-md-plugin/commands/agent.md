@@ -36,9 +36,30 @@ consult it when the protocol is ambiguous.
 ### 1. Receive instruction
 
 Take the user's instruction from `$ARGUMENTS`. If empty, ask once via
-AskUserQuestion. If the instruction is ambiguous in a way that affects
-which nodes will own the work or what "done" means, clarify with
-AskUserQuestion before planning. Skip clarification when concrete.
+AskUserQuestion.
+
+Before dispatching the root `node-agent`, walk this **clarification
+checklist**. For each axis, decide whether the instruction itself
+(or the root `CLAUDE.md`'s Conventions / Invariants) already answers
+it. If yes, proceed. If no and the axis materially affects planning
+or execution, resolve with one AskUserQuestion call covering only
+the unresolved axes. If an axis is genuinely irrelevant to this
+request, skip it — the checklist is a **gap detector**, not a
+question gatekeeper.
+
+| Axis | What to pin down |
+|------|------------------|
+| **Actors** | Who can trigger this work end-to-end? (end user, admin, internal system, scheduled job) Affects auth/authorization planning at the api/ or equivalent boundary. |
+| **Failure policy** | When an external dependency (email, webhook, payment, queue) fails partway, should the overall operation roll back, compensate, or commit-then-log-and-move-on? |
+| **Side effects** | Does the work produce externally visible effects (emails, webhooks, third-party API calls, payments)? Enumerating them up front prevents sibling plans from each surfacing the same question as an Open Question. |
+| **Done criteria** | What observable state or output counts as "complete"? (Already in the v18 baseline — keep.) |
+| **Node ownership** | Which node(s) own the primary responsibility? (Already in the v18 baseline — keep.) |
+
+Do not expand this checklist into a questionnaire. The goal is to
+catch *missing* information that multiple planners would otherwise
+rediscover independently as Open Questions. A concrete, well-scoped
+instruction (e.g., "add a health-check endpoint at GET /health that
+returns 200") needs zero checklist questions — proceed directly.
 
 ### 2. Locate the project root
 
@@ -118,7 +139,7 @@ By blocker type:
 | `blocked: boundary violation` | Re-dispatch the relevant `node-agent` (the planner of the affected branch) with the blocker text as feedback. Merge the refined plan into the DAG; resume execution. |
 | `blocked: ambiguous instructions` | Same as boundary violation — re-plan the affected branch with sharper instructions. |
 | `blocked: invariant conflict` | Do not auto-retry. Surface to the user with the invariant text, the item, and the executor's reasoning. |
-| `blocked: environment prerequisite unmet` | Do not auto-retry. Installing runtimes, dependencies, or system tools is outside main ctx's authority. Surface to the user with the executor's `verification.command` and the missing prerequisite; the user installs (or authorizes installation by a specific node-executor), then invokes `/agent` again or resumes. Mark `halted` for this item if the user declines. |
+| `blocked: environment prerequisite unmet` | First, Read the root `CLAUDE.md`. If its `## Workspace Provisioning` section declares **Root-owned** (root holds the missing artifact as one of its tools), dispatch one `node-executor` against the root node with an item phrased as "scaffold `<missing artifact>` per root's declared provisioning." This consumes one retry on the *original* blocked item. If recovery succeeds, the original item becomes `pending` again and normal execution resumes. If the root is **Out-of-tree** (user/CI owns provisioning) or the section is absent, do not attempt auto-recovery: surface to the user with the executor's `verification.command` and the missing prerequisite; the user installs, then invokes `/agent` again or resumes. Mark `halted` for this item if the user declines. |
 | Any other blocker the model judges as not auto-resolvable | Surface to the user; mark `halted`. |
 
 When the retry budget is exhausted, transition the item to `halted` and
@@ -150,6 +171,29 @@ blocker. Pass three parameters in the bootstrapper's prompt:
 If the bootstrapper returns `completed`, retry the original dispatch.
 If it returns `blocked` (insufficient context to draft a meaningful
 prompt), surface to the user — do not write a placeholder yourself.
+
+**After a successful bootstrap, inject a parent-update item into the
+DAG automatically.** Do not leave the parent's `## Children` section
+in a stale state — the bootstrapper cannot edit cross-boundary, and
+recording the drift only as a follow-up means it never executes. The
+injected item:
+
+- **Owning node**: the parent node (`parent_node` from the bootstrap
+  call).
+- **Description**: "Add `<child>/` to the parent `CLAUDE.md`'s
+  `## Children` section with a one-line role summary, derived from
+  the newly written `<child>/CLAUDE.md`'s Identity."
+- **Deps**: the bootstrapped child's first executed DAG item (i.e.,
+  the parent-update runs after the child has begun producing real
+  work, so the one-line role summary reflects settled reality, not
+  the initial bootstrap guess).
+- **Verification**: not applicable — documentation-only change. The
+  executor will legitimately return `completed` with
+  `verification.outcome: not applicable`.
+
+This item enters the DAG as a normal `pending` state entry and
+progresses through the standard execute loop. It does not consume
+the original dispatch's retry budget.
 
 ## Boundaries (non-negotiable)
 
