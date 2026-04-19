@@ -1,0 +1,10 @@
+{
+  "task_id": "t2",
+  "created_at": "2026-04-17T10:00:00Z",
+  "spec_ref": "spec.md",
+  "nodes": [
+    {"id": "a", "type": "work", "deps": ["c"], "agent": "flow-worker", "title": "a", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t2/a"}},
+    {"id": "b", "type": "work", "deps": ["a"], "agent": "flow-worker", "title": "b", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t2/b"}},
+    {"id": "c", "type": "work", "deps": ["b"], "agent": "flow-worker", "title": "c", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t2/c"}}
+  ]
+}

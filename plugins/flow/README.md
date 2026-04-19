@@ -21,6 +21,17 @@ This plugin is published in the `jhk-plugins` marketplace.
 /plugin install flow@jhk-plugins
 ```
 
+### Build the core binary
+
+`flow` ships a small Rust CLI at `core/` that enforces DAG structural invariants (acyclicity, referential integrity, R3/R5, enums) deterministically. Build it once after install:
+
+```
+cd "$CLAUDE_PLUGIN_ROOT/core"
+cargo build --release
+```
+
+This produces `core/target/release/flow-core`. The SKILL shells out to this binary before accepting any `dag.json` from the planner. If the binary is missing, the SKILL halts with a `core-not-built` reason and prints the build instruction.
+
 ## Commands
 
 | Command | Purpose |

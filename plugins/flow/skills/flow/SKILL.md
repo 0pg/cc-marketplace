@@ -1,6 +1,6 @@
 ---
 name: flow
-version: 0.1.0
+version: 0.2.0
 aliases: [dag-run, run-dag, flow-run]
 description: |
   This skill should be used when the user asks to "run as DAG", "execute in parallel with merge gates",
@@ -100,7 +100,24 @@ Dispatch `Task(subagent_type=flow-planner)`. The agent MUST:
 - Satisfy INV-F2 (every fan-in is an explicit `merge` node).
 - Return a mermaid preview string.
 
-SKILL validates the returned `dag.json` structurally before proceeding. Rejection → one re-dispatch with the structural errors injected; a second failure halts.
+**Structural validation is performed by the Hands layer — `flow-core validate-dag`.** The SKILL shells out:
+
+```bash
+FLOW_CORE="${CLAUDE_PLUGIN_ROOT}/core/target/release/flow-core"
+if [ ! -x "$FLOW_CORE" ]; then
+  # Halt with build instruction; do not fall back to LLM-only validation.
+  echo '{"status":"halted","reason":"core-not-built","hint":"cd $CLAUDE_PLUGIN_ROOT/core && cargo build --release"}'
+  exit 1
+fi
+"$FLOW_CORE" validate-dag "$task_dir/dag.json"
+```
+
+Exit code is authoritative:
+- `0`: DAG is structurally valid. Proceed to Step 4.
+- `1`: Violations reported as JSON `{valid: false, errors: [{code, node_id, message}, ...]}` on stdout. Inject the errors verbatim into the next planner dispatch and retry once. A second non-zero exit halts with `halted_reason: "dag-invalid-after-retry"`.
+- `2`: I/O or parse error (planner produced invalid JSON). Halt immediately.
+
+The SKILL itself does NOT reinterpret the validator output; planner-agent is the sole consumer of the error list for self-correction (per Harness Design Principles in CLAUDE.md — "Hands layer whose output the Brain reinterprets is an anti-pattern").
 
 ### 4. Approval gate
 
@@ -200,7 +217,7 @@ evaluate_validator(node, result):
 ## Invariants enforced by SKILL
 
 - **INV-F1**: `state.nodes[n].status = "running"` persists to disk before `Task()` dispatch in Step 6.
-- **INV-F2**: Step 3 rejects `dag.json` where any `work` node has `|deps| >= 2`.
+- **INV-F2**: Enforced by `flow-core validate-dag` (Hands layer). SKILL rejects planner output on non-zero exit. R4 (acyclic / ref integrity / terminal), R5 (fan-in → merge), R3 (kind=none successor), and enum correctness are all enforced by the same CLI invocation.
 - **INV-F3**: Merge cascade ordering (step1 → step2 → step4) is enforced inside `flow-merger`, not here; SKILL only validates its `validators.json` schema.
 - **INV-F4**: Worker session files MUST include the worktree base path; workers create the worktree before committing.
 - **INV-F5**: `dag.json` at `$task_dir/dag.json` is read-only after Step 5. SKILL never edits it post-initialization; `/flow-resume` does not either.

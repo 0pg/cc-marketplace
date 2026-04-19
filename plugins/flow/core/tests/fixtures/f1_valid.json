@@ -1,0 +1,10 @@
+{
+  "task_id": "t1",
+  "created_at": "2026-04-17T10:00:00Z",
+  "spec_ref": "spec.md",
+  "nodes": [
+    {"id": "parse", "type": "work", "deps": [], "agent": "flow-worker", "title": "parse", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t1/parse"}},
+    {"id": "render", "type": "work", "deps": [], "agent": "flow-worker", "title": "render", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t1/render"}},
+    {"id": "merge-both", "type": "merge", "deps": ["parse", "render"], "agent": "flow-merger", "title": "merge", "spec": "...", "validator": {"kind": "command", "command": "pytest", "expected_exit": 0}, "produces": {"kind": "branch", "ref": "flow/t1/merge-both"}}
+  ]
+}

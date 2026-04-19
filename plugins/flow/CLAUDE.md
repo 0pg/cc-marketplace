@@ -41,9 +41,9 @@ A **DAG-based task execution engine** that turns a user's feature/refactor reque
 
 - **R1 (Intake):** `/flow "<request>"` (or `/flow` prompting once) MUST create a new task-id and begin interview. When invoked without a request and `--no-ask` is NOT set, the SKILL asks exactly one question to collect the request.
 - **R2 (Spec finalization):** Before task execution begins, a committed `spec.md` MUST exist under the task directory. The SKILL MUST NOT proceed to DAG generation with empty or ambiguous acceptance criteria.
-- **R3 (Atomic subtasks):** Each `work` node in `dag.json` MUST have a `validator` field whose `kind ∈ {command, schema, none}`. When `kind = none`, the node MUST be followed by a review-type successor. The planner is responsible for ensuring this; the SKILL rejects `dag.json` that violates it.
-- **R4 (DAG validity):** `dag.json` MUST be acyclic, MUST contain ≥1 terminal node, and every edge's source/target MUST resolve to a declared node id. The SKILL rejects violating DAGs.
-- **R5 (Parallel execution + merge isolation):** Nodes whose dependencies are all `complete` MUST be dispatched in a single parallel batch. Every edge convergence point (fan-in ≥ 2) MUST have an explicit `merge` node — `work` nodes are never allowed to have ≥2 parents directly.
+- **R3 (Atomic subtasks):** Each `work` node in `dag.json` MUST have a `validator` field whose `kind ∈ {command, schema, none}`. When `kind = none`, the node MUST have ≥1 successor of type ∈ {work, merge}. Enforced by `flow-core validate-dag` (Hands); the SKILL shells out before accepting planner output.
+- **R4 (DAG validity):** `dag.json` MUST be acyclic, MUST contain ≥1 terminal node, and every edge's source/target MUST resolve to a declared node id. Enforced by `flow-core validate-dag` (Kahn's algorithm + set membership); the SKILL rejects violating DAGs on non-zero exit.
+- **R5 (Parallel execution + merge isolation):** Nodes whose dependencies are all `complete` MUST be dispatched in a single parallel batch. Every edge convergence point (fan-in ≥ 2) MUST have an explicit `merge` node — `work` nodes are never allowed to have ≥2 parents directly. Fan-in rule enforced by `flow-core validate-dag`; parallel dispatch is SKILL-owned.
 - **R6 (State tracking):** Every node MUST have a status ∈ `{pending, running, complete, failed}` recorded in `state.json`. Status transitions MUST be persisted before the next orchestration step proceeds.
 - **R7 (Task completion):** The task is `complete` IFF every node's status is `complete`. Any `failed` node after retry exhaustion transitions the task to `halted` and surfaces the failure.
 
@@ -128,6 +128,18 @@ the failure at /flow-status and when /flow-resume is invoked.
 /tmp/flow/{CLAUDE_SESSION_ID}/              ← ephemeral session files (agent inputs)
 └── {interviewer|planner|worker|merger|reviewer}-session-{node-id}.md
 ```
+
+### Hands layer (`core/`)
+
+A small Rust crate at `plugins/flow/core/` exposes a single binary `flow-core` with deterministic subcommands:
+
+| Subcommand | Purpose |
+|------------|---------|
+| `validate-dag <path>` | Validates `dag.json` against the schema and all structural invariants (R3, R4, R5, INV-F2, enums). Stdout: `{valid, errors[]}`. Exit 0 = valid, 1 = invalid, 2 = I/O or parse error. |
+
+Build (one-time after install): `cd "$CLAUDE_PLUGIN_ROOT/core" && cargo build --release` produces `$CLAUDE_PLUGIN_ROOT/core/target/release/flow-core`.
+
+The SKILL invokes `$CLAUDE_PLUGIN_ROOT/core/target/release/flow-core validate-dag` before accepting planner output. Validation errors are machine-readable codes (`CYCLE`, `UNRESOLVED_DEP`, `R5_WORK_MULTIPARENT`, `R3_TERMINAL_KIND_NONE`, `ENUM_AGENT`, `ENUM_VALIDATOR_KIND`, `NO_TERMINAL`, `DUPLICATE_NODE_ID`) that the planner-agent uses for self-correction on retry.
 
 ### DAG schema (`dag.json`)
 
@@ -221,6 +233,64 @@ Sub-workflows (resume/status/graph) are implemented as lightweight commands that
 4. **Retry is a bug-guard.** `MAX_RETRIES=3` catches transient failures; persistent failure halts and surfaces — the user decides retry/abort/edit-spec.
 5. **LLM generates the DAG; user approves it.** Planner outputs a mermaid preview before committing `dag.json`. With `--no-ask`, the planner's own self-review substitutes for user approval but MUST record rationale in `spec.md`.
 6. **Version management.** Bump `.claude-plugin/plugin.json` version + `.claude-plugin/marketplace.json` entry on every release (SemVer).
+
+## Harness Design Principles
+
+**Foundational framework** — Anthropic's Managed Agents architecture (2026) distinguishes three layers that evolve independently. `flow` adopts this partition:
+
+| Layer | Definition | `flow`'s implementation |
+|-------|------------|-------------------------|
+| **Brain** | Claude + the harness — orchestration logic, judgment, control flow | `/flow` SKILL + agents (`flow-interviewer`, `flow-planner`, `flow-worker`, `flow-merger`, `flow-reviewer`) — Markdown-defined guides |
+| **Hands** | Concrete capabilities the model invokes directly — deterministic tools | Rust CLI in `plugins/flow/core/` (planned) — subcommands like `validate-dag`, `render-graph` |
+| **Session** | Durable state separate from the context window | `.claude/workflows/flow/{task-id}/` (spec.md, dag.json, state.json, nodes/, merges/) + `/tmp/flow/{session-id}/` ephemeral inputs |
+
+**Guide vs Detail** — the Brain **guides** the model; the Hands **extend** the model. Conflating these is the root of over-harnessing: encoding in prose what should be a CLI call, or encoding in a CLI what should be left to judgment.
+
+**The guiding question** (Anthropic, verbatim): ***"Can the model do this itself now? If yes, delete it."***
+
+> "The scaffolding we built for a Claude 3-level intelligence is a cage for a Claude 4-level one." — Anthropic Engineering
+
+### Applied to `flow`
+
+As of v0.2, DAG structural invariants are enforced by the Hands layer (`flow-core validate-dag`). Semantic and orchestration concerns remain in the Brain layer.
+
+| Concern | Layer | Enforcement |
+|---------|-------|-------------|
+| Acyclicity (INV-F2 / R4) | **Hands** | `flow-core validate-dag` via Kahn's algorithm |
+| Referential integrity (R4) | **Hands** | Set membership in `validate-dag` |
+| ≥1 terminal node (R4) | **Hands** | Topology check in `validate-dag` |
+| Fan-in → merge (INV-F2 / R5) | **Hands** | `deps.length ≥ 2 ∧ type = "work"` predicate in `validate-dag` |
+| Enum checks (`type`, `agent`, `validator.kind`) | **Hands** | Set membership in `validate-dag` |
+| R3 kind=none successor (code-level disambiguation: "successor with type ∈ {work, merge}") | **Hands** | Reverse-adjacency check in `validate-dag` |
+| Cascade step order (INV-F3) | **Brain** | `flow-merger` prose — involves fail-escalation judgment |
+| Semantic coherence (merge spec vs parent outputs) | **Brain** | `flow-reviewer` — genuine judgment, not regex-expressible |
+| Retry bounds (INV-F6) | **Brain** | SKILL bug-guard with model-surfaced halt |
+
+**Subtraction discipline** — every Brain-layer rule (SKILL step, agent criterion) is a liability by default. Its burden of proof is:
+1. A concrete failure mode the model exhibits *today* without it, AND
+2. The failure is not better addressed by a Hands-layer tool or richer Session context.
+
+If either fails, delete. Deletion is the default move on every audit; addition requires justification.
+
+**Legitimate constraints (do NOT relax)**:
+- Invariants INV-F1 … INV-F6: safety/integrity — never soften
+- DAG structural validation — deterministic rules (candidates for Hands migration, not removal)
+- Merge cascade order (step 1 → 2 → 4) — workflow correctness
+
+**Anti-patterns to avoid when editing SKILL/agent prose**:
+
+| Anti-pattern | Replacement | Why |
+|--------------|-------------|-----|
+| **Number → Criterion** | Arbitrary caps (`max_rounds=3`) → explicit convergence/outcome criteria + runaway safety net | Counters terminate by timer, not quality. `MAX_RETRIES=3` stays as a bug-guard (INV-F6), labeled as such |
+| **Procedure → Outcome** | Step-by-step parsing/matching → Goal + Input/Output + delegated judgment | Hardcoded procedures ceiling the model at our level |
+| **Prohibition → Default** | Blanket bans → "default X, exception when Y" with conditions the model judges | Bans block adaptive behavior in edge cases |
+
+**Layer migration signals**:
+- A Brain-layer rule that lends itself to regex/AST/schema enforcement → candidate to migrate to Hands. E.g., DAG structural invariants above
+- A Hands-layer tool whose output the Brain always reinterprets → candidate to simplify or remove
+- Prior state the Brain reconstructs from context → candidate for Session promotion (state.json field, session file)
+
+**Audit posture**: if raising the model's capability by one generation would not change how `/flow` runs, the SKILL is over-constraining. A release that only *adds* Brain-layer rules is a red flag — healthy evolution deletes staler scaffolding than it adds.
 
 ## Instructions
 
