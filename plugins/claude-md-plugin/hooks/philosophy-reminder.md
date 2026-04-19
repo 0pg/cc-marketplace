@@ -2,7 +2,7 @@
 
 ## Invariants
 
-Three premises are always true about a project using this plugin.
+Four premises are always true about a project using this plugin.
 Hold them as given across every reasoning step — they are not
 renegotiated during a session.
 
@@ -26,7 +26,7 @@ renegotiated during a session.
    responsibilities are signs that the agent should be split (or that
    the responsibilities should be reassigned).
 
-Everything below follows from these three.
+Everything below follows from these four.
 
 ## How the invariants manifest
 
