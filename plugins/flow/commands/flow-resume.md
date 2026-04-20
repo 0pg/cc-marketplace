@@ -23,12 +23,23 @@ Resume a previously-created DAG task.
 ## Behavior
 
 1. Verify `.claude/workflows/flow/{task-id}/{dag.json,state.json}` exist.
+
 2. Load `state.json`. Compute nodes needing work:
    - `pending` with all deps `complete` → ready queue.
    - `failed` → re-queue with `attempts` carried forward. If `attempts >= max-retries` AND the user supplies `--max-retries` raising the cap, re-arm; otherwise surface the failure and exit.
-   - `running` (interrupted) → treat as `failed` (re-dispatch from scratch; existing worktree is removed first if present).
-3. Re-enter the `flow` skill's execution loop with the computed ready set.
-4. On task completion (all nodes `complete`) or fresh halt, report.
+   - `running` (interrupted) → treat as `failed`; if the worktree exists, remove it via `git worktree remove --force` before step 3 restores a clean copy.
+
+3. **Worktree restoration** — for every node scheduled for dispatch in step 2, ensure its worktree exists:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/restore-worktree.sh" "$task_id" "$node_id"
+```
+
+Exit 0 means the worktree is ready (idempotent no-op if it already existed; restored from branch if it was missing). Exit 4 means `flow/{task-id}/{node-id}` no longer exists — the task was fully cleaned by `/flow-clean --full`. Halt the resume with `reason: "task-fully-cleaned"` and instruct the user to start a new task.
+
+4. Re-enter the `flow` skill's execution loop with the computed ready set.
+
+5. On task completion (all nodes `complete`) or fresh halt, report. If completion, SKILL §8 runs auto-cleanup — worktrees created by restoration in step 3 are removed again.
 
 ## Invariant
 
