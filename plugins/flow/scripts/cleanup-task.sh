@@ -47,8 +47,19 @@ case "$mode" in
     echo "cleanup-task: removed worktrees for $task_id (auto)"
     ;;
   full)
-    echo "cleanup-task: full mode not yet implemented" >&2
-    exit 2
+    remove_worktrees
+    current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    # `git branch --list` pads with 2 leading chars ("* " or "  "); strip with sed.
+    while IFS= read -r branch; do
+      [ -n "$branch" ] || continue
+      if [ "$branch" = "$current" ]; then
+        echo "cleanup-task: skipping current branch $branch" >&2
+        continue
+      fi
+      git branch -D "$branch" >/dev/null 2>&1 || true
+    done < <(git branch --list "flow/$task_id/*" | sed 's/^..//')
+    rm -rf "$task_dir"
+    echo "cleanup-task: removed task dir + branches for $task_id (full)"
     ;;
   *)
     echo "cleanup-task: unknown mode: $mode" >&2

@@ -58,3 +58,35 @@ teardown() {
   run "$SCRIPT" "does-not-exist" auto
   [ "$status" -eq 3 ]
 }
+
+@test "full mode removes task dir AND flow/{task-id}/* branches" {
+  run "$SCRIPT" "$TASK_ID" full
+  [ "$status" -eq 0 ]
+
+  [ ! -d "$TASK_DIR" ]
+
+  run git show-ref --quiet --heads "flow/$TASK_ID/node-a"
+  [ "$status" -ne 0 ]
+}
+
+@test "full mode skips the currently-checked-out flow branch" {
+  # Put HEAD on a flow branch to simulate the user being inside it.
+  # First remove the worktree so we can check out the branch.
+  git worktree remove --force "$TASK_DIR/worktrees/node-a" 2>/dev/null || true
+  git checkout -q "flow/$TASK_ID/node-a"
+
+  run "$SCRIPT" "$TASK_ID" full
+  [ "$status" -eq 0 ]
+
+  # Task dir gone, but the current branch remains.
+  [ ! -d "$TASK_DIR" ]
+  run git show-ref --quiet --heads "flow/$TASK_ID/node-a"
+  [ "$status" -eq 0 ]
+}
+
+@test "full mode is idempotent" {
+  "$SCRIPT" "$TASK_ID" full
+  run "$SCRIPT" "$TASK_ID" full
+  # Second run: task dir already gone → exit 3 is acceptable.
+  [ "$status" -eq 3 ]
+}
