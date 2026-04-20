@@ -7,6 +7,12 @@ set -euo pipefail
 # Discard stdin (hook input JSON — we don't need it).
 cat > /dev/null || true
 
+# /tmp/flow GC — best-effort, silent on failure so we never block session start.
+gc_script="${CLAUDE_PLUGIN_ROOT:-}/scripts/gc-tmp.sh"
+if [ -x "$gc_script" ]; then
+  "$gc_script" 2>/dev/null || true
+fi
+
 # Only runs inside a repo with a flow workflow directory. Bail silently otherwise.
 workflow_root=".claude/workflows/flow"
 if [ ! -d "$workflow_root" ]; then
