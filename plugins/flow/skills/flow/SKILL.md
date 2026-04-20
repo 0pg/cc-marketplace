@@ -149,7 +149,7 @@ Write `$task_dir/state.json`:
 loop:
   load state.json
   if all nodes.status == "complete":
-    state.status = "complete"; persist; break
+    state.status = "complete"; persist; break  # §8 cleanup runs after §7
   if any nodes.status == "failed" AND attempts >= max_retries:
     state.status = "halted"; persist; break
   ready = { n | n.status == "pending" AND all(deps[d].status == "complete" for d in n.deps) }
@@ -206,6 +206,22 @@ For every merge node, additionally read the merger's return block for `unverifie
 - Reason: a task that passes all validators but has unverified criteria or simulation-only code is the exact failure mode that `cp -f` / sim-mode silent-fallback previously exploited.
 
 This is a report-layer addition only — `evaluate_validator` below remains unchanged; cascade pass/fail judgment (INV-F3) is still merger's responsibility.
+
+### 8. Cleanup on completion
+
+After emitting the report in Step 7, branch on final status:
+
+- `state.status = "complete"` → invoke the Hands layer to remove disposable artifacts:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-task.sh" "$task_id" auto
+```
+
+Auto mode removes `$task_dir/worktrees/` only (can be >1GB per task). Preserved: `state.json`, `dag.json`, `spec.md`, `nodes/*/output.md`, `merges/*/validators.json`, and every `flow/{task_id}/*` branch. This is the full audit trail and the committed work — enough for `/flow-status` and for re-entry via `/flow-resume` after manual inspection.
+
+- `state.status = "halted"` → do NOT auto-clean. Worktrees are diagnostic surface: the user needs them intact for `/flow-resume` or manual triage. Cleanup is opt-in via `/flow-clean`.
+
+**Design rationale (why auto-clean is safe on complete):** git commits on `flow/{task_id}/{node-id}` branches are the source of truth (INV-F4). `state.json.nodes[n]` records the branch ref. If `/flow-resume` is later invoked on an auto-cleaned task, `scripts/restore-worktree.sh` rebuilds each worktree from its committed branch before re-dispatch. Worktree contents are a disposable working copy, not canonical state.
 
 ## Validator evaluation
 
