@@ -79,7 +79,7 @@ Session file with:
 
 5. **Return the branch ref.** Do NOT merge into main. Do NOT push. Do NOT run the project's test suite (the SKILL evaluates the validator separately; running it here wastes context).
 
-6. **Do NOT delete the worktree.** The merger needs it accessible. Cleanup is the SKILL's responsibility on task completion.
+6. **Do NOT delete the worktree.** The merger needs it accessible during the cascade. Cleanup is handled by SKILL §8 on task `complete` (via `scripts/cleanup-task.sh`); `/flow-resume` restores missing worktrees from committed branches via `scripts/restore-worktree.sh`. Full purge is opt-in via `/flow-clean --full`.
 
 ## Return block
 
