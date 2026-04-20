@@ -25,6 +25,12 @@ A **DAG-based task execution engine** that turns a user's feature/refactor reque
 - Build-only validation (compile without tests) — explicitly excluded per design decision
 - Visual UI (only mermaid text output)
 
+**Added in v0.4:**
+- Auto-cleanup of `$task_dir/worktrees/` on task `complete` (SKILL §8).
+- `scripts/restore-worktree.sh` — `/flow-resume` rebuilds missing worktrees from committed branches.
+- `scripts/gc-tmp.sh` — `SessionStart` hook prunes `/tmp/flow/{session-id}/` dirs older than `FLOW_TMP_KEEP_DAYS` (default 7).
+- `/flow-clean <task-id> [--full] [--force]` — opt-in purge.
+
 ## Roles
 
 | Role | Definition | Workflow position |
@@ -104,6 +110,17 @@ A node that fails 3 consecutive times is a halt signal, not "give up quietly":
 state.json.status = halted, failure context preserved verbatim, user is surfaced
 the failure at /flow-status and when /flow-resume is invoked.
 ```
+
+### INV-F7: Commits are canonical; worktrees are disposable
+```
+For any node N with state.nodes[N].status = "complete":
+  the branch flow/{task_id}/{N} MUST exist and its tip MUST reflect
+  the committed work. The worktree at $task_dir/worktrees/{N} MAY be
+  absent (auto-cleaned post-complete or removed by /flow-clean).
+  Any reader that needs the files MUST reconstruct the worktree via
+  scripts/restore-worktree.sh rather than assuming it is present.
+```
+Justifies SKILL §8 auto-cleanup and `/flow-resume` restoration.
 
 ## Architecture
 
@@ -192,6 +209,19 @@ SKILL(flow):
   emit final report
 ```
 
+### Cleanup semantics
+
+The plugin treats files on disk as two layers:
+
+| Artifact | Authority | Cleanup policy |
+|----------|-----------|----------------|
+| `flow/{task_id}/{node-id}` branches + commits | **Canonical** — source of truth (INV-F4) | Auto-kept on `complete`; purged only by `/flow-clean --full`. |
+| `$task_dir/{state.json, dag.json, spec.md, nodes/, merges/}` | **Audit trail** | Kept on `complete` (small; enables `/flow-status`); purged by `/flow-clean --full`. |
+| `$task_dir/worktrees/` | **Disposable working copy** (reconstructible via `git worktree add`) | **Auto-removed on `complete`** (SKILL §8); preserved on `halted` for triage; restored by `/flow-resume` when missing. |
+| `/tmp/flow/{session-id}/*.md` | **Ephemeral agent inputs** | GC'd by `SessionStart` hook when older than `FLOW_TMP_KEEP_DAYS` and not the current session. |
+
+This partition makes "commits are SSoT" operational: removing a worktree is always safe because it can be rebuilt from the branch. Removing a branch is destructive and requires explicit opt-in (`--full`).
+
 ### Agent composition
 
 | Agent | Superpowers composition | Purpose |
@@ -210,6 +240,7 @@ SKILL(flow):
 | `/flow-status [task-id]` | Human-readable state summary of a task (or all tasks if omitted). |
 | `/flow-resume <task-id>` | Resume a `halted` or session-interrupted task. Reuses `dag.json`, retries `failed` or `running` nodes. |
 | `/flow-graph <task-id>` | Render the DAG as a mermaid diagram from `dag.json`, annotated with current status. |
+| `/flow-clean <task-id> [--full] [--force]` | Remove disposable artifacts. Default = worktrees only; `--full` = task dir + branches. Refuses non-complete tasks without `--force`. |
 
 ## Skills
 
@@ -223,7 +254,7 @@ Sub-workflows (resume/status/graph) are implemented as lightweight commands that
 
 | Hook | Purpose |
 |------|---------|
-| `SessionStart` | Scans `.claude/workflows/flow/*/state.json` for tasks with `status ∈ {running, halted}` and emits a one-line "in-progress flows" notice so the user knows they can resume. Non-blocking, <1s. |
+| `SessionStart` | (1) Prunes `/tmp/flow/{session-id}/` dirs older than `FLOW_TMP_KEEP_DAYS` (default 7), preserving the current session. (2) Scans `.claude/workflows/flow/*/state.json` for tasks with `status ∈ {running, halted}` and emits a one-line notice. Non-blocking, <1s. |
 
 ## Development Principles
 
