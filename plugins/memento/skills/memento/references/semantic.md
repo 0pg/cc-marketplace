@@ -4,6 +4,25 @@ Use semantic search to retrieve candidate records when literal/token searches an
 
 ## Explicit setup
 
+Install memento from the plugin root (requires Rust/Cargo, Python 3.9+, and `uv`). The default embedding model is `e5-small`:
+
+```sh
+python3 scripts/install_runtime.py
+# Or select the other supplied embedding model:
+python3 scripts/install_runtime.py --embedding-model minilm
+```
+
+| Selection | Pinned model |
+| --- | --- |
+| `e5-small` (default) | `intfloat/multilingual-e5-small` |
+| `minilm` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
+
+The installer prepares Python 3.12, installs the pinned dependencies and model weights, and checks the worker with a short public test query before replacing the plugin skill. It writes `<plugin-root>/skills/memento/semantic-config.json` and bundles `scripts/local_embeddings.py`; neither path depends on the implementation checkout. Runtime and weights are cached in `<plugin-root>/skills/.memento-semantic` by model and pinned setup. Reinstalling the same setup reuses them and repeats the inference check. Changing the selected model prepares a separate runtime; existing query cursors must be restarted.
+
+The skill's `scripts/memento.py` launcher automatically supplies that configuration for `query`. Use `mode: semantic` in the search JSON as shown below; no manual path editing is needed. An explicit `--semantic-config` overrides the installed selection. Running the Rust executable directly requires `--semantic-config <plugin-root>/skills/memento/semantic-config.json`. Omitting `--embedding-model` selects `e5-small` on both install and update. Use `--embedding-model none` to skip model setup and preserve any existing configuration. The installer sets up embeddings alone; configure the optional reranker manually below.
+
+## Manual setup and optional reranking
+
 The Rust CLI runs an explicitly configured local executable. The supplied worker uses CPU inference, an installed model directory, offline library settings, and no work-text/vector cache. Installation downloads public model weights and Python packages; ordinary search never downloads a model or sends the query to a model service. Use the supplied worker for this behavior; an arbitrary custom command has its own behavior.
 
 Run these from the plugin root, choosing absolute runtime/model paths outside the repository:

@@ -2,3 +2,8 @@
 /skills/memento/bin/
 **/__pycache__/
 *.pyc
+
+# Local embedding installation outputs
+/skills/.memento-semantic/
+/skills/memento/semantic-config.json
+/skills/memento/scripts/local_embeddings.py
