@@ -1,0 +1,247 @@
+{
+  "id": "RAW-01",
+  "synthetic": true,
+  "question": "왜 작업자를 4개로 제한했고 재시도 10회는 버렸어? 토큰 문제였어? 운영 피크까지 확인됐어? 당시 진행 안내도 원문으로 보여줘.",
+  "capture_contract": "Original public message bodies with explicit capture annotations; failed outcome of M06 was attached after M07. No automatic language understanding is asserted.",
+  "notes": [
+    {
+      "id": "M01",
+      "kind": "request",
+      "body": "파일 40개를 올리면 일부가 429로 실패해. 원인 찾아서 고쳐줘.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "human",
+        "name": "user"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M02",
+      "kind": "status",
+      "body": "우선 업로드 로그부터 확인하겠습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M03",
+      "kind": "tool_result",
+      "body": "POST /uploads -> 429 Too Many Requests\nactive_uploads=16\nmessage=\"concurrent upload limit exceeded\"",
+      "revision": "v1",
+      "nature": "observed",
+      "actor": {
+        "kind": "tool",
+        "name": "tool"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M04",
+      "kind": "finding",
+      "nature": "inferred",
+      "body": "인증 토큰이 만료됐을 가능성을 먼저 확인하겠습니다.",
+      "revision": "v1",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M05",
+      "kind": "feedback",
+      "body": "401이 아니라 429야. 토큰 갱신 쪽은 건드리지 마. 평소 처리량도 유지해야 해.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "human",
+        "name": "user"
+      },
+      "evidence": [
+        {
+          "source_id": "journal",
+          "record_id": "M03",
+          "revision": "v1",
+          "locator": "message:M03",
+          "availability": "available"
+        },
+        {
+          "source_id": "journal",
+          "record_id": "M04",
+          "revision": "v1",
+          "locator": "message:M04",
+          "availability": "available"
+        }
+      ]
+    },
+    {
+      "id": "M06",
+      "kind": "attempt",
+      "attempt_outcome": "failed",
+      "attempt_id": "M06",
+      "body": "동시 업로드 16개는 유지하고, 재시도 횟수만 3회에서 10회로 늘려 실험하겠습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M07",
+      "kind": "tool_result",
+      "attempt_id": "M06",
+      "body": "parallel=16 retries=10\nfiles=40 succeeded=31 failed=9\nHTTP_429=9\nexit_code=1",
+      "revision": "v1",
+      "nature": "observed",
+      "actor": {
+        "kind": "tool",
+        "name": "tool"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M08",
+      "kind": "decision",
+      "decision_status": "proposed",
+      "body": "재시도 증가로는 동시 요청 수가 줄지 않았습니다. 이 변경은 버리고, 업로드 작업자를 4개로 제한해 테스트하겠습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": [
+        {
+          "source_id": "journal",
+          "record_id": "M07",
+          "revision": "v1",
+          "locator": "message:M07",
+          "availability": "available"
+        }
+      ]
+    },
+    {
+      "id": "M09",
+      "kind": "status",
+      "body": "테스트를 실행하고 있습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M10",
+      "kind": "tool_result",
+      "body": "fixture=local-40-files\nparallel=4 retries=3\npassed=40 failed=0 HTTP_429=0\nproduction_peak=NOT_TESTED\nnetwork_recovery=NOT_TESTED\nthroughput_vs_baseline=NOT_TESTED",
+      "revision": "v1",
+      "nature": "observed",
+      "actor": {
+        "kind": "tool",
+        "name": "tool"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M11",
+      "kind": "verification",
+      "verification_outcome": "passed",
+      "body": "로컬 파일 40개는 모두 성공했습니다. 운영 피크, 네트워크 복구, 기존 대비 처리량은 아직 검증하지 못했습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": [
+        {
+          "source_id": "journal",
+          "record_id": "M10",
+          "revision": "v1",
+          "locator": "message:M10",
+          "availability": "available"
+        }
+      ]
+    },
+    {
+      "id": "M12",
+      "kind": "status",
+      "body": "변경 내용을 정리하고 있습니다.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "agent",
+        "name": "assistant"
+      },
+      "evidence": []
+    },
+    {
+      "id": "M13",
+      "kind": "decision",
+      "decision_status": "accepted",
+      "body": "좋아. 업로드 작업자만 4개로 제한하고 공통 재시도는 3회로 유지해. 운영 피크와 처리량은 별도로 확인하자.",
+      "revision": "v1",
+      "nature": "reported",
+      "actor": {
+        "kind": "human",
+        "name": "user"
+      },
+      "evidence": [
+        {
+          "source_id": "journal",
+          "record_id": "M05",
+          "revision": "v1",
+          "locator": "message:M05",
+          "availability": "available"
+        },
+        {
+          "source_id": "journal",
+          "record_id": "M07",
+          "revision": "v1",
+          "locator": "message:M07",
+          "availability": "available"
+        },
+        {
+          "source_id": "journal",
+          "record_id": "M08",
+          "revision": "v1",
+          "locator": "message:M08",
+          "availability": "available"
+        },
+        {
+          "source_id": "journal",
+          "record_id": "M11",
+          "revision": "v1",
+          "locator": "message:M11",
+          "availability": "available"
+        }
+      ]
+    }
+  ],
+  "retained": [
+    "M01",
+    "M03",
+    "M04",
+    "M05",
+    "M06",
+    "M07",
+    "M08",
+    "M10",
+    "M11",
+    "M13"
+  ],
+  "removed": [
+    "M02",
+    "M09",
+    "M12"
+  ]
+}

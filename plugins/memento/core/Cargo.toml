@@ -1,0 +1,25 @@
+[package]
+name = "work-context"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+crepe = "0.2.0"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+regex = "1"
+tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
+toasty = { version = "0.4.0", features = ["sqlite"] }
+toasty-driver-sqlite = "0.4.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+syn = { version = "2", features = ["full", "visit"] }
+quote = "1"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+
+[dev-dependencies]
+tempfile = "3"

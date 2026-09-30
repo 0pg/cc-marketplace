@@ -1,0 +1,4 @@
+/core/target/
+/skills/memento/bin/
+**/__pycache__/
+*.pyc

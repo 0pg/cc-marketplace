@@ -1,0 +1,501 @@
+{
+  "targets": {
+    "recall_at_3": 0.8
+  },
+  "documents": [
+    {
+      "id": "unicode-cause",
+      "revision": "v1",
+      "title": "Mira catalog: failed ordering attempt",
+      "body": "Incident Mira concerned Korean and accented catalog titles changing position across search pages. The lowercase-only sort-key patch failed: imported titles retained both composed and decomposed Unicode spellings, so visually identical names still had unequal byte keys. This failure was reproduced with the same frozen catalog; fresh indexing alone did not remove it.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "unicode-decision",
+      "revision": "v1",
+      "title": "Mira catalog: adopted key and withdrawn locale sort",
+      "body": "For Mira, the adopted decision was to normalize the stored title key to NFC and append the immutable product ID as the final ordering key. The earlier proposal to delegate ordering to each host locale was withdrawn because machines could disagree. The accepted change covered title ordering only; relevance scoring and user language detection were explicitly outside this decision.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "unicode-verification",
+      "revision": "v1",
+      "title": "Mira catalog: bounded pagination verification",
+      "body": "Mira verification passed on a frozen set of 320 products containing Korean, Latin accents, and equivalent composed/decomposed titles. Repeated forward pagination produced neither gaps nor duplicate IDs after the accepted sort-key change. This establishes behavior for the fixture and the pinned engine build only; Japanese readings, engine upgrades, and live index updates were not tested.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "unicode-other-a",
+      "revision": "v1",
+      "title": "Lumen catalog: Japanese reading order",
+      "body": "Incident Lumen affected Japanese vendor names in an administrative export, not Mira search pagination. The team accepted an explicit kana reading field because spelling order did not match the requested pronunciation order. Verification passed for forty vendor samples. No composed/decomposed Unicode pairs or search page boundaries were included, so this record does not establish Mira behavior.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "unicode-other-b",
+      "revision": "v1",
+      "title": "Tern catalog: relevance refresh timing",
+      "body": "Incident Tern showed recently renamed products at unexpected search ranks while an asynchronous relevance index was catching up. A synchronous refresh after rename was accepted for that endpoint. Ten single-product rename checks passed, but alphabetical sorting, normalized title keys, and multi-page traversal were outside the checks. This was a freshness incident rather than Mira ordering.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "vary-cause",
+      "revision": "v1",
+      "title": "Aster preview proxy: failed language isolation",
+      "body": "Incident Aster served the English preview after a French user opened the same URL through the proxy. The URL-only cache key ignored the origin response Vary: Accept-Language. A shorter expiration reduced the visible duration but failed to isolate the representations: whichever language filled the cache first could still be served to the next visitor. The failure was confirmed before expiry.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "vary-decision",
+      "revision": "v1",
+      "title": "Aster preview proxy: accepted Vary handling",
+      "body": "For Aster, the accepted decision was to derive representation keys from the request headers named by the origin Vary field and to skip shared storage for Vary: *. The proposed country-code key was withdrawn because the origin selected content by requested language, not geography. Existing URL-only entries were expired at rollout. Personalized cookie responses remained outside this change.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "vary-verification",
+      "revision": "v1",
+      "title": "Aster preview proxy: measured verification scope",
+      "body": "Aster verification passed with four language headers, two content encodings, and both request arrival orders against a controlled origin. Tests confirmed separate stored representations and a storage bypass for Vary: *. The checks covered one proxy node and cold or warm local cache states only. Cross-node invalidation, personalized responses, and an origin changing its Vary policy were not exercised.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "vary-other-a",
+      "revision": "v1",
+      "title": "Birch preview proxy: stale deployment shell",
+      "body": "Incident Birch returned an old application shell after deployment because the CDN retained a stale HTML object. The accepted response was a deployment purge plus a shorter HTML freshness interval. Two rollout rehearsals passed. Language negotiation and the origin Vary header were unchanged and untested; this stale-version problem did not explain Aster visitors receiving another language.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "vary-other-b",
+      "revision": "v1",
+      "title": "Cobalt preview proxy: private profile bypass",
+      "body": "Incident Cobalt cached an authenticated profile response despite Cache-Control: private. The adopted fix bypassed shared storage whenever that directive appeared, and two-account isolation checks passed. No language-specific preview objects or Vary-driven key generation were involved. Validation was restricted to the profile route; it cannot establish the correctness of Aster representation keys.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "multipart-cause",
+      "revision": "v1",
+      "title": "Rook archive upload: misleading completion response",
+      "body": "Incident Rook left a large archive unavailable even though the upload UI showed completion. Every part upload had succeeded, but the completion request returned HTTP 200 with an XML Error body. The client inspected only the status code and marked the archive ready. Retrying the final metadata save failed to help because the object had never been assembled by the storage service.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "multipart-decision",
+      "revision": "v1",
+      "title": "Rook archive upload: accepted completion gate",
+      "body": "For Rook, the accepted decision was to parse the complete-multipart response body before recording success and confirm the assembled object with a matching size and checksum from HEAD. The proposal to re-upload every part after any completion error was withdrawn to avoid unnecessary transfers. Unknown completion outcomes enter reconciliation; they do not immediately become ready or start a new upload.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "multipart-verification",
+      "revision": "v1",
+      "title": "Rook archive upload: completion verification limits",
+      "body": "Rook checks passed using a storage stub for a normal completion, HTTP 200 containing an XML Error, and a lost completion response followed by successful reconciliation. The ready flag stayed false until the expected object was confirmed. One small emulator upload also passed. No real-provider throttling, multi-gigabyte archive, or interrupted network transfer was included in this verification.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "multipart-other-a",
+      "revision": "v1",
+      "title": "Sable archive upload: expired part signatures",
+      "body": "Incident Sable stopped midway through a multipart upload when pre-signed part URLs expired during a slow connection. Refreshing only the pending part signatures was accepted. An accelerated-expiry stub test passed. The completion call was never reached in the failing case; HTTP 200 completion bodies and reconciliation after an uncertain final response were explicitly outside these checks.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "multipart-other-b",
+      "revision": "v1",
+      "title": "Vela archive upload: abandoned upload cleanup",
+      "body": "Incident Vela accumulated unfinished multipart uploads after users cancelled the desktop client. A scheduled cleanup of old upload IDs was accepted and verified against three abandoned emulator sessions. The investigation found no false ready state and did not inspect completion-response parsing. Retention boundaries were tested; assembled-object checksums and production object-store behavior were not.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "gui-cause",
+      "revision": "v1",
+      "title": "Ibis desktop settings: failed duplicate-save mitigation",
+      "body": "Incident Ibis sent two save requests after the settings panel was closed and reopened. Each mount added a window event listener, while unmount left the previous listener active. The initial debounce patch failed across listeners because each closure owned a separate timer. Reopening the panel a third time produced three requests, confirming listener accumulation rather than a rapid double click.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "gui-decision",
+      "revision": "v1",
+      "title": "Ibis desktop settings: listener ownership decision",
+      "body": "For Ibis, the accepted decision was to retain the listener handle in the panel lifecycle and remove that exact listener during teardown before a later mount registers another. The global debounce proposal was withdrawn because it also suppressed legitimate consecutive edits. Keyboard and mouse activation still use the same save action; this decision changes listener ownership only.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "gui-verification",
+      "revision": "v1",
+      "title": "Ibis desktop settings: remount checks and omissions",
+      "body": "Ibis verification passed through ten open-close cycles, with one save request for each mouse or keyboard activation. A component test also confirmed that teardown left zero registered settings listeners. These checks covered the settings panel in the desktop test shell only. Window restoration after an application crash, operating-system shortcuts, and other panels were not exercised.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "gui-other-a",
+      "revision": "v1",
+      "title": "Oriole desktop list: double-click navigation",
+      "body": "Incident Oriole opened two detail windows when a user double-clicked a row because both click and double-click handlers navigated. Removing navigation from the double-click handler was accepted. Pointer tests passed for the list view. The panel did not mount repeated global listeners, and the checks contained no settings saves or repeated settings-panel teardown and reconstruction.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "gui-other-b",
+      "revision": "v1",
+      "title": "Petrel desktop settings: replayed offline writes",
+      "body": "Incident Petrel resent a saved preference after reconnecting because the offline queue retained an already acknowledged request. Removing acknowledged queue entries was accepted and an offline-reconnect test passed. The settings UI emitted one event, and listener counts stayed constant. This queue replay case did not test Ibis panel remounts or prove that teardown unregisters window listeners.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "queue-cause",
+      "revision": "v1",
+      "title": "Juniper invoice worker: failed acknowledgement order",
+      "body": "Incident Juniper lost an invoice update when the worker crashed immediately after acknowledging its queue message. The database transaction had not committed yet, so the broker would not redeliver the already acknowledged work. Increasing the retry count failed to help because no pending delivery remained. A crash injected between acknowledgement and commit reproduced the missing update.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "queue-decision",
+      "revision": "v1",
+      "title": "Juniper invoice worker: accepted commit-before-ack",
+      "body": "For Juniper, the accepted decision was to commit the invoice transaction before acknowledging the message and retain a unique delivery ID with the update for idempotent redelivery. The earlier early-ack proposal was withdrawn. A crash after commit can therefore repeat delivery without repeating the invoice change. This decision did not promise exactly-once broker delivery or a distributed transaction.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "queue-verification",
+      "revision": "v1",
+      "title": "Juniper invoice worker: crash-window coverage",
+      "body": "Juniper checks passed with injected crashes before commit and after commit but before acknowledgement. Redelivery completed the first case and left a single invoice change in the second. Verification used one worker with a real local database and a broker test container. Concurrent consumers, broker failover, and external payment calls were not tested, so the result is limited to the invoice update path.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "queue-other-a",
+      "revision": "v1",
+      "title": "Maple notification worker: consumer ordering",
+      "body": "Incident Maple delivered two customer notifications out of order because multiple consumers processed the same customer concurrently. Partitioning messages by customer was accepted and two-consumer ordering tests passed. The issue was not lost work after an early acknowledgement. Invoice transactions, delivery-ID uniqueness, and crashes between database commit and acknowledgement were outside this investigation.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "queue-other-b",
+      "revision": "v1",
+      "title": "Willow invoice worker: poison message isolation",
+      "body": "Incident Willow repeatedly retried an invoice message containing an unsupported currency code. A bounded retry policy and dead-letter routing were accepted, then verified with malformed payload fixtures. Acknowledgement followed an explicit rejection, not a successful invoice update. The checks did not inject a crash around database commit or assess Juniper redelivery idempotency.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "pdf-cause",
+      "revision": "v1",
+      "title": "Kite statement export: failed missing-glyph repair",
+      "body": "Incident Kite rendered some Korean customer names as empty boxes in PDF statements while Latin text looked normal. The configured font lacked those glyphs, and the renderer never consulted a fallback font for individual text runs. Raising raster resolution failed because the missing glyphs were already absent in the vector text output. The HTML preview used a different browser font path.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "pdf-decision",
+      "revision": "v1",
+      "title": "Kite statement export: accepted fallback selection",
+      "body": "For Kite, the accepted decision was to choose an embedded fallback font for each unsupported text run before measuring and laying out the PDF line. The proposal to replace the entire document font was withdrawn because it unnecessarily changed Latin spacing. The selected fallback was bundled with the exporter. This decision covered Korean glyph coverage and did not add automatic font downloading.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "pdf-verification",
+      "revision": "v1",
+      "title": "Kite statement export: glyph and layout checks",
+      "body": "Kite verification passed for twelve Korean-name statements: rendered pages showed the expected glyphs, extracted text preserved the names, and line breaks stayed within the approved layout. The bundled fonts were used in an offline environment. Emoji, rare CJK extension characters, and printing through physical devices were not checked; the result is limited to the fixture names and PDF renderers used.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "pdf-other-a",
+      "revision": "v1",
+      "title": "Heron statement export: viewer substitution",
+      "body": "Incident Heron displayed Latin totals with different spacing in a third-party PDF viewer because the primary font was referenced but not embedded. Embedding that font was accepted and checks passed in two viewers. Korean text runs and missing-glyph fallback selection were not included. This viewer substitution issue did not establish that Kite chooses a font before measuring an unsupported run.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "pdf-other-b",
+      "revision": "v1",
+      "title": "Swift statement export: clipped Korean lines",
+      "body": "Incident Swift clipped the bottoms of Korean characters after a template reduced fixed row height. Restoring adequate line height was accepted, and visual comparisons passed for three long statements. The existing font already contained the needed glyphs. Font fallback selection, text extraction, and names absent from the primary font were outside the checks; this was a template geometry issue.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "samesite-cause",
+      "revision": "v1",
+      "title": "Dahlia sign-in: failed callback cookie recovery",
+      "body": "Incident Dahlia lost the login session when the identity provider returned by a cross-site form POST. The session cookie had SameSite=Lax, so the browser omitted it on that callback. Rotating the signing secret failed to help because the callback contained no session cookie to verify. Same-site sign-in tests had passed earlier and therefore missed the failing browser navigation.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "samesite-decision",
+      "revision": "v1",
+      "title": "Dahlia sign-in: accepted callback cookie policy",
+      "body": "For Dahlia, the accepted decision was to use SameSite=None with Secure for the short-lived login correlation cookie required on the provider POST callback. The ordinary application session retained its existing policy. The proposal to relax every cookie was withdrawn. State validation and single-use correlation were retained; the change was scoped to the cookie that must cross this navigation boundary.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "samesite-verification",
+      "revision": "v1",
+      "title": "Dahlia sign-in: browser callback coverage",
+      "body": "Dahlia verification passed on HTTPS staging in the tested Chrome and Safari builds using the provider form POST callback, an expired correlation cookie, and a mismatched state value. Successful callbacks recovered the login state and invalid ones failed. Third-party iframe sign-in, embedded webviews, and HTTP localhost were not covered. This evidence applies to top-level provider navigation only.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "samesite-other-a",
+      "revision": "v1",
+      "title": "Azalea sign-in: callback path mismatch",
+      "body": "Incident Azalea lost a session after a same-site callback because the cookie Path was restricted to /account while the callback used /auth/return. Correcting the path was accepted, and request-header checks passed. No cross-site POST or SameSite policy change was needed. The test did not cover Dahlia provider navigation, Secure attributes, or a separate login correlation cookie.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "samesite-other-b",
+      "revision": "v1",
+      "title": "Clover sign-in: local secure cookie omission",
+      "body": "Incident Clover failed during HTTP localhost development because a Secure cookie was not stored under the local test arrangement. An HTTPS development endpoint was accepted and a local sign-in check passed. The identity provider used no form POST in that setup. This environment fix did not test cross-site navigation, SameSite=None, or Dahlia callback state validation in staging browsers.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "umask-cause",
+      "revision": "v1",
+      "title": "Flint report worker: failed group access repair",
+      "body": "Incident Flint created report files that the downstream group could not read. The worker requested mode 0664, but its inherited umask of 0077 removed the group permission bits, leaving 0600 files. Adding the reader to the intended group failed to help because those files granted no group access. The failure was reproduced for new reports; older manually repaired files remained readable.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "umask-decision",
+      "revision": "v1",
+      "title": "Flint report worker: accepted service mask",
+      "body": "For Flint, the accepted decision was to configure umask 0007 for the report service and keep file creation at mode 0664, yielding group-readable 0660 files. The proposal to chmod the whole report tree on every write was withdrawn. Existing files required a separate reviewed repair and were outside the creation fix. The service continues to create reports only inside its dedicated group-owned directory.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "umask-verification",
+      "revision": "v1",
+      "title": "Flint report worker: new-file permission scope",
+      "body": "Flint verification passed after a service restart: two newly generated reports had mode 0660, the service group could read them, and an unrelated user could not. Checks ran on the deployment-like local filesystem with the configured group ownership. Existing report repair, default ACL interactions, network filesystems, and log rotation were not tested. The result establishes permissions for fresh report creation only.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "umask-other-a",
+      "revision": "v1",
+      "title": "Granite report worker: parent directory traversal",
+      "body": "Incident Granite blocked a report reader even though the file had mode 0660 because a parent directory lacked the group execute bit. Granting traversal on that directory was accepted and the group reader check passed. File creation masks were unchanged. This investigation did not inspect an inherited umask, restart Flint, or establish the permissions of newly generated report files.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "umask-other-b",
+      "revision": "v1",
+      "title": "Slate report worker: inherited default ACL",
+      "body": "Incident Slate unexpectedly allowed a second service account to read new exports because the output directory carried a default ACL. Removing the unintended ACL entry was accepted and new-file access checks passed. The process umask was already the intended value. These checks concerned ACL inheritance on another directory and did not validate Flint mode calculations or repair previously created reports.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-unicode",
+      "split": "evaluation",
+      "question": "카탈로그에서 한글이나 악센트가 든 상품명이 페이지를 넘길 때 순서가 흔들리던 건, 처음 고친 방법이 왜 안 됐고 최종 정렬 방식은 뭘로 바꿨지? 그때 실제로 확인한 범위도 같이 알려줘.",
+      "required": [
+        "unicode-cause",
+        "unicode-decision",
+        "unicode-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "unicode-other-a",
+        "unicode-other-b"
+      ],
+      "rewrite": [
+        "catalog search Korean accented product names unstable order across pages first fix failed final sorting decision verification scope"
+      ]
+    },
+    {
+      "id": "q-vary",
+      "split": "evaluation",
+      "question": "미리보기 프록시에서 같은 주소를 열면 앞사람이 보던 언어가 나오던 문제 있잖아. 캐시 시간을 줄여도 남았던 이유랑 나중에 채택한 처리, 검증에서 빠진 경우까지 정리해줘.",
+      "required": [
+        "vary-cause",
+        "vary-decision",
+        "vary-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "vary-other-a",
+        "vary-other-b"
+      ],
+      "rewrite": [
+        "preview proxy same URL previous visitor language cache shorter expiration failure adopted fix verification limitations"
+      ]
+    },
+    {
+      "id": "q-multipart",
+      "split": "evaluation",
+      "question": "큰 압축파일을 나눠 올렸을 때 화면에는 완료인데 저장소에서 파일을 못 찾던 건 어떻게 된 거였어? 다시 올리자는 안 대신 뭘 하기로 했고 완료 판단은 어디까지 검증했는지 궁금해.",
+      "required": [
+        "multipart-cause",
+        "multipart-decision",
+        "multipart-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "multipart-other-a",
+        "multipart-other-b"
+      ],
+      "rewrite": [
+        "large archive multipart upload UI complete object missing reason reupload proposal final completion decision verification scope"
+      ]
+    },
+    {
+      "id": "q-gui",
+      "split": "evaluation",
+      "question": "데스크톱 설정창을 닫았다 다시 열면 저장 요청이 여러 번 가던 문제에서, 클릭 간격 조절이 왜 해결책이 아니었지? 최종 수정 방향과 테스트로 확인한 데까지만 다시 설명해줘.",
+      "required": [
+        "gui-cause",
+        "gui-decision",
+        "gui-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "gui-other-a",
+        "gui-other-b"
+      ],
+      "rewrite": [
+        "desktop settings panel reopen duplicate save requests click timing mitigation failed final fix tested scope"
+      ]
+    },
+    {
+      "id": "q-queue",
+      "split": "evaluation",
+      "question": "청구서 큐 작업자가 중간에 죽으면 변경 내용이 사라지던 건 재시도를 늘려도 왜 안 됐어? 메시지 처리 순서는 어떻게 바꾸기로 했고 장애 테스트에서 확인한 것과 못 본 것도 알려줘.",
+      "required": [
+        "queue-cause",
+        "queue-decision",
+        "queue-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "queue-other-a",
+        "queue-other-b"
+      ],
+      "rewrite": [
+        "invoice queue worker crash missing update retry count failed message processing order decision crash test coverage limitations"
+      ]
+    },
+    {
+      "id": "q-pdf",
+      "split": "evaluation",
+      "question": "명세서 PDF에서 한글 고객 이름만 네모로 나오던 문제 기억나? 해상도를 올려도 안 된 이유, 글꼴을 전부 교체하는 대신 택한 방법, 실제 확인했던 문자나 출력 범위를 정리해줘.",
+      "required": [
+        "pdf-cause",
+        "pdf-decision",
+        "pdf-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "pdf-other-a",
+        "pdf-other-b"
+      ],
+      "rewrite": [
+        "statement PDF Korean customer names empty boxes increased resolution failed whole document font replacement alternative verified characters output scope"
+      ]
+    },
+    {
+      "id": "q-samesite",
+      "split": "evaluation",
+      "question": "외부 로그인 화면에서 돌아올 때만 로그인이 풀리던 건 쿠키 서명 키를 바꿔도 왜 그대로였지? 결국 어떤 쿠키 설정을 어디까지 바꿨고 브라우저 검증은 어떤 흐름에서 했는지 알려줘.",
+      "required": [
+        "samesite-cause",
+        "samesite-decision",
+        "samesite-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "samesite-other-a",
+        "samesite-other-b"
+      ],
+      "rewrite": [
+        "external provider login return session lost cookie signing key change failed cookie settings final scope browser verification flow"
+      ]
+    },
+    {
+      "id": "q-umask",
+      "split": "evaluation",
+      "question": "리포트 작업자가 새로 만든 파일을 같은 그룹 계정이 못 읽던 문제에서, 그룹을 추가해도 안 된 이유가 뭐였어? 매번 권한을 덮어쓰자는 안은 왜 접었고 최종 설정과 확인 범위는 어땠지?",
+      "required": [
+        "umask-cause",
+        "umask-decision",
+        "umask-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "umask-other-a",
+        "umask-other-b"
+      ],
+      "rewrite": [
+        "report worker newly created files unreadable same group added membership failed repeated permission rewrite proposal final configuration verification scope"
+      ]
+    },
+    {
+      "id": "q-no-answer-db",
+      "split": "evaluation",
+      "question": "지난번 주문 조회가 피크 시간에만 느려졌을 때 연결 풀 크기를 늘리자는 안을 접고 어떤 방식으로 해결했지? 원인이랑 운영 부하 테스트에서 실제 확인한 수치까지 찾아줘.",
+      "required": [],
+      "followup": [],
+      "forbidden_top1": [
+        "queue-cause",
+        "queue-verification"
+      ],
+      "rewrite": [
+        "order lookup slow peak traffic database connection pool increase rejected final fix cause production load test measurements"
+      ]
+    },
+    {
+      "id": "q-no-answer-audio",
+      "split": "evaluation",
+      "question": "화상회의 녹음에서 블루투스 이어폰을 다시 연결하면 목소리와 영상이 어긋나던 문제는 왜 생겼어? 샘플레이트를 고정하자는 안의 결론과 재연결 검증 범위가 궁금해.",
+      "required": [],
+      "followup": [],
+      "forbidden_top1": [
+        "gui-cause",
+        "gui-verification"
+      ],
+      "rewrite": [
+        "video meeting recording Bluetooth headset reconnect audio video out of sync cause fixed sample rate proposal reconnect verification scope"
+      ]
+    }
+  ]
+}
