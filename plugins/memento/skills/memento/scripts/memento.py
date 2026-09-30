@@ -29,8 +29,12 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    arguments = sys.argv[1:]
+    config = skill_directory / "semantic-config.json"
+    if arguments[:1] == ["query"] and "--semantic-config" not in arguments and config.is_file():
+        arguments.extend(["--semantic-config", str(config)])
     try:
-        return subprocess.run([executable, *sys.argv[1:]], check=False).returncode
+        return subprocess.run([executable, *arguments], check=False).returncode
     except OSError as error:
         print(f"Cannot run memento: {error}", file=sys.stderr)
         return 2

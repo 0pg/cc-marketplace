@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 실행기 준비
 
-Python 3.9+와 Rust/Cargo가 필요합니다. 플러그인을 설치한 다음, **설치된 플러그인 디렉터리**에서 한 번 실행합니다. 실행기는 플러그인 업데이트 후 다시 빌드합니다.
+기본 설치에는 Python 3.9+, Rust/Cargo, `uv`가 필요합니다. 플러그인을 설치한 다음, **설치된 플러그인 디렉터리**에서 한 번 실행합니다. 실행기는 플러그인 업데이트 후 다시 빌드합니다.
 
 ```sh
 python3 scripts/install_runtime.py
@@ -35,13 +35,24 @@ python3 plugins/memento/scripts/install_runtime.py
 python3 plugins/memento/skills/memento/scripts/memento.py help
 ```
 
-설치기는 `core/Cargo.toml`의 잠긴 의존성으로 release 실행기를 빌드하고 확인한 뒤 `skills/memento/bin/memento`에 배치합니다. Cargo는 캐시에 없는 의존성을 다운로드할 수 있습니다. 이미 빌드한 실행기가 있으면 `--binary /absolute/memento`를 사용할 수 있습니다. 배포 파일에는 특정 OS용 실행 파일을 포함하지 않습니다.
+설치기는 `core/Cargo.toml`의 잠긴 의존성으로 release 실행기를 빌드하고 확인한 뒤 `skills/memento/bin/memento`에 배치합니다. Cargo는 캐시에 없는 의존성을 다운로드할 수 있습니다. 이미 빌드한 실행기가 있으면 `--binary /absolute/memento`를 사용할 수 있습니다. 배포 파일에는 특정 OS용 실행 파일이나 모델 가중치를 포함하지 않습니다.
 
-일반 조회는 빌드나 다운로드를 실행하지 않습니다. 스킬은 DB 경로와 project/work/session 식별자를 명시해 중요한 작업 전환을 기록합니다. 대화 파일의 자동 검색·상주 수집기는 없으며 Git hook과 로컬 의미 검색 모델은 선택적으로 설정합니다. 상세 입력과 조회 계약은 [interface](skills/memento/references/interface.md), 선택적 모델 설정은 [semantic](skills/memento/references/semantic.md)를 참조하세요.
+기본 임베딩 모델은 `intfloat/multilingual-e5-small`입니다. 같은 설치 명령이 Python 3.12 환경·고정 의존성·모델 가중치를 준비하고 로컬 추론까지 확인합니다. 실행기와 설정은 모든 확인이 성공한 뒤 함께 반영하며 기존 사용자 파일을 보존합니다. 런타임과 모델은 `skills/.memento-semantic`에 보관해 같은 설정을 다시 설치할 때 재사용합니다.
+
+```sh
+# 다른 임베딩 모델 선택
+python3 scripts/install_runtime.py --embedding-model minilm
+# 모델 설치 생략: 기존 모델 설정이 있으면 보존
+python3 scripts/install_runtime.py --embedding-model none
+```
+
+`skills/memento/scripts/memento.py`로 조회하면 설치된 의미 검색 설정을 자동으로 사용합니다. 검색 JSON에서 `mode: semantic`을 선택하면 됩니다. `--semantic-config`를 명시하면 그 설정을 우선 사용합니다. 설치·업데이트에서 옵션을 생략하면 기본 E5 모델을 선택합니다.
+
+일반 조회는 빌드나 다운로드를 실행하지 않습니다. 스킬은 DB 경로와 project/work/session 식별자를 명시해 중요한 작업 전환을 기록합니다. 대화 파일의 자동 검색·상주 수집기는 없으며 Git hook과 의미 검색 재정렬 모델은 선택적으로 설정합니다. 상세 입력과 조회 계약은 [interface](skills/memento/references/interface.md), 의미 검색 설정은 [semantic](skills/memento/references/semantic.md)를 참조하세요.
 
 ## 구현 출처와 검증
 
-Rust core·시나리오 테스트·스킬은 [0pg-mcp의 Memento 구현](https://github.com/0pg/0pg-mcp/tree/10478866a7fa8208c7ca7bc61e54ca87c25427b7/crates/memento)에서 가져왔습니다. 이 패키지는 원본 저장소 없이 빌드·실행할 수 있습니다. 스킬 경로와 설치 안내는 플러그인 구조에 맞췄으며 원본 Codex 설치기 전용 테스트는 플러그인 실행기 설치 테스트로 대체했습니다.
+Rust core·시나리오 테스트·스킬은 [0pg-mcp의 Memento 구현](https://github.com/0pg/0pg-mcp/tree/dc5257b15a4003084ea7686ecb75c21ba6e09ee0/crates/memento)에서 가져왔습니다. 이 패키지는 원본 저장소 없이 빌드·실행할 수 있습니다. 스킬 경로와 설치 안내는 플러그인 구조에 맞췄으며 원본 Codex 설치기 전용 테스트는 플러그인 실행기 설치 테스트로 대체했습니다.
 
 ```sh
 cargo fmt --manifest-path plugins/memento/core/Cargo.toml --check

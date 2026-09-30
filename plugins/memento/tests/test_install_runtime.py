@@ -29,7 +29,7 @@ class RuntimeInstallationTests(unittest.TestCase):
     def setUp(self):
         self.workspace = tempfile.TemporaryDirectory(prefix="memento runtime installation ")
         self.addCleanup(self.workspace.cleanup)
-        self.root = Path(self.workspace.name)
+        self.root = Path(self.workspace.name).resolve()
         self.plugin = self.root / "independent plugin"
         self.skill = self.plugin / "skills/memento"
         self.outside = self.root / "another project"
@@ -48,15 +48,17 @@ class RuntimeInstallationTests(unittest.TestCase):
 
     def install(self, binary=None):
         return subprocess.run(
-            [sys.executable, str(self.plugin / "scripts/install_runtime.py"), "--binary", str(binary or self.binary)],
+            [sys.executable, str(self.plugin / "scripts/install_runtime.py"), "--binary", str(binary or self.binary),
+             "--embedding-model", "none"],
             cwd=self.outside, env=self.environment, text=True, capture_output=True, check=False,
         )
 
     def assert_success(self, result):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
-    def cli(self, operation, value=None):
+    def cli(self, operation, value=None, options=()):
         command = [sys.executable, str(self.skill / "scripts/memento.py"), operation, "--store", str(self.database)]
+        command.extend(options)
         if operation in ("init", "note"):
             command.extend(["--project", "installation-tests"])
         result = subprocess.run(
@@ -116,6 +118,32 @@ class RuntimeInstallationTests(unittest.TestCase):
         self.assertEqual(self.runtime_hash(), runtime_before)
         self.assertEqual(self.database.read_bytes(), database_before)
         self.assert_note()
+
+    def test_launcher_uses_installed_semantic_config_and_honors_explicit_selection(self):
+        self.assert_success(self.install())
+        self.create_note()
+        worker = self.skill / "scripts/test_embeddings.py"
+        worker.write_text(
+            "import json, sys\n"
+            "request = json.load(sys.stdin)\n"
+            "json.dump({'protocol': 1, 'model_id': request['model_id'], "
+            "'model_revision': request['model_revision'], 'query': [1.0, 0.0], "
+            "'documents': [[1.0, 0.0] for _ in request['documents']], 'metrics': {}}, sys.stdout)\n",
+            encoding="utf-8",
+        )
+        config = {"command": [sys.executable, str(worker)],
+                  "model_id": "installed-contract", "model_revision": "fixed-1"}
+        (self.skill / "semantic-config.json").write_text(json.dumps(config), encoding="utf-8")
+        query = {"operation": "search", "scope": {"project_id": "installation-tests"},
+                 "query": {"text": NOTE, "mode": "semantic"}}
+        response = self.cli("query", query)
+        self.assertEqual(response["semantic"]["model_id"], "installed-contract")
+        self.assertTrue(any(item["entity"]["data"]["id"] == "install-note" for item in response["items"]))
+        config["model_id"] = "explicit-contract"
+        explicit = self.outside / "explicit semantic config.json"
+        explicit.write_text(json.dumps(config), encoding="utf-8")
+        response = self.cli("query", query, ("--semantic-config", str(explicit)))
+        self.assertEqual(response["semantic"]["model_id"], "explicit-contract")
 
 
 if __name__ == "__main__":

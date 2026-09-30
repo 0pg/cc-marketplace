@@ -4,13 +4,15 @@ Use `$memento:memento` in Codex or `/memento:memento` in Claude Code. Both load 
 
 ## Setup and storage
 
-Python 3.9+ and Rust/Cargo are required to build the runtime once. From the plugin root:
+Python 3.9+, Rust/Cargo and `uv` are required for the default setup. From the plugin root:
 
 ```sh
 python3 scripts/install_runtime.py
 ```
 
-The installer builds `core/Cargo.toml` with locked dependencies, checks the staged CLI, then copies its executable into `skills/memento/bin/memento`. Re-run it after a plugin update. It can also install an existing executable with `--binary /absolute/built/memento`. It does not create a context store, enable Git hooks, change agent settings, or download semantic models. Cargo may fetch locked dependencies that are not already cached.
+The installer builds `core/Cargo.toml` with locked dependencies and installs the default `e5-small` embedding model (`intfloat/multilingual-e5-small`). It prepares Python 3.12 and pinned dependencies with `uv`, downloads fixed model weights, then checks the CLI and local inference before replacing the skill. Re-run it after a plugin update. Use `--embedding-model minilm` for `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or `--embedding-model none` to skip model setup and preserve any existing configuration. An existing executable can be bundled with `--binary /absolute/built/memento`. Cargo may fetch uncached locked dependencies; model setup also downloads public weights and Python packages.
+
+The installed launcher automatically supplies `skills/memento/semantic-config.json` for queries; an explicit `--semantic-config` takes precedence. The local runtime and weights are cached in `skills/.memento-semantic` by model and pinned setup. Reinstalling the same setup reuses them and repeats the inference check. Direct executable calls require `--semantic-config /absolute/plugin/skills/memento/semantic-config.json`. See [semantic](semantic.md) for query input and optional reranking.
 
 Run `python3 <plugin-root>/skills/memento/scripts/memento.py COMMAND ...`, or invoke the bundled executable directly. An explicit `MEMENTO_BIN` override takes precedence; otherwise the launcher tries the bundled executable, `memento` on PATH, then this plugin's `core/target/release` or `core/target/debug` build. A query does not install or build software. Examples below abbreviate the executable as `memento`.
 
