@@ -1,5 +1,5 @@
-use work_context::model::*;
-use work_context::query::{QueryError, ResponseStatus, execute};
+use memento::model::*;
+use memento::query::{QueryError, ResponseStatus, execute};
 
 #[path = "support/evaluation.rs"]
 mod evaluation;
@@ -71,7 +71,7 @@ fn relation(id: &str, from: &str, to: &str, kind: RelationKind) -> Relation {
     }
 }
 
-fn ids(response: &work_context::query::QueryResponse) -> Vec<String> {
+fn ids(response: &memento::query::QueryResponse) -> Vec<String> {
     response
         .items
         .iter()
@@ -579,7 +579,7 @@ fn code_only_comparison_does_not_invent_historical_decisions() -> TestResult {
                 changed_during_observation: false,
                 files: vec![FileState {
                     path: "retry.rs".into(),
-                    working_hash: Some(work_context::security::hash(content.as_bytes())),
+                    working_hash: Some(memento::security::hash(content.as_bytes())),
                     working_content: Some(content.into()),
                     ..FileState::default()
                 }],
@@ -694,7 +694,7 @@ fn rendered_revision_pins_masked_text_independently_of_source_revision() -> Test
             .items
             .iter()
             .all(|item| item.rendered_revision.as_deref()
-                == Some(work_context::security::hash(retained.body.as_bytes()).as_str()))
+                == Some(memento::security::hash(retained.body.as_bytes()).as_str()))
     );
     query.cursor = first.next_cursor;
     retained.body = "replacement policy masks more content".repeat(1000);
@@ -719,7 +719,7 @@ fn code_state(id: &str, worktree: &str, path: &str, text: &str) -> CodeState {
         changed_during_observation: false,
         files: vec![FileState {
             path: path.into(),
-            working_hash: Some(work_context::security::hash(text.as_bytes())),
+            working_hash: Some(memento::security::hash(text.as_bytes())),
             working_content: Some(text.into()),
             ..FileState::default()
         }],
@@ -728,7 +728,7 @@ fn code_state(id: &str, worktree: &str, path: &str, text: &str) -> CodeState {
 
 #[test]
 fn sc12_code_locations_require_a_basis_and_trace_the_selected_decision() -> TestResult {
-    use work_context::query::LocationStatus;
+    use memento::query::LocationStatus;
     let mut data = corpus();
     for (state, tree, decision, body, code) in [
         (
@@ -885,7 +885,7 @@ fn code_text_pages_and_range_reads_preserve_the_retained_rendering() -> TestResu
         for item in response.items {
             assert_eq!(
                 item.rendered_revision,
-                Some(work_context::security::hash(body.as_bytes()))
+                Some(memento::security::hash(body.as_bytes()))
             );
             if let Entity::CodeState(state) = item.entity {
                 assert_eq!(state.files.len(), 1);
@@ -950,7 +950,7 @@ fn source_coverage_reports_retained_limitations_and_last_durable_record() -> Tes
 
 #[test]
 fn missing_and_ignored_working_files_are_not_exact_code_locations() -> TestResult {
-    use work_context::query::LocationStatus;
+    use memento::query::LocationStatus;
     for (kind, expected) in [
         (WorkingFileKind::Missing, LocationStatus::Missing),
         (WorkingFileKind::Ignored, LocationStatus::Unavailable),

@@ -8,7 +8,7 @@ Claude Code 플러그인 마켓플레이스입니다. Memento는 Codex에서도 
 |---------|------|---------|------|
 | [claude-md-plugin](./plugins/claude-md-plugin) | 18.1.0 | documentation | CLAUDE.md Primary SSOT document-code sync plugin. /spec, /dev, /validate, /decompile, /bugfix, /impact, /inspect |
 | [project-init](./plugins/project-init) | 1.0.0 | development | Multi-language 프로젝트 초기 설정 플러그인 |
-| [memento](./plugins/memento) | 0.1.0 | development | Claude Code·Codex 작업 맥락 기록 및 근거 조회 |
+| [memento](./plugins/memento) | 0.2.0 | development | Claude Code·Codex 작업 맥락 기록 및 근거 조회 |
 
 ## 슬래시 커맨드
 

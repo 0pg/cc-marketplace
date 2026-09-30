@@ -1,6 +1,6 @@
 """Exercise the distributed runtime in independent plugin installations.
 
-Build core first, then run with MEMENTO_TEST_BINARY=/absolute/path/work-context.
+Build core first, then run with MEMENTO_TEST_BINARY=/absolute/path/memento.
 """
 
 import hashlib
@@ -22,7 +22,7 @@ class RuntimeInstallationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         selected = os.environ.get("MEMENTO_TEST_BINARY")
-        cls.binary = Path(selected).resolve() if selected else PLUGIN / "core/target/debug/work-context"
+        cls.binary = Path(selected).resolve() if selected else PLUGIN / "core/target/debug/memento"
         if not cls.binary.is_file() or not os.access(cls.binary, os.X_OK):
             raise RuntimeError("Build core first, or set MEMENTO_TEST_BINARY to its real executable.")
 
@@ -39,9 +39,9 @@ class RuntimeInstallationTests(unittest.TestCase):
         (self.plugin / "scripts").mkdir(parents=True)
         (self.skill / "scripts").mkdir(parents=True)
         shutil.copy2(PLUGIN / "scripts/install_runtime.py", self.plugin / "scripts/install_runtime.py")
-        shutil.copy2(PLUGIN / "skills/memento/scripts/work-context.py", self.skill / "scripts/work-context.py")
+        shutil.copy2(PLUGIN / "skills/memento/scripts/memento.py", self.skill / "scripts/memento.py")
         self.environment = os.environ.copy()
-        self.environment.pop("WORK_CONTEXT_BIN", None)
+        self.environment.pop("MEMENTO_BIN", None)
         self.environment["PATH"] = str(self.empty_path)
         self.database = self.root / "selected local data/context.sqlite"
         self.database.parent.mkdir()
@@ -56,7 +56,7 @@ class RuntimeInstallationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
     def cli(self, operation, value=None):
-        command = [sys.executable, str(self.skill / "scripts/work-context.py"), operation, "--store", str(self.database)]
+        command = [sys.executable, str(self.skill / "scripts/memento.py"), operation, "--store", str(self.database)]
         if operation in ("init", "note"):
             command.extend(["--project", "installation-tests"])
         result = subprocess.run(
@@ -83,7 +83,7 @@ class RuntimeInstallationTests(unittest.TestCase):
                             for record in records))
 
     def runtime_hash(self):
-        return hashlib.sha256((self.skill / "bin/work-context").read_bytes()).hexdigest()
+        return hashlib.sha256((self.skill / "bin/memento").read_bytes()).hexdigest()
 
     def test_independent_install_runs_outside_checkout_with_path_spaces_and_empty_path(self):
         self.assert_success(self.install())

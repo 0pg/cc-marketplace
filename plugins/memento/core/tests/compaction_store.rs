@@ -1,11 +1,11 @@
+use memento::{
+    Error as StoreError, Store, compaction::Policy, ingest, model::*, query,
+    security::RedactionPolicy,
+};
 use std::{
     error::Error,
     io::Write,
     process::{Command, Stdio},
-};
-use work_context::{
-    Error as StoreError, Store, compaction::Policy, ingest, model::*, query,
-    security::RedactionPolicy,
 };
 
 type TestResult = Result<(), Box<dyn Error>>;
@@ -304,7 +304,7 @@ async fn batch_admission_is_atomic_and_cannot_collect_its_own_writes() -> TestRe
 }
 
 fn cli(args: &[&str], input: Option<&str>) -> Result<serde_json::Value, Box<dyn Error>> {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_work-context"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_memento"))
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

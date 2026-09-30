@@ -2,7 +2,7 @@
 //! Multilingual retrieval quality is evaluated with the separately installed real models.
 use std::{collections::BTreeMap, error::Error, sync::Mutex};
 
-use work_context::{
+use memento::{
     ingest,
     mapping::MappingRequest,
     model::*,

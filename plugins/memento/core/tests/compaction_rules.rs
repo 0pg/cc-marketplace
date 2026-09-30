@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use work_context::{
+use memento::{
     compaction::{Policy, plan, plan_pinned},
     ingest,
     model::*,
@@ -770,7 +770,7 @@ fn duplicate_captured_sequences_are_rejected_instead_of_deduplicated_as_facts() 
         ] {
             assert!(matches!(
                 plan(&entries, &policy()),
-                Err(work_context::compaction::Error::DuplicateSequence(1))
+                Err(memento::compaction::Error::DuplicateSequence(1))
             ));
         }
     }

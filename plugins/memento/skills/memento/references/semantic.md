@@ -33,12 +33,12 @@ Create `/absolute/semantic-config.json`, replacing all executable/script/model p
 }
 ```
 
-With reranking enabled, `min_score` must be 0: the embedding pool and final ranking have no relevance cutoff. The API returns bounded candidates even for questions without an answer in the store. The seed threshold only controls an extra ranking pass, not whether an event is established. To use embeddings alone, omit `rerank` and the second model installation; the earlier independent E5-only test recovered 47.6% of required originals at k=3. The `minilm` setup option reproduces an earlier comparison. See the [upstream evaluation](https://github.com/0pg/0pg-mcp/blob/677b8800b40253ce44f6cf2ef03de38f25cf28d4/docs/agent-work-context/p1-semantic-evaluation.md) for measured quality and limitations.
+With reranking enabled, `min_score` must be 0: the embedding pool and final ranking have no relevance cutoff. The API returns bounded candidates even for questions without an answer in the store. The seed threshold only controls an extra ranking pass, not whether an event is established. To use embeddings alone, omit `rerank` and the second model installation; the earlier independent E5-only test recovered 47.6% of required originals at k=3. The `minilm` setup option reproduces an earlier comparison. See the [upstream evaluation](https://github.com/0pg/0pg-mcp/blob/677b8800b40253ce44f6cf2ef03de38f25cf28d4/docs/agent-memento/p1-semantic-evaluation.md) for measured quality and limitations.
 
 ## Query and read
 
 ```sh
-work-context query --store /absolute/context.sqlite --semantic-config /absolute/semantic-config.json --input /absolute/query.json
+memento query --store /absolute/context.sqlite --semantic-config /absolute/semantic-config.json --input /absolute/query.json
 ```
 
 ```json

@@ -6,8 +6,7 @@ mod raw_dialogue;
 
 use std::{collections::BTreeSet, error::Error};
 
-use raw_dialogue::*;
-use work_context::{
+use memento::{
     Error as StoreError, Store,
     compaction::Policy,
     ingest,
@@ -15,6 +14,7 @@ use work_context::{
     query::{self as retrieval, QueryError, QueryResponse},
     security::RedactionPolicy,
 };
+use raw_dialogue::*;
 
 fn target(id: &str) -> Target {
     Target::Record { id: id.into() }

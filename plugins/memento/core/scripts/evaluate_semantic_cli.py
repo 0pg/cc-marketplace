@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the frozen semantic fixture through real SQLite/CLI/model/read/trace.
 
-Requires a prebuilt work-context and explicitly installed offline model. Synthetic
+Requires a prebuilt memento and explicitly installed offline model. Synthetic
 records only; temporary databases are removed. Output retains query responses.
 """
 import argparse
@@ -42,7 +42,7 @@ def main():
     k=fixture.get('k',3)
     if args.store is not None and args.store.exists():
         raise ValueError('evaluation store already exists; select a new path')
-    with (contextlib.nullcontext(None) if args.store is not None else tempfile.TemporaryDirectory(prefix='work-context-semantic-cli-')) as temporary:
+    with (contextlib.nullcontext(None) if args.store is not None else tempfile.TemporaryDirectory(prefix='memento-semantic-cli-')) as temporary:
         store=args.store if args.store is not None else Path(temporary)/'context.sqlite'
         run(args.binary,store,'init',['--project','semantic-evaluation','--source','journal','--work','evaluation','--title','Synthetic retrieval evaluation','--goal','Recover original evidence'])
         ingest_start=time.perf_counter()

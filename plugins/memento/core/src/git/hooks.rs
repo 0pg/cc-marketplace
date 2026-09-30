@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use super::process::{git, git_optional};
 use super::{GitError, text, worktree_root};
 
-const MARKER: &str = "# work-context managed hook v1";
+const MARKER: &str = "# memento managed hook v1";
 const HOOK_NAMES: [&str; 2] = ["post-commit", "post-rewrite"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -56,7 +56,7 @@ pub fn hook_status(repository: &Path) -> Result<HookStatus, GitError> {
             let body = String::from_utf8_lossy(bytes);
             body.contains(MARKER) && body.contains(&tag)
         });
-        let preserved = hooks_path.join(format!("{name}.work-context-original"));
+        let preserved = hooks_path.join(format!("{name}.memento-original"));
         hooks.push(HookEntry {
             name: name.into(),
             executable: executable(&path)?,
@@ -119,7 +119,7 @@ pub fn install_hooks_with_policy(
     for hook in &status.hooks {
         let backup = status
             .hooks_path
-            .join(format!("{}.work-context-original", hook.name));
+            .join(format!("{}.memento-original", hook.name));
         let body = script(
             &status.common_git_dir,
             &executable_path,
@@ -187,12 +187,12 @@ fn script(
         .transpose()?
         .unwrap_or_default();
     let input = if hook == "post-rewrite" {
-        "context_input=$(mktemp \"${TMPDIR:-/tmp}/work-context-hook.XXXXXX\") || {\n  printf '%s\\n' 'work-context: cannot preserve rewrite input; capture skipped' >&2\n  if [ -x \"$context_previous\" ]; then exec \"$context_previous\" \"$@\"; fi\n  exit 0\n}\ntrap 'rm -f \"$context_input\"' EXIT HUP INT TERM\ncat > \"$context_input\" || { printf '%s\\n' 'work-context: cannot copy rewrite input' >&2; exit 0; }\n"
+        "context_input=$(mktemp \"${TMPDIR:-/tmp}/memento-hook.XXXXXX\") || {\n  printf '%s\\n' 'memento: cannot preserve rewrite input; capture skipped' >&2\n  if [ -x \"$context_previous\" ]; then exec \"$context_previous\" \"$@\"; fi\n  exit 0\n}\ntrap 'rm -f \"$context_input\"' EXIT HUP INT TERM\ncat > \"$context_input\" || { printf '%s\\n' 'memento: cannot copy rewrite input' >&2; exit 0; }\n"
     } else {
         "context_input=/dev/null\n"
     };
     Ok(format!(
-        "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\n{input}context_previous_status=0\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\" < \"$context_input\"\n  context_previous_status=$?\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit \"$context_previous_status\"; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit \"$context_previous_status\"\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} {hook} \"$@\" < \"$context_input\" > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'work-context: local context capture failed or timed out; Git result is unchanged' >&2\nfi\nexit \"$context_previous_status\"\n"
+        "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\n{input}context_previous_status=0\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\" < \"$context_input\"\n  context_previous_status=$?\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit \"$context_previous_status\"; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit \"$context_previous_status\"\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} {hook} \"$@\" < \"$context_input\" > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: local context capture failed or timed out; Git result is unchanged' >&2\nfi\nexit \"$context_previous_status\"\n"
     ))
 }
 
@@ -207,7 +207,7 @@ fn common_dir(repository: &Path) -> Result<PathBuf, GitError> {
 fn repository_tag(common: &Path) -> Result<String, GitError> {
     let path = common.to_str().ok_or(GitError::NonUtf8)?;
     Ok(format!(
-        "# work-context repository {:x}",
+        "# memento repository {:x}",
         Sha256::digest(path.as_bytes())
     ))
 }
@@ -238,7 +238,7 @@ fn read_existing(path: &Path) -> Result<Option<Vec<u8>>, GitError> {
 fn write_temporary(directory: &Path, body: &[u8]) -> Result<PathBuf, GitError> {
     for attempt in 0..8 {
         let path = directory.join(format!(
-            ".work-context-install-{}-{}-{attempt}",
+            ".memento-install-{}-{}-{attempt}",
             std::process::id(),
             chrono::Utc::now().timestamp_micros()
         ));

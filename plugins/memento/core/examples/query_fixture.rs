@@ -1,10 +1,10 @@
 //! Evaluate a query against an exported synthetic corpus without collecting user history.
-use serde::Deserialize;
-use std::{error::Error, io::Read, process::ExitCode};
-use work_context::{
+use memento::{
     model::{Corpus, Query},
     query,
 };
+use serde::Deserialize;
+use std::{error::Error, io::Read, process::ExitCode};
 
 #[derive(Deserialize)]
 struct Fixture {

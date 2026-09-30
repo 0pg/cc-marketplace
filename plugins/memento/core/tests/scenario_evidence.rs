@@ -1,6 +1,6 @@
 //! Positive evidence graphs complement the real-Git tests in runtime_scenarios.
 //! These fixtures assert retrieval of recorded links, not automatic attribution.
-use work_context::{
+use memento::{
     ingest,
     model::*,
     query::{QueryResponse, execute},
@@ -134,7 +134,7 @@ fn trace_query(target: Target) -> Query {
     query
 }
 
-fn trace(data: &Corpus, target: Target) -> Result<QueryResponse, work_context::query::QueryError> {
+fn trace(data: &Corpus, target: Target) -> Result<QueryResponse, memento::query::QueryError> {
     execute(data, &trace_query(target))
 }
 
@@ -1030,7 +1030,7 @@ fn corrected_summary_and_reimported_summary_remain_one_reported_lineage() -> Tes
 
 #[tokio::test]
 async fn initial_git_only_history_and_new_native_transcript_keep_distinct_coverage() -> TestResult {
-    use work_context::{Store, adapters::ImportFormat, security::RedactionPolicy};
+    use memento::{Store, adapters::ImportFormat, security::RedactionPolicy};
     let directory = tempfile::tempdir()?;
     let mut store = Store::open(
         &directory.path().join("context.sqlite"),

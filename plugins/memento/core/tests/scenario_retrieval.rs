@@ -3,12 +3,12 @@
 use std::error::Error;
 use std::fs;
 
+use memento::adapters::ImportFormat;
+use memento::model::*;
+use memento::query::{self, BriefClaim, QueryError, QueryResponse, ResponseStatus};
+use memento::security::{RedactionPolicy, hash};
+use memento::{Store, ingest};
 use serde_json::json;
-use work_context::adapters::ImportFormat;
-use work_context::model::*;
-use work_context::query::{self, BriefClaim, QueryError, QueryResponse, ResponseStatus};
-use work_context::security::{RedactionPolicy, hash};
-use work_context::{Store, ingest};
 
 #[path = "support/evaluation.rs"]
 mod evaluation;

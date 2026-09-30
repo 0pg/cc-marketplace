@@ -10,8 +10,8 @@ import sys
 import tempfile
 import time
 
-binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'target/debug/work-context').resolve())
-with tempfile.TemporaryDirectory(prefix='work-context-measure-') as directory:
+binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'target/debug/memento').resolve())
+with tempfile.TemporaryDirectory(prefix='memento-measure-') as directory:
     store = str(Path(directory) / 'context.sqlite')
     def call(command, *options, value=None):
         start = time.perf_counter()

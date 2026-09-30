@@ -1,6 +1,6 @@
 # Memento local interface
 
-Use `$memento:memento` in Codex or `/memento:memento` in Claude Code. Both load the same skill and local `work-context` Rust CLI. See the plugin [README](../../../README.md) for marketplace installation.
+Use `$memento:memento` in Codex or `/memento:memento` in Claude Code. Both load the same skill and local `memento` Rust CLI. See the plugin [README](../../../README.md) for marketplace installation.
 
 ## Setup and storage
 
@@ -10,17 +10,17 @@ Python 3.9+ and Rust/Cargo are required to build the runtime once. From the plug
 python3 scripts/install_runtime.py
 ```
 
-The installer builds `core/Cargo.toml` with locked dependencies, checks the staged CLI, then copies its executable into `skills/memento/bin/work-context`. Re-run it after a plugin update. It can also install an existing executable with `--binary /absolute/built/work-context`. It does not create a context store, enable Git hooks, change agent settings, or download semantic models. Cargo may fetch locked dependencies that are not already cached.
+The installer builds `core/Cargo.toml` with locked dependencies, checks the staged CLI, then copies its executable into `skills/memento/bin/memento`. Re-run it after a plugin update. It can also install an existing executable with `--binary /absolute/built/memento`. It does not create a context store, enable Git hooks, change agent settings, or download semantic models. Cargo may fetch locked dependencies that are not already cached.
 
-Run `python3 <plugin-root>/skills/memento/scripts/work-context.py COMMAND ...`, or invoke the bundled executable directly. An explicit `WORK_CONTEXT_BIN` override takes precedence; otherwise the launcher tries the bundled executable, `work-context` on PATH, then this plugin's `core/target/release` or `core/target/debug` build. A query does not install or build software. Examples below abbreviate the executable as `work-context`.
+Run `python3 <plugin-root>/skills/memento/scripts/memento.py COMMAND ...`, or invoke the bundled executable directly. An explicit `MEMENTO_BIN` override takes precedence; otherwise the launcher tries the bundled executable, `memento` on PATH, then this plugin's `core/target/release` or `core/target/debug` build. A query does not install or build software. Examples below abbreviate the executable as `memento`.
 
 Use an absolute SQLite path outside tracked source files, a stable project ID, and explicit source/work/session IDs. Toasty SQLite stores retained revisions locally; no remote service or LLM is required. Protect the store as project history. Default masking covers common credentials; pass the same `--policy /absolute/policy.json` on every capture that needs additional literal masking. When installing hooks, supply the same `--policy` option; the hook retains that explicit policy path for subsequent captures. Policy JSON: `{"literal_secrets":["a known sensitive value"]}`. Original raw exports remain at their selected source; this tool does not alter them.
 
 Stores default to at most 10,000 stored entries and 64 MiB of retained JSON payload, including internal compaction metadata. Writes collect eligible history transactionally when either limit is exceeded; protected facts that do not fit reject the write. `compact` previews the rules and removal candidates; `compact --apply true` applies them. See [compaction](compaction.md) for policy, retained evidence, cursor invalidation and the distinction between payload usage and SQLite file size.
 
 ```sh
-work-context init --store /tmp/context.sqlite --project demo --work W1 --session S1 --title 'Retry behavior' --goal 'Avoid 429 without slowing normal requests'
-work-context note --store /tmp/context.sqlite --project demo --work W1 --session S1 --input /tmp/note.json
+memento init --store /tmp/context.sqlite --project demo --work W1 --session S1 --title 'Retry behavior' --goal 'Avoid 429 without slowing normal requests'
+memento note --store /tmp/context.sqlite --project demo --work W1 --session S1 --input /tmp/note.json
 ```
 
 `note.json`:
@@ -36,7 +36,7 @@ An automatic collection adds `compaction: {generation, removed_entries, remainin
 ## Query JSON
 
 ```sh
-work-context query --store /tmp/context.sqlite --input /tmp/query.json
+memento query --store /tmp/context.sqlite --input /tmp/query.json
 ```
 
 Minimal query:
@@ -114,9 +114,9 @@ Relations: responds_to/supports/contradicts/supersedes/attempt_of/verifies/chang
 ## Import and sync
 
 ```sh
-work-context import --store /tmp/context.sqlite --project demo --source export-S1 --format codex --file /absolute/selected.jsonl --work W1
-work-context import --store /tmp/context.sqlite --project demo --source design --format document --file /absolute/design.md
-work-context sync --store /tmp/context.sqlite --project demo --source export-S1
+memento import --store /tmp/context.sqlite --project demo --source export-S1 --format codex --file /absolute/selected.jsonl --work W1
+memento import --store /tmp/context.sqlite --project demo --source design --format document --file /absolute/design.md
+memento sync --store /tmp/context.sqlite --project demo --source export-S1
 ```
 
 Supported imports are explicitly selected UTF-8 files: Codex rollout JSONL (documented type/payload records), a text document, or portable journal JSONL (`--format journal`). No home-directory search. Imports preserve native message/call/ordinal IDs where present, plus explicitly provided parent/fork session metadata. A parent relationship does not imply completion or integration. Unresolved parent IDs remain labeled gaps. Fallback line IDs are only stable for append-only files; gaps disclose limitations. Private analysis/reasoning, encrypted payloads, and unsupported fields are excluded.
@@ -132,11 +132,11 @@ Sync re-reads selected known sources and preserves the source’s selected compl
 ## Commands and Git
 
 ```sh
-work-context observe --store /tmp/context.sqlite --project demo --repository /absolute/repo --path src/retry.rs
-work-context run --store /tmp/context.sqlite --project demo --work W1 --session S1 --id X1 --repository /absolute/repo --path src/retry.rs -- cargo test retry
-work-context git-sync --store /tmp/context.sqlite --project demo --repository /absolute/repo --ref HEAD --limit 20
-work-context hooks-status --store /tmp/context.sqlite --repository /absolute/repo
-work-context hooks-install --store /tmp/context.sqlite --project demo --repository /absolute/repo
+memento observe --store /tmp/context.sqlite --project demo --repository /absolute/repo --path src/retry.rs
+memento run --store /tmp/context.sqlite --project demo --work W1 --session S1 --id X1 --repository /absolute/repo --path src/retry.rs -- cargo test retry
+memento git-sync --store /tmp/context.sqlite --project demo --repository /absolute/repo --ref HEAD --limit 20
+memento hooks-status --store /tmp/context.sqlite --repository /absolute/repo
+memento hooks-install --store /tmp/context.sqlite --project demo --repository /absolute/repo
 ```
 
 `run` saves a started event before launching the explicitly requested argv, then output and before/after code observations. No shell is implied; use a new execution ID for a retry. Successful command execution is not automatically a verification claim. If killed before completion, last persisted running is historical, and current liveness is unknown. Only observations saved before a crash are guaranteed.

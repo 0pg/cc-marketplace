@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare exported, actual query responses with a simple retained-log baseline.
 
-First run tests with WORK_CONTEXT_EVALUATION_DIR set, then pass that directory.
+First run tests with MEMENTO_EVALUATION_DIR set, then pass that directory.
 Counts UTF-8 bytes, not model tokens. Does not include private or revoked text.
 """
 import argparse

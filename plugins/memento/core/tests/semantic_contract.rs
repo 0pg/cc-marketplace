@@ -1,11 +1,11 @@
+use memento::model::{Availability, Record, RecordKind};
+use memento::security::RedactionPolicy;
+use memento::semantic::{
+    self, EmbeddingProvider, EmbeddingRequest, EmbeddingResponse, SemanticConfig, SemanticError,
+};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Mutex;
-use work_context::model::{Availability, Record, RecordKind};
-use work_context::security::RedactionPolicy;
-use work_context::semantic::{
-    self, EmbeddingProvider, EmbeddingRequest, EmbeddingResponse, SemanticConfig, SemanticError,
-};
 
 /// Mechanical test provider; real multilingual model quality is measured separately.
 struct CaptureProvider {

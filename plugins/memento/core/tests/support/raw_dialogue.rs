@@ -4,8 +4,7 @@
 
 use std::{collections::BTreeSet, error::Error, path::PathBuf};
 
-use tempfile::TempDir;
-use work_context::{
+use memento::{
     Store,
     compaction::Policy,
     ingest,
@@ -13,6 +12,7 @@ use work_context::{
     query::{self as retrieval, QueryError, QueryResponse},
     security::RedactionPolicy,
 };
+use tempfile::TempDir;
 
 pub const PROJECT: &str = "raw-scenarios";
 pub type TestResult = Result<(), Box<dyn Error>>;
