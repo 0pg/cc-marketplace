@@ -1,0 +1,4 @@
+# Tested local CPU runtime. Install in an explicit virtual environment.
+sentence-transformers==5.1.2
+transformers==4.57.6
+torch==2.14.0

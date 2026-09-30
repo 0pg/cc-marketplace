@@ -1,0 +1,515 @@
+{
+  "version": 1,
+  "k": 3,
+  "targets": {},
+  "documents": [
+    {
+      "id": "csv-evidence",
+      "revision": "v1",
+      "title": "Spreadsheet export incident: desktop application decoding",
+      "body": "Reproduction: opening the downloaded report.csv by double-clicking in desktop Excel renders Korean customer names as mojibake. The bytes decode correctly with UTF-8 in a text editor. The exported file has no byte-order mark. Adding charset=utf-8 to the HTTP Content-Type did not change Excel auto-detection after the file had been saved.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "csv-decision",
+      "revision": "v1",
+      "title": "CSV encoding change approved",
+      "body": "Emit a UTF-8 byte-order mark at the start of spreadsheet CSV downloads. Restrict this prefix to CSV; leave JSON API response bytes unchanged. The earlier proposal to fix this solely with the HTTP charset header was rejected after the saved-file reproduction still failed.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "csv-verification",
+      "revision": "v1",
+      "title": "CSV compatibility checks",
+      "body": "The fixture containing Korean names, commas, and quoted fields opens correctly in Excel for Windows 365 after the prefix change; parsing it with the service CSV reader also passes. Excel for Mac and LibreOffice were not exercised in this run.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "csv-distractor-pdf",
+      "revision": "v1",
+      "title": "PDF rendering incident",
+      "body": "Korean headings become empty squares in the generated PDF although the source JSON contains correct Unicode. The embedded font lacks the necessary glyphs. This was a separate PDF renderer incident; there was no CSV file or spreadsheet decoding in the reproduction.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "csv-distractor-upload",
+      "revision": "v1",
+      "title": "Inbound CSV delimiter support",
+      "body": "Accept semicolon-delimited uploads from the accounting vendor. Their files are already UTF-8; the failed import was caused by delimiter detection. This change does not affect downloadable reports.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "account-evidence",
+      "revision": "v1",
+      "title": "Cross-account view after sign-out",
+      "body": "In one browser tab, sign in as fixture account Alice, load /api/dashboard, sign out, then sign in as fixture account Bob. The client initially displays Alice dashboard rows for Bob. Network inspection shows the later server response contains Bob rows. The query cache key is only [dashboard] and survives the account switch.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "account-decision",
+      "revision": "v1",
+      "title": "Scope client cache by authenticated identity",
+      "body": "Include authenticated account ID in dashboard query keys and clear account-scoped cache entries on logout. The proposal to shorten the global stale timer was withdrawn because it only reduced the exposure window without separating identities. Server authorization remains required.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "account-verification",
+      "revision": "v1",
+      "title": "Account-switch regression boundary",
+      "body": "The client integration test Alice to logout to Bob now renders only Bob rows, and a second Bob-to-Alice transition passes. Browser end-to-end coverage for simultaneous tabs is still pending; these checks do not establish cross-tab isolation.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "account-distractor-avatar",
+      "revision": "v1",
+      "title": "Avatar CDN freshness issue",
+      "body": "After a user uploads a new avatar, the same account still sees its previous photo for up to ten minutes. The CDN cache TTL explains the stale picture. No account switch or foreign dashboard data occurs in this reproduction.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "account-distractor-auth",
+      "revision": "v1",
+      "title": "Expired access-token refresh check",
+      "body": "Refreshing an expired access token succeeds and a replayed unauthorized request receives the correct 200 response. This check did not perform an account switch or inspect the dashboard query cache.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "payment-evidence",
+      "revision": "v1",
+      "title": "Duplicate callback workaround failed under two workers",
+      "body": "Two workers received the same payment provider event ev-fixture-17. Each worker acquired its own in-process lock, and the sandbox ledger recorded two charge attempts. The event ID was identical in both callbacks. A mutex within one process cannot deduplicate deliveries handled by different workers.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "payment-decision",
+      "revision": "v1",
+      "title": "Persist webhook idempotency across workers",
+      "body": "Store the provider event ID in a table with a unique constraint and create the charge entry in the same database transaction. On conflict, return the previously persisted outcome. Retire the in-memory-lock workaround; never generate a fresh idempotency key for each delivery.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "payment-verification",
+      "revision": "v1",
+      "title": "Concurrent duplicate-delivery test",
+      "body": "The sandbox test sends twenty concurrent callbacks for ev-fixture-17 to two workers. Exactly one charge entry and one processed-event row remain. Retrying after worker restart returns that entry. The live payment provider and transaction failures during regional failover have not been tested.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "payment-distractor-refund",
+      "revision": "v1",
+      "title": "Refund status callback investigation",
+      "body": "The dashboard displayed a refund as pending because the refund.updated callback arrived before refund.created. Replaying events in provider sequence repaired the status. This incident concerned callback order, not repeated charge creation.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "payment-distractor-button",
+      "revision": "v1",
+      "title": "Disable checkout button while awaiting response",
+      "body": "Disable the checkout button after the first click to prevent accidental repeated browser submissions. This improves the user interface but provides no guarantee against duplicate payment-provider callbacks.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "dst-evidence",
+      "revision": "v1",
+      "title": "Repeated overnight occurrence during autumn clock change",
+      "body": "The scheduler ran the Europe/Berlin 02:30 task twice on the autumn fallback day. The local wall-clock label 02:30 represented two different instants, first with offset +02:00 and then +01:00. Both were admitted by the rule matching the local hour and minute.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "dst-decision",
+      "revision": "v1",
+      "title": "Define daily schedule occurrence once per local date",
+      "body": "Resolve each local scheduled time to a UTC instant before enqueueing. For an ambiguous fallback time, select the earlier occurrence, and persist the schedule ID plus local calendar date as the daily occurrence key. Reject deduplication solely by formatted time text because it conflates different dates.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "dst-verification",
+      "revision": "v1",
+      "title": "Fallback day schedule test",
+      "body": "The Europe/Berlin autumn transition fixture enqueues the daily job once at the earlier 02:30 occurrence; the following ordinary date also runs once. The nonexistent spring-forward local time policy remains undecided and has no passing test.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "dst-distractor-broker",
+      "revision": "v1",
+      "title": "Background job replay after acknowledgement timeout",
+      "body": "A report-generation worker finished but lost its broker acknowledgement. The queue redelivered the same message and the report ran twice. Both runs occurred on a normal day with no clock offset transition.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "dst-distractor-format",
+      "revision": "v1",
+      "title": "Display timezone in audit timestamps",
+      "body": "Include the numeric UTC offset in audit-log timestamps so repeated local clock labels are distinguishable to readers. This display-only change does not control scheduled task admission.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "metrics-evidence",
+      "revision": "v1",
+      "title": "Metrics collector memory growth after instrumentation rollout",
+      "body": "The collector series count grew from 18,000 to 2.4 million after enabling request metrics. Heap samples show label storage dominating allocation. The new histogram labels include raw session_id and full request URL with query parameters; each request creates additional time series.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "metrics-decision",
+      "revision": "v1",
+      "title": "Reduce metric label cardinality",
+      "body": "Remove session_id from metric labels and replace full URLs with route templates. Preserve per-session correlation in restricted request logs and traces. The earlier longer-scrape-interval workaround was rejected because the unbounded label set still accumulated.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "metrics-verification",
+      "revision": "v1",
+      "title": "Collector soak-test observation",
+      "body": "During the forty-minute staging replay, active time series remained below 22,000 and resident memory reached a plateau after the label change. The replay used recorded normal traffic; the production peak-load event has not been observed with this version.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "metrics-distractor-leak",
+      "revision": "v1",
+      "title": "Image-service process memory leak",
+      "body": "The image service retained decoded buffers after thumbnail errors and its own process memory rose. The metrics collector and its time-series labels were unchanged. Releasing the error-path buffers fixes this separate leak.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "metrics-distractor-sampling",
+      "revision": "v1",
+      "title": "Trace sampling budget",
+      "body": "Reduce successful-request trace sampling from ten percent to one percent to cut exported span volume. Error traces remain fully sampled. This policy does not limit metric label cardinality.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "reload-evidence",
+      "revision": "v1",
+      "title": "Per-field configuration lock still produced mixed generations",
+      "body": "The reload stress test occasionally combined the new backend base URL with the old request-signing key. The updater wrote fields separately. Separate mutexes protected each field from data races but readers still observed values from different configuration generations, causing authentication failures.",
+      "kind": "attempt",
+      "attempt_outcome": "failed"
+    },
+    {
+      "id": "reload-decision",
+      "revision": "v1",
+      "title": "Publish an immutable configuration snapshot",
+      "body": "Validate all candidate fields together and construct one immutable configuration object. Publish that object in one atomic swap; each request captures one snapshot for its entire lifetime. Withdraw the per-field-lock approach because independent reads can mix generations.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "reload-verification",
+      "revision": "v1",
+      "title": "Mixed-generation reload regression",
+      "body": "After the snapshot change, one hundred thousand concurrent reads during repeated local reloads produced zero mixed-generation URL/key pairs. Invalid candidate configurations were rejected while the previous snapshot stayed active. Remote configuration-service outages were not covered.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "reload-distractor-env",
+      "revision": "v1",
+      "title": "Startup boolean parsing failure",
+      "body": "A deployment failed at startup because FEATURE_ENABLED contained the string TRUE while the parser accepted only lowercase true. No process reached hot reload, and no mixed configuration generation was involved.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "reload-distractor-rotation",
+      "revision": "v1",
+      "title": "Signing-key overlap during external rotation",
+      "body": "Accept both old and new signing keys for a short validation window while an external vendor rotates credentials. This migration procedure does not make local multi-field configuration publication atomic.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "backup-evidence",
+      "revision": "v1",
+      "title": "Restore manifest loses unusual file names",
+      "body": "The restore check omitted four fixture files whose names contain embedded newline characters or leading whitespace. The newline-delimited manifest was consumed by a shell loop that split one pathname into multiple rows and trimmed spaces. Archive bytes themselves contain the original names.",
+      "kind": "tool_result"
+    },
+    {
+      "id": "backup-decision",
+      "revision": "v1",
+      "title": "Keep file names intact through the restore manifest",
+      "body": "Replace the line-based manifest with a NUL-delimited stream and pass each pathname as one argument without shell word splitting. The earlier escaping-only patch was withdrawn because the decoder could not distinguish literal backslash sequences from encoded delimiters.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "backup-verification",
+      "revision": "v1",
+      "title": "Unusual-pathname restore fixtures",
+      "body": "The revised round-trip test restores names containing spaces, tabs, Unicode, literal backslashes, and embedded newlines with byte-identical path names and file content. Symbolic-link targets and Windows path rules are outside this test run.",
+      "kind": "verification",
+      "verification_outcome": "passed"
+    },
+    {
+      "id": "backup-distractor-traversal",
+      "revision": "v1",
+      "title": "Reject unsafe archive extraction destinations",
+      "body": "Reject absolute paths and parent-directory traversal entries before extraction so archives cannot write outside the restore directory. This security rule does not repair whitespace splitting in a manifest.",
+      "kind": "decision",
+      "decision_status": "accepted"
+    },
+    {
+      "id": "backup-distractor-retention",
+      "revision": "v1",
+      "title": "Missing backup caused by retention policy",
+      "body": "The nightly backup from six weeks earlier was unavailable because the thirty-day retention job had expired it. Recent backups restored ordinary filenames correctly; the issue did not involve manifest delimiters.",
+      "kind": "tool_result"
+    }
+  ],
+  "queries": [
+    {
+      "id": "independent-csv",
+      "split": "evaluation",
+      "question": "내보낸 표를 엑셀로 열 때 한글이 깨지던 이유와 채택한 조치, 확인한 범위는 뭐야?",
+      "required": [
+        "csv-evidence",
+        "csv-decision",
+        "csv-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "csv-distractor-pdf",
+        "csv-distractor-upload"
+      ],
+      "rewrite": [
+        "Excel",
+        "spreadsheet export",
+        "CSV encoding"
+      ],
+      "answer_limits": [
+        "Excel for Mac 및 LibreOffice 검증을 했다고 말하지 않는다.",
+        "JSON 응답에도 BOM을 붙였다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-account",
+      "split": "evaluation",
+      "question": "계정을 바꾸고 나면 이전 사람의 화면이 보였던 건 왜였고, 무엇을 바꿨으며 아직 확인하지 못한 건 뭐야?",
+      "required": [
+        "account-evidence",
+        "account-decision",
+        "account-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "account-distractor-avatar",
+        "account-distractor-auth"
+      ],
+      "rewrite": [
+        "account switch",
+        "sign out",
+        "previous account"
+      ],
+      "answer_limits": [
+        "서버 응답 자체가 다른 계정 자료를 줬다고 말하지 않는다.",
+        "여러 탭 사이의 격리를 검증했다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-payment",
+      "split": "evaluation",
+      "question": "결제 알림이 다시 와서 이중 처리되던 문제에서 처음 대응을 버린 이유와 최종 조치, 재시도 확인 결과를 알려줘.",
+      "required": [
+        "payment-evidence",
+        "payment-decision",
+        "payment-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "payment-distractor-refund",
+        "payment-distractor-button"
+      ],
+      "rewrite": [
+        "duplicate callback",
+        "duplicate payment",
+        "webhook retry"
+      ],
+      "answer_limits": [
+        "브라우저 버튼 비활성화로 webhook 중복 처리가 해결됐다고 말하지 않는다.",
+        "실결제사나 지역 장애 전환을 검증했다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-dst",
+      "split": "evaluation",
+      "question": "시계가 뒤로 바뀌는 날 새벽 배치가 두 번 돌던 문제를 어떻게 처리했고 어느 경우가 아직 미정이야?",
+      "required": [
+        "dst-evidence",
+        "dst-decision",
+        "dst-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "dst-distractor-broker",
+        "dst-distractor-format"
+      ],
+      "rewrite": [
+        "clock change",
+        "fallback",
+        "scheduled task"
+      ],
+      "answer_limits": [
+        "봄 전환 때 존재하지 않는 시각의 정책이 정해졌다고 말하지 않는다.",
+        "로그 표시 형식만 바꾸어 실행 중복을 해결했다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-metrics",
+      "split": "evaluation",
+      "question": "관측 기능을 켠 뒤 수집 서버 메모리가 급증한 원인과 버린 대안, 실제 확인한 개선 범위를 찾아줘.",
+      "required": [
+        "metrics-evidence",
+        "metrics-decision",
+        "metrics-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "metrics-distractor-leak",
+        "metrics-distractor-sampling"
+      ],
+      "rewrite": [
+        "metrics memory",
+        "collector",
+        "instrumentation"
+      ],
+      "answer_limits": [
+        "메모리 증가 원인을 이미지 버퍼 누수라고 말하지 않는다.",
+        "운영 최대 부하를 검증했다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-reload",
+      "split": "evaluation",
+      "question": "설정을 갱신할 때 일부 요청만 실패하던 문제에서 항목마다 잠금을 거는 방법은 왜 안 됐고 어떻게 고쳤어?",
+      "required": [
+        "reload-evidence",
+        "reload-decision",
+        "reload-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "reload-distractor-env",
+        "reload-distractor-rotation"
+      ],
+      "rewrite": [
+        "configuration reload",
+        "configuration lock",
+        "request failure"
+      ],
+      "answer_limits": [
+        "설정 서비스 외부 장애를 검증했다고 말하지 않는다.",
+        "잘못된 설정을 채택하고 이전 설정을 폐기했다고 말하지 않는다."
+      ]
+    },
+    {
+      "id": "independent-backup",
+      "split": "evaluation",
+      "question": "백업 복구 중 특이한 파일 이름이 바뀌거나 빠지던 문제의 원인, 철회한 방법, 검증한 이름 범위를 알려줘.",
+      "required": [
+        "backup-evidence",
+        "backup-decision",
+        "backup-verification"
+      ],
+      "followup": [],
+      "forbidden_top1": [
+        "backup-distractor-traversal",
+        "backup-distractor-retention"
+      ],
+      "rewrite": [
+        "restore",
+        "file names",
+        "backup"
+      ],
+      "answer_limits": [
+        "심볼릭 링크나 Windows 경로 규칙까지 검증했다고 말하지 않는다.",
+        "원인을 백업 보관 기간 만료로 바꾸지 않는다."
+      ]
+    },
+    {
+      "id": "independent-no-match",
+      "split": "evaluation",
+      "question": "이 프로젝트의 모바일 앱 블루투스 페어링 오류는 어떻게 해결했어?",
+      "required": [],
+      "followup": [],
+      "forbidden_top1": [
+        "csv-evidence",
+        "csv-decision",
+        "csv-verification",
+        "csv-distractor-pdf",
+        "csv-distractor-upload",
+        "account-evidence",
+        "account-decision",
+        "account-verification",
+        "account-distractor-avatar",
+        "account-distractor-auth",
+        "payment-evidence",
+        "payment-decision",
+        "payment-verification",
+        "payment-distractor-refund",
+        "payment-distractor-button",
+        "dst-evidence",
+        "dst-decision",
+        "dst-verification",
+        "dst-distractor-broker",
+        "dst-distractor-format",
+        "metrics-evidence",
+        "metrics-decision",
+        "metrics-verification",
+        "metrics-distractor-leak",
+        "metrics-distractor-sampling",
+        "reload-evidence",
+        "reload-decision",
+        "reload-verification",
+        "reload-distractor-env",
+        "reload-distractor-rotation",
+        "backup-evidence",
+        "backup-decision",
+        "backup-verification",
+        "backup-distractor-traversal",
+        "backup-distractor-retention"
+      ],
+      "rewrite": [
+        "Bluetooth pairing",
+        "mobile app Bluetooth",
+        "pairing error"
+      ],
+      "answer_limits": [
+        "해당 근거가 없는 상태에서 해결 원인, 조치, 검증 결과를 만들어내지 않는다."
+      ]
+    }
+  ],
+  "protocol": {
+    "required_id_meaning": "All required original records should be retrieved for the question; each represents a separate evidence need.",
+    "forbidden_id_meaning": "Plausible but different incidents; retrieval is scored as a distractor, and factual answers must not use them to explain the target incident.",
+    "test_data_origin": "Synthetic fixtures authored independently without reading the implementation author fixture or model results.",
+    "measurement": [
+      "required record recall@10",
+      "first relevant rank",
+      "distractor count@10",
+      "extra read calls",
+      "input bytes",
+      "query latency"
+    ],
+    "no_match_requirement": "Do not answer the unrelated question using unrelated records; a candidate list is not evidence of a resolution.",
+    "top_k": 3,
+    "label_policy": "All three incident records are required in the initial top-3 retrieval because each question explicitly asks for cause, corrective decision, and verification boundaries. No followup labels substitute for a missed required record. Prior content/labels preserved unchanged when adapting the agreed runner schema.",
+    "candidate_model_locked_by_implementation_author": "multilingual-e5-small; field-title-context-v2; threshold 0.7647621333599091; k=3",
+    "earlier_preconversion_sha256": "d5ee60a151826025adf64c7a5840ce5f88c76ffddbf703140bb1bdc335286f8f"
+  }
+}

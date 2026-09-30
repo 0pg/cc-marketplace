@@ -1,0 +1,250 @@
+{
+  "version": 1,
+  "frozen_before_model_runs": true,
+  "k": 3,
+  "targets": {
+    "evaluation_required_recall_at_3": 0.8,
+    "upload_auth_forbidden_top1": 0,
+    "unanswerable_returned_candidates": "measure and report; similarity is not answer confidence",
+    "cpu_model_load_plus_query_seconds": 60,
+    "bounded_long_output_seconds": 120
+  },
+  "documents": [
+    {
+      "id": "upload-429",
+      "revision": "v1",
+      "title": "upload incident",
+      "body": "Upload batch failed with HTTP 429 Too Many Requests. The gateway rejected requests when sixteen workers uploaded concurrently. Retrying immediately exhausted the quota again."
+    },
+    {
+      "id": "upload-limit",
+      "revision": "v1",
+      "title": "upload decision",
+      "body": "After the upload throttling failure we capped the upload pool at three concurrent workers and honored Retry-After. The previous unrestricted fan-out was rejected."
+    },
+    {
+      "id": "auth-401",
+      "revision": "v1",
+      "title": "credentials incident",
+      "body": "Upload requests failed with HTTP 401 Unauthorized because the access token had expired. We refreshed the credentials. Request concurrency was unchanged."
+    },
+    {
+      "id": "pool-timeout",
+      "revision": "v1",
+      "title": "database delay",
+      "body": "The payment handler spent 1800 milliseconds waiting to acquire a database connection. The connection pool was exhausted by long-running transactions; query execution itself took 12 milliseconds."
+    },
+    {
+      "id": "pool-decision",
+      "revision": "v1",
+      "title": "pool decision",
+      "body": "We shortened the payment transaction to release database connections before calling the external provider. Increasing the HTTP timeout would have hidden the queueing bottleneck."
+    },
+    {
+      "id": "compile-fail",
+      "revision": "v1",
+      "title": "compiler output",
+      "body": "error[E0382]: borrow of moved value: request. The value was moved into the spawned task before the retry branch inspected it."
+    },
+    {
+      "id": "clone-decision",
+      "revision": "v1",
+      "title": "ownership decision",
+      "body": "We moved a cheap request identifier into the task instead of cloning the entire payload. This avoids using a moved request in the retry branch."
+    },
+    {
+      "id": "atomic-file",
+      "revision": "v1",
+      "title": "configuration write",
+      "body": "A crash during configuration replacement left a half-written JSON file. The new implementation writes to a temporary file, flushes it, then atomically renames it over the destination."
+    },
+    {
+      "id": "cache-stale",
+      "revision": "v1",
+      "title": "stale settings",
+      "body": "The process continued serving stale feature flags after the configuration file changed. The watcher lost an event; this did not corrupt the JSON file."
+    },
+    {
+      "id": "tls-cert",
+      "revision": "v1",
+      "title": "network failure",
+      "body": "The TLS handshake failed because the server certificate had expired. Renewing the certificate restored secure connectivity."
+    },
+    {
+      "id": "cancel-child",
+      "revision": "v1",
+      "title": "process cancellation",
+      "body": "Cancelling the parent request left a child command running in the background. We added explicit child termination and waited for cleanup to finish."
+    },
+    {
+      "id": "rollback-schema",
+      "revision": "v1",
+      "title": "migration rollback",
+      "body": "The database migration was rolled back after older clients failed to parse the new enum value. The compatible reader must be deployed before writing the new value."
+    },
+    {
+      "id": "test-scope",
+      "revision": "v1",
+      "title": "verification",
+      "body": "The retry unit test passed against a mock server. No production load test or multi-region failover test was performed."
+    },
+    {
+      "id": "not-upload",
+      "revision": "v1",
+      "title": "unrelated rate",
+      "body": "Audio sampling rate changed from 44.1 kHz to 48 kHz. This is unrelated to API request quotas or the upload service."
+    },
+    {
+      "id": "lease-lock",
+      "revision": "v1",
+      "title": "duplicate jobs",
+      "body": "Two workers processed the same scheduled job after a lease expired during a long garbage collection pause. The fix renews the lease while the job is running."
+    },
+    {
+      "id": "privacy-delete",
+      "revision": "v1",
+      "title": "source removal",
+      "body": "After access to the imported conversation was revoked, the retained body and derived summaries were scrubbed. Old query cursors must request a fresh search."
+    }
+  ],
+  "queries": [
+    {
+      "id": "dev-01",
+      "split": "development",
+      "question": "한꺼번에 너무 많이 보내서 업로드가 막힌 원인은?",
+      "required": [
+        "upload-429"
+      ],
+      "forbidden_top1": [
+        "auth-401"
+      ],
+      "rewrite": [
+        "HTTP 429",
+        "Too Many Requests",
+        "concurrent"
+      ]
+    },
+    {
+      "id": "dev-02",
+      "split": "development",
+      "question": "파일 저장 도중 죽어도 설정이 깨지지 않게 바꾼 이유",
+      "required": [
+        "atomic-file"
+      ],
+      "rewrite": [
+        "atomic",
+        "configuration",
+        "half-written"
+      ]
+    },
+    {
+      "id": "dev-none",
+      "split": "development",
+      "question": "어제 회의에서 정한 사무실 점심 메뉴는?",
+      "required": [],
+      "rewrite": [
+        "lunch",
+        "menu"
+      ]
+    },
+    {
+      "id": "eval-01",
+      "split": "evaluation",
+      "question": "동시 요청 때문에 막혔던 업로드",
+      "required": [
+        "upload-429"
+      ],
+      "followup": [
+        "upload-limit"
+      ],
+      "forbidden_top1": [
+        "auth-401"
+      ],
+      "rewrite": [
+        "HTTP 429",
+        "rate limit",
+        "concurrency"
+      ]
+    },
+    {
+      "id": "eval-02",
+      "split": "evaluation",
+      "question": "결제 처리가 느려진 건 쿼리가 오래 걸려서였어?",
+      "required": [
+        "pool-timeout"
+      ],
+      "followup": [
+        "pool-decision"
+      ],
+      "rewrite": [
+        "payment",
+        "query",
+        "connection pool"
+      ]
+    },
+    {
+      "id": "eval-03",
+      "split": "evaluation",
+      "question": "복사하지 않고 식별자만 넘기게 바꾼 계기",
+      "required": [
+        "compile-fail",
+        "clone-decision"
+      ],
+      "rewrite": [
+        "moved value",
+        "identifier",
+        "clone"
+      ]
+    },
+    {
+      "id": "eval-04",
+      "split": "evaluation",
+      "question": "취소했는데 명령이 계속 돌던 문제",
+      "required": [
+        "cancel-child"
+      ],
+      "rewrite": [
+        "cancel",
+        "child",
+        "running"
+      ]
+    },
+    {
+      "id": "eval-05",
+      "split": "evaluation",
+      "question": "구버전 앱 때문에 데이터베이스 변경을 되돌린 사건",
+      "required": [
+        "rollback-schema"
+      ],
+      "rewrite": [
+        "migration",
+        "older clients",
+        "rollback"
+      ]
+    },
+    {
+      "id": "eval-06",
+      "split": "evaluation",
+      "question": "일정 작업이 두 번 실행된 원인",
+      "required": [
+        "lease-lock"
+      ],
+      "rewrite": [
+        "duplicate",
+        "lease",
+        "scheduled job"
+      ]
+    },
+    {
+      "id": "eval-none",
+      "split": "evaluation",
+      "question": "모바일 화면 배경색을 파란색으로 선택한 디자인 근거",
+      "required": [],
+      "rewrite": [
+        "background color",
+        "design",
+        "blue"
+      ]
+    }
+  ]
+}

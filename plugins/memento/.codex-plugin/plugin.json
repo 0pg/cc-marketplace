@@ -1,0 +1,22 @@
+{
+  "name": "memento",
+  "version": "0.1.0",
+  "description": "Record and retrieve project work context, decisions, failed attempts, corrections, evidence and Git checkpoints with bounded local storage.",
+  "author": {
+    "name": "jhk"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Memento",
+    "shortDescription": "Recall work context and its evidence",
+    "developerName": "jhk",
+    "category": "Productivity",
+    "capabilities": [
+      "Work context",
+      "Evidence retrieval"
+    ],
+    "defaultPrompt": [
+      "Use Memento to recover the relevant work context and continue from verified evidence."
+    ]
+  }
+}

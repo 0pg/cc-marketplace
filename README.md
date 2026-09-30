@@ -1,6 +1,6 @@
 # cc-marketplace
 
-Claude Code 플러그인 마켓플레이스입니다.
+Claude Code 플러그인 마켓플레이스입니다. Memento는 Codex에서도 배포·설치할 수 있습니다.
 
 ## 플러그인 목록
 
@@ -8,6 +8,7 @@ Claude Code 플러그인 마켓플레이스입니다.
 |---------|------|---------|------|
 | [claude-md-plugin](./plugins/claude-md-plugin) | 18.1.0 | documentation | CLAUDE.md Primary SSOT document-code sync plugin. /spec, /dev, /validate, /decompile, /bugfix, /impact, /inspect |
 | [project-init](./plugins/project-init) | 1.0.0 | development | Multi-language 프로젝트 초기 설정 플러그인 |
+| [memento](./plugins/memento) | 0.1.0 | development | Claude Code·Codex 작업 맥락 기록 및 근거 조회 |
 
 ## 슬래시 커맨드
 
@@ -27,9 +28,21 @@ Claude Code 플러그인 마켓플레이스입니다.
 
 ## 설치
 
-```bash
-claude mcp add-json cc-marketplace '{"type":"stdio","command":"claude","args":["mcp","serve","/path/to/cc-marketplace/.claude-plugin/marketplace.json"]}'
+Claude Code:
+
+```sh
+claude plugin marketplace add 0pg/cc-marketplace
+claude plugin install memento@jhk-plugins
 ```
+
+Codex:
+
+```sh
+codex plugin marketplace add 0pg/cc-marketplace
+codex plugin add memento@jhk-plugins
+```
+
+Memento 설치 후 [실행기 준비](./plugins/memento/README.md#실행기-준비)를 한 번 수행합니다. 다른 Claude Code 플러그인은 설치 명령의 `memento`를 해당 이름으로 바꿉니다.
 
 ## 버전 관리
 

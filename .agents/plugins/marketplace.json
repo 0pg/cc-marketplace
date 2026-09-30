@@ -1,0 +1,20 @@
+{
+  "name": "jhk-plugins",
+  "interface": {
+    "displayName": "jhk Plugins"
+  },
+  "plugins": [
+    {
+      "name": "memento",
+      "source": {
+        "source": "local",
+        "path": "./plugins/memento"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

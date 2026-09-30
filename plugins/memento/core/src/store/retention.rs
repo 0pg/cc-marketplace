@@ -1,0 +1,199 @@
+//! Bounded storage with one in-place metadata row and transactional collection.
+use super::*;
+
+// Entity::scoped_key starts with a decimal length, so no public Entity can use this key.
+const METADATA_KEY: &str = "__work_context_compaction_v1__";
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Metadata {
+    pub policy: compaction::Policy,
+    pub compaction: CompactionState,
+}
+
+pub(super) fn is_metadata(row: &StoredEntry) -> bool {
+    row.entity_key == METADATA_KEY
+}
+
+pub(super) fn metadata(row: &StoredEntry) -> Result<Metadata> {
+    let value: Metadata = serde_json::from_str(&row.payload)?;
+    value.policy.validate()?;
+    Ok(value)
+}
+
+fn read_metadata(rows: &[StoredEntry]) -> Result<Metadata> {
+    rows.iter()
+        .find(|row| is_metadata(row))
+        .map(metadata)
+        .transpose()
+        .map(|value| value.unwrap_or_default())
+}
+
+fn add_size(total: &mut usize, amount: usize) -> Result<()> {
+    *total = total
+        .checked_add(amount)
+        .ok_or_else(|| Error::Invalid("storage size overflow".into()))?;
+    Ok(())
+}
+
+fn usage(rows: &[StoredEntry]) -> Result<compaction::Usage> {
+    let mut payload_bytes = 0;
+    for row in rows {
+        add_size(&mut payload_bytes, row.payload.len())?;
+    }
+    Ok(compaction::Usage {
+        entries: rows.len(),
+        payload_bytes,
+    })
+}
+
+fn fits(usage: &compaction::Usage, policy: &compaction::Policy) -> bool {
+    usage.entries <= policy.max_entries && usage.payload_bytes <= policy.max_payload_bytes
+}
+
+fn capacity(usage: &compaction::Usage, policy: &compaction::Policy) -> Error {
+    Error::Capacity {
+        entries: usage.entries,
+        payload_bytes: usage.payload_bytes,
+        max_entries: policy.max_entries,
+        max_payload_bytes: policy.max_payload_bytes,
+    }
+}
+
+async fn save_metadata(
+    db: &mut toasty::Transaction<'_>,
+    rows: &mut [StoredEntry],
+    value: &Metadata,
+) -> Result<()> {
+    let payload = serde_json::to_string(value)?;
+    if let Some(row) = rows.iter_mut().find(|row| is_metadata(row)) {
+        if row.payload != payload {
+            row.update().payload(payload).exec(db).await?;
+        }
+    } else {
+        toasty::create!(StoredEntry {
+            event_key: METADATA_KEY.to_owned(),
+            entity_key: METADATA_KEY.to_owned(),
+            captured_at: Utc::now().to_rfc3339(),
+            payload,
+        })
+        .exec(db)
+        .await?;
+    }
+    Ok(())
+}
+
+pub(super) async fn enforce(
+    db: &mut toasty::Transaction<'_>,
+    pinned: &BTreeSet<u64>,
+) -> Result<Option<CompactionNotice>> {
+    let mut rows = StoredEntry::all().exec(&mut *db).await?;
+    let meta = read_metadata(&rows)?;
+    let mut current = usage(&rows)?;
+    if !rows.iter().any(is_metadata) {
+        add_size(&mut current.entries, 1)?;
+        add_size(&mut current.payload_bytes, serde_json::to_vec(&meta)?.len())?;
+    }
+    if fits(&current, &meta.policy) {
+        save_metadata(db, &mut rows, &meta).await?;
+        return Ok(None);
+    }
+    let report = compact_pinned(db, None, true, pinned).await?;
+    let updated = StoredEntry::filter(StoredEntry::fields().entity_key().eq(METADATA_KEY))
+        .exec(&mut *db)
+        .await?;
+    let generation = read_metadata(&updated)?.compaction.generation;
+    Ok(Some(CompactionNotice {
+        generation,
+        removed_entries: report.removed_entries,
+        remaining: report.after,
+    }))
+}
+
+pub(super) async fn compact(
+    db: &mut toasty::Transaction<'_>,
+    policy: Option<compaction::Policy>,
+    apply: bool,
+) -> Result<compaction::Report> {
+    compact_pinned(db, policy, apply, &BTreeSet::new()).await
+}
+
+async fn compact_pinned(
+    db: &mut toasty::Transaction<'_>,
+    policy: Option<compaction::Policy>,
+    apply: bool,
+    pinned: &BTreeSet<u64>,
+) -> Result<compaction::Report> {
+    let mut rows = StoredEntry::all().exec(&mut *db).await?;
+    let mut meta = read_metadata(&rows)?;
+    if let Some(policy) = policy {
+        policy.validate()?;
+        meta.policy = policy;
+    }
+    let entries = rows
+        .iter()
+        .filter(|row| !is_metadata(row))
+        .map(|row| {
+            Ok(Entry {
+                sequence: row.id,
+                captured_at: row.captured_at.clone(),
+                entity: serde_json::from_str(&row.payload)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut plan = compaction::plan_pinned(&entries, &meta.policy, pinned)?;
+    if plan.report.removed_entries > 0 {
+        meta.compaction.generation = meta
+            .compaction
+            .generation
+            .checked_add(1)
+            .ok_or_else(|| Error::Invalid("compaction generation exhausted".into()))?;
+        meta.compaction.removed_entries = meta
+            .compaction
+            .removed_entries
+            .checked_add(
+                u64::try_from(plan.report.removed_entries)
+                    .map_err(|_| Error::Invalid("compaction count overflow".into()))?,
+            )
+            .ok_or_else(|| Error::Invalid("compaction count overflow".into()))?;
+    }
+    // Count the actual retained JSON, including the constant-size metadata row.
+    let mut after = compaction::Usage {
+        entries: 1,
+        payload_bytes: serde_json::to_vec(&meta)?.len(),
+    };
+    for row in rows
+        .iter()
+        .filter(|row| !is_metadata(row) && plan.retained_sequences.contains(&row.id))
+    {
+        add_size(&mut after.entries, 1)?;
+        add_size(&mut after.payload_bytes, row.payload.len())?;
+    }
+    plan.report.before = usage(&rows)?;
+    plan.report.fits = fits(&after, &meta.policy);
+    plan.report.after = after;
+    plan.report.protected = after;
+    if !apply {
+        return Ok(plan.report);
+    }
+    if !plan.report.fits {
+        return Err(capacity(&plan.report.after, &meta.policy));
+    }
+    // Keep the surviving sequence IDs unchanged; record removal and epoch in one transaction.
+    for row in rows
+        .iter()
+        .filter(|row| !is_metadata(row) && !plan.retained_sequences.contains(&row.id))
+    {
+        StoredEntry::filter(StoredEntry::fields().id().eq(row.id))
+            .delete()
+            .exec(&mut *db)
+            .await?;
+    }
+    save_metadata(db, &mut rows, &meta).await?;
+    tracing::info!(
+        removed_entries = plan.report.removed_entries,
+        generation = meta.compaction.generation,
+        "work context compacted"
+    );
+    Ok(plan.report)
+}

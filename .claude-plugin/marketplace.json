@@ -36,6 +36,16 @@
       },
       "source": "./plugins/flow",
       "category": "development"
+    },
+    {
+      "name": "memento",
+      "version": "0.1.0",
+      "description": "Record and retrieve project work context, decisions, failed attempts, corrections, evidence and Git checkpoints with bounded local storage.",
+      "author": {
+        "name": "jhk"
+      },
+      "source": "./plugins/memento",
+      "category": "development"
     }
   ]
 }
