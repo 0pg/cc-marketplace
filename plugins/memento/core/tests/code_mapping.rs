@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::Path, process::Command};
 
-use work_context::{
+use memento::{
     Store, ingest,
     mapping::{self, Correspondence, IssueKind, MappingMethod, MappingRequest},
     model::*,

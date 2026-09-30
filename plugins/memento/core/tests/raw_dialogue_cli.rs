@@ -8,9 +8,9 @@ use std::{
     process::{Command, Stdio},
 };
 
+use memento::model::{Availability, Evidence};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use work_context::model::{Availability, Evidence};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -25,7 +25,7 @@ struct Scenario {
 }
 
 fn cli(store: &Path, arguments: &[&str], input: Option<&Value>) -> Result<Value, Box<dyn Error>> {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_work-context"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_memento"));
     command.args(arguments).arg("--store").arg(store);
     command
         .stdin(Stdio::piped())

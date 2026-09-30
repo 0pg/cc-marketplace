@@ -82,7 +82,7 @@ fn spawn(
     })
 }
 fn cli(database: &Path, operation: &str) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_work-context"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_memento"));
     command.arg(operation).arg("--store").arg(database);
     command
 }

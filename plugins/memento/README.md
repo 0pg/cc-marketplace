@@ -32,16 +32,16 @@ python3 scripts/install_runtime.py
 
 ```sh
 python3 plugins/memento/scripts/install_runtime.py
-python3 plugins/memento/skills/memento/scripts/work-context.py help
+python3 plugins/memento/skills/memento/scripts/memento.py help
 ```
 
-설치기는 `core/Cargo.toml`의 잠긴 의존성으로 release 실행기를 빌드하고 확인한 뒤 `skills/memento/bin/work-context`에 배치합니다. Cargo는 캐시에 없는 의존성을 다운로드할 수 있습니다. 이미 빌드한 실행기가 있으면 `--binary /absolute/work-context`를 사용할 수 있습니다. 배포 파일에는 특정 OS용 실행 파일을 포함하지 않습니다.
+설치기는 `core/Cargo.toml`의 잠긴 의존성으로 release 실행기를 빌드하고 확인한 뒤 `skills/memento/bin/memento`에 배치합니다. Cargo는 캐시에 없는 의존성을 다운로드할 수 있습니다. 이미 빌드한 실행기가 있으면 `--binary /absolute/memento`를 사용할 수 있습니다. 배포 파일에는 특정 OS용 실행 파일을 포함하지 않습니다.
 
 일반 조회는 빌드나 다운로드를 실행하지 않습니다. 스킬은 DB 경로와 project/work/session 식별자를 명시해 중요한 작업 전환을 기록합니다. 대화 파일의 자동 검색·상주 수집기는 없으며 Git hook과 로컬 의미 검색 모델은 선택적으로 설정합니다. 상세 입력과 조회 계약은 [interface](skills/memento/references/interface.md), 선택적 모델 설정은 [semantic](skills/memento/references/semantic.md)를 참조하세요.
 
 ## 구현 출처와 검증
 
-Rust core·시나리오 테스트·스킬은 [0pg-mcp의 Memento 구현](https://github.com/0pg/0pg-mcp/tree/677b8800b40253ce44f6cf2ef03de38f25cf28d4/crates/work-context)에서 가져왔습니다. 이 패키지는 원본 저장소 없이 빌드·실행할 수 있습니다. 스킬 경로와 설치 안내는 플러그인 구조에 맞췄으며 원본 Codex 설치기 전용 테스트는 플러그인 실행기 설치 테스트로 대체했습니다.
+Rust core·시나리오 테스트·스킬은 [0pg-mcp의 Memento 구현](https://github.com/0pg/0pg-mcp/tree/10478866a7fa8208c7ca7bc61e54ca87c25427b7/crates/memento)에서 가져왔습니다. 이 패키지는 원본 저장소 없이 빌드·실행할 수 있습니다. 스킬 경로와 설치 안내는 플러그인 구조에 맞췄으며 원본 Codex 설치기 전용 테스트는 플러그인 실행기 설치 테스트로 대체했습니다.
 
 ```sh
 cargo fmt --manifest-path plugins/memento/core/Cargo.toml --check

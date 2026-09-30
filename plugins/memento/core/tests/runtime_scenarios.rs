@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use memento::{Store, ingest, model::*, runtime, security::RedactionPolicy};
 use tempfile::TempDir;
-use work_context::{Store, ingest, model::*, runtime, security::RedactionPolicy};
 
 #[path = "support/evaluation.rs"]
 mod evaluation;
@@ -113,7 +113,7 @@ async fn run(
     repo: &Path,
     execution: &str,
     command: &[String],
-) -> work_context::Result<Vec<work_context::store::Receipt>> {
+) -> memento::Result<Vec<memento::store::Receipt>> {
     runtime::capture_run(
         store,
         runtime::RunRequest {
@@ -187,7 +187,7 @@ async fn dirty_run_and_partial_commit_keep_scope_and_origin_separate() -> TestRe
         path: "retry.rs".into(),
         range: None,
     });
-    let response = work_context::query::execute(&store.load().await?, &trace)?;
+    let response = memento::query::execute(&store.load().await?, &trace)?;
     assert!(
         response
             .items
@@ -525,7 +525,7 @@ async fn observed_code_is_masked_in_returned_state_and_retained_original() -> Te
         path: "retry.rs".into(),
         range: None,
     });
-    let response = work_context::query::execute(&store.load().await?, &query)?;
+    let response = memento::query::execute(&store.load().await?, &query)?;
     let encoded = serde_json::to_string(&response)?;
     assert!(!encoded.contains("code-secret-example"));
     assert!(encoded.contains("[REDACTED]"));
@@ -581,7 +581,7 @@ async fn killed_cli_retains_durable_running_attempt_and_current_dirty_file() -> 
     decision.session_id = Some("session-a".into());
     initial.append(Entity::Record(decision)).await?;
     drop(initial);
-    let child = Command::new(env!("CARGO_BIN_EXE_work-context"))
+    let child = Command::new(env!("CARGO_BIN_EXE_memento"))
         .arg("run").arg("--store").arg(&database).args(["--project", PROJECT, "--work", "retry-work", "--session", "session-a", "--id", "interrupted", "--repository"])
         .arg(repo).args(["--path", "retry.rs", "--", "/bin/sh", "-c", "printf 'unfinished patch\\n' > retry.rs; printf 'patch written; command still waiting\\n' > progress-output; printf '%s' \"$$\" > running-pid; exec sleep 30"])
         .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
@@ -711,8 +711,8 @@ async fn killed_cli_retains_durable_running_attempt_and_current_dirty_file() -> 
         range: None,
     }];
     append_fixture(&mut summary_only, Entity::Record(summary));
-    let limited = work_context::query::execute(&summary_only, &resume_query)?;
-    assert_eq!(limited.status, work_context::query::ResponseStatus::Partial);
+    let limited = memento::query::execute(&summary_only, &resume_query)?;
+    assert_eq!(limited.status, memento::query::ResponseStatus::Partial);
     assert!(limited.items.iter().all(|item| {
         !matches!(&item.entity, Entity::Record(record) if record.execution.is_some())
     }));
@@ -765,8 +765,8 @@ async fn background_git_capture_cannot_reenable_revoked_source() -> TestResult {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn failed_post_commit_capture_recovers_results_and_only_retained_process() -> TestResult {
+    use memento::query::{ResponseStatus, execute};
     use std::os::unix::fs::PermissionsExt;
-    use work_context::query::{ResponseStatus, execute};
 
     let directory = repository()?;
     let repo = directory.path();
@@ -782,15 +782,15 @@ async fn failed_post_commit_capture_recovers_results_and_only_retained_process()
     // A regular file as the parent directory makes the actual hook store fail.
     let blocked_parent = data.path().join("not-a-directory");
     fs::write(&blocked_parent, "fixture")?;
-    let installation = work_context::git::install_hooks(
+    let installation = memento::git::install_hooks(
         repo,
-        Path::new(env!("CARGO_BIN_EXE_work-context")),
+        Path::new(env!("CARGO_BIN_EXE_memento")),
         &blocked_parent.join("context.sqlite"),
         PROJECT,
     )?;
     assert!(installation.hooks.iter().all(|hook| hook.installed));
     assert_eq!(
-        fs::read_to_string(hooks.join("post-commit.work-context-original"))?,
+        fs::read_to_string(hooks.join("post-commit.memento-original"))?,
         previous_script
     );
     assert_eq!(
@@ -859,7 +859,7 @@ async fn failed_post_commit_capture_recovers_results_and_only_retained_process()
 
     for (id, duplicate) in [("recovery-first", false), ("recovery-second", true)] {
         let result = runtime::git_sync(&mut store, PROJECT, repo, &["HEAD".into()], 20).await?;
-        let receipts: Vec<work_context::store::Receipt> =
+        let receipts: Vec<memento::store::Receipt> =
             serde_json::from_value(result.get("receipts").ok_or("missing receipts")?.clone())?;
         assert_eq!(receipts.len(), 2);
         assert!(
@@ -988,9 +988,9 @@ async fn installed_hook_applies_the_selected_custom_masking_policy() -> TestResu
         &policy,
         r#"{"literal_secrets":["CUSTOM_TEST_HOOK_SECRET"]}"#,
     )?;
-    work_context::git::install_hooks_with_policy(
+    memento::git::install_hooks_with_policy(
         directory.path(),
-        Path::new(env!("CARGO_BIN_EXE_work-context")),
+        Path::new(env!("CARGO_BIN_EXE_memento")),
         &path,
         PROJECT,
         Some(&policy),

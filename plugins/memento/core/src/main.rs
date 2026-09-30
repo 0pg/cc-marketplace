@@ -5,11 +5,11 @@ use std::{
     process::ExitCode,
 };
 
-use serde_json::{Value, json};
-use work_context::{
+use memento::{
     Error, Result, Store, adapters::ImportFormat, compaction, ingest, model::*, query, runtime,
     security::RedactionPolicy, semantic,
 };
+use serde_json::{Value, json};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -133,7 +133,7 @@ async fn execute() -> Result<Value> {
     let args = Args::parse()?;
     if matches!(args.command.as_str(), "help" | "--help") {
         return Ok(
-            json!({"commands": ["init", "note", "record", "import", "sync", "query", "compact", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "work-context COMMAND --store /absolute/context.sqlite [options]; note/query/record read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
+            json!({"commands": ["init", "note", "record", "import", "sync", "query", "compact", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
         );
     }
     let store_path = PathBuf::from(args.required("store")?);
@@ -249,7 +249,7 @@ async fn execute() -> Result<Value> {
             let mut record: Record = serde_json::from_value(value)?;
             if !input.contains_key("revision") {
                 record.revision.clear();
-                record.revision = work_context::security::hash(&serde_json::to_vec(&record)?);
+                record.revision = memento::security::hash(&serde_json::to_vec(&record)?);
             }
             if record.project_id != project || record.source_id != source {
                 return Err(Error::Invalid(
@@ -423,7 +423,7 @@ async fn execute() -> Result<Value> {
             .await
         }
         "hooks-install" => Ok(serde_json::to_value(
-            work_context::git::install_hooks_with_policy(
+            memento::git::install_hooks_with_policy(
                 Path::new(args.required("repository")?),
                 &std::env::current_exe()?,
                 &store_path.canonicalize()?,
@@ -433,7 +433,7 @@ async fn execute() -> Result<Value> {
             .map_err(|e| Error::Invalid(e.to_string()))?,
         )?),
         "hooks-status" => Ok(serde_json::to_value(
-            work_context::git::hook_status(Path::new(args.required("repository")?))
+            memento::git::hook_status(Path::new(args.required("repository")?))
                 .map_err(|e| Error::Invalid(e.to_string()))?,
         )?),
         "hook" => {

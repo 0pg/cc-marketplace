@@ -4,12 +4,10 @@
 
 use std::error::Error;
 
-use work_context::mapping::MappingRequest;
-use work_context::model::*;
-use work_context::query::{
-    self, BriefClaim, LocationStatus, QueryError, QueryResponse, ResponseStatus,
-};
-use work_context::{ingest, security};
+use memento::mapping::MappingRequest;
+use memento::model::*;
+use memento::query::{self, BriefClaim, LocationStatus, QueryError, QueryResponse, ResponseStatus};
+use memento::{ingest, security};
 
 #[path = "support/raw_dialogue.rs"]
 mod raw_dialogue;

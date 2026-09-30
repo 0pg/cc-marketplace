@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use memento::git::{self, WorkingKind};
 use tempfile::TempDir;
-use work_context::git::{self, WorkingKind};
 
 type TestResult = Result<(), Box<dyn Error>>;
 
@@ -214,7 +214,7 @@ fn hook_install_preserves_custom_path_legacy_output_input_and_exit() -> TestResu
             .iter()
             .all(|hook| hook.installed && hook.executable)
     );
-    assert!(custom.join("post-rewrite.work-context-original").exists());
+    assert!(custom.join("post-rewrite.memento-original").exists());
     git::install_hooks(repo, &stub, &repo.join("store's data"), "test-project")?;
     let successful = Command::new(custom.join("post-commit"))
         .current_dir(repo)

@@ -31,14 +31,14 @@ def build_binary(plugin):
         "--manifest-path", str(core / "Cargo.toml"),
         "--message-format=json-render-diagnostics",
     ]
-    print("Building the local work-context CLI...", flush=True)
+    print("Building the local memento CLI...", flush=True)
     try:
         result = subprocess.run(
             command, cwd=core, stdout=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace", check=False,
         )
     except FileNotFoundError as error:
-        raise InstallError("Cargo was not found. Install Rust separately, or pass --binary /path/to/work-context.") from error
+        raise InstallError("Cargo was not found. Install Rust separately, or pass --binary /path/to/memento.") from error
     executable = None
     for line in result.stdout.splitlines():
         try:
@@ -54,14 +54,14 @@ def build_binary(plugin):
         target = event.get("target", {})
         if (event.get("reason") == "compiler-artifact"
                 and isinstance(target, dict)
-                and target.get("name") == "work-context"
+                and target.get("name") == "memento"
                 and "bin" in target.get("kind", [])
                 and isinstance(event.get("executable"), str)):
             executable = Path(event["executable"])
     if result.returncode != 0:
         raise InstallError(f"Cargo build failed (exit {result.returncode}); the previous runtime was not changed.")
     if executable is None:
-        raise InstallError("Cargo did not report a work-context executable artifact.")
+        raise InstallError("Cargo did not report a memento executable artifact.")
     if not executable.is_absolute():
         executable = core / executable
     return validate_binary(executable)
@@ -69,9 +69,9 @@ def build_binary(plugin):
 
 def smoke_test(stage):
     environment = os.environ.copy()
-    environment.pop("WORK_CONTEXT_BIN", None)
+    environment.pop("MEMENTO_BIN", None)
     result = subprocess.run(
-        [sys.executable, str(stage / "scripts/work-context.py"), "help"],
+        [sys.executable, str(stage / "scripts/memento.py"), "help"],
         cwd=stage, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8", errors="replace", check=False,
     )
@@ -81,31 +81,31 @@ def smoke_test(stage):
     try:
         help_result = json.loads(result.stdout)
     except json.JSONDecodeError as error:
-        raise InstallError("The executable did not return work-context help JSON.") from error
+        raise InstallError("The executable did not return memento help JSON.") from error
     commands = help_result.get("commands") if isinstance(help_result, dict) else None
     if not isinstance(commands, list) or not all(name in commands for name in ("init", "note", "query", "compact")):
-        raise InstallError("The executable does not provide the expected work-context commands.")
+        raise InstallError("The executable does not provide the expected memento commands.")
 
 
 def install(plugin, executable):
     skill = plugin / "skills/memento"
-    launcher = skill / "scripts/work-context.py"
+    launcher = skill / "scripts/memento.py"
     if not launcher.is_file():
         raise InstallError(f"The skill launcher is missing: {launcher}")
     binary_directory = skill / "bin"
     if binary_directory.is_symlink():
         raise InstallError(f"The runtime directory must not be a symbolic link: {binary_directory}")
     binary_directory.mkdir(exist_ok=True)
-    destination = binary_directory / "work-context"
+    destination = binary_directory / "memento"
     # Publish just the runtime, so stores and user-added files are left in place.
     # The candidate is verified through the distributed launcher before replacement.
     with tempfile.TemporaryDirectory(prefix=".memento-runtime-", dir=binary_directory) as workspace:
         stage = Path(workspace)
         (stage / "bin").mkdir()
         (stage / "scripts").mkdir()
-        candidate = stage / "bin/work-context"
+        candidate = stage / "bin/memento"
         shutil.copy2(executable, candidate)
-        shutil.copy2(launcher, stage / "scripts/work-context.py")
+        shutil.copy2(launcher, stage / "scripts/memento.py")
         smoke_test(stage)
         os.replace(candidate, destination)
     return destination
@@ -113,7 +113,7 @@ def install(plugin, executable):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, help="Bundle an existing work-context executable instead of building with Cargo")
+    parser.add_argument("--binary", type=Path, help="Bundle an existing memento executable instead of building with Cargo")
     args = parser.parse_args(argv)
     plugin = Path(__file__).resolve().parent.parent
     try:

@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, error::Error, path::Path};
 
-use work_context::{Store, compaction::Policy, ingest, model::*, security::RedactionPolicy};
+use memento::{Store, compaction::Policy, ingest, model::*, security::RedactionPolicy};
 
 type TestResult = Result<(), Box<dyn Error>>;
 

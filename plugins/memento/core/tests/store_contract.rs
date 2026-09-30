@@ -1,5 +1,5 @@
+use memento::{Store, ingest, model::*, query, security::RedactionPolicy};
 use std::error::Error;
-use work_context::{Store, ingest, model::*, query, security::RedactionPolicy};
 
 fn rec(id: &str, body: &str) -> Record {
     Record::new(id, "p", "journal", RecordKind::Finding, body)

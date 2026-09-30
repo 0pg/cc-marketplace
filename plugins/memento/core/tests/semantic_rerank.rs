@@ -1,7 +1,7 @@
 //! Mechanical lifecycle contracts; these providers do not measure retrieval quality.
 use std::{collections::BTreeMap, error::Error, sync::Mutex, time::Duration};
 
-use work_context::{
+use memento::{
     ingest,
     model::*,
     query::{self, QueryError},

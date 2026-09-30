@@ -5,7 +5,7 @@ description: Record and retrieve project work context across sessions, including
 
 # Memento
 
-Memento uses the local `work-context` CLI to preserve public work evidence and recover the reasons and process behind results. Read [the interface](references/interface.md) for the runtime setup, commands, JSON inputs, and supported source formats. Build the packaged Rust runtime once before use; then use this skill's `scripts/work-context.py` launcher. Use [retrieval rules](references/retrieval.md) when interpreting results or handling missing evidence.
+Memento uses the local `memento` CLI to preserve public work evidence and recover the reasons and process behind results. Read [the interface](references/interface.md) for the runtime setup, commands, JSON inputs, and supported source formats. Build the packaged Rust runtime once before use; then use this skill's `scripts/memento.py` launcher. Use [retrieval rules](references/retrieval.md) when interpreting results or handling missing evidence.
 
 ## Start and resume
 

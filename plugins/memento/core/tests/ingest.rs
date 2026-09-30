@@ -1,6 +1,6 @@
 use std::{error::Error, fs};
 
-use work_context::{Store, adapters::ImportFormat, ingest, model::*, security::RedactionPolicy};
+use memento::{Store, adapters::ImportFormat, ingest, model::*, security::RedactionPolicy};
 
 fn record<'a>(entities: &'a [Entity], id: &str) -> Result<&'a Record, Box<dyn Error>> {
     entities

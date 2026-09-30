@@ -1,9 +1,9 @@
 //! Optional export of synthetic inputs and actual responses for blind answer review.
-use std::{error::Error, path::PathBuf};
-use work_context::{
+use memento::{
     model::{Corpus, Query},
     query,
 };
+use std::{error::Error, path::PathBuf};
 
 pub fn capture(
     scenario: &str,
@@ -12,7 +12,7 @@ pub fn capture(
     corpus: &Corpus,
     queries: &[Query],
 ) -> Result<(), Box<dyn Error>> {
-    let Some(directory) = std::env::var_os("WORK_CONTEXT_EVALUATION_DIR") else {
+    let Some(directory) = std::env::var_os("MEMENTO_EVALUATION_DIR") else {
         return Ok(());
     };
     if !scenario

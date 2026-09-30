@@ -41,9 +41,9 @@ Old stores without metadata use the default policy. Opening or querying such a s
 ## Preview and apply
 
 ```sh
-work-context compact --store /absolute/context.sqlite
-work-context compact --store /absolute/context.sqlite --compaction-policy /absolute/retention.json
-work-context compact --store /absolute/context.sqlite --compaction-policy /absolute/retention.json --apply true
+memento compact --store /absolute/context.sqlite
+memento compact --store /absolute/context.sqlite --compaction-policy /absolute/retention.json
+memento compact --store /absolute/context.sqlite --compaction-policy /absolute/retention.json --apply true
 ```
 
 The first two commands are read-only previews for an existing store. `--apply true` recomputes the plan against the current transaction, removes eligible rows and persists the selected policy. A plan that does not fit cannot be applied. `--policy` still selects the separate redaction policy; it is not the retention policy.

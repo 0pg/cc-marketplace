@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 type TestResult = Result<(), Box<dyn Error>>;
 
 fn cli(store: &Path, args: &[&str]) -> Result<(bool, Value), Box<dyn Error>> {
-    let output = Command::new(env!("CARGO_BIN_EXE_work-context"))
+    let output = Command::new(env!("CARGO_BIN_EXE_memento"))
         .arg(args.first().ok_or("command absent")?)
         .arg("--store")
         .arg(store)
