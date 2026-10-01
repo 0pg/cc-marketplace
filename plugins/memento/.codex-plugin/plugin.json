@@ -1,22 +1,24 @@
 {
   "name": "memento",
-  "version": "0.3.0",
-  "description": "Record and retrieve project work context, decisions, failed attempts, corrections, evidence and Git checkpoints with bounded local storage.",
+  "version": "0.4.0",
+  "description": "Record and retrieve bounded project work context, with Codex checkpoints for requests, failures, decisions and verification.",
   "author": {
     "name": "jhk"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Memento",
-    "shortDescription": "Recall work context and its evidence",
-    "developerName": "jhk",
-    "category": "Productivity",
+    "shortDescription": "Remember project work context",
+    "longDescription": "Use the Memento skill to preserve requests, constraints, decisions, rejected approaches, failures, corrections and verification evidence. Optional trusted Codex hooks check explicitly configured project checkpoints.",
+    "category": "Developer Tools",
     "capabilities": [
-      "Work context",
-      "Evidence retrieval"
+      "Read",
+      "Write"
     ],
     "defaultPrompt": [
-      "Use Memento to recover the relevant work context and continue from verified evidence."
-    ]
-  }
+      "Use Memento to resume this project with its decisions and unresolved work."
+    ],
+    "developerName": "jhk"
+  },
+  "hooks": "./codex-hooks/hooks.json"
 }

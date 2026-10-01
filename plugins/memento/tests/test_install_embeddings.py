@@ -35,7 +35,7 @@ class EmbeddingInstallationTests(unittest.TestCase):
         self.binary = self.root / "test cli"
         self.binary.write_text(
             f"#!{sys.executable}\n"
-            'print(\'{"commands":["init","note","query","compact"]}\')\n',
+            'print(\'{"commands":["init","note","query","compact","checkpoint"]}\')\n',
             encoding="utf-8",
         )
         self.binary.chmod(0o755)
@@ -108,11 +108,11 @@ class EmbeddingInstallationTests(unittest.TestCase):
                 self.assertEqual(config["model_revision"], self.models[model][1])
                 python, worker, flag, model_dir = config["command"]
                 self.assertTrue(Path(python).is_file())
-                self.assertEqual(Path(worker), self.target / "scripts/local_embeddings.py")
+                self.assertTrue(Path(worker).is_relative_to(self.plugin.parent / ".memento-semantic"))
                 self.assertTrue(Path(worker).is_file())
                 self.assertEqual(flag, "--model-dir")
                 self.assertTrue(Path(model_dir).is_dir())
-                self.assertTrue(Path(model_dir).is_relative_to(self.skills / ".memento-semantic"))
+                self.assertTrue(Path(model_dir).is_relative_to(self.plugin.parent / ".memento-semantic"))
                 self.assertTrue((Path(model_dir).parent / "ready").is_file())
                 self.assertEqual([phase for phase, _ in self.calls], ["venv", "pip", "setup_embeddings.py", "local_embeddings.py"])
 
@@ -128,6 +128,20 @@ class EmbeddingInstallationTests(unittest.TestCase):
         self.assertEqual(self.install(), 0)
         self.assertEqual(self.config()["model_id"], "intfloat/multilingual-e5-small")
         self.assertEqual([phase for phase, _ in self.calls], ["local_embeddings.py"])
+
+    def test_copied_package_keeps_runtime_paths_after_original_package_is_removed(self):
+        self.assertEqual(self.install("e5-small"), 0)
+        config = self.config()
+        copied = self.root / "cache copy"
+        shutil.copytree(self.plugin, copied)
+        shutil.rmtree(self.plugin)
+        copied_config = json.loads((copied / "skills/memento/semantic-config.json").read_text())
+        self.assertEqual(copied_config, config)
+        python, worker, _, model_dir = copied_config["command"]
+        for path in (python, worker, model_dir):
+            self.assertTrue(Path(path).exists())
+            self.assertFalse(Path(path).is_relative_to(self.plugin))
+        self.assertEqual(Path(worker).read_bytes(), (copied / "core/scripts/local_embeddings.py").read_bytes())
 
     def test_reinstall_reuses_runtime_and_none_preserves_existing_selection(self):
         self.assertEqual(self.install("e5-small"), 0)

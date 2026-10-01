@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod capture;
 pub mod compaction;
 pub mod git;
 pub mod ingest;

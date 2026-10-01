@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    compaction,
+    capture, compaction,
     model::*,
     security::{RedactionPolicy, hash},
 };
@@ -31,6 +31,8 @@ pub enum Error {
     Query(#[from] crate::query::QueryError),
     #[error(transparent)]
     Compaction(#[from] compaction::Error),
+    #[error(transparent)]
+    Capture(#[from] capture::Error),
     #[error(
         "storage capacity exceeded: protected context requires {entries} entries and {payload_bytes} payload bytes; limits are {max_entries} entries and {max_payload_bytes} bytes"
     )]
@@ -79,6 +81,39 @@ pub struct CompactionNotice {
 }
 
 impl Store {
+    pub async fn checkpoint(&mut self, request: capture::Request) -> Result<capture::Reply> {
+        let mut transaction = self.db.transaction().await?;
+        let reply = retention::checkpoint(&mut transaction, request, &self.policy).await?;
+        transaction.commit().await?;
+        Ok(reply)
+    }
+
+    pub async fn check_commit(
+        &mut self,
+        project: &str,
+        repository: &Path,
+        binding: &crate::git::IndexBinding,
+    ) -> Result<capture::CommitCheckpoint> {
+        let mut transaction = self.db.transaction().await?;
+        let checkpoint =
+            retention::check_commit(&mut transaction, project, repository, binding).await?;
+        transaction.commit().await?;
+        Ok(checkpoint)
+    }
+
+    pub async fn link_commit(
+        &mut self,
+        project: &str,
+        repository: &Path,
+        binding: &crate::git::IndexBinding,
+        sha: &str,
+    ) -> Result<()> {
+        let mut transaction = self.db.transaction().await?;
+        retention::link_commit(&mut transaction, project, repository, binding, sha).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
     pub fn sanitize(&self, entity: &Entity) -> Result<Entity> {
         self.policy.entity(entity)
     }

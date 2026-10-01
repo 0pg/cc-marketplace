@@ -20,14 +20,15 @@ class InstallError(Exception):
     """A failed installation that leaves the previous runtime intact."""
 
 
-def install_embeddings(repository, destination, stage, model):
+def install_embeddings(repository, stage, model):
     scripts = repository / "core" / "scripts"
     requirements = scripts / "semantic-requirements.txt"
     setup = scripts / "setup_embeddings.py"
-    # Keep virtual environments at stable paths outside the replaceable skill.
+    # Keep runtime paths outside the replaceable plugin package. Codex copies
+    # packages into its cache, while inference must still use this stable path.
     # A different pinned setup gets a new runtime without changing the active one.
     version = hashlib.sha256(requirements.read_bytes() + setup.read_bytes()).hexdigest()[:16]
-    root = destination.parent / ".memento-semantic"
+    root = repository.parent / ".memento-semantic"
     runtime = root / f"{model}-{version}"
     if root.is_symlink() or runtime.is_symlink():
         raise InstallError("The semantic runtime directory must not be a symbolic link.")
@@ -96,8 +97,11 @@ def install_embeddings(repository, destination, stage, model):
         for value in query + document
     ) or not any(query) or not any(document):
         raise InstallError("The embedding worker returned invalid vectors.")
+    digest = hashlib.sha256(worker.read_bytes()).hexdigest()[:16]
+    installed_worker = runtime / f"local_embeddings-{digest}.py"
+    shutil.copy2(worker, installed_worker)
     config = {
-        "command": [str(python), str(destination / "scripts" / "local_embeddings.py"), "--model-dir", str(model_dir)],
+        "command": [str(python), str(installed_worker), "--model-dir", str(model_dir)],
         "model_id": manifest["model_id"], "model_revision": manifest["model_revision"],
     }
     (stage / "semantic-config.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
@@ -185,7 +189,7 @@ def smoke_test(stage):
     except json.JSONDecodeError as error:
         raise InstallError("The executable did not return memento help JSON.") from error
     commands = help_result.get("commands") if isinstance(help_result, dict) else None
-    if not isinstance(commands, list) or not all(name in commands for name in ("init", "note", "query", "compact")):
+    if not isinstance(commands, list) or not all(name in commands for name in ("init", "note", "query", "compact", "checkpoint")):
         raise InstallError("The executable does not provide the expected memento commands.")
 
 
@@ -205,7 +209,7 @@ def install(plugin, executable, embedding_model=DEFAULT_EMBEDDING_MODEL):
         shutil.copy2(executable, stage / "bin" / "memento")
         smoke_test(stage)
         if embedding_model is not None:
-            install_embeddings(plugin, destination, stage, embedding_model)
+            install_embeddings(plugin, stage, embedding_model)
         if destination.exists() or destination.is_symlink():
             destination.rename(backup)
         try:

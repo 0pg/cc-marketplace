@@ -16,3 +16,6 @@ Thumbs.db
 
 # Rust build artifacts
 **/target/
+
+# Local Memento embedding runtime and model weights
+/plugins/.memento-semantic/

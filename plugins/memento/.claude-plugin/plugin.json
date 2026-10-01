@@ -1,7 +1,7 @@
 {
   "name": "memento",
-  "version": "0.3.0",
-  "description": "Record and retrieve project work context, decisions, failed attempts, corrections, evidence and Git checkpoints with bounded local storage.",
+  "version": "0.4.0",
+  "description": "Record and retrieve bounded project work context, with Codex checkpoints for requests, failures, decisions and verification.",
   "author": {
     "name": "jhk"
   },
