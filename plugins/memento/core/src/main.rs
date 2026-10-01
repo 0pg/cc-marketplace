@@ -6,8 +6,8 @@ use std::{
 };
 
 use memento::{
-    Error, Result, Store, adapters::ImportFormat, compaction, ingest, model::*, query, runtime,
-    security::RedactionPolicy, semantic,
+    Error, Result, Store, adapters::ImportFormat, capture, compaction, ingest, model::*, query,
+    runtime, security::RedactionPolicy, semantic,
 };
 use serde_json::{Value, json};
 
@@ -28,6 +28,14 @@ async fn main() -> ExitCode {
         Err(error) => {
             let output = match error {
                 Error::Query(error) => json!({"error": error}),
+                Error::Capture(error) => {
+                    let code = match &error {
+                        capture::Error::Invalid(_) => "invalid_capture_checkpoint",
+                        capture::Error::Capacity => "capture_capacity_exceeded",
+                        capture::Error::CommitNotReady => "commit_checkpoint_not_ready",
+                    };
+                    json!({"error": {"code": code, "message": error.to_string()}})
+                }
                 error @ Error::Capacity { .. } => {
                     json!({"error": {"code": "storage_capacity_exceeded", "message": error.to_string()}})
                 }
@@ -98,6 +106,8 @@ impl Args {
             "semantic-config",
             "compaction-policy",
             "apply",
+            "enforce-checkpoints",
+            "summary",
         ];
         if let Some(key) = result.options.keys().find(|k| !known.contains(&k.as_str())) {
             return Err(Error::Invalid(format!("unknown option --{key}")));
@@ -133,7 +143,7 @@ async fn execute() -> Result<Value> {
     let args = Args::parse()?;
     if matches!(args.command.as_str(), "help" | "--help") {
         return Ok(
-            json!({"commands": ["init", "note", "record", "import", "sync", "query", "compact", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
+            json!({"commands": ["init", "note", "record", "import", "sync", "query", "compact", "checkpoint", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record/checkpoint read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
         );
     }
     let store_path = PathBuf::from(args.required("store")?);
@@ -143,6 +153,21 @@ async fn execute() -> Result<Value> {
     };
     let mut store = Store::open(&store_path, policy.clone()).await?;
     match args.command.as_str() {
+        "checkpoint" => {
+            let summary = args
+                .get("summary")
+                .unwrap_or("false")
+                .parse::<bool>()
+                .map_err(|_| Error::Invalid("--summary must be true or false".into()))?;
+            let reply = store
+                .checkpoint(serde_json::from_str::<capture::Request>(&args.input()?)?)
+                .await?;
+            Ok(serde_json::to_value(if summary {
+                reply.summarize()
+            } else {
+                reply
+            })?)
+        }
         "compact" => {
             let retention: Option<compaction::Policy> = args
                 .get("compaction-policy")
@@ -422,16 +447,30 @@ async fn execute() -> Result<Value> {
             )
             .await
         }
-        "hooks-install" => Ok(serde_json::to_value(
-            memento::git::install_hooks_with_policy(
-                Path::new(args.required("repository")?),
-                &std::env::current_exe()?,
-                &store_path.canonicalize()?,
-                args.required("project")?,
-                args.get("policy").map(Path::new),
-            )
-            .map_err(|e| Error::Invalid(e.to_string()))?,
-        )?),
+        "hooks-install" => {
+            let enforce = args
+                .get("enforce-checkpoints")
+                .unwrap_or("false")
+                .parse::<bool>()
+                .map_err(|_| {
+                    Error::Invalid("--enforce-checkpoints must be true or false".into())
+                })?;
+            let installer = if enforce {
+                memento::git::install_checkpoint_hooks_with_policy
+            } else {
+                memento::git::install_hooks_with_policy
+            };
+            Ok(serde_json::to_value(
+                installer(
+                    Path::new(args.required("repository")?),
+                    &std::env::current_exe()?,
+                    &store_path.canonicalize()?,
+                    args.required("project")?,
+                    args.get("policy").map(Path::new),
+                )
+                .map_err(|e| Error::Invalid(e.to_string()))?,
+            )?)
+        }
         "hooks-status" => Ok(serde_json::to_value(
             memento::git::hook_status(Path::new(args.required("repository")?))
                 .map_err(|e| Error::Invalid(e.to_string()))?,

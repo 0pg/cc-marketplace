@@ -34,6 +34,13 @@ pub struct HookStatus {
 
 #[tracing::instrument(skip_all, fields(repository = %repository.display()))]
 pub fn hook_status(repository: &Path) -> Result<HookStatus, GitError> {
+    hook_status_with_checkpoint(repository, false)
+}
+
+fn hook_status_with_checkpoint(
+    repository: &Path,
+    include_checkpoint: bool,
+) -> Result<HookStatus, GitError> {
     let repository = worktree_root(repository)?;
     let common_git_dir = common_dir(&repository)?;
     let hooks_path = PathBuf::from(
@@ -49,8 +56,11 @@ pub fn hook_status(repository: &Path) -> Result<HookStatus, GitError> {
         .map(|s| s.trim_end_matches('\n').to_owned());
     let tag = repository_tag(&common_git_dir)?;
     let mut hooks = Vec::new();
-    for name in HOOK_NAMES {
+    for name in HOOK_NAMES.into_iter().chain(["pre-commit"]) {
         let path = hooks_path.join(name);
+        if name == "pre-commit" && !include_checkpoint && !path.exists() {
+            continue;
+        }
         let content = read_existing(&path)?;
         let installed = content.as_ref().is_some_and(|bytes| {
             let body = String::from_utf8_lossy(bytes);
@@ -97,6 +107,28 @@ pub fn install_hooks_with_policy(
     project: &str,
     policy: Option<&Path>,
 ) -> Result<HookStatus, GitError> {
+    install_with_policy(repository, executable_path, store, project, policy, false)
+}
+
+/// Opt-in gate: a missing or stale semantic checkpoint aborts the commit.
+pub fn install_checkpoint_hooks_with_policy(
+    repository: &Path,
+    executable_path: &Path,
+    store: &Path,
+    project: &str,
+    policy: Option<&Path>,
+) -> Result<HookStatus, GitError> {
+    install_with_policy(repository, executable_path, store, project, policy, true)
+}
+
+fn install_with_policy(
+    repository: &Path,
+    executable_path: &Path,
+    store: &Path,
+    project: &str,
+    policy: Option<&Path>,
+    enforce_checkpoints: bool,
+) -> Result<HookStatus, GitError> {
     let policy = policy.map(Path::canonicalize).transpose()?;
     if project.is_empty() || project.contains('\0') {
         return Err(GitError::InvalidInput(
@@ -114,9 +146,12 @@ pub fn install_hooks_with_policy(
     } else {
         std::env::current_dir()?.join(store)
     };
-    let status = hook_status(repository)?;
+    let status = hook_status_with_checkpoint(repository, enforce_checkpoints)?;
     let mut plans = Vec::new();
     for hook in &status.hooks {
+        if hook.name == "pre-commit" && !enforce_checkpoints {
+            continue;
+        }
         let backup = status
             .hooks_path
             .join(format!("{}.memento-original", hook.name));
@@ -191,6 +226,11 @@ fn script(
     } else {
         "context_input=/dev/null\n"
     };
+    if hook == "pre-commit" {
+        return Ok(format!(
+            "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\"\n  context_previous_status=$?\n  if [ \"$context_previous_status\" -ne 0 ]; then exit \"$context_previous_status\"; fi\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit 0; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit 1\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} pre-commit > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: commit blocked; prepare and resolve a checkpoint for the actual commit index, then retry (validation failed or timed out)' >&2\n  exit 1\nfi\nexit 0\n"
+        ));
+    }
     Ok(format!(
         "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\n{input}context_previous_status=0\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\" < \"$context_input\"\n  context_previous_status=$?\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit \"$context_previous_status\"; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit \"$context_previous_status\"\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} {hook} \"$@\" < \"$context_input\" > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: local context capture failed or timed out; Git result is unchanged' >&2\nfi\nexit \"$context_previous_status\"\n"
     ))

@@ -9,6 +9,100 @@ const METADATA_KEY: &str = "__work_context_compaction_v1__";
 pub(super) struct Metadata {
     pub policy: compaction::Policy,
     pub compaction: CompactionState,
+    #[serde(default)]
+    pub capture: capture::State,
+}
+
+fn entries(rows: &[StoredEntry]) -> Result<Vec<Entry>> {
+    rows.iter()
+        .filter(|row| !is_metadata(row))
+        .map(|row| {
+            Ok(Entry {
+                sequence: row.id,
+                captured_at: row.captured_at.clone(),
+                entity: serde_json::from_str(&row.payload)?,
+            })
+        })
+        .collect()
+}
+
+fn canonical_repository(repository: &Path) -> Result<String> {
+    let path = repository.canonicalize()?;
+    crate::git::worktree_root(&path)
+        .unwrap_or(path)
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Invalid("repository must be UTF-8".into()))
+}
+
+pub(super) async fn checkpoint(
+    db: &mut toasty::Transaction<'_>,
+    request: capture::Request,
+    policy: &RedactionPolicy,
+) -> Result<capture::Reply> {
+    let mut rows = StoredEntry::all().exec(&mut *db).await?;
+    let mut meta = read_metadata(&rows)?;
+    let read_only = request.read_only();
+    let scope = request.scope().clone().canonical()?;
+    let all = entries(&rows)?;
+    let mut commit_not_ready = false;
+    if matches!(request, capture::Request::CheckCommit { .. }) {
+        let binding = crate::git::index_binding(Path::new(&scope.repository))
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+        match meta.capture.check_commit_scoped(&scope, &binding, &all) {
+            Ok(_) => {}
+            Err(capture::Error::CommitNotReady) => commit_not_ready = true,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    let mut reply = meta.capture.apply(request, &all, policy)?;
+    if commit_not_ready {
+        reply.decision = capture::Decision::Block;
+        reply.reason = capture::Error::CommitNotReady.to_string();
+    }
+    if !read_only {
+        save_metadata(db, &mut rows, &meta).await?;
+        enforce(db, &BTreeSet::new()).await?;
+    }
+    Ok(reply)
+}
+
+pub(super) async fn check_commit(
+    db: &mut toasty::Transaction<'_>,
+    project: &str,
+    repository: &Path,
+    binding: &crate::git::IndexBinding,
+) -> Result<capture::CommitCheckpoint> {
+    let rows = StoredEntry::all().exec(&mut *db).await?;
+    Ok(read_metadata(&rows)?.capture.check_commit(
+        project,
+        &canonical_repository(repository)?,
+        binding,
+        &entries(&rows)?,
+    )?)
+}
+
+pub(super) async fn link_commit(
+    db: &mut toasty::Transaction<'_>,
+    project: &str,
+    repository: &Path,
+    binding: &crate::git::IndexBinding,
+    sha: &str,
+) -> Result<()> {
+    let mut rows = StoredEntry::all().exec(&mut *db).await?;
+    let mut meta = read_metadata(&rows)?;
+    let checkpoint = meta.capture.matching_commit(
+        project,
+        &canonical_repository(repository)?,
+        binding,
+        &entries(&rows)?,
+        false,
+        None,
+    )?;
+    meta.capture.link_commit(&checkpoint, sha)?;
+    save_metadata(db, &mut rows, &meta).await?;
+    enforce(db, &BTreeSet::new()).await?;
+    Ok(())
 }
 
 pub(super) fn is_metadata(row: &StoredEntry) -> bool {
@@ -130,18 +224,11 @@ async fn compact_pinned(
         policy.validate()?;
         meta.policy = policy;
     }
-    let entries = rows
-        .iter()
-        .filter(|row| !is_metadata(row))
-        .map(|row| {
-            Ok(Entry {
-                sequence: row.id,
-                captured_at: row.captured_at.clone(),
-                entity: serde_json::from_str(&row.payload)?,
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let mut plan = compaction::plan_pinned(&entries, &meta.policy, pinned)?;
+    let entries = entries(&rows)?;
+    let existing: BTreeSet<_> = entries.iter().map(|entry| entry.sequence).collect();
+    let mut protected = pinned.clone();
+    protected.extend(meta.capture.pinned().intersection(&existing));
+    let mut plan = compaction::plan_pinned(&entries, &meta.policy, &protected)?;
     if plan.report.removed_entries > 0 {
         meta.compaction.generation = meta
             .compaction
@@ -157,7 +244,7 @@ async fn compact_pinned(
             )
             .ok_or_else(|| Error::Invalid("compaction count overflow".into()))?;
     }
-    // Count the actual retained JSON, including the constant-size metadata row.
+    // Count all retained JSON, including bounded capture obligations in the metadata row.
     let mut after = compaction::Usage {
         entries: 1,
         payload_bytes: serde_json::to_vec(&meta)?.len(),

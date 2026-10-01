@@ -1,20 +1,23 @@
 # Memento local interface
 
-Use `$memento:memento` in Codex or `/memento:memento` in Claude Code. Both load the same skill and local `memento` Rust CLI. See the plugin [README](../../../README.md) for marketplace installation.
+Invoke the skill as `$memento`. It uses the `memento` Rust package and CLI; `MEMENTO_BIN` can select an explicit executable.
 
 ## Setup and storage
 
-Python 3.9+, Rust/Cargo and `uv` are required for the default setup. From the plugin root:
+Install the plugin from `jhk-plugins`, then run the shipped installer from the installed plugin directory (Python 3.9+, Rust/Cargo and `uv` for default embeddings):
 
 ```sh
 python3 scripts/install_runtime.py
+python3 scripts/install_runtime.py --binary /absolute/built/memento
+python3 scripts/install_runtime.py --embedding-model minilm
+python3 scripts/install_runtime.py --embedding-model none
 ```
 
-The installer builds `core/Cargo.toml` with locked dependencies and installs the default `e5-small` embedding model (`intfloat/multilingual-e5-small`). It prepares Python 3.12 and pinned dependencies with `uv`, downloads fixed model weights, then checks the CLI and local inference before replacing the skill. Re-run it after a plugin update. Use `--embedding-model minilm` for `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or `--embedding-model none` to skip model setup and preserve any existing configuration. An existing executable can be bundled with `--binary /absolute/built/memento`. Cargo may fetch uncached locked dependencies; model setup also downloads public weights and Python packages.
+The installer builds `core/Cargo.toml` with its lockfile, checks the CLI including checkpoint support, and places it at `<skill-directory>/bin/memento`. It preserves user files and existing model configuration when embeddings are skipped. Runtime and pinned model weights live outside the replaceable plugin directory; no platform-specific executable or weights are tracked in this package. Installing an embedding-enabled plugin on another machine requires preparing that machine's runtime. Queries do not build or install software.
 
-The installed launcher automatically supplies `skills/memento/semantic-config.json` for queries; an explicit `--semantic-config` takes precedence. The local runtime and weights are cached in `skills/.memento-semantic` by model and pinned setup. Reinstalling the same setup reuses them and repeats the inference check. Direct executable calls require `--semantic-config /absolute/plugin/skills/memento/semantic-config.json`. See [semantic](semantic.md) for query input and optional reranking.
+Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trust their current definitions in Codex, and configure explicit project/store/work scope separately. Runtime installation does not change trust, global settings or Git hooks. See [Codex hooks and checkpoints](codex-hooks.md).
 
-Run `python3 <plugin-root>/skills/memento/scripts/memento.py COMMAND ...`, or invoke the bundled executable directly. An explicit `MEMENTO_BIN` override takes precedence; otherwise the launcher tries the bundled executable, `memento` on PATH, then this plugin's `core/target/release` or `core/target/debug` build. A query does not install or build software. Examples below abbreviate the executable as `memento`.
+Run `python3 <skill-directory>/scripts/memento.py COMMAND ...`, or invoke the bundled executable directly. The launcher uses an explicit `MEMENTO_BIN` override when set; otherwise it tries its bundled executable, `memento` on PATH, then the plugin's `core/target/release` or `core/target/debug` build. For `query`, it supplies the installed semantic configuration unless an explicit `--semantic-config` is given. Direct executable calls still require that flag for semantic search. The launcher does not build or install software during a query. The examples below abbreviate this command as `memento`.
 
 Use an absolute SQLite path outside tracked source files, a stable project ID, and explicit source/work/session IDs. Toasty SQLite stores retained revisions locally; no remote service or LLM is required. Protect the store as project history. Default masking covers common credentials; pass the same `--policy /absolute/policy.json` on every capture that needs additional literal masking. When installing hooks, supply the same `--policy` option; the hook retains that explicit policy path for subsequent captures. Policy JSON: `{"literal_secrets":["a known sensitive value"]}`. Original raw exports remain at their selected source; this tool does not alter them.
 
@@ -146,5 +149,7 @@ memento hooks-install --store /tmp/context.sqlite --project demo --repository /a
 `observe` retains the selected regular text files and their code-state metadata without staging or changing branches. It rechecks the content digest before retention and masks text before storage and output. Ignored files and symlinks retain metadata only. Head/index object IDs and raw working SHA256 use different hash layers; compare like layers only. `git-sync` is bounded (1–100 commits, at most 32 refs); it cannot recover missed rewrite mappings or vanished conversations. Commit paths are first-parent-relative for merges. An origin worktree is recorded only when observed by the originating hook; reconciliation location is a separate observation.
 
 Hooks coexist with existing executable hooks/core.hooksPath and preserve their output/exit behavior. The new capture step is local, bounded to five seconds, and reports failure; an already-created commit survives capture failure. Check installation and observed persistence separately.
+
+`hooks-install --enforce-checkpoints true` additionally enables the optional Git pre-commit checkpoint gate. Its prerequisite is a fresh resolved commit checkpoint for the actual parent and staged tree; see [the commit checkpoint procedure](codex-hooks.md#commit-boundary). The default remains result capture without this gate. Codex lifecycle hooks are distributed by the plugin and are configured separately from these Git hooks.
 
 `source-access --project demo --source ID --allow false` revokes and purges cached original/derived text. `delete-record --project demo --id ID` also prevents replay from resurrecting the deleted ID; explicitly record a new ID for a new replacement. Use `--allow true` plus explicit reimport only for an authorized source restored later. These commands require the same `--store` option.

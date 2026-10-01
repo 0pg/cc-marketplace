@@ -1,9 +1,14 @@
-//! Bounded, read-only Git observations and opt-in local hook integration.
+//! Bounded Git observations and opt-in local checkpoint integration.
 
+mod checkpoint;
 mod hooks;
 mod process;
 
-pub use hooks::{HookEntry, HookStatus, hook_status, install_hooks, install_hooks_with_policy};
+pub use checkpoint::{IndexBinding, index_binding, preceding_head};
+pub use hooks::{
+    HookEntry, HookStatus, hook_status, install_checkpoint_hooks_with_policy, install_hooks,
+    install_hooks_with_policy,
+};
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -528,7 +533,7 @@ fn resolve(repository: &Path, revision: &str) -> Result<String, GitError> {
     .into())
 }
 
-pub(super) fn worktree_root(repository: &Path) -> Result<PathBuf, GitError> {
+pub(crate) fn worktree_root(repository: &Path) -> Result<PathBuf, GitError> {
     let value = text(git(repository, &["rev-parse", "--show-toplevel"])?)?;
     Ok(PathBuf::from(value.trim()).canonicalize()?)
 }

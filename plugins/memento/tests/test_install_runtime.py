@@ -119,6 +119,25 @@ class RuntimeInstallationTests(unittest.TestCase):
         self.assertEqual(self.database.read_bytes(), database_before)
         self.assert_note()
 
+    def test_older_cli_without_checkpoints_preserves_prior_runtime_and_database(self):
+        self.assert_success(self.install())
+        self.create_note()
+        runtime_before = self.runtime_hash()
+        database_before = self.database.read_bytes()
+        older = self.root / "older executable"
+        older.write_text(
+            f"#!{sys.executable}\n"
+            'print(\'{"commands":["init","note","query","compact"]}\')\n',
+            encoding="utf-8",
+        )
+        older.chmod(0o755)
+        result = self.install(older)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected memento commands", result.stderr)
+        self.assertEqual(self.runtime_hash(), runtime_before)
+        self.assertEqual(self.database.read_bytes(), database_before)
+        self.assert_note()
+
     def test_launcher_uses_installed_semantic_config_and_honors_explicit_selection(self):
         self.assert_success(self.install())
         self.create_note()

@@ -85,11 +85,44 @@ pub async fn hook(
 ) -> Result<Vec<Receipt>> {
     register_git(store, project, repository).await?;
     match kind {
+        "pre-commit" => {
+            let repository = git::worktree_root(repository).map_err(git_error)?;
+            let binding = git::index_binding(&repository).map_err(git_error)?;
+            store.check_commit(project, &repository, &binding).await?;
+            Ok(Vec::new())
+        }
         "post-commit" => {
             let commit = git::read_commit(repository, "HEAD").map_err(git_error)?;
-            store
+            let parent_head = git::preceding_head(repository).map_err(git_error);
+            let binding = match parent_head {
+                Ok(Some(parent_head)) => Some(git::IndexBinding {
+                    parent_head: Some(parent_head),
+                    staged_tree: commit.tree.clone(),
+                }),
+                Ok(None) if commit.parents.is_empty() => Some(git::IndexBinding {
+                    parent_head: None,
+                    staged_tree: commit.tree.clone(),
+                }),
+                Ok(None) => None,
+                Err(error) => {
+                    tracing::warn!(%error, "commit checkpoint parent was not observed");
+                    None
+                }
+            };
+            let sha = commit.sha.clone();
+            let receipts = store
                 .append_all([commit_entity(project, commit, true)])
-                .await
+                .await?;
+            // Git success and checkpoint association are separate outcomes.
+            if let Some(binding) = binding {
+                match store.link_commit(project, repository, &binding, &sha).await {
+                    Ok(()) | Err(Error::Capture(crate::capture::Error::CommitNotReady)) => {}
+                    Err(error) => {
+                        tracing::warn!(%error, commit_sha = %sha, "commit captured; checkpoint link failed");
+                    }
+                }
+            }
+            Ok(receipts)
         }
         "post-rewrite" => {
             let mappings = git::parse_rewrites(

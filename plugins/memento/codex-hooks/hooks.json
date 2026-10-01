@@ -1,0 +1,13 @@
+{
+  "description": "Memento checkpoints for explicitly configured local Codex projects.",
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15, "additionalContextLimit": 1500}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15, "additionalContextLimit": 1500}]}],
+    "PreToolUse": [{"matcher": "Bash|apply_patch|Edit|Write", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15, "additionalContextLimit": 1500}]}],
+    "PostToolUse": [{"matcher": "Bash|apply_patch|Edit|Write", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15, "additionalContextLimit": 1500}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15}]}],
+    "PreCompact": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 15}]}],
+    "Interrupt": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 3}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/codex-hooks/capture.py\"", "timeout": 3}]}]
+  }
+}

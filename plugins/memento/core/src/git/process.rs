@@ -9,7 +9,7 @@ use super::GitError;
 const OUTPUT_LIMIT: u64 = 8 * 1024 * 1024;
 
 pub(super) fn git(repository: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
-    let output = run(repository, args)?;
+    let output = run(repository, args, false)?;
     if !output.status.success() {
         return Err(GitError::Command(
             String::from_utf8_lossy(&output.stderr).trim().into(),
@@ -19,7 +19,7 @@ pub(super) fn git(repository: &Path, args: &[&str]) -> Result<Vec<u8>, GitError>
 }
 
 pub(super) fn git_optional(repository: &Path, args: &[&str]) -> Result<Option<Vec<u8>>, GitError> {
-    let output = run(repository, args)?;
+    let output = run(repository, args, false)?;
     if output.status.success() {
         Ok(Some(output.stdout))
     } else if output.status.code() == Some(1) {
@@ -31,11 +31,24 @@ pub(super) fn git_optional(repository: &Path, args: &[&str]) -> Result<Option<Ve
     }
 }
 
-fn run(repository: &Path, args: &[&str]) -> Result<Output, GitError> {
+/// Commit checkpoints must inspect Git's temporary index for partial commits.
+pub(super) fn git_index(repository: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    let output = run(repository, args, true)?;
+    if !output.status.success() {
+        return Err(GitError::Command(
+            String::from_utf8_lossy(&output.stderr).trim().into(),
+        ));
+    }
+    Ok(output.stdout)
+}
+
+fn run(repository: &Path, args: &[&str], preserve_index: bool) -> Result<Output, GitError> {
     let mut command = Command::new("git");
     // Hook callers inherit Git-local variables; -C alone does not override them.
     for (name, _) in std::env::vars_os() {
-        if name.to_str().is_some_and(|value| value.starts_with("GIT_")) {
+        if name.to_str().is_some_and(|value| {
+            value.starts_with("GIT_") && !(preserve_index && value == "GIT_INDEX_FILE")
+        }) {
             command.env_remove(name);
         }
     }

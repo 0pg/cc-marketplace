@@ -1,0 +1,7 @@
+interface:
+  display_name: "Memento"
+  short_description: "Preserve project decisions, failures and evidence"
+  default_prompt: "Use $memento to preserve the current project context and retrieve the evidence needed to continue."
+
+policy:
+  allow_implicit_invocation: true
