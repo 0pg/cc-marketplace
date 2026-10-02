@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memento",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Record and retrieve bounded project work context, with Codex checkpoints for requests, failures, decisions and verification.",
   "extensions": {
     "com.openai": {
@@ -19,7 +19,8 @@
           "Use Memento to resume this project with its decisions and unresolved work."
         ],
         "developerName": "jhk"
-      }
+      },
+      "onboardingSkill": "./skills/setup-memento/SKILL.md"
     }
   }
 }

@@ -4,26 +4,30 @@ Use semantic search to retrieve candidate records when literal/token searches an
 
 ## Explicit setup
 
-Install memento from the plugin root (requires Rust/Cargo, Python 3.9+, and `uv`). The default embedding model is `e5-small`:
+The first real plugin launcher command prepares a missing runtime and the default E5 model for a known new installation. Use the optional Codex setup skill or run the installer explicitly to select a different model before first use. Source-only packages require Python 3.9+, Rust/Cargo 1.94+ and `uv` for supplied embeddings.
 
 ```sh
-python3 scripts/install_runtime.py
-# Or select the other supplied embedding model:
+python3 scripts/install_runtime.py --ensure
 python3 scripts/install_runtime.py --embedding-model minilm
+python3 scripts/install_runtime.py --embedding-model none
+python3 scripts/install_runtime.py --semantic-config /absolute/semantic-config.json
+python3 scripts/install_runtime.py --status
 ```
 
 | Selection | Pinned model |
 | --- | --- |
-| `e5-small` (default) | `intfloat/multilingual-e5-small` |
+| `e5-small` (new-install default) | `intfloat/multilingual-e5-small` |
 | `minilm` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
 
-The installer prepares Python 3.12, installs the pinned dependencies and model weights, and checks the worker with a short public test query before replacing the plugin skill. It writes `<plugin-root>/skills/memento/semantic-config.json`. Runtime, weights, and a worker identified by its content hash are cached in `<plugin-parent>/.memento-semantic` by model and pinned setup, outside the replaceable plugin package. The configuration uses those absolute paths; moving the plugin cache on the same machine works while that external runtime remains available. Reinstalling the same setup reuses them and repeats the inference check. Changing the selected model prepares a separate runtime; existing query cursors must be restarted.
+Updates preserve the recorded model/config selection. `none` skips model preparation and preserves an existing semantic configuration; it does not disable semantic search. A legacy binary without a recorded selection or config requires an explicit choice rather than an assumed E5 download. An explicit custom config is verified with local inference before activation.
 
-The skill's `scripts/memento.py` launcher automatically supplies that configuration for `query`. Use `mode: semantic` in the search JSON as shown below; no manual path editing is needed. An explicit `--semantic-config` overrides the installed selection. Running the Rust executable directly requires `--semantic-config <plugin-root>/skills/memento/semantic-config.json`. Omitting `--embedding-model` selects `e5-small` on both install and update. Use `--embedding-model none` to skip model setup and preserve any existing configuration. The installer sets up embeddings alone; configure the optional reranker manually below.
+The shared runtime home is `${CODEX_HOME:-~/.codex}/memento/runtime`, or `MEMENTO_RUNTIME_HOME`. Python 3.12, pinned dependencies, weights and the worker are cached under its owned `models/` directories. Immutable artifacts carry the selected `semantic-config.json`; the launcher resolves it rather than depending on a plugin-cache path. Cache replacement on the same machine preserves it. Runtime/model changes retain at most the current and previous owned references; unrelated files are preserved. Custom configs remain bound to their explicitly supplied paths and behavior.
+
+The launcher supplies the active config for `query`; explicit `--semantic-config` takes precedence. Read `runtime-status` for its actual path when invoking the Rust executable directly. Model/setup changes can invalidate query cursors; restart those queries. Embeddings alone are prepared automatically; configure the optional reranker below.
 
 ## Manual setup and optional reranking
 
-The Rust CLI runs an explicitly configured local executable. The supplied worker uses CPU inference, an installed model directory, offline library settings, and no work-text/vector cache. Installation downloads public model weights and Python packages; ordinary search never downloads a model or sends the query to a model service. Use the supplied worker for this behavior; an arbitrary custom command has its own behavior.
+The Rust CLI runs an explicitly configured local executable. The supplied worker uses CPU inference, an installed model directory, offline library settings, and no work-text/vector cache. Initial preparation downloads public model weights and Python packages. With a ready runtime, search uses the local model and does not download weights or send the query to a model service. Use the supplied worker for this behavior; an arbitrary custom command has its own behavior.
 
 Run these from the plugin root, choosing absolute runtime/model paths outside the repository:
 
@@ -34,7 +38,7 @@ uv pip install --python /absolute/context-venv/bin/python -r core/scripts/semant
 /absolute/context-venv/bin/python core/scripts/setup_embeddings.py --model qwen-reranker-0.6b --output /absolute/context-reranker
 ```
 
-The setup script downloads the fixed revisions below and writes `work-context-model.json` with file SHA-256 hashes. Search checks those hashes, loads local safetensors, disables remote model code, and rejects token overflow rather than silently discarding part of a chunk. Together the weights occupy approximately 1.7 GB; Python/runtime memory and dependencies are additional. Installation is an explicit setup step, not something to repeat during retrieval.
+The setup script downloads the fixed revisions below and writes `work-context-model.json` with file SHA-256 hashes. Search checks those hashes, loads local safetensors, disables remote model code, and rejects token overflow rather than silently discarding part of a chunk. Together the weights occupy approximately 1.7 GB; Python/runtime memory and dependencies are additional. The first real command can perform setup; once prepared, ordinary retrieval reuses the runtime and does not repeat downloads.
 
 Create `/absolute/semantic-config.json`, replacing all executable/script/model paths:
 

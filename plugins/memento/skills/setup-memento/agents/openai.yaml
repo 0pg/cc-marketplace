@@ -1,0 +1,6 @@
+interface:
+  display_name: "Set up Memento"
+  short_description: "Prepare Memento's local runtime and model"
+  default_prompt: "Use $setup-memento to prepare this installed Memento plugin."
+policy:
+  allow_implicit_invocation: true

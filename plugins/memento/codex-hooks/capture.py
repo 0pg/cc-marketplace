@@ -32,6 +32,23 @@ class CaptureError(Exception):
     """Expected configuration, protocol or persistence failure."""
 
 
+def runtime_binary(root):
+    """Resolve a validated runtime without starting installation in a hook."""
+    helper = root / "scripts/runtime.py"
+    if helper.is_file():
+        sys.path.insert(0, str(helper.parent))
+        import runtime
+        try:
+            return runtime.ready_runtime(root).executable
+        except runtime.RuntimeError as error:
+            raise CaptureError(
+                "Runtime needs preparation; run scripts/install_runtime.py --ensure "
+                f"from the plugin before configuring checkpoints: {error}"
+            ) from error
+    # Standalone packages built before the runtime helper remain explicit installs.
+    return root / "skills/memento/bin/memento"
+
+
 def bounded_json(path, limit):
     with path.open("rb") as stream:
         raw = stream.read(limit + 1)
@@ -299,7 +316,7 @@ class Dispatcher:
         return True
 
     def call(self, operation, **fields):
-        binary = self.root / "skills/memento/bin/memento"
+        binary = runtime_binary(self.root)
         request = {"operation": operation, "scope": self.scope, **fields}
         command = [str(binary), "checkpoint", "--store", self.project["store"], "--summary", "true", "--input", "-"]
         if self.project.get("policy") is not None:
@@ -371,6 +388,8 @@ class Dispatcher:
         if event == "SessionStart" and not (self.data / "capture-config.json").exists():
             return self.additional(event,
                 f"Memento hooks need explicit project configuration at {self.data / 'capture-config.json'}. "
+                "Prepare the runtime first with scripts/install_runtime.py --ensure; "
+                "hooks never build or download a runtime. "
                 f"Read {self.root / 'skills/memento/SKILL.md'} and use "
                 f"python3 {shlex.quote(str(self.root / 'codex-hooks/capture.py'))} configure "
                 f"--data-dir {shlex.quote(str(self.data))} "
@@ -478,7 +497,7 @@ def configure(arguments):
     if len(rendered) > CONFIG_LIMIT:
         raise CaptureError("capture configuration exceeds its size limit")
     if args.initialize_store:
-        binary = Path(__file__).resolve().parent.parent / "skills/memento/bin/memento"
+        binary = runtime_binary(Path(__file__).resolve().parent.parent)
         command = [str(binary), "init", "--store", project["store"], "--project", project["project_id"]]
         if project.get("policy") is not None:
             command.extend(["--policy", project["policy"]])

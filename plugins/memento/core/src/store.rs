@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use chrono::Utc;
@@ -13,7 +13,10 @@ use crate::{
     security::{RedactionPolicy, hash},
 };
 
+mod format;
 mod retention;
+
+pub use format::{CURRENT_FORMAT, StoreFormatError, StoreFormatState, StoreFormatStatus};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -33,6 +36,8 @@ pub enum Error {
     Compaction(#[from] compaction::Error),
     #[error(transparent)]
     Capture(#[from] capture::Error),
+    #[error(transparent)]
+    StoreFormat(#[from] StoreFormatError),
     #[error(
         "storage capacity exceeded: protected context requires {entries} entries and {payload_bytes} payload bytes; limits are {max_entries} entries and {max_payload_bytes} bytes"
     )]
@@ -61,6 +66,8 @@ struct StoredEntry {
 pub struct Store {
     db: toasty::Db,
     policy: RedactionPolicy,
+    path: PathBuf,
+    header: format::Header,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -82,7 +89,9 @@ pub struct CompactionNotice {
 
 impl Store {
     pub async fn checkpoint(&mut self, request: capture::Request) -> Result<capture::Reply> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         let reply = retention::checkpoint(&mut transaction, request, &self.policy).await?;
         transaction.commit().await?;
         Ok(reply)
@@ -94,7 +103,9 @@ impl Store {
         repository: &Path,
         binding: &crate::git::IndexBinding,
     ) -> Result<capture::CommitCheckpoint> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         let checkpoint =
             retention::check_commit(&mut transaction, project, repository, binding).await?;
         transaction.commit().await?;
@@ -108,7 +119,9 @@ impl Store {
         binding: &crate::git::IndexBinding,
         sha: &str,
     ) -> Result<()> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         retention::link_commit(&mut transaction, project, repository, binding, sha).await?;
         transaction.commit().await?;
         Ok(())
@@ -119,35 +132,77 @@ impl Store {
     }
 
     pub async fn open(path: &Path, policy: RedactionPolicy) -> Result<Self> {
+        if std::fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0) {
+            format::inspect(path).await?;
+        }
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)?;
+        }
+        let selected_path = format::canonical_path(path)?;
+        let path = selected_path.as_path();
+        let _guard = format::lock(path, true).await?;
         let initialize = match std::fs::metadata(path) {
             Ok(metadata) => metadata.len() == 0,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
             Err(error) => return Err(error.into()),
         };
-        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent)?;
+        if !initialize {
+            format::validate_schema(path).await?;
         }
         let mut builder = toasty::Db::builder();
         builder.models(toasty::models!(StoredEntry));
         // Pass a filesystem path directly: URL parsing encodes spaces and can
         // interpret filename characters such as '?' and '#' as URL components.
-        let db = builder
+        let mut db = builder
             .build(toasty_driver_sqlite::Sqlite::open(path))
             .await?;
         if initialize {
             db.push_schema().await?;
         }
+        let header = format::migrate(&mut db, path).await?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
         }
-        Ok(Self { db, policy })
+        Ok(Self {
+            db,
+            policy,
+            path: path.to_owned(),
+            header,
+        })
+    }
+
+    /// Inspect only the explicitly selected store without creating or upgrading it.
+    pub async fn inspect(path: &Path) -> Result<StoreFormatStatus> {
+        format::inspect(path).await
+    }
+
+    /// Mark a validated existing legacy store atomically; never creates a database.
+    pub async fn migrate(path: &Path, policy: RedactionPolicy) -> Result<StoreFormatStatus> {
+        if format::inspect(path).await?.state == StoreFormatState::Missing {
+            return Err(StoreFormatError::Missing.into());
+        }
+        let selected_path = format::canonical_path(path)?;
+        let path = selected_path.as_path();
+        let _guard = format::lock(path, false).await?;
+        format::validate_schema(path).await?;
+        let mut builder = toasty::Db::builder();
+        builder.models(toasty::models!(StoredEntry));
+        let mut db = builder
+            .build(toasty_driver_sqlite::Sqlite::open(path))
+            .await?;
+        let header = format::migrate(&mut db, path).await?;
+        // Redaction affects subsequent writes, never the migration's retained payloads.
+        let _ = policy;
+        Ok(header.status())
     }
 
     #[tracing::instrument(skip_all, fields(entity_id = entity.id()))]
     pub async fn append(&mut self, entity: Entity) -> Result<Receipt> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         let mut receipt = Self::append_one(&mut transaction, &self.policy, entity).await?;
         let pinned = BTreeSet::from([receipt.sequence]);
         receipt.compaction = retention::enforce(&mut transaction, &pinned).await?;
@@ -321,7 +376,9 @@ impl Store {
         &mut self,
         entities: impl IntoIterator<Item = Entity>,
     ) -> Result<Vec<Receipt>> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         let mut receipts = Vec::new();
         let mut pinned = BTreeSet::new();
         for entity in entities {
@@ -337,9 +394,13 @@ impl Store {
     }
 
     pub async fn load(&mut self) -> Result<Corpus> {
+        let _guard = format::lock(&self.path, false).await?;
+        let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
+        let rows = StoredEntry::all().exec(&mut transaction).await?;
         let mut entries = Vec::new();
         let mut compaction = CompactionState::default();
-        for row in StoredEntry::all().exec(&mut self.db).await? {
+        for row in rows {
             if retention::is_metadata(&row) {
                 compaction = retention::metadata(&row)?.compaction;
                 continue;
@@ -351,6 +412,7 @@ impl Store {
             });
         }
         entries.sort_by_key(|e| e.sequence);
+        transaction.commit().await?;
         Ok(Corpus {
             entries,
             compaction,
@@ -363,7 +425,9 @@ impl Store {
         policy: Option<compaction::Policy>,
         apply: bool,
     ) -> Result<compaction::Report> {
+        let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
+        format::fence(&mut transaction, &self.header).await?;
         let report = retention::compact(&mut transaction, policy, apply).await?;
         transaction.commit().await?;
         Ok(report)

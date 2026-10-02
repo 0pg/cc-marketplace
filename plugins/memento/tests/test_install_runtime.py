@@ -39,10 +39,12 @@ class RuntimeInstallationTests(unittest.TestCase):
         (self.plugin / "scripts").mkdir(parents=True)
         (self.skill / "scripts").mkdir(parents=True)
         shutil.copy2(PLUGIN / "scripts/install_runtime.py", self.plugin / "scripts/install_runtime.py")
+        shutil.copy2(PLUGIN / "scripts/runtime.py", self.plugin / "scripts/runtime.py")
         shutil.copy2(PLUGIN / "skills/memento/scripts/memento.py", self.skill / "scripts/memento.py")
         self.environment = os.environ.copy()
         self.environment.pop("MEMENTO_BIN", None)
         self.environment["PATH"] = str(self.empty_path)
+        self.environment["MEMENTO_RUNTIME_HOME"] = str(self.root / "external runtime")
         self.database = self.root / "selected local data/context.sqlite"
         self.database.parent.mkdir()
 
@@ -85,7 +87,9 @@ class RuntimeInstallationTests(unittest.TestCase):
                             for record in records))
 
     def runtime_hash(self):
-        return hashlib.sha256((self.skill / "bin/memento").read_bytes()).hexdigest()
+        home = Path(self.environment["MEMENTO_RUNTIME_HOME"])
+        active = json.loads((home / "state.json").read_text())["active"]["directory"]
+        return hashlib.sha256((home / "artifacts" / active / "memento").read_bytes()).hexdigest()
 
     def test_independent_install_runs_outside_checkout_with_path_spaces_and_empty_path(self):
         self.assert_success(self.install())
@@ -114,7 +118,7 @@ class RuntimeInstallationTests(unittest.TestCase):
         failing.chmod(0o755)
         result = self.install(failing)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("smoke test failed", result.stderr)
+        self.assertIn("handshake failed", result.stderr)
         self.assertEqual(self.runtime_hash(), runtime_before)
         self.assertEqual(self.database.read_bytes(), database_before)
         self.assert_note()
@@ -133,7 +137,7 @@ class RuntimeInstallationTests(unittest.TestCase):
         older.chmod(0o755)
         result = self.install(older)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("expected memento commands", result.stderr)
+        self.assertIn("incompatible Memento protocol", result.stderr)
         self.assertEqual(self.runtime_hash(), runtime_before)
         self.assertEqual(self.database.read_bytes(), database_before)
         self.assert_note()
@@ -152,7 +156,10 @@ class RuntimeInstallationTests(unittest.TestCase):
         )
         config = {"command": [sys.executable, str(worker)],
                   "model_id": "installed-contract", "model_revision": "fixed-1"}
-        (self.skill / "semantic-config.json").write_text(json.dumps(config), encoding="utf-8")
+        stored_config = self.outside / "installed custom config.json"
+        stored_config.write_text(json.dumps(config), encoding="utf-8")
+        prepared = subprocess.run([sys.executable, str(self.plugin / "scripts/install_runtime.py"), "--semantic-config", str(stored_config)], cwd=self.outside, env=self.environment, text=True, capture_output=True, check=False)
+        self.assert_success(prepared)
         query = {"operation": "search", "scope": {"project_id": "installation-tests"},
                  "query": {"text": NOTE, "mode": "semantic"}}
         response = self.cli("query", query)

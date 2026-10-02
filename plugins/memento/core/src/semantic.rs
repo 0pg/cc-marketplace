@@ -81,7 +81,7 @@ impl Default for SemanticConfig {
 }
 
 impl SemanticConfig {
-    fn validate(&self) -> Result<(), SemanticError> {
+    pub fn validate(&self) -> Result<(), SemanticError> {
         if let Some(rerank) = &self.rerank {
             rerank.validate()?;
             if self.min_score != 0.0 {
