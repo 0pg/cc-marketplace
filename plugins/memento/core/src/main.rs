@@ -39,6 +39,9 @@ async fn main() -> ExitCode {
                 error @ Error::Capacity { .. } => {
                     json!({"error": {"code": "storage_capacity_exceeded", "message": error.to_string()}})
                 }
+                Error::StoreFormat(error) => {
+                    json!({"error": {"code": error.code(), "message": error.to_string()}})
+                }
                 other => json!({"error": other.to_string()}),
             };
             let _ = write_json(&output);
@@ -141,16 +144,40 @@ impl Args {
 
 async fn execute() -> Result<Value> {
     let args = Args::parse()?;
+    if matches!(args.command.as_str(), "version" | "--version") {
+        return Ok(memento::version::information());
+    }
+    if args.command == "semantic-config-check" {
+        let config: semantic::SemanticConfig =
+            serde_json::from_str(&std::fs::read_to_string(args.required("semantic-config")?)?)?;
+        if config.command.is_empty() || config.command.iter().any(String::is_empty) {
+            return Err(Error::Invalid(
+                "semantic command must contain nonempty arguments".into(),
+            ));
+        }
+        config
+            .validate()
+            .map_err(|error| Error::Invalid(error.to_string()))?;
+        return Ok(json!({"valid": true}));
+    }
     if matches!(args.command.as_str(), "help" | "--help") {
         return Ok(
-            json!({"commands": ["init", "note", "record", "import", "sync", "query", "compact", "checkpoint", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record/checkpoint read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
+            json!({"commands": ["version", "store-status", "semantic-config-check", "migrate", "init", "note", "record", "import", "sync", "query", "compact", "checkpoint", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record/checkpoint read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
         );
     }
     let store_path = PathBuf::from(args.required("store")?);
+    if args.command == "store-status" {
+        return Ok(serde_json::to_value(Store::inspect(&store_path).await?)?);
+    }
     let policy: RedactionPolicy = match args.get("policy") {
         Some(path) => serde_json::from_str(&std::fs::read_to_string(path)?)?,
         None => RedactionPolicy::default(),
     };
+    if args.command == "migrate" {
+        return Ok(serde_json::to_value(
+            Store::migrate(&store_path, policy).await?,
+        )?);
+    }
     let mut store = Store::open(&store_path, policy.clone()).await?;
     match args.command.as_str() {
         "checkpoint" => {
@@ -448,6 +475,10 @@ async fn execute() -> Result<Value> {
             .await
         }
         "hooks-install" => {
+            let hook_executable = match std::env::var_os("MEMENTO_GIT_EXECUTABLE") {
+                Some(path) => PathBuf::from(path),
+                None => std::env::current_exe()?,
+            };
             let enforce = args
                 .get("enforce-checkpoints")
                 .unwrap_or("false")
@@ -463,7 +494,7 @@ async fn execute() -> Result<Value> {
             Ok(serde_json::to_value(
                 installer(
                     Path::new(args.required("repository")?),
-                    &std::env::current_exe()?,
+                    &hook_executable,
                     &store_path.canonicalize()?,
                     args.required("project")?,
                     args.get("policy").map(Path::new),

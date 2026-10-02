@@ -19,6 +19,8 @@ pub struct HookEntry {
     pub executable: bool,
     pub existing_hook: bool,
     pub preserved_hook: Option<PathBuf>,
+    pub runtime_target: Option<PathBuf>,
+    pub runtime_target_state: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -67,6 +69,23 @@ fn hook_status_with_checkpoint(
             body.contains(MARKER) && body.contains(&tag)
         });
         let preserved = hooks_path.join(format!("{name}.memento-original"));
+        let runtime_target = content.as_ref().and_then(|bytes| {
+            String::from_utf8_lossy(bytes)
+                .lines()
+                .find_map(|line| line.strip_prefix("# memento executable "))
+                .and_then(|value| serde_json::from_str::<PathBuf>(value).ok())
+        });
+        let runtime_target_state = if !installed {
+            "not_managed"
+        } else if let Some(target) = &runtime_target {
+            if executable(target)? {
+                "available"
+            } else {
+                "missing"
+            }
+        } else {
+            "legacy_path_review_required"
+        };
         hooks.push(HookEntry {
             name: name.into(),
             executable: executable(&path)?,
@@ -76,6 +95,8 @@ fn hook_status_with_checkpoint(
             preserved_hook: fs::symlink_metadata(&preserved)
                 .is_ok()
                 .then_some(preserved),
+            runtime_target,
+            runtime_target_state: runtime_target_state.into(),
         });
     }
     Ok(HookStatus {
@@ -214,6 +235,9 @@ fn script(
     let tag = repository_tag(common_git_dir)?;
     let common = quote_path(common_git_dir)?;
     let executable = quote_path(executable_path)?;
+    let runtime_line = serde_json::to_string(executable_path)
+        .map_err(|error| GitError::InvalidInput(error.to_string()))?;
+    let managed_marker = format!("{MARKER}\n# memento executable {runtime_line}");
     let store = quote_path(store)?;
     let project = shell_quote(project);
     let backup = quote_path(backup)?;
@@ -228,11 +252,11 @@ fn script(
     };
     if hook == "pre-commit" {
         return Ok(format!(
-            "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\"\n  context_previous_status=$?\n  if [ \"$context_previous_status\" -ne 0 ]; then exit \"$context_previous_status\"; fi\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit 0; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit 1\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} pre-commit > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: commit blocked; prepare and resolve a checkpoint for the actual commit index, then retry (validation failed or timed out)' >&2\n  exit 1\nfi\nexit 0\n"
+            "#!/bin/sh\n{managed_marker}\n{tag}\ncontext_previous={backup}\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\"\n  context_previous_status=$?\n  if [ \"$context_previous_status\" -ne 0 ]; then exit \"$context_previous_status\"; fi\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit 0; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit 1\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} pre-commit > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: commit blocked; prepare and resolve a checkpoint for the actual commit index, then retry (validation failed or timed out)' >&2\n  exit 1\nfi\nexit 0\n"
         ));
     }
     Ok(format!(
-        "#!/bin/sh\n{MARKER}\n{tag}\ncontext_previous={backup}\n{input}context_previous_status=0\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\" < \"$context_input\"\n  context_previous_status=$?\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit \"$context_previous_status\"; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit \"$context_previous_status\"\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} {hook} \"$@\" < \"$context_input\" > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: local context capture failed or timed out; Git result is unchanged' >&2\nfi\nexit \"$context_previous_status\"\n"
+        "#!/bin/sh\n{managed_marker}\n{tag}\ncontext_previous={backup}\n{input}context_previous_status=0\nif [ -x \"$context_previous\" ]; then\n  \"$context_previous\" \"$@\" < \"$context_input\"\n  context_previous_status=$?\nfi\ncontext_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nif [ \"$context_common\" != {common} ]; then exit \"$context_previous_status\"; fi\ncontext_repository=$(git rev-parse --show-toplevel 2>/dev/null) || exit \"$context_previous_status\"\n{executable} hook --repository \"$context_repository\" --store {store} --project {project}{policy} {hook} \"$@\" < \"$context_input\" > /dev/null &\ncontext_capture_pid=$!\n(sleep 5; kill -KILL \"$context_capture_pid\" 2>/dev/null) >/dev/null 2>&1 &\ncontext_watchdog_pid=$!\nwait \"$context_capture_pid\"\ncontext_capture_status=$?\nkill \"$context_watchdog_pid\" 2>/dev/null\nwait \"$context_watchdog_pid\" 2>/dev/null\nif [ \"$context_capture_status\" -ne 0 ]; then\n  printf '%s\\n' 'memento: local context capture failed or timed out; Git result is unchanged' >&2\nfi\nexit \"$context_previous_status\"\n"
     ))
 }
 

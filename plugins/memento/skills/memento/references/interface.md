@@ -4,20 +4,53 @@ Invoke the skill as `$memento`. It uses the `memento` Rust package and CLI; `MEM
 
 ## Setup and storage
 
-Install the plugin from `jhk-plugins`, then run the shipped installer from the installed plugin directory (Python 3.9+, Rust/Cargo and `uv` for default embeddings):
+Install the plugin from `jhk-plugins` and use `python3 <installed-skill>/scripts/memento.py COMMAND ...`. The first real command calls the same preparation routine as the setup installer, then continues with the original command and its explicit scope. Codex may offer the optional `setup-memento` onboarding skill; skipping that conversation is supported. Installation alone is not an arbitrary post-install script or hook-trust operation.
+
+From the installed plugin directory, explicit preparation and inspection are available:
 
 ```sh
-python3 scripts/install_runtime.py
-python3 scripts/install_runtime.py --binary /absolute/built/memento
+python3 scripts/install_runtime.py --ensure
+python3 scripts/install_runtime.py --status
+python3 scripts/install_runtime.py --binary /absolute/built/memento --embedding-model none
 python3 scripts/install_runtime.py --embedding-model minilm
-python3 scripts/install_runtime.py --embedding-model none
+python3 skills/memento/scripts/memento.py runtime-status
 ```
 
-The installer builds `core/Cargo.toml` with its lockfile, checks the CLI including checkpoint support, and places it at `<skill-directory>/bin/memento`. It preserves user files and existing model configuration when embeddings are skipped. Runtime and pinned model weights live outside the replaceable plugin directory; no platform-specific executable or weights are tracked in this package. Installing an embedding-enabled plugin on another machine requires preparing that machine's runtime. Queries do not build or install software.
+Source-only packages require Python 3.9+, Rust/Cargo 1.94+ and `uv` for the supplied embedding models. A compatible `--binary` skips Cargo; `--embedding-model none` skips model setup. A known new installation defaults to E5. Updates preserve the existing E5/MiniLM/custom selection. `none` also preserves an existing semantic configuration; it does not disable or delete that configuration. If a legacy installation has a binary but no recorded model selection or config, preparation returns `selection_required`; choose E5, MiniLM or `none` explicitly. A newly generated prebuilt package includes a format-1 selection hint to avoid this ambiguity.
 
-Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trust their current definitions in Codex, and configure explicit project/store/work scope separately. Runtime installation does not change trust, global settings or Git hooks. See [Codex hooks and checkpoints](codex-hooks.md).
+The runtime directory is `${CODEX_HOME:-~/.codex}/memento/runtime`, overridden by `MEMENTO_RUNTIME_HOME`. State, verified executable artifacts, models and the stable Git bridge live here rather than in the replaceable plugin cache. `runtime-status` and installer `--status` inspect this location without preparing software or opening project stores. Help and version commands also never prepare; on an unprepared source-only package they can report that no executable is available. A prepared runtime is reused until source/model identity changes or validation fails.
 
-Run `python3 <skill-directory>/scripts/memento.py COMMAND ...`, or invoke the bundled executable directly. The launcher uses an explicit `MEMENTO_BIN` override when set; otherwise it tries its bundled executable, `memento` on PATH, then the plugin's `core/target/release` or `core/target/debug` build. For `query`, it supplies the installed semantic configuration unless an explicit `--semantic-config` is given. Direct executable calls still require that flag for semantic search. The launcher does not build or install software during a query. The examples below abbreviate this command as `memento`.
+Preparation uses a process lock, validates protocol/capabilities, platform and build identity, and activates only a candidate that passes its checks and configured local inference. Memento retains at most the active and previous owned executable artifact and their model references, plus one preparation candidate. It prunes only Memento-owned directories and preserves unrelated files. The state distinguishes `not_installed`, `preparing`, `ready`, `failed`; binary existence alone is insufficient. Missing tools, offline dependency/model downloads, timeouts and failed inference surface errors; prerequisite tools are not silently installed.
+
+For `query`, the launcher supplies the active semantic config unless `--semantic-config` is explicit. `MEMENTO_BIN` selects a compatible explicit executable and still undergoes the version handshake. Use the launcher to preserve selection/update checks rather than guessing an artifact filename. Direct executable calls require the semantic-config flag for semantic search. The examples below abbreviate the launcher as `memento`.
+
+Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trust the current definitions in Codex and configure explicit project/store/work scope separately. Runtime preparation does not change trust, global settings or enable Git hooks. SessionStart resolves prepared executables or gives setup guidance; it never builds or downloads a model. See [Codex hooks and checkpoints](codex-hooks.md).
+
+### Version and selected-store compatibility
+
+The current release separates plugin version `0.5.0`, Rust core version `0.2.0`, CLI protocol `1`, runtime configuration format `1`, and store format `1`. Inspect them independently:
+
+```sh
+memento version
+memento store-status --store /absolute/context.sqlite
+memento migrate --store /absolute/context.sqlite
+```
+
+The plugin launcher treats `store-status` as passive too: it requires an available compatible executable but does not prepare software. `version` returns build identity, OS/architecture, capabilities and store read/write ranges without opening a DB. `store-status` neither creates a missing store nor marks a legacy one; it returns `missing`, `migration_required` (known unmarked format `0`) or `compatible`. Invalid schema/payload and future versions return compatibility errors instead of a success status. `migrate` only operates on the selected existing DB. Normal commands also mark a known legacy store when opening it; other stores are not scanned.
+
+Check a supplied semantic configuration without opening a store or running its worker/model:
+
+```sh
+memento semantic-config-check --semantic-config /absolute/semantic-config.json
+```
+
+This passive command uses the Rust configuration schema to reject unknown fields, invalid types/ranges and an empty command, returning `{"valid": true}` only for a valid configuration. It requires an available compatible executable. Runtime preparation calls the checker through the candidate executable before activating a configured artifact; local inference is a separate check.
+
+The initial migration adds `store_format: {version, db_identity, migration_epoch}` to the existing reserved metadata row in one SQLite transaction. Existing entity rows, IDs, revisions, sequences, timestamps, evidence, compaction and capture state are preserved; the `0.3.0` release's absent capture field becomes an empty default. It does not export/reinsert records, change the SQL schema, compact history or increase a policy limit. If header growth exceeds the configured limit, the migration fails. SQLite's transaction journal supplies rollback; no external plaintext DB snapshot is retained.
+
+Writers coordinate using the empty `<store>.memento-lock` sidecar and recheck identity/epoch inside each transaction. Already open readers recheck the header as well. Busy, malformed, fenced or future stores fail without being replaced. The actual `0.3.0` and `0.4.0` executables reject the new metadata field, so an old executable cannot write the marked store through those tested CLI paths. This is not a promise about arbitrary older binaries or direct SQL access.
+
+Runtime preparation does not restore DB snapshots. A failed update preserves the previous active runtime and returns an error; it does not execute the original command with an unchecked older binary. Switching a runtime cannot remove records written after a migration. The compatibility gate must succeed before any chosen executable accesses the selected DB.
 
 Use an absolute SQLite path outside tracked source files, a stable project ID, and explicit source/work/session IDs. Toasty SQLite stores retained revisions locally; no remote service or LLM is required. Protect the store as project history. Default masking covers common credentials; pass the same `--policy /absolute/policy.json` on every capture that needs additional literal masking. When installing hooks, supply the same `--policy` option; the hook retains that explicit policy path for subsequent captures. Policy JSON: `{"literal_secrets":["a known sensitive value"]}`. Original raw exports remain at their selected source; this tool does not alter them.
 

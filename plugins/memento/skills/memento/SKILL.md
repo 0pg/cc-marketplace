@@ -5,7 +5,7 @@ description: Record project requests, corrections, decisions, failures and verif
 
 # Memento
 
-Memento uses the local `memento` CLI to preserve public work evidence and recover the reasons and process behind results. Read [the interface](references/interface.md) for the one-command installer, commands, JSON inputs, and supported source formats. Installed skills include their executable; use this skill's `scripts/memento.py` launcher. Use [retrieval rules](references/retrieval.md) when interpreting results or handling missing evidence.
+Memento uses the local `memento` CLI to preserve public work evidence and recover the reasons and process behind results. Read [the interface](references/interface.md) for the one-command installer, commands, JSON inputs, and supported source formats. Use this skill's `scripts/memento.py` launcher. It prepares a verified shared runtime on the first real command and preserves an existing model selection; `runtime-status`, `store-status`, help and version inspection do not install software. Read the interface before handling a preparation or store compatibility error. Use [retrieval rules](references/retrieval.md) when interpreting results or handling missing evidence.
 
 When the plugin's Codex hooks provide an explicit capture scope or pending checkpoint, read [Codex checkpoint capture](references/codex-hooks.md). Hook guidance helps load this workflow; it does not itself create complete semantic records. Work only from accessible conversation and evidence, and mark missing context.
 

@@ -4,11 +4,17 @@ Use this reference when memento's plugin hooks supply capture scope or pending e
 
 ## Package and enable
 
-Install this plugin from the `jhk-plugins` marketplace, then prepare its local runtime as described in the plugin README. The portable root `plugin.json` declares `codex-hooks/hooks.json`; Claude Code keeps its `.claude-plugin/plugin.json` and does not automatically load these Codex-only hooks. The package contains Rust source and builds its runtime locally.
+Install this plugin from the `jhk-plugins` marketplace, then use its launcher or optional setup flow as described in the plugin README. The portable root `plugin.json` declares `codex-hooks/hooks.json`; Claude Code keeps its `.claude-plugin/plugin.json` and does not automatically load these Codex-only hooks. The package contains Rust source and builds its runtime locally.
 
 Plugin installation and hook trust are separate: review the current Codex hook definitions through the supported review UI (`/hooks` in the CLI). Changed definitions need review again. The runtime installer does not enable plugins or trust hooks. See [official packaging](https://developers.openai.com/plugins/build/plugins) and [hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
 
 The skill allows implicit selection; its description names recording and retrieval triggers. A start/prompt hook can tell Codex to read the exact installed SKILL.md path when needed. This is model guidance, not a deterministic skill activation API. Use the skill selector for explicit invocation; a literal `$memento` in hook output is not equivalent to a user selector action.
+
+## Runtime readiness
+
+The optional `setup-memento` onboarding skill and the first real plugin launcher command use the shared runtime preparation routine. `SessionStart` only resolves a compatible prepared/bundled executable or returns setup guidance; it never runs Cargo or downloads models. Before configuring a source-only package with `--initialize-store`, prepare it through `scripts/install_runtime.py --ensure`. Use `scripts/install_runtime.py --status` or the launcher `runtime-status` to inspect readiness without preparation. The shared runtime home is separate from the hook-specific `PLUGIN_DATA` capture configuration.
+
+Opening a selected known legacy store through the new CLI adds a version header transactionally. Runtime preparation alone does not open or migrate project stores. See [version and compatibility](interface.md#version-and-selected-store-compatibility) before using an older executable or responding to a compatibility error.
 
 ## Explicit project scope
 
@@ -90,6 +96,8 @@ If the optional Git gate is desired, enable it explicitly for the selected repos
 memento hooks-install --store /absolute/context.sqlite --project upload-app \
   --repository /absolute/project-repository --enforce-checkpoints true
 ```
+
+When installed through the plugin launcher, newly generated Git hooks use the stable `<runtime-home>/git-memento` bridge. It resolves the active verified executable after plugin-cache replacement and owned artifact pruning, and never prepares software at a Git boundary. Inspect `hooks-status` after an update: managed hooks report their recorded `runtime_target` and target state; legacy hooks without that marker report `legacy_path_review_required`, and a removed target reports `missing`. Review/reinstall those hooks explicitly instead of assuming old paths are updated. Memento does not overwrite modified/user hooks or enable a gate while preparing runtime.
 
 Stage the authorized files first, then `checkpoint` with operation `prepare_commit`, the same explicit scope, a unique `event_id`, and a brief `detail`. This captures the actual parent HEAD and index tree. Write the staged change's semantic context after preparing, resolve that event with exact saved record references, then commit. `check_commit` with the same scope can validate readiness; a changed parent/index requires a new preparation and resolution. An unchanged-context resolution is not sufficient for a commit checkpoint.
 

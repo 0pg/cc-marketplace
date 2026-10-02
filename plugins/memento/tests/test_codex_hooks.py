@@ -25,6 +25,13 @@ from pathlib import Path
 import sys
 import time
 
+if sys.argv[1] == "version":
+    print(json.dumps({"protocol_version": 1, "package_version": "0.2.0",
+        "build_identity": "a" * 64, "platform": {"os": {"darwin": "macos", "win32": "windows"}.get(sys.platform, sys.platform), "arch": {"arm64": "aarch64", "AMD64": "x86_64"}.get(__import__("platform").machine(), __import__("platform").machine())},
+        "store_format": {"current": 1, "read": {"min": 1, "max": 1}, "write": {"min": 1, "max": 1}, "legacy": [0]},
+        "capabilities": ["checkpoint", "store-status", "migrate"]}))
+    raise SystemExit(0)
+
 store = Path(sys.argv[sys.argv.index("--store") + 1])
 state = json.loads(store.read_text()) if store.exists() else {"events": [], "calls": [], "attempts": {}}
 if sys.argv[1] == "init":
@@ -97,6 +104,7 @@ class CodexHooks(unittest.TestCase):
         self.directory = Path(self.temporary.name).resolve()
         self.plugin = self.directory / "plugin with spaces"
         shutil.copytree(TEMPLATE, self.plugin, ignore=shutil.ignore_patterns("target", "__pycache__", "*.pyc", ".memento-semantic", "bin"))
+        shutil.rmtree(self.plugin / "core", ignore_errors=True)
         self.data = self.directory / "plugin data"
         self.data.mkdir()
         self.repository = self.make_repository("project one")
@@ -106,7 +114,8 @@ class CodexHooks(unittest.TestCase):
         binary.write_text(FAKE_CLI)
         binary.chmod(0o755)
         (self.plugin / "skills/memento/SKILL.md").write_text("# Fake skill for adapter tests\n")
-        self.env = {**os.environ, "PLUGIN_ROOT": str(self.plugin), "PLUGIN_DATA": str(self.data)}
+        self.env = {**os.environ, "PLUGIN_ROOT": str(self.plugin), "PLUGIN_DATA": str(self.data),
+                    "MEMENTO_RUNTIME_HOME": str(self.directory / "runtime-cache")}
         self.configure()
 
     def make_repository(self, name):
@@ -163,7 +172,7 @@ class CodexHooks(unittest.TestCase):
         portable = json.loads((self.plugin / "plugin.json").read_text())
         self.assertNotIn("hooks", claude)
         self.assertEqual(legacy["hooks"], "./codex-hooks/hooks.json")
-        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.4.0"})
+        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.5.0"})
 
     def test_template_is_synchronous_and_contains_all_required_events(self):
         manifest = json.loads((self.plugin / "plugin.json").read_text())
@@ -430,7 +439,8 @@ class RealCodexHooks(unittest.TestCase):
         (self.plugin / "skills/memento/SKILL.md").write_text("# Native callback test skill\n")
         self.store = self.directory / "context.sqlite"
         self.data = self.directory / "data"
-        self.env = {**os.environ, "PLUGIN_ROOT": str(self.plugin), "PLUGIN_DATA": str(self.data)}
+        self.env = {**os.environ, "PLUGIN_ROOT": str(self.plugin), "PLUGIN_DATA": str(self.data),
+                    "MEMENTO_RUNTIME_HOME": str(self.directory / "runtime-cache")}
         self.scope = {"project_id": "project", "repository": str(self.repository), "work_id": "work",
                       "session_id": "session", "turn_id": "turn"}
         self.cli("init", "--project", "project", "--work", "work", "--session", "session",

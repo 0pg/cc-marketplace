@@ -184,6 +184,51 @@ fn executable_file(path: &Path, content: &str) -> TestResult {
 
 #[cfg(unix)]
 #[test]
+fn hook_status_reports_missing_runtime_and_legacy_path_without_rewriting() -> TestResult {
+    let directory = repository()?;
+    let repo = directory.path();
+    let runtime = repo.join("runtime bridge");
+    executable_file(&runtime, "#!/bin/sh\nexit 0\n")?;
+    let canonical_runtime = runtime.canonicalize()?;
+    let installed = git::install_hooks(repo, &runtime, &repo.join("context.sqlite"), "test")?;
+    assert!(installed.hooks.iter().all(|hook| {
+        hook.runtime_target.as_deref() == Some(canonical_runtime.as_path())
+            && hook.runtime_target_state == "available"
+    }));
+    fs::remove_file(&runtime)?;
+    let missing = git::hook_status(repo)?;
+    assert!(
+        missing
+            .hooks
+            .iter()
+            .all(|hook| hook.runtime_target_state == "missing")
+    );
+    for hook in &missing.hooks {
+        let current = fs::read_to_string(&hook.path)?;
+        let legacy = current
+            .lines()
+            .filter(|line| !line.starts_with("# memento executable "))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        fs::write(&hook.path, legacy.as_bytes())?;
+        let status = git::hook_status(repo)?;
+        let inspected = status
+            .hooks
+            .iter()
+            .find(|entry| entry.name == hook.name)
+            .ok_or("missing hook")?;
+        assert_eq!(
+            inspected.runtime_target_state,
+            "legacy_path_review_required"
+        );
+        assert_eq!(fs::read_to_string(&hook.path)?, legacy);
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
 fn hook_install_preserves_custom_path_legacy_output_input_and_exit() -> TestResult {
     let directory = repository()?;
     let repo = directory.path();

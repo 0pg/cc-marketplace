@@ -2,11 +2,13 @@
 use super::*;
 
 // Entity::scoped_key starts with a decimal length, so no public Entity can use this key.
-const METADATA_KEY: &str = "__work_context_compaction_v1__";
+pub(super) const METADATA_KEY: &str = "__work_context_compaction_v1__";
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Metadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_format: Option<format::Header>,
     pub policy: compaction::Policy,
     pub compaction: CompactionState,
     #[serde(default)]
@@ -115,7 +117,7 @@ pub(super) fn metadata(row: &StoredEntry) -> Result<Metadata> {
     Ok(value)
 }
 
-fn read_metadata(rows: &[StoredEntry]) -> Result<Metadata> {
+pub(super) fn read_metadata(rows: &[StoredEntry]) -> Result<Metadata> {
     rows.iter()
         .find(|row| is_metadata(row))
         .map(metadata)
@@ -154,7 +156,7 @@ fn capacity(usage: &compaction::Usage, policy: &compaction::Policy) -> Error {
     }
 }
 
-async fn save_metadata(
+pub(super) async fn save_metadata(
     db: &mut toasty::Transaction<'_>,
     rows: &mut [StoredEntry],
     value: &Metadata,
