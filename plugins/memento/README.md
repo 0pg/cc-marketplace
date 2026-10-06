@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.6.0`은 core `0.3.0`, CLI protocol `1`, Store format `2`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.6.1`은 core `0.3.0`, CLI protocol `1`, Store format `2`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -60,7 +60,7 @@ Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다
 
 ## Codex 체크포인트 훅
 
-Memento 0.6.0은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
+Memento 0.6.1은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
 
 1. 플러그인을 설치·활성화하고 스킬 launcher 또는 선택적 setup 흐름으로 runtime을 준비합니다. 수동으로는 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행합니다.
 2. Codex의 hook review UI(CLI `/hooks`)에서 현재 정의를 검토하고 신뢰합니다. 설치기는 이 신뢰 설정을 변경하지 않습니다.
@@ -75,7 +75,7 @@ python3 /absolute/installed-plugin/codex-hooks/capture.py configure \
 
 store는 기존 저장소를 선택할 수 있으며 `--initialize-store`는 선택한 journal source 초기화에만 필요합니다. 사용자 literal masking 정책이 있으면 같은 `--policy /absolute/policy.json`을 사용합니다.
 
-시작·요청 훅은 스킬 경로와 scope를 안내하고, 인지된 첫 변경 전에 미해결 사용자 요청을 검사합니다. 변경·검증·실패 관측은 모아서 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 일반 편집마다 별도 의미 기록을 강제하지 않습니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
+시작·요청 훅은 스킬 경로와 scope를 안내하고, 지원되는 조사·변경 도구 실행 전에 미해결 사용자 요청을 검사합니다. 완료된 조사 결과는 다음 조사·변경 전에 기록 검토를 요구하며, 변경·검증·실패 관측은 기존대로 모아서 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 일반 편집마다 별도 의미 기록을 강제하지 않습니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
 
 SessionStart는 준비된 실행기를 확인하거나 준비 안내를 제공하며 build/model download를 실행하지 않습니다. 새로 설치한 native Git hook은 cache/artifact 경로 대신 stable `<runtime-home>/git-memento` bridge를 사용합니다. 기존 hook은 `hooks-status`의 target 상태를 확인하세요. 이전 경로를 판독할 수 없는 managed hook은 `legacy_path_review_required`, 사라진 target은 `missing`으로 표시하므로 명시적으로 검토·재설치합니다. Runtime 준비가 Git gate를 켜거나 수정된 사용자 hook을 덮어쓰지는 않습니다.
 
@@ -109,3 +109,15 @@ Runtime lifecycle 테스트는 동시 첫 사용·중단 재시도·cache 교체
 Datalog와 구조 검사는 자연어 의미·원자성·누락 여부를 보증하지 않습니다. 마지막 모델 평가에서 S04-r1/r3의 독립 요청 결합 실패가 확인됐고, 이후 가이드 수정의 모델 추출 효과는 재평가하지 않았습니다. [상태 요약](https://github.com/0pg/0pg-mcp/blob/b0e9150d6274904edc7a8ecdafe727e6d0347e77/docs/agent-work-context/evaluations/atomic-capture-v1/pr-verification-summary.json)을 참조하세요. 위의 실제 Codex 설치 노출 확인은 0.5.0에서 수행한 과거 검증입니다.
 
 0.6.0 패키지 검증(2026-10-06): standalone core의 fmt·clippy 및 Rust259개, Python79개, 두 skill의 공식 validator가 통과했습니다. 실제 format 1 실행기로 만든 DB의 명시적/첫 쓰기 format 2 migration에서 public25행·capture session2개·ID/revision/sequence·중복 replay·비선택 DB 보존과 구버전 writer 거절을 확인했습니다. 이 검증은 모델 추출 평가나 새 0.6.0의 Codex host 설치·활성화 검증을 의미하지 않습니다.
+
+## 0.6.1 조사 중 기록 누락 방지
+
+[0pg-mcp `16bd3c69`](https://github.com/0pg/0pg-mcp/commit/16bd3c695eb51b67e6bb120e244e09b6b292356c)의 조사 체크포인트 개선을 코어·Codex 어댑터·스킬·회귀 테스트에 함께 반영합니다. 코어 버전 `0.3.0`, CLI protocol `1`, Store format `2`는 유지합니다.
+
+지원되는 shell·파일·MCP 도구의 완료된 조사 결과는 `investigation` 이벤트가 됩니다. 미해결 요청 또는 조사 검토가 있으면 다음 지원 도구 실행을 차단합니다. 조사 의무는 같은 작업·세션·context와 원문에 연결된 `finding` 또는 `decision` claim의 실제 저장 참조로 해결합니다. 새 맥락이 없는 상태 확인은 사유가 있는 `no_new_context`, 기록 불가는 `capture_incomplete`로 구분합니다. 기존 편집 배치와 Stop의 최대 두 차례 보완 제한은 유지합니다.
+
+설치 스킬·참조 문서 읽기와 단독 Memento 호출은 재귀 의무를 만들지 않습니다. Memento 호출에 다른 조사를 붙인 복합 명령은 기록 검토를 우회할 수 없습니다. 잘린 도구 입력·결과는 부분 원문으로 표시합니다. 이 변경이 자연어 판단 변경을 자동 추출하거나 의미 기록의 완전성을 보장하지는 않습니다.
+
+업데이트할 때 어댑터와 해당 소스의 실행기를 함께 사용하고 변경된 훅 정의를 다시 검토합니다. 새 조사 이벤트를 저장한 DB를 구 실행기로 되돌려 읽는 호환성은 제공하지 않습니다. Marketplace 갱신은 기존 설치의 캐시·신뢰 설정·프로젝트 기록 설정을 변경하지 않습니다. 상세 범위와 수용 기준은 [1차 구현 스펙](https://github.com/0pg/0pg-mcp/blob/16bd3c695eb51b67e6bb120e244e09b6b292356c/docs/agent-work-context/investigation-capture-spec.md)을 참조하세요.
+
+0.6.1 패키지 검증(2026-10-06): standalone core의 fmt·clippy와 Rust 263개, Python 92개(일반 89개와 실제 runtime 통합 3개)가 통과했습니다. 공간 부족으로 중단된 빌드는 이번 작업의 빌드 캐시 정리 후 debug 정보와 incremental cache를 줄여 재실행했습니다. 실제 Desktop 훅 전달·신뢰 설정과 자연어 의미 품질은 이 패키지 검사 범위 밖입니다.

@@ -9,6 +9,8 @@ Memento uses the local `memento` CLI to preserve public work evidence and recove
 
 When the plugin's Codex hooks provide an explicit capture scope or pending checkpoint, read [Codex checkpoint capture](references/codex-hooks.md). Hook guidance helps load this workflow; it does not itself create complete semantic records. Work only from accessible conversation and evidence, and mark missing context.
 
+With active checkpoints, resolve the request before starting investigation. After a completed investigation tool result, save new findings or decision changes before the next tool, or resolve with a reasoned `no_new_context`. Preserve the previous decision, revised decision, evidence and conditions when a judgment changes. Use the launcher directly with `--input -` to save and resolve while other tools are gated; exact installed skill/reference reads and standalone Memento calls remain available.
+
 ## Start and resume
 
 Use an explicitly selected store and stable project ID. Inspect `sources` before treating history as complete. Reuse the relevant work/session IDs; if the active work is unknown, list candidates instead of assigning everything to the latest task. Keep repository/worktree scope explicit.

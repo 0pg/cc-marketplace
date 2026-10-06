@@ -28,7 +28,7 @@ Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trus
 
 ### Version and selected-store compatibility
 
-The current release separates plugin version `0.6.0`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
+The current release separates plugin version `0.6.1`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
 
 ```sh
 memento version

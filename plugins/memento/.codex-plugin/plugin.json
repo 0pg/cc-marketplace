@@ -1,6 +1,6 @@
 {
   "name": "memento",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Record and retrieve bounded project work context, with Codex checkpoints for requests, failures, decisions and verification.",
   "author": {
     "name": "jhk"

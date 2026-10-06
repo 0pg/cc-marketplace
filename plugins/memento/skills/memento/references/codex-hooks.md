@@ -52,6 +52,10 @@ memento checkpoint --store /absolute/context.sqlite --input /tmp/checkpoint-stat
 
 Status exposes the pending event identities in this project/repository/work/session. A continuation may have a different current turn; preserve an event's original turn identity when interpreting it. Status and stop checks cover that session's pending events, not only the latest turn. Hooks use `--summary true` for bounded ID samples and omitted counts; use the ordinary status request to inspect all retained events when a sample omits one.
 
+Before a supported investigation or edit tool runs, unresolved user requests and investigation results require resolution. The summary's `pending_user_prompt` and `pending_investigation` flags cover every retained event, including IDs omitted from the sample. Exact installed skill/reference reads and standalone Memento calls remain available to complete capture. Use the launcher directly with `record --input -` or `checkpoint --input -` and supply JSON on stdin; creating an input file through a separate investigation/edit tool can itself encounter the gate. A compound command starting with Memento and continuing into another investigation is not exempt.
+
+Completed ordinary shell/file reads and MCP results open `investigation` checkpoints. MCP inputs and results are bounded observations; the adapter does not infer whether an arbitrary MCP operation reads or writes. Before the next supported tool call, save new findings or changed decisions with their actual evidence, or resolve with a reasoned `no_new_context` when the result adds no meaningful context. Existing mutation, failure and verification checkpoints can still be recorded in a batch before Stop. A running shell process is not a completed investigation.
+
 Save new context with `note` or structured `record` and verify `durable` receipts. For each checkpoint inspect:
 
 | Point | Context to save |
@@ -59,6 +63,7 @@ Save new context with `note` or structured `record` and verify `durable` receipt
 | Start/request | Requested outcome, constraints, open ambiguity before editing |
 | Correction | Changed clauses, old decision being corrected, constraints still in force before acting |
 | Decision/failure | Chosen and rejected approaches, observed adverse result, conditions; important output/patch before discard |
+| Investigation result | New findings and decision changes before the next tool; preserve the prior judgment and link the correction with its evidence and conditions |
 | Verification | Execution, code state, actual result, side effects, untested scope |
 | Commit | Context for the actual staged changes, linked decisions and verification limitations |
 | Final/handoff | New decisions and results, unresolved work, saved state and next action |
@@ -86,7 +91,7 @@ Resolve only with records captured after the event and explicitly assigned to th
 
 Pass this JSON to the same `checkpoint --input FILE` command (`--input -` accepts stdin). Replace the illustrative revision and sequence with actual values. References are checked against persisted accessible records, not accepted from a success sentence.
 
-For a status-only request with no new context, use `{"kind":"no_new_context","reason":"Progress request only; no new decision or constraint."}`. A failed capture can be disclosed with `{"kind":"capture_incomplete","reason":"Required output was unavailable; the gap remains."}`; this reports a gap and does not turn it into successful capture. Stop feedback permits bounded repair rather than endless retries. Structural receipt checks do not certify semantic completeness.
+An investigation's `records` resolution requires at least one finding or decision claim linked to that event's context and exact observed source. A raw output or status record alone is insufficient. For a status-only request or investigation result with no new context, use `{"kind":"no_new_context","reason":"Progress request only; no new decision or constraint."}`. A failed capture can be disclosed with `{"kind":"capture_incomplete","reason":"Required output was unavailable; the gap remains."}`; this reports a gap and does not turn it into successful capture. Stop feedback permits bounded repair rather than endless retries. Structural receipt checks do not certify semantic completeness.
 
 ## Commit boundary
 
@@ -117,4 +122,4 @@ Example prepare input:
 
 Post-commit capture links the resulting SHA when the current reflog supplies the preceding HEAD (or the commit is initial). A missing or stale reflog leaves the actual Git result captured without inventing that association. It does not retroactively validate a test run against a different dirty tree. A Git hook observes a Git boundary, while the Codex hooks observe agent lifecycle events.
 
-The command adapter recognizes direct commits and a small set of writes and test commands. Compound shell programs, aliases, script-internal changes, MCP tools, and later interactive input are outside its first-edit command gate. The actual Git gate must be enabled for commit-index enforcement at Git's `pre-commit` boundary; Git paths that bypass that hook remain outside its coverage. Handoff and important semantic decisions remain skill-guided; Stop validates the known obligations, not every sentence in the final answer. Large prompt/output details are truncated with a marker, and no full transcript is read. Setup or callback failures disclose `capture_incomplete`; recognized pre-edit/pre-commit validation failures return a deny decision. Codex's own handler failure/timeout behavior still applies.
+The adapter gates shell calls, file read/edit tools and MCP calls, and observes their completed results. It recognizes direct commits and a small set of writes and test commands. Compound shell programs and script-internal behavior receive ordinary investigation review when not otherwise classified; their embedded Git commits are not index-validated by this command adapter. Other administrative/local tools, hosted tools without lifecycle callbacks, aliases' internal behavior, and later interactive input remain outside that enforcement coverage. The actual Git gate must be enabled for commit-index enforcement at Git's `pre-commit` boundary; Git paths that bypass that hook remain outside its coverage. Handoff and important semantic decisions remain skill-guided; Stop validates the known obligations, not every sentence in the final answer. Large prompt/output details are truncated with a marker, and no full transcript is read. Setup or callback failures disclose `capture_incomplete`; supported pre-tool/pre-commit validation failures return a deny decision. Codex's own handler failure/timeout behavior still applies.

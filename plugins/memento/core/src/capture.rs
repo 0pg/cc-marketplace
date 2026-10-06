@@ -68,6 +68,7 @@ impl Scope {
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
     UserPrompt,
+    Investigation,
     ToolFailure,
     Verification,
     Mutation,
@@ -219,6 +220,8 @@ pub struct Reply {
     pub events: Vec<Event>,
     pub pending_event_ids: Vec<String>,
     pub pending_user_prompt: bool,
+    #[serde(default)]
+    pub pending_investigation: bool,
     pub capture_incomplete_event_ids: Vec<String>,
     #[serde(default)]
     pub omitted_pending_event_ids: usize,
@@ -396,6 +399,9 @@ fn event_kind_accepts(event: EventKind, record: &Record) -> bool {
                     && record.attempt_outcome == Some(AttemptOutcome::Failed))
                 || (record.kind == RecordKind::Verification
                     && record.verification_outcome == Some(VerificationOutcome::Failed))
+        }
+        EventKind::Investigation => {
+            matches!(record.kind, RecordKind::Finding | RecordKind::Decision)
         }
         EventKind::Verification => {
             record.kind == RecordKind::Verification && record.verification_outcome.is_some()
@@ -754,12 +760,14 @@ impl State {
         let events = session.map_or_else(Vec::new, |s| s.events.clone());
         let mut pending = Vec::new();
         let mut pending_user_prompt = false;
+        let mut pending_investigation = false;
         let mut incomplete = Vec::new();
         for event in &events {
             match &event.resolution {
                 Resolution::Pending => {
                     pending.push(event.event_id.clone());
                     pending_user_prompt |= event.kind == EventKind::UserPrompt;
+                    pending_investigation |= event.kind == EventKind::Investigation;
                 }
                 Resolution::CaptureIncomplete { .. } => incomplete.push(event.event_id.clone()),
                 Resolution::NoNewContext { .. } if !no_new_context_allowed(event) => {
@@ -780,7 +788,7 @@ impl State {
         } else {
             Decision::Allow
         };
-        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, capture_incomplete_event_ids: incomplete,
+        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, pending_investigation, capture_incomplete_event_ids: incomplete,
             omitted_pending_event_ids: 0, omitted_capture_incomplete_event_ids: 0,
             stop_attempts: session.map_or(0, |s| s.stop_attempts), decision,
             reason: match decision { Decision::Allow => "all known capture obligations are resolved; semantic completeness is not proven", Decision::Block => "save scoped context records for pending events, then resolve their exact references", Decision::CaptureIncomplete => "capture is incomplete; report the unsaved gap and do not claim persistence" }.into(), durable: true }

@@ -38,10 +38,14 @@ async fn tool_events_during_stop_continuations_cannot_reset_the_retry_budget()
             .stop_attempts,
         1
     );
-    for (turn, event, kind) in [
+    for (index, (turn, event, kind)) in [
         ("continuation-1", "failed-save", EventKind::ToolFailure),
         ("continuation-2", "recheck", EventKind::Verification),
-    ] {
+        ("continuation-3", "investigation", EventKind::Investigation),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         scope.turn_id = turn.into();
         store
             .checkpoint(Request::Open {
@@ -62,7 +66,7 @@ async fn tool_events_during_stop_continuations_cannot_reset_the_retry_budget()
             assert_eq!(reply.decision, Decision::Block);
         } else {
             assert_eq!(reply.decision, Decision::CaptureIncomplete);
-            assert_eq!(reply.capture_incomplete_event_ids.len(), 3);
+            assert_eq!(reply.capture_incomplete_event_ids.len(), index + 2);
         }
     }
     Ok(())

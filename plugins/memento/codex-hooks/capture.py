@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import selectors
 import shlex
 import subprocess
@@ -26,6 +27,9 @@ SUPPORTED_EVENTS = {
 SELF_COMMANDS = {"memento", "memento.exe", "memento.py", "capture.py"}
 WRITE_COMMANDS = {"mkdir", "rmdir", "rm", "mv", "cp", "touch", "tee", "install", "truncate"}
 GIT_WRITES = {"add", "restore", "reset", "checkout", "switch", "cherry-pick", "revert", "merge", "rebase", "apply", "clean", "stash"}
+SHELL_TOOLS = {"Bash", "exec_command"}
+FILE_TOOLS = {"Read", "Grep", "Glob"}
+WRITE_TOOLS = {"apply_patch", "Edit", "Write"}
 
 
 class CaptureError(Exception):
@@ -186,6 +190,30 @@ def is_self(words):
     return first.startswith("python") and len(words) > 1 and Path(words[1]).name in SELF_COMMANDS
 
 
+def is_self_command(payload):
+    """A direct CLI invocation may receive literal JSON through a quoted heredoc."""
+    tool_input = payload.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return False
+    command = tool_input.get("command", tool_input.get("cmd", ""))
+    if not isinstance(command, str) or len(command) > 16 * 1024:
+        return False
+    lines = command.strip().splitlines()
+    if not lines or any(syntax in lines[0] for syntax in ("$(", "`", "<(", ">(")):
+        return False
+    header = {"tool_input": {"command": lines[0]}}
+    words = command_words(header)
+    if not is_self(words):
+        return False
+    if len(lines) == 1:
+        return True
+    if "#" in lines[0]:
+        return False  # Do not infer a heredoc operator from a commented/quoted header.
+    heredoc = re.search(r"\s<<\s*(['\"])([A-Za-z_][A-Za-z0-9_]*)\1\s*$", lines[0])
+    return (heredoc is not None and words.count("<<") == 1 and words[-2:] == ["<<", heredoc[2]]
+            and lines[-1] == heredoc[2] and heredoc[2] not in lines[1:-1])
+
+
 def git_subcommand(words):
     if not words or Path(words[0]).name != "git":
         return None
@@ -225,7 +253,7 @@ def commit_repository_matches(payload, words, repository):
 
 
 def is_write(payload, words):
-    if payload.get("tool_name") in {"apply_patch", "Edit", "Write"}:
+    if payload.get("tool_name") in WRITE_TOOLS:
         return True
     if not words:
         return False
@@ -234,6 +262,54 @@ def is_write(payload, words):
         return True
     # Recognizable output redirection is a write; shell syntax is not interpreted.
     return any(word in {">", ">>", "1>", "1>>"} for word in words)
+
+
+def supported_tool(payload):
+    name = payload.get("tool_name")
+    return isinstance(name, str) and (
+        name in SHELL_TOOLS | FILE_TOOLS | WRITE_TOOLS or name.startswith("mcp__")
+    )
+
+
+def bootstrap_read(payload, words, root):
+    """Permit only reading this installed plugin's capture instructions."""
+    name = payload.get("tool_name", "")
+    tool_input = payload.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return False
+    paths = []
+    if name == "Read" or (name.startswith("mcp__") and name.rsplit("__", 1)[-1] in {"read_file", "read_text_file"}):
+        path = tool_input.get("file_path", tool_input.get("path"))
+        if isinstance(path, str):
+            paths = [path]
+    elif name in SHELL_TOOLS and words:
+        command = tool_input.get("command", tool_input.get("cmd", ""))
+        if not isinstance(command, str) or "\n" in command.strip():
+            return False
+        executable = Path(words[0]).name
+        arguments = words[1:]
+        if executable == "cat":
+            options = {"--", "-n", "-b", "-s", "-A", "-E", "-T", "-v",
+                       "--number", "--number-nonblank", "--squeeze-blank"}
+            paths = [word for word in arguments if word not in options]
+        elif executable == "sed" and len(arguments) >= 3 and arguments[0] == "-n" and re.fullmatch(r"\d+(?:,\d+)?p", arguments[1]):
+            paths = arguments[2:]
+            if paths[:1] == ["--"]:
+                paths = paths[1:]
+    if not paths:
+        return False
+    instructions = root / "skills/memento/SKILL.md"
+    setup = root / "skills/setup-memento/SKILL.md"
+    references = (root / "skills/memento/references").resolve()
+    for path in paths:
+        if path == "-" or any(character in path for character in "$`\n"):
+            return False
+        selected = (Path(payload["cwd"]) / path).resolve()
+        if selected not in {instructions.resolve(), setup.resolve()} and not (
+            selected.is_relative_to(references) and selected.suffix == ".md"
+        ):
+            return False
+    return True
 
 
 def is_verification(words):
@@ -273,11 +349,13 @@ def failed(response):
 def detail(payload, response=None):
     tool_input = payload.get("tool_input", {})
     command = tool_input.get("command", tool_input.get("cmd", "")) if isinstance(tool_input, dict) else ""
-    header = f"Observed tool {payload.get('tool_name', '')}: {command}"[:512]
+    observed_input = command if command else json.dumps(tool_input, ensure_ascii=False, separators=(",", ":"))
+    header = f"Observed tool {payload.get('tool_name', '')}: {observed_input}"
     suffix = json.dumps(response, ensure_ascii=False, separators=(",", ":")) if response is not None else ""
-    rendered = header + "\n" + suffix
-    if len(rendered) > DETAIL_LIMIT:
-        return rendered[:DETAIL_LIMIT - 64] + "\n[capture detail truncated; not the complete tool output]"
+    rendered = header[:512] + "\n" + suffix
+    if len(header) > 512 or len(rendered) > DETAIL_LIMIT:
+        marker = "\n[capture detail truncated; not the complete tool input/output]"
+        return rendered[:DETAIL_LIMIT - len(marker)] + marker
     return rendered
 
 
@@ -335,8 +413,8 @@ class Dispatcher:
             values = reply.get(name)
             if not isinstance(values, list) or len(values) > 8 or any(not isinstance(value, str) for value in values):
                 raise CaptureError("checkpoint did not return bounded checkpoint identifiers")
-        if not isinstance(reply.get("pending_user_prompt"), bool):
-            raise CaptureError("checkpoint status did not identify pending user requests")
+        if not isinstance(reply.get("pending_user_prompt"), bool) or not isinstance(reply.get("pending_investigation"), bool):
+            raise CaptureError("checkpoint status did not identify pending requests and investigations")
         return reply
 
     def open(self, kind, text):
@@ -365,12 +443,17 @@ class Dispatcher:
             "Read atomic-claims.md when capturing. Save accessible source text/output as evidence and "
             "independently changeable semantic items as claims with exact origin references in one record batch. "
             "Keep each claim's conditions, negation and scope together; attach supporting output separately. "
-            "Before the first change, record the request and constraints. For corrections, change only the "
+            "Before the first investigation or change, record the request and constraints. Before the next "
+            "tool operation, resolve pending investigation results: save new findings and changed decisions, "
+            "or use no_new_context with a reason when there is no meaningful new context. "
+            "For corrections, change only the "
             "affected claim; separate proposals from actual approvals, failed executions and untested scope. "
             "Compare saved claims with the accessible source for missing constraints, rejected alternatives "
             "and verification limits. Do not treat self-reported coverage as completeness. "
             "Resolve each checkpoint with its exact persisted record/source/revision/sequence and durable receipt. "
-            "Use no_new_context only when no meaningful new context exists; report capture_incomplete on failure."
+            "Use no_new_context only when no meaningful new context exists; report capture_incomplete on failure. "
+            "While a tool gate is pending, invoke the Memento launcher directly with --input - and JSON on stdin "
+            "to inspect, record and resolve; do not prepare input through an unrelated tool or compound command."
         )
         return text.encode()[:6000].decode(errors="ignore")
 
@@ -379,7 +462,9 @@ class Dispatcher:
             reply = self.call(operation)
         except (CaptureError, OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as error:
             return self.denied(event, f"memento capture_incomplete: cannot verify this checkpoint: {str(error)[:256]}")
-        blocked = reply["decision"] != "allow" if operation == "check_commit" else reply["pending_user_prompt"]
+        blocked = reply["decision"] != "allow" if operation == "check_commit" else (
+            reply["pending_user_prompt"] or reply["pending_investigation"]
+        )
         return self.denied(event, self.context(reply)) if blocked else {}
 
     @staticmethod
@@ -397,7 +482,7 @@ class Dispatcher:
                 "Prepare the runtime first with scripts/install_runtime.py --ensure; "
                 "hooks never build or download a runtime. "
                 f"Read {self.root / 'skills/memento/SKILL.md'} and use "
-                f"python3 {shlex.quote(str(self.root / 'hooks/capture.py'))} configure "
+                f"python3 {shlex.quote(str(self.root / 'codex-hooks/capture.py'))} configure "
                 f"--data-dir {shlex.quote(str(self.data))} "
                 "--repository ABS --store ABS --project-id ID --work-id ID. Hook trust must be reviewed in Codex.")
         if not self.select():
@@ -411,8 +496,12 @@ class Dispatcher:
             reply = self.call("status") if prompt.startswith(CONTINUATION_PREFIX) else self.open("user_prompt", prompt)
             return self.additional(event, self.context(reply))
         if event in {"PreToolUse", "PostToolUse"}:
+            if not supported_tool(self.payload):
+                return {}
             words = command_words(self.payload)
-            if is_self(command_words(self.payload, allow_compound=True)):
+            if self.payload.get("tool_name") in SHELL_TOOLS and is_self_command(self.payload):
+                return {}
+            if bootstrap_read(self.payload, words, self.root):
                 return {}
             git_command = git_subcommand(words)
             if event == "PreToolUse":
@@ -422,11 +511,10 @@ class Dispatcher:
                             "index context. Run a direct commit in the configured worktree; Git environment, "
                             "configuration and repository overrides need the actual Git checkpoint gate.")
                     return self.gate("check_commit", event)
-                elif is_write(self.payload, words):
-                    return self.gate("status", event)
-                return {}
+                return self.gate("status", event)
             response = response_value(self.payload)
-            if isinstance(response, dict) and response.get("session_id") and response.get("exit_code") is None:
+            if (self.payload.get("tool_name") in SHELL_TOOLS and isinstance(response, dict)
+                    and response.get("session_id") and response.get("exit_code") is None):
                 return {}  # Still-running unified exec, not an observed completion.
             if failed(response):
                 kind = "tool_failure"
@@ -435,7 +523,7 @@ class Dispatcher:
             elif is_write(self.payload, words):
                 kind = "mutation"
             else:
-                return {}
+                kind = "investigation"
             reply = self.open(kind, detail(self.payload, response))
             return self.additional(event, self.context(reply))
         if event == "Stop":

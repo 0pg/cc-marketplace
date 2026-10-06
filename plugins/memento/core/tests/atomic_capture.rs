@@ -269,6 +269,249 @@ async fn user_prompt_can_explicitly_report_no_new_context() -> TestResult {
 }
 
 #[tokio::test]
+async fn investigation_requires_a_finding_or_decision_with_exact_event_evidence() -> TestResult {
+    let mut scene = Scenario::new(RedactionPolicy::default()).await?;
+    let event = scene
+        .open(
+            "logs",
+            EventKind::Investigation,
+            "DBDUP replaces the incoming msgid with the existing msgid and processing continues.",
+        )
+        .await?;
+    let status = scene
+        .store
+        .checkpoint(Request::Status {
+            scope: scene.scope.clone(),
+        })
+        .await?;
+    assert!(status.pending_investigation);
+    assert!(!status.pending_user_prompt);
+    let origin = event
+        .origin
+        .as_ref()
+        .ok_or("missing investigation origin")?;
+    assert!(scene.resolve(&event, vec![origin.clone()]).await.is_err());
+    let unrelated = claim(
+        &scene.scope,
+        &event,
+        "request-kind",
+        RecordKind::Request,
+        "Investigate duplicate processing.",
+    )?;
+    let saved = scene.write(unrelated).await?;
+    assert!(scene.resolve(&event, vec![saved]).await.is_err());
+
+    for (id, kind) in [
+        ("finding", RecordKind::Finding),
+        ("decision", RecordKind::Decision),
+    ] {
+        let current = if id == "finding" {
+            event.clone()
+        } else {
+            scene
+                .open("next-log", EventKind::Investigation, &event.detail)
+                .await?
+        };
+        let record = claim(
+            &scene.scope,
+            &current,
+            id,
+            kind,
+            "DBDUP uses the existing msgid and continues processing.",
+        )?;
+        let saved = scene.write(record).await?;
+        let reply = scene.resolve(&current, vec![saved]).await?;
+        assert!(!reply.pending_investigation);
+        assert_eq!(reply.decision, Decision::Allow);
+    }
+    let observed = scene.store.load().await?;
+    assert!(observed.entries.iter().any(|entry| matches!(
+        &entry.entity,
+        Entity::Record(record)
+            if record.id == origin.record_id
+                && record.representation == Representation::Evidence
+                && record.actor.as_ref().is_some_and(|actor| actor.kind == ActorKind::Tool)
+    )));
+    Ok(())
+}
+
+#[tokio::test]
+async fn investigation_without_new_context_requires_a_nonempty_reason() -> TestResult {
+    let mut scene = Scenario::new(RedactionPolicy::default()).await?;
+    let event = scene
+        .open(
+            "status-read",
+            EventKind::Investigation,
+            "No new log entries.",
+        )
+        .await?;
+    for reason in ["", " "] {
+        assert!(
+            scene
+                .store
+                .checkpoint(Request::Resolve {
+                    scope: scene.scope.clone(),
+                    event_id: event.event_id.clone(),
+                    resolution: Resolution::NoNewContext {
+                        reason: reason.into()
+                    },
+                })
+                .await
+                .is_err()
+        );
+    }
+    let reply = scene
+        .store
+        .checkpoint(Request::Resolve {
+            scope: scene.scope.clone(),
+            event_id: event.event_id,
+            resolution: Resolution::NoNewContext {
+                reason: "The status check returned no new findings or decisions.".into(),
+            },
+        })
+        .await?;
+    assert_eq!(reply.decision, Decision::Allow);
+    assert!(!reply.pending_investigation);
+    Ok(())
+}
+
+#[tokio::test]
+async fn investigation_after_the_id_sample_still_blocks_the_next_step() -> TestResult {
+    let mut scene = Scenario::new(RedactionPolicy::default()).await?;
+    for index in 0..9 {
+        scene
+            .open(
+                &format!("change-{index}"),
+                EventKind::Mutation,
+                "Changed a file.",
+            )
+            .await?;
+    }
+    scene
+        .open(
+            "logs",
+            EventKind::Investigation,
+            "New evidence in the logs.",
+        )
+        .await?;
+    let reply = scene
+        .store
+        .checkpoint(Request::Status {
+            scope: scene.scope.clone(),
+        })
+        .await?
+        .summarize();
+    assert!(reply.pending_investigation);
+    assert!(!reply.pending_user_prompt);
+    assert!(!reply.pending_event_ids.iter().any(|id| id == "logs"));
+    assert_eq!(reply.omitted_pending_event_ids, 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn changed_dbdup_decision_and_unfinished_review_survive_interruption_and_reopen() -> TestResult
+{
+    let mut scene = Scenario::new(RedactionPolicy::default()).await?;
+    let first = scene
+        .open(
+            "initial-logs",
+            EventKind::Investigation,
+            "DBDUP was reported as a processing stop.",
+        )
+        .await?;
+    let mut before = claim(
+        &scene.scope,
+        &first,
+        "dbdup-stop",
+        RecordKind::Decision,
+        "DBDUP이면 처리가 중단되는 것으로 처음 판단했다.",
+    )?;
+    before.nature = Nature::Inferred;
+    before.decision_status = Some(DecisionStatus::Accepted);
+    let before_ref = scene.write(before.clone()).await?;
+    scene.resolve(&first, vec![before_ref]).await?;
+
+    let later = scene.open(
+        "replacement-logs", EventKind::Investigation,
+        "On DBDUP the incoming msgid is replaced with the existing msgid; processing continues.",
+    ).await?;
+    let mut after = claim(
+        &scene.scope,
+        &later,
+        "dbdup-continue",
+        RecordKind::Decision,
+        "DBDUP이면 기존 msgid로 치환하여 처리를 계속한다.",
+    )?;
+    after.nature = Nature::Inferred;
+    after.decision_status = Some(DecisionStatus::Accepted);
+    let saved = scene.write(after.clone()).await?;
+    scene
+        .store
+        .append(Entity::Relation(Relation {
+            id: "dbdup-correction".into(),
+            project_id: scene.scope.project_id.clone(),
+            source_id: "journal".into(),
+            from: Target::Record {
+                id: after.id.clone(),
+            },
+            to: Target::Record {
+                id: before.id.clone(),
+            },
+            kind: RelationKind::Supersedes,
+            nature: Nature::Reported,
+            evidence: after.evidence.clone(),
+            applies_to: vec!["DBDUP processing behavior".into()],
+        }))
+        .await?;
+    scene.resolve(&later, vec![saved]).await?;
+    scene
+        .open(
+            "unreviewed-log",
+            EventKind::Investigation,
+            "Another log was read but not reviewed.",
+        )
+        .await?;
+    scene
+        .open(
+            "interruption",
+            EventKind::Interrupt,
+            "User interrupted the investigation.",
+        )
+        .await?;
+
+    let database = scene._directory.path().join("context.sqlite");
+    drop(scene.store);
+    let mut store = Store::open(&database, RedactionPolicy::default()).await?;
+    let mut resumed = scene.scope.clone();
+    resumed.turn_id = "resumed-turn".into();
+    let status = store.checkpoint(Request::Status { scope: resumed }).await?;
+    assert!(status.pending_investigation);
+    assert_eq!(status.pending_event_ids, ["unreviewed-log", "interruption"]);
+    let corpus = store.load().await?;
+    for decision in [&before, &after] {
+        let mut query = Query::new(Operation::Read, &scene.scope.project_id);
+        query.scope.work_ids = vec![scene.scope.work_id.clone()];
+        query.scope.session_ids = vec![scene.scope.session_id.clone()];
+        query.target = Some(Target::Record {
+            id: decision.id.clone(),
+        });
+        let reply = memento::query::execute(&corpus, &query)?;
+        assert!(reply.items.iter().any(|item| matches!(
+            &item.entity, Entity::Record(record)
+                if record.body == decision.body && record.evidence == decision.evidence
+        )));
+    }
+    assert!(corpus.entries.iter().any(|entry| matches!(
+        &entry.entity, Entity::Relation(relation)
+            if relation.kind == RelationKind::Supersedes
+                && relation.from == (Target::Record { id: after.id.clone() })
+                && relation.to == (Target::Record { id: before.id.clone() })
+                && relation.applies_to == ["DBDUP processing behavior"]
+    )));
+    Ok(())
+}
+
+#[tokio::test]
 async fn native_observation_supports_separate_atomic_constraints_and_exact_receipts() -> TestResult
 {
     let mut scene = Scenario::new(RedactionPolicy::default()).await?;

@@ -89,6 +89,7 @@ store.write_text(json.dumps(state))
 reply = {"scope": scope, "events": [] if request["_summary"] else events,
          "pending_event_ids": [event["event_id"] for event in pending][:8] if request["_summary"] else [event["event_id"] for event in pending],
          "pending_user_prompt": any(event["kind"] == "user_prompt" for event in pending),
+         "pending_investigation": any(event["kind"] == "investigation" for event in pending),
          "capture_incomplete_event_ids": [event["event_id"] for event in incomplete][:8] if request["_summary"] else [event["event_id"] for event in incomplete],
          "omitted_pending_event_ids": max(len(pending) - 8, 0),
          "omitted_capture_incomplete_event_ids": max(len(incomplete) - 8, 0),
@@ -172,7 +173,7 @@ class CodexHooks(unittest.TestCase):
         portable = json.loads((self.plugin / "plugin.json").read_text())
         self.assertNotIn("hooks", claude)
         self.assertEqual(legacy["hooks"], "./codex-hooks/hooks.json")
-        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.0"})
+        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.1"})
 
     def test_template_is_synchronous_and_contains_all_required_events(self):
         manifest = json.loads((self.plugin / "plugin.json").read_text())
@@ -180,6 +181,8 @@ class CodexHooks(unittest.TestCase):
         config = json.loads((self.plugin / "codex-hooks/hooks.json").read_text())
         self.assertEqual(set(config["hooks"]), {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
                                                "Stop", "PreCompact", "Interrupt", "SessionEnd"})
+        for event in ["PreToolUse", "PostToolUse"]:
+            self.assertEqual(config["hooks"][event][0]["matcher"], "*")
         for groups in config["hooks"].values():
             for group in groups:
                 for hook in group["hooks"]:
@@ -220,6 +223,7 @@ class CodexHooks(unittest.TestCase):
         (self.data / "capture-config.json").unlink()
         result = self.run_hook("SessionStart")
         self.assertIn(str(self.data / "capture-config.json"), result["hookSpecificOutput"]["additionalContext"])
+        self.assertIn(str(self.plugin / "codex-hooks/capture.py"), result["hookSpecificOutput"]["additionalContext"])
         self.assertEqual(self.run_hook("UserPromptSubmit", prompt="unconfigured"), {})
         self.assertFalse(self.store.exists())
 
@@ -237,6 +241,61 @@ class CodexHooks(unittest.TestCase):
         self.assertEqual(self.tool("PreToolUse", name="apply_patch"), {})
         self.run_hook("UserPromptSubmit", prompt="Correction: do not import raw transcripts.", turn_id="correction")
         self.assertEqual(self.tool("PreToolUse", "touch source.rs")["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_request_is_required_before_shell_file_and_mcp_investigation(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate duplicate message handling.")
+        for name, tool_input in [
+            ("Bash", {"command": "rg DBDUP src"}),
+            ("exec_command", {"cmd": "rg DBDUP src"}),
+            ("Read", {"file_path": str(self.repository / "src.rs")}),
+            ("Grep", {"pattern": "DBDUP"}),
+            ("Glob", {"pattern": "**/*.rs"}),
+            ("mcp__logs__search", {"transaction_id": "transaction-1"}),
+        ]:
+            with self.subTest(tool=name):
+                result = self.run_hook("PreToolUse", tool_name=name, tool_input=tool_input)
+                reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+                self.assertIn("--input -", reason)
+        self.resolve_all()
+        self.assertEqual(self.tool("PreToolUse", "rg DBDUP src"), {})
+
+    def test_skill_reads_are_allowed_without_resolving_or_creating_checkpoints(self):
+        references = self.plugin / "skills/memento/references"
+        references.mkdir(exist_ok=True)
+        reference = references / "atomic-claims.md"
+        reference.write_text("# Capture instructions\n")
+        skill = self.plugin / "skills/memento/SKILL.md"
+        setup = self.plugin / "skills/setup-memento/SKILL.md"
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        calls = len(self.state()["calls"])
+        for name, tool_input in [
+            ("Bash", {"command": f"cat '{skill}'"}),
+            ("Bash", {"command": f"sed -n '1,200p' '{reference}'"}),
+            ("Read", {"file_path": str(setup)}),
+            ("mcp__filesystem__read_file", {"path": str(reference)}),
+        ]:
+            for event in ["PreToolUse", "PostToolUse"]:
+                with self.subTest(tool=name, event=event):
+                    self.assertEqual(self.run_hook(event, tool_name=name, tool_input=tool_input,
+                                                  tool_response={"content": "instructions"}), {})
+        self.assertEqual(len(self.state()["calls"]), calls)
+        self.assertIsNone(self.state()["events"][0]["resolution"])
+
+    def test_bootstrap_does_not_allow_writes_unrelated_reads_or_compound_commands(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        skill = self.plugin / "skills/memento/SKILL.md"
+        for name, tool_input in [
+            ("Write", {"file_path": str(skill), "content": "new text"}),
+            ("Read", {"file_path": str(self.repository / "SKILL.md")}),
+            ("Bash", {"command": f"cat '{skill}'; rg DBDUP src"}),
+            ("Bash", {"command": f"cat '{skill}'\n'{skill}'"}),
+            ("Bash", {"command": f"cat '{skill}' src.rs"}),
+            ("Bash", {"command": f"sed -n '1p; e rg DBDUP src' '{skill}'"}),
+        ]:
+            with self.subTest(tool=name, input=tool_input):
+                result = self.run_hook("PreToolUse", tool_name=name, tool_input=tool_input)
+                self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_same_active_turn_correction_is_new_but_repeat_delivery_is_idempotent(self):
         self.run_hook("UserPromptSubmit", prompt="First request")
@@ -278,13 +337,80 @@ class CodexHooks(unittest.TestCase):
         self.tool("PostToolUse", "python3 -m unittest", response={"exit_code": 0}, tool_id="unittest")
         self.assertEqual([event["kind"] for event in self.state()["events"]], ["verification", "verification"])
 
-    def test_reads_status_and_memento_operations_do_not_create_recursive_records(self):
-        for command in ["ls", "git status", "cat file.rs", "memento record --input -", "memento query",
-                        "python3 /tmp/memento.py checkpoint --input -", "memento query; git status",
-                        "python3 /tmp/capture.py; echo ok"]:
+    def test_memento_operations_do_not_create_recursive_records(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        calls = len(self.state()["calls"])
+        for command in ["memento record --input -", "memento query",
+                        "python3 /tmp/memento.py checkpoint --input -",
+                        "memento record --input - <<'JSON'\n{\"body\":\"a finding; $(literal) `literal`\"}\nJSON"]:
             self.assertEqual(self.tool("PostToolUse", command, response={"exit_code": 0}), {})
             self.assertEqual(self.tool("PreToolUse", command), {})
-        self.assertFalse(self.store.exists())
+        self.assertEqual(len(self.state()["calls"]), calls)
+
+    def test_completed_reads_require_review_before_next_supported_tool(self):
+        for name, tool_input in [
+            ("Bash", {"command": "ls"}),
+            ("Bash", {"command": "git status"}),
+            ("Bash", {"command": "cat file.rs"}),
+            ("Bash", {"command": "rg DBDUP src; rg msgid src"}),
+            ("Read", {"file_path": "file.rs"}),
+            ("Grep", {"pattern": "DBDUP"}),
+            ("Glob", {"pattern": "**/*.rs"}),
+            ("mcp__logs__search", {"transaction_id": "transaction-1"}),
+        ]:
+            with self.subTest(tool=name, input=tool_input):
+                self.resolve_all()
+                result = self.run_hook("PostToolUse", tool_name=name, tool_input=tool_input,
+                                       tool_use_id=f"result-{len(self.state()['events'])}",
+                                       tool_response={"exit_code": 0, "output": "observed result"})
+                self.assertIn("additionalContext", result["hookSpecificOutput"])
+                self.assertEqual(self.state()["events"][-1]["kind"], "investigation")
+                self.assertEqual(self.tool("PreToolUse", name="apply_patch")[
+                    "hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("transaction-1", self.state()["events"][-1]["detail"])
+
+    def test_no_new_context_review_releases_next_investigation(self):
+        self.tool("PostToolUse", "git status", response={"exit_code": 0, "output": "clean"})
+        self.assertEqual(self.tool("PreToolUse", "rg DBDUP src")["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.resolve_all("no_new_context")
+        self.assertEqual(self.tool("PreToolUse", "rg DBDUP src"), {})
+
+    def test_mcp_result_session_metadata_does_not_mean_running_shell(self):
+        self.run_hook("PostToolUse", tool_name="mcp__logs__search", tool_input={"transaction_id": "transaction-1"},
+                      tool_use_id="logs", tool_response={"session_id": "server-session", "content": "DBDUP observed"})
+        self.assertEqual(self.state()["events"][-1]["kind"], "investigation")
+        self.assertEqual(self.tool("PreToolUse", "cat src.rs")["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_investigation_outside_bounded_id_sample_still_blocks(self):
+        for index in range(9):
+            self.tool("PostToolUse", "touch file.rs", response={"exit_code": 0}, tool_id=f"mutation-{index}")
+        self.tool("PostToolUse", "rg DBDUP src", response={"exit_code": 0}, tool_id="investigation")
+        result = self.tool("PreToolUse", "cat src.rs")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("Additional pending IDs omitted: 2", result["hookSpecificOutput"]["permissionDecisionReason"])
+
+    def test_compound_self_prefix_does_not_bypass_capture(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        for command in ["memento query; rg DBDUP src", "python3 /tmp/capture.py; echo ok",
+                        "memento query && git status", "memento query\nrg DBDUP src",
+                        "memento query $(rg DBDUP src)", "memento query <(rg DBDUP src)",
+                        "memento query '<<' 'JSON' # <<'JSON'\nrg DBDUP src\nJSON",
+                        "memento query # <<'JSON'\nrg DBDUP src\nJSON",
+                        "memento query <<EXPAND <<'JSON'\n$(rg DBDUP src)\nJSON",
+                        "memento record --input - <<'JSON'\n{}\nJSON\nrg DBDUP src",
+                        "memento record --input - <<'JSON'\n{}\nJSON\nrg DBDUP src\nJSON"]:
+            with self.subTest(command=command):
+                self.assertEqual(self.tool("PreToolUse", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+                self.tool("PostToolUse", command, response={"exit_code": 0}, tool_id=command)
+                self.assertEqual(self.state()["events"][-1]["kind"], "investigation")
+
+    def test_unknown_administrative_tools_do_not_check_or_open_events(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        calls = len(self.state()["calls"])
+        for name in ["update_plan", "request_user_input", "unknown_tool"]:
+            for event in ["PreToolUse", "PostToolUse"]:
+                self.assertEqual(self.run_hook(event, tool_name=name, tool_input={}, tool_response={"ok": True}), {})
+        self.assertEqual(len(self.state()["calls"]), calls)
 
     def test_own_cli_failure_also_does_not_open_recursive_checkpoint(self):
         self.assertEqual(self.tool("PostToolUse", "memento checkpoint --input -", response={"exit_code": 1}), {})
@@ -292,6 +418,7 @@ class CodexHooks(unittest.TestCase):
 
     def test_running_exec_is_not_completion_and_native_retry_is_idempotent(self):
         self.assertEqual(self.tool("PostToolUse", "cargo test", response={"session_id": 23, "exit_code": None}), {})
+        self.assertEqual(self.tool("PostToolUse", "rg DBDUP src", response={"session_id": 24, "exit_code": None}), {})
         self.assertFalse(self.store.exists())
         for _ in range(2):
             self.tool("PostToolUse", "cargo test", response={"exit_code": 0})
@@ -354,7 +481,10 @@ class CodexHooks(unittest.TestCase):
 
     def test_compound_shell_is_outside_prefix_gate_coverage(self):
         self.assertEqual(self.tool("PreToolUse", "git status;git commit -m x"), {})
-        self.assertFalse(self.store.exists())
+        self.assertEqual(self.state()["calls"][-1]["operation"], "status")
+        self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
+        self.assertEqual(self.tool("PreToolUse", "git status;git commit -m x")[
+            "hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_projects_and_sessions_are_isolated_even_with_matching_work_ids(self):
         other = self.make_repository("registered project two")
@@ -385,6 +515,16 @@ class CodexHooks(unittest.TestCase):
         self.assertLessEqual(len(saved), 2048)
         self.assertIn("truncated", saved)
         self.assertEqual(sorted(path.name for path in self.data.iterdir()), ["capture-config.json"])
+
+    def test_long_mcp_input_discloses_truncation_even_with_short_output(self):
+        self.run_hook("PostToolUse", tool_name="mcp__logs__search", tool_use_id="long-filter",
+                      tool_input={"filter": "x" * 1000, "transaction_id": "omitted-transaction"},
+                      tool_response={"content": "short output"})
+        saved = self.state()["events"][0]["detail"]
+        self.assertIn("[capture detail truncated;", saved)
+        self.assertIn("short output", saved)
+        self.assertNotIn("omitted-transaction", saved)
+        self.assertLessEqual(len(saved), 2048)
 
     def test_long_prompt_tail_affects_identity_and_truncation_is_disclosed(self):
         prefix = "long request " * 1000
@@ -510,7 +650,6 @@ class RealCodexHooks(unittest.TestCase):
         resolved = self.checkpoint("resolve", event_id=event_id, resolution={"kind": "records", "records": references})
         self.assertTrue(resolved["durable"])
 
-
     def test_real_request_receipt_verification_limits_and_stop_continuation(self):
         self.hook("UserPromptSubmit", prompt="Reduce upload failures without slowing normal requests.")
         edit = {"tool_name": "apply_patch", "tool_input": {}, "tool_use_id": "first edit"}
@@ -538,7 +677,6 @@ class RealCodexHooks(unittest.TestCase):
         ])
         self.assertEqual(self.hook("Stop", turn_id="continuation"), {})
 
-
     def test_real_same_active_turn_correction_and_exact_retry(self):
         self.hook("UserPromptSubmit", prompt="First requirement")
         self.hook("UserPromptSubmit", prompt="Correction in the same turn")
@@ -548,6 +686,59 @@ class RealCodexHooks(unittest.TestCase):
         self.assertEqual(len(status["pending_event_ids"]), 2)
         self.assertEqual(self.hook("PreToolUse", tool_name="apply_patch", tool_input={})[
             "hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_real_investigation_decision_change_is_saved_before_interruption(self):
+        self.hook("UserPromptSubmit", prompt="Investigate how DBDUP affects message processing.")
+        search = {"tool_name": "mcp__logs__search", "tool_input": {"transaction_id": "transaction-1"}}
+        self.assertEqual(self.hook("PreToolUse", **search)["hookSpecificOutput"]["permissionDecision"], "deny")
+        request = self.checkpoint("status")["events"][0]
+        self.save_and_resolve(request["event_id"], "incident-request", "request",
+                              "Investigate how DBDUP affects message processing.")
+        first = {**search, "tool_use_id": "initial-logs", "tool_response": {"content": "DBDUP was reported."}}
+        self.assertEqual(self.hook("PreToolUse", **search), {})
+        self.hook("PostToolUse", **first)
+        self.assertEqual(self.hook("PreToolUse", **search)["hookSpecificOutput"]["permissionDecision"], "deny")
+        initial = self.checkpoint("status")["events"][-1]
+        self.assertEqual(initial["kind"], "investigation")
+        self.save_and_resolve(initial["event_id"], "initial-decision", "decision",
+                              "The initial interpretation was that DBDUP stops message processing.")
+        second = {**search, "tool_use_id": "follow-up-logs", "tool_response": {
+            "content": "The duplicate message is replaced with the existing msgid and processing continues."}}
+        self.assertEqual(self.hook("PreToolUse", **search), {})
+        self.hook("PostToolUse", **second)
+        revised = self.checkpoint("status")["events"][-1]
+        self.assertEqual(self.hook("PreToolUse", tool_name="Read", tool_input={"file_path": "src.rs"})[
+            "hookSpecificOutput"]["permissionDecision"], "deny")
+        self.save_and_resolve(revised["event_id"], "revised-decision", "decision",
+                              "The initial DBDUP-stop interpretation is corrected: replace it with the existing msgid and continue processing.")
+        self.assertFalse(self.checkpoint("status")["pending_investigation"])
+        self.hook("Interrupt")
+        status = self.checkpoint("status")
+        self.assertEqual(status["events"][-1]["kind"], "interrupt")
+        for record_id, expected in [
+            ("initial-decision", "The initial interpretation was that DBDUP stops message processing."),
+            ("revised-decision", "The initial DBDUP-stop interpretation is corrected: replace it with the existing msgid and continue processing."),
+        ]:
+            saved = self.cli("query", "--input", "-", data={
+                "operation": "read", "scope": {"project_id": "project", "work_ids": ["work"], "session_ids": ["session"]},
+                "target": {"kind": "record", "id": record_id},
+            })["items"][0]["entity"]["data"]
+            self.assertEqual(saved["body"], expected)
+
+    def test_real_no_new_context_allows_status_request_and_uninformative_read(self):
+        self.hook("UserPromptSubmit", prompt="What is the recording status?")
+        request = self.checkpoint("status")["events"][0]
+        self.checkpoint("resolve", event_id=request["event_id"], resolution={
+            "kind": "no_new_context", "reason": "This is only a status question without new work context."})
+        read = {"tool_name": "Bash", "tool_input": {"command": "git status"}, "tool_use_id": "status"}
+        self.assertEqual(self.hook("PreToolUse", **read), {})
+        self.hook("PostToolUse", **read, tool_response={"exit_code": 0, "output": "working tree clean"})
+        investigation = self.checkpoint("status")["events"][-1]
+        self.assertTrue(self.checkpoint("status")["pending_investigation"])
+        self.checkpoint("resolve", event_id=investigation["event_id"], resolution={
+            "kind": "no_new_context", "reason": "The working tree has no changes and no new investigation finding."})
+        self.assertFalse(self.checkpoint("status")["pending_investigation"])
+        self.assertEqual(self.hook("Stop"), {})
 
     def test_real_custom_policy_masks_checkpoint_detail_before_persistence(self):
         policy = self.directory / "policy.json"
@@ -564,6 +755,21 @@ class RealCodexHooks(unittest.TestCase):
         self.assertNotIn("fixture-private-literal", status["events"][0]["detail"])
         self.assertIn("[REDACTED]", status["events"][0]["detail"])
 
+    def test_real_truncated_mcp_input_is_partial_source_evidence(self):
+        self.hook("PostToolUse", tool_name="mcp__logs__search", tool_use_id="long-filter",
+                  tool_input={"filter": "x" * 1000, "transaction_id": "omitted-transaction"},
+                  tool_response={"content": "short output"})
+        event = self.checkpoint("status")["events"][0]
+        origin = event["origin"]
+        saved = self.cli("query", "--input", "-", data={
+            "operation": "read", "scope": {"project_id": "project", "source_ids": [origin["source_id"]]},
+            "target": {"kind": "artifact", "record_id": origin["record_id"], "revision": origin["revision"]},
+        })["items"][0]["entity"]["data"]
+        self.assertTrue(saved["partial"])
+        self.assertEqual(saved["fidelity"], "source_truncated")
+        self.assertIn("[capture detail truncated;", saved["body"])
+        self.assertTrue(self.checkpoint("status")["pending_investigation"])
+
     def test_real_missing_prepared_and_stale_commit_are_explicit_native_decisions(self):
         status = self.checkpoint("check_commit")
         self.assertTrue(status["durable"])
@@ -578,7 +784,6 @@ class RealCodexHooks(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repository), "add", "changed.rs"], check=True)
         self.assertEqual(self.checkpoint("check_commit")["decision"], "block")
         self.assertEqual(self.hook("PreToolUse", **commit)["hookSpecificOutput"]["permissionDecision"], "deny")
-
 
 
 if __name__ == "__main__":

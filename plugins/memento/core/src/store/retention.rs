@@ -105,6 +105,7 @@ pub(super) async fn checkpoint(
             kind: match kind {
                 capture::EventKind::UserPrompt => ActorKind::Human,
                 capture::EventKind::ToolFailure
+                | capture::EventKind::Investigation
                 | capture::EventKind::Verification
                 | capture::EventKind::Mutation => ActorKind::Tool,
                 _ => ActorKind::Agent,
