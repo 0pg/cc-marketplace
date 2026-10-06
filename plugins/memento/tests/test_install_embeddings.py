@@ -38,8 +38,8 @@ class EmbeddingInstallationTests(unittest.TestCase):
         self.binary = self.root / "test cli"
         version = {"platform": {"os": {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}.get(platform.system()),
                                 "arch": {"arm64": "aarch64", "AMD64": "x86_64"}.get(platform.machine(), platform.machine())},
-                   "package_version": "0.2.0", "build_identity": "test-verified-build", "protocol_version": 1,
-                   "store_format": {"current": 1, "read": {"min": 1, "max": 1}, "write": {"min": 1, "max": 1}},
+                   "package_version": "0.3.0", "build_identity": "test-verified-build", "protocol_version": 1,
+                   "store_format": {"current": 2, "read": {"min": 0, "max": 2}, "write": {"min": 2, "max": 2}},
                    "capabilities": ["checkpoint"]}
         self.binary.write_text(f"#!{sys.executable}\nimport json,sys\nprint(json.dumps({version!r} if sys.argv[1:2] == ['version'] else {{'valid':True}}))\n", encoding="utf-8")
         self.binary.chmod(0o755)

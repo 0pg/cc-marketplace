@@ -147,6 +147,10 @@ pub(super) fn select(
             let mut rows: Vec<_> = view
                 .records()
                 .filter(|r| filters::record(view, r, query))
+                .filter(|r| {
+                    query.operation != Operation::Brief
+                        || r.representation != Representation::Evidence
+                })
                 .filter(|r| brief_target(r, query.target.as_ref()))
                 .filter_map(|r| matched(view.item(&Entity::Record(r.clone())), query))
                 .collect();
@@ -167,7 +171,10 @@ pub(super) fn select(
                     let mut tracing_response = view.response(&tracing);
                     rows = trace(view, &tracing, &mut tracing_response)?
                         .into_iter()
-                        .filter(|item| matches!(item.entity, Entity::Record(_)))
+                        .filter(|item| {
+                            matches!(&item.entity, Entity::Record(record)
+                                if record.representation != Representation::Evidence)
+                        })
                         .collect();
                     response.omitted.extend(tracing_response.omitted);
                 }
@@ -812,6 +819,8 @@ pub(super) fn brief(view: &View<'_>, query: &Query, items: &[QueryItem]) -> Brie
                     locator: format!("work:{}", work.id),
                     availability: Availability::Available,
                     range: None,
+                    purpose: EvidencePurpose::Unspecified,
+                    span: None,
                 }]
             } else {
                 work.evidence.clone()
@@ -834,12 +843,17 @@ pub(super) fn brief(view: &View<'_>, query: &Query, items: &[QueryItem]) -> Brie
                         "last reported work status: {:?}; observed {:?}",
                         work.status, work.observed_at
                     )],
+                    representation: Representation::Legacy,
+                    context_id: None,
                 });
             continue;
         }
         let Entity::Record(record) = &item.entity else {
             continue;
         };
+        if record.representation == Representation::Evidence {
+            continue;
+        }
         ids.insert(record.id.clone());
         let mut warnings = item.warnings.clone();
         let mut applies_to = record.applies_to.clone();
@@ -894,6 +908,8 @@ pub(super) fn brief(view: &View<'_>, query: &Query, items: &[QueryItem]) -> Brie
             evidence: record.evidence.clone(),
             applies_to,
             warnings,
+            representation: record.representation,
+            context_id: record.context_id.clone(),
         };
         sections
             .entry((priority(record.kind), name.into()))

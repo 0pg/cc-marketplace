@@ -28,7 +28,7 @@ Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trus
 
 ### Version and selected-store compatibility
 
-The current release separates plugin version `0.5.0`, Rust core version `0.2.0`, CLI protocol `1`, runtime configuration format `1`, and store format `1`. Inspect them independently:
+The current release separates plugin version `0.6.0`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
 
 ```sh
 memento version
@@ -36,7 +36,7 @@ memento store-status --store /absolute/context.sqlite
 memento migrate --store /absolute/context.sqlite
 ```
 
-The plugin launcher treats `store-status` as passive too: it requires an available compatible executable but does not prepare software. `version` returns build identity, OS/architecture, capabilities and store read/write ranges without opening a DB. `store-status` neither creates a missing store nor marks a legacy one; it returns `missing`, `migration_required` (known unmarked format `0`) or `compatible`. Invalid schema/payload and future versions return compatibility errors instead of a success status. `migrate` only operates on the selected existing DB. Normal commands also mark a known legacy store when opening it; other stores are not scanned.
+The plugin launcher treats `store-status` as passive too: it requires an available compatible executable but does not prepare software. `version` returns build identity, OS/architecture, capabilities and store read/write ranges without opening a DB. `store-status` neither creates a missing store nor marks a legacy one; it returns `missing`, `migration_required` (known formats `0` and `1`) or `compatible`. Invalid schema/payload and future versions return compatibility errors instead of a success status. `migrate` only operates on the selected existing DB. Normal commands also upgrade a known legacy store when opening it; other stores are not scanned.
 
 Check a supplied semantic configuration without opening a store or running its worker/model:
 
@@ -46,9 +46,9 @@ memento semantic-config-check --semantic-config /absolute/semantic-config.json
 
 This passive command uses the Rust configuration schema to reject unknown fields, invalid types/ranges and an empty command, returning `{"valid": true}` only for a valid configuration. It requires an available compatible executable. Runtime preparation calls the checker through the candidate executable before activating a configured artifact; local inference is a separate check.
 
-The initial migration adds `store_format: {version, db_identity, migration_epoch}` to the existing reserved metadata row in one SQLite transaction. Existing entity rows, IDs, revisions, sequences, timestamps, evidence, compaction and capture state are preserved; the `0.3.0` release's absent capture field becomes an empty default. It does not export/reinsert records, change the SQL schema, compact history or increase a policy limit. If header growth exceeds the configured limit, the migration fails. SQLite's transaction journal supplies rollback; no external plaintext DB snapshot is retained.
+Migration from format `0` or `1` to `2` changes only the existing reserved metadata row in one SQLite transaction. Format `0` adds `store_format: {version, db_identity, migration_epoch}`; format `1` preserves `db_identity` and increments `migration_epoch`. Existing entity payloads, IDs, revisions, sequences, timestamps, evidence, policy, compaction and capture state are preserved; an absent legacy capture field becomes an empty default. It does not export/reinsert records, change the SQL schema, compact history or increase a policy limit. If metadata growth exceeds the configured limit, the migration fails. SQLite's transaction journal supplies rollback; no external plaintext DB snapshot is retained.
 
-Writers coordinate using the empty `<store>.memento-lock` sidecar and recheck identity/epoch inside each transaction. Already open readers recheck the header as well. Busy, malformed, fenced or future stores fail without being replaced. The actual `0.3.0` and `0.4.0` executables reject the new metadata field, so an old executable cannot write the marked store through those tested CLI paths. This is not a promise about arbitrary older binaries or direct SQL access.
+Writers coordinate using the empty `<store>.memento-lock` sidecar and recheck identity/epoch inside each transaction. Already open readers recheck the header as well. Busy, malformed, fenced or future stores fail without being replaced. The tested format `1` executable rejects the upgraded format `2` store, including writes from a handle opened before upgrade. The current plugin also rejects a format `1` executable during its runtime handshake before activation or selected-store access. These checks do not cover arbitrary older binaries or direct SQL access.
 
 Runtime preparation does not restore DB snapshots. A failed update preserves the previous active runtime and returns an error; it does not execute the original command with an unchecked older binary. Switching a runtime cannot remove records written after a migration. The compatibility gate must succeed before any chosen executable accesses the selected DB.
 
@@ -135,11 +135,39 @@ For optional local semantic search, see [model setup, query, and lifecycle](sema
 
 ## Full records and links
 
-`record --input FILE` accepts an Entity or array, encoded `{"entity":"record","data":{...}}`. Entity kinds: source/work/session/record/relation/code_state/commit. Prefer `note` for content, then use the returned/queryable record revision in links.
+`record --input FILE` accepts an Entity or array, encoded `{"entity":"record","data":{...}}`. Entity kinds: source/work/session/record/relation/code_state/commit. For new atomic capture, use a `record` batch for source evidence and its claims when the retained projection is known. `note` remains available for individual records; use actual returned/queryable revisions in links.
 
-Record fields beyond the minimal note: `title`, `occurred_at`, `source_order`, `actor`, `work_ids`, `association` (`explicit/candidate/unassigned`), `session_id`, `worktree_id`, `paths`, `code_refs`, `commit_shas`, `evidence`, `decision_status`, `attempt_outcome`, `verification_outcome`, `attempt_id`, `execution`, `applies_to`, `alternatives`, `derived`, `partial`, `fidelity`, `availability`. A revision may be supplied from the original source. `code_refs` carry `state_id/path/range`; evidence carries `source_id/record_id/revision/locator/availability/range`.
+Record fields beyond the minimal note: `title`, `occurred_at`, `source_order`, `actor`, `work_ids`, `association` (`explicit/candidate/unassigned`), `session_id`, `worktree_id`, `paths`, `code_refs`, `commit_shas`, `evidence`, `decision_status`, `attempt_outcome`, `verification_outcome`, `attempt_id`, `execution`, `applies_to`, `alternatives`, `derived`, `partial`, `fidelity`, `availability`, `representation`, `context_id`. A revision may be supplied from the original source. `code_refs` carry `state_id/path/range`; evidence carries `source_id/record_id/revision/locator/availability/range`, optional `purpose` (`unspecified/origin/support`) and optional `span` (`start/end` UTF-8 byte offsets, end exclusive).
+
+### Atomic source and claim batch
+
+New capture separates source `representation: evidence` from semantic `representation: claim`. `legacy` is the default for existing records, not a way to certify new compound bodies. A claim is derived and needs an exact available `origin` into evidence or legacy source text in the same project. An origin cannot target another claim; `support` may reference earlier claims. A normalized claim uses `fidelity: summary_only`; a literal atomic excerpt can use `original`. Read [atomic capture](atomic-claims.md) before splitting conditions, corrections or verification scope.
+
+After initializing the selected journal/work/session, `record --input FILE` accepts this batch. The context ID below is illustrative; for a pending checkpoint use the event's actual returned `context_id` and frozen origin instead of inventing them.
+
+```json
+[
+  {"entity":"record","data":{"id":"U1","project_id":"demo","source_id":"journal","revision":"v1","kind":"status","nature":"reported","fidelity":"original","availability":"available","title":"Public user request","body":"Retry at most 3 times.\nDo not change token refresh.","actor":{"kind":"human","name":"user"},"work_ids":["W1"],"association":"explicit","session_id":"S1","representation":"evidence","context_id":"capture-transition-1"}},
+  {"entity":"record","data":{"id":"C1","project_id":"demo","source_id":"journal","revision":"v1","kind":"constraint","nature":"reported","fidelity":"summary_only","availability":"available","title":"Retry bound","body":"Requests may be retried at most three times.","work_ids":["W1"],"association":"explicit","session_id":"S1","applies_to":["retry-limit"],"derived":true,"representation":"claim","context_id":"capture-transition-1","evidence":[{"source_id":"journal","record_id":"U1","revision":"v1","locator":"message:U1","availability":"available","purpose":"origin","span":{"start":0,"end":21}}]}},
+  {"entity":"record","data":{"id":"C2","project_id":"demo","source_id":"journal","revision":"v1","kind":"constraint","nature":"reported","fidelity":"summary_only","availability":"available","title":"Token refresh scope","body":"Token refresh must remain unchanged.","work_ids":["W1"],"association":"explicit","session_id":"S1","applies_to":["token-refresh"],"derived":true,"representation":"claim","context_id":"capture-transition-1","evidence":[{"source_id":"journal","record_id":"U1","revision":"v1","locator":"message:U1","availability":"available","purpose":"origin","span":{"start":22,"end":50}}]}}
+]
+```
+
+Measure spans against the saved body with `len(text.encode("utf-8"))`, not character counts. Every claim origin/support needs `span` or a one-based inclusive line `range`; whole-source references use the full retained range. When redaction can change the body, save/read the evidence first and measure the exact sanitized revision before admitting claims. Inspect durable receipts and read the exact saved revisions. Structural acceptance does not prove that all clauses were captured or that an inferred relationship is correct. Several claims may share one origin; changing one does not invalidate the others.
 
 Record kinds: request/constraint/finding/decision/attempt/tool_result/change/verification/feedback/status/git_event. Nature: observed/reported/inferred. Fidelity: original/summary_only/source_truncated. Availability: available/redacted/missing/deleted/unsupported. Decision status: proposed/accepted/superseded/rejected/unknown. Attempt: succeeded/failed/abandoned/running/unknown. Verification: passed/failed/running/skipped/unknown.
+
+### Typed execution metadata
+
+An execution is an object, not a copy of arbitrary native metadata. The typed `execution` object is normalized metadata, not the retained native original; keep exact public field evidence or exact field spans in a faithfully retained original container when a claim depends on those fields, as described in [atomic capture](atomic-claims.md). `environment` is an object with `os`, `toolchain`, `profile` and `dependencies`; preserve a native environment label such as `local-debug` in `environment.profile`. A supplied `code_state` label maps to `before_state` or `after_state` according to when that state was observed. Do not add an unsupported `code_state` field or infer that a later state was verified. If state-observation timing is unknown, leave `before_state` and `after_state` unset and disclose the timing gap. Preserve the supplied label through faithfully retained source evidence with accurate provenance; do not add it to the original message body, invent a state observation, or repurpose an unrelated execution field to hold it.
+
+This illustrative `execution` object shows all fields for a public command result whose source explicitly supplies its execution ID, command, completion, exit code, environment label and state observed at completion:
+
+```json
+{"id":"run-1","command":"cargo test parser","tool_name":null,"tool_input":null,"cwd":null,"started_at":null,"ended_at":null,"exit_code":0,"last_observed_state":"completed","observed_at":null,"liveness":"unknown","before_state":null,"after_state":"state-observed-1","scope":["parser tests"],"environment":{"os":null,"toolchain":null,"profile":"local-debug","dependencies":[]}}
+```
+
+Only `id`, `command` and `last_observed_state` are nonoptional strings. Do not invent an ID or command to fill this object; if either is unavailable, omit `execution`, preserve the supplied output and disclose the metadata gap. Preserve native execution IDs separately across retries. `tool_name` and `tool_input` are optional strings; serialize an accessible structured native input to a JSON string rather than supplying an object. `scope` and `dependencies` are string arrays. Optional fields use null or omission when the source does not supply them. Do not invent cwd, timestamps, toolchain, dependencies or current liveness; `liveness` is `running/stopped/unknown`, with `unknown` for historical results unless current liveness was actually observed. A missing completion/result uses `last_observed_state: "unknown"` and `exit_code: null`. Metadata preserves the observed execution scope; a separate verification claim still needs its own supported result and limitations.
 
 A relation example (replace revisions with actual receipts/query evidence):
 

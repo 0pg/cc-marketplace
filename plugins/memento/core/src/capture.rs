@@ -109,6 +109,28 @@ pub struct Event {
     pub commit_binding: Option<IndexBinding>,
     #[serde(default)]
     pub commit_shas: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<RecordRef>,
+}
+
+pub(crate) const OBSERVATION_SOURCE: &str = "memento-checkpoints";
+
+pub(crate) fn context_id(scope: &Scope, event_id: &str) -> String {
+    let parts = [
+        &scope.project_id,
+        &scope.repository,
+        &scope.work_id,
+        &scope.session_id,
+        &scope.turn_id,
+        event_id,
+    ];
+    let key = parts
+        .iter()
+        .map(|part| format!("{}:{part}", part.len()))
+        .collect::<String>();
+    format!("checkpoint:{}", crate::security::hash(key.as_bytes()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -300,7 +322,7 @@ fn record_refs_valid(
                 Availability::Available | Availability::Redacted
             )
             || record.body.trim().is_empty()
-            || !source.is_some_and(|s| s.authorized)
+            || !source.is_some_and(|s| s.authorized && (event.context_id.is_none() || s.available))
             || record.association != Association::Explicit
             || !record.work_ids.contains(&scope.work_id)
             || record.session_id.as_deref() != Some(scope.session_id.as_str())
@@ -309,6 +331,37 @@ fn record_refs_valid(
                 "checkpoint reference is unavailable, unauthorized or outside its scope".into(),
             ));
         }
+        if let Some(context) = &event.context_id {
+            if record.representation == Representation::Claim {
+                crate::store::claims::validate_record(record, entries)
+                    .map_err(|error| Error::Invalid(error.to_string()))?;
+                if record.context_id.as_ref() != Some(context) || record.partial {
+                    return Err(Error::Invalid(
+                        "checkpoint claim has another context or incomplete evidence".into(),
+                    ));
+                }
+                let origin = event
+                    .origin
+                    .as_ref()
+                    .ok_or_else(|| Error::Invalid("checkpoint observation is absent".into()))?;
+                if !record.evidence.iter().any(|evidence| {
+                    evidence.source_id == origin.source_id
+                        && evidence.record_id.as_ref() == Some(&origin.record_id)
+                        && evidence.revision == origin.revision
+                        && matches!(
+                            evidence.availability,
+                            Availability::Available | Availability::Redacted
+                        )
+                }) {
+                    return Err(Error::Invalid(
+                        "checkpoint claim must reference this event's exact observation".into(),
+                    ));
+                }
+                semantic |= event_kind_accepts(event.kind, record);
+            }
+            continue;
+        }
+        // Persisted format-1 resolutions retain their original contract.
         semantic |= matches!(
             record.kind,
             RecordKind::Request
@@ -327,7 +380,86 @@ fn record_refs_valid(
     Ok(())
 }
 
+fn event_kind_accepts(event: EventKind, record: &Record) -> bool {
+    match event {
+        EventKind::UserPrompt => matches!(
+            record.kind,
+            RecordKind::Request
+                | RecordKind::Constraint
+                | RecordKind::Feedback
+                | RecordKind::Decision
+                | RecordKind::Finding
+        ),
+        EventKind::ToolFailure => {
+            record.kind == RecordKind::Finding
+                || (record.kind == RecordKind::Attempt
+                    && record.attempt_outcome == Some(AttemptOutcome::Failed))
+                || (record.kind == RecordKind::Verification
+                    && record.verification_outcome == Some(VerificationOutcome::Failed))
+        }
+        EventKind::Verification => {
+            record.kind == RecordKind::Verification && record.verification_outcome.is_some()
+        }
+        EventKind::Mutation => record.kind == RecordKind::Change,
+        EventKind::Commit => matches!(record.kind, RecordKind::Decision | RecordKind::Change),
+        EventKind::Handoff | EventKind::Interrupt | EventKind::Compaction => matches!(
+            record.kind,
+            RecordKind::Request
+                | RecordKind::Constraint
+                | RecordKind::Finding
+                | RecordKind::Decision
+                | RecordKind::Attempt
+                | RecordKind::Change
+                | RecordKind::Verification
+                | RecordKind::Feedback
+        ),
+    }
+}
+
+fn no_new_context_allowed(event: &Event) -> bool {
+    event.kind != EventKind::Commit
+        && (event.context_id.is_none()
+            || !matches!(
+                event.kind,
+                EventKind::ToolFailure | EventKind::Verification | EventKind::Mutation
+            ))
+}
+
 impl State {
+    pub(crate) fn scrub(
+        &mut self,
+        project: &str,
+        revoked_source: Option<&str>,
+        erased: &BTreeSet<(String, String)>,
+    ) -> bool {
+        let mut changed = false;
+        for session in &mut self.sessions {
+            if session.scope.project_id != project {
+                continue;
+            }
+            for event in &mut session.events {
+                let removed = |reference: &RecordRef| {
+                    revoked_source == Some(reference.source_id.as_str())
+                        || erased
+                            .contains(&(reference.source_id.clone(), reference.record_id.clone()))
+                };
+                let affected = event.origin.as_ref().is_some_and(removed)
+                    || match &event.resolution {
+                        Resolution::Records { records } => records.iter().any(removed),
+                        _ => false,
+                    };
+                if affected {
+                    event.detail = "Checkpoint evidence removed or access revoked".into();
+                    event.resolution = Resolution::CaptureIncomplete {
+                        reason: "Checkpoint evidence removed or access revoked".into(),
+                    };
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
     pub(crate) fn pinned(&self) -> BTreeSet<u64> {
         self.sessions
             .iter()
@@ -336,6 +468,7 @@ impl State {
                 Resolution::Records { records } => {
                     records.iter().map(|r| r.sequence).collect::<Vec<_>>()
                 }
+                Resolution::Pending => e.origin.iter().map(|r| r.sequence).collect(),
                 _ => Vec::new(),
             })
             .collect()
@@ -464,9 +597,10 @@ impl State {
                         record_refs_valid(&scope, event, records, entries)?
                     }
                     Resolution::NoNewContext { reason } => {
-                        if event.kind == EventKind::Commit {
+                        if !no_new_context_allowed(event) {
                             return Err(Error::Invalid(
-                                "commit checkpoints require context records".into(),
+                                "this checkpoint requires context records or an explicit capture gap"
+                                    .into(),
                             )
                             .into());
                         }
@@ -478,11 +612,12 @@ impl State {
                         *reason = policy.redact(reason)?;
                     }
                 }
-                if !matches!(
-                    event.resolution,
-                    Resolution::Pending | Resolution::CaptureIncomplete { .. }
-                ) && event.resolution != resolution
-                {
+                let repairable = match &event.resolution {
+                    Resolution::Pending | Resolution::CaptureIncomplete { .. } => true,
+                    Resolution::NoNewContext { .. } => !no_new_context_allowed(event),
+                    Resolution::Records { .. } => false,
+                };
+                if !repairable && event.resolution != resolution {
                     return Err(Error::Invalid("a resolved event cannot be replaced".into()).into());
                 }
                 event.resolution = resolution;
@@ -560,6 +695,29 @@ impl State {
                 return Err(Error::Capacity);
             }
         }
+        let context_id = context_id(scope, &event_id);
+        let origin = snapshot
+            .entries
+            .iter()
+            .filter_map(|entry| match &entry.entity {
+                Entity::Record(record)
+                    if record.project_id == scope.project_id
+                        && record.source_id == OBSERVATION_SOURCE
+                        && record.id == context_id
+                        && record.context_id.as_ref() == Some(&context_id)
+                        && record.body == detail
+                        && record.representation == Representation::Evidence =>
+                {
+                    Some(RecordRef {
+                        source_id: record.source_id.clone(),
+                        record_id: record.id.clone(),
+                        revision: record.revision.clone(),
+                        sequence: entry.sequence,
+                    })
+                }
+                _ => None,
+            })
+            .max_by_key(|reference| reference.sequence);
         session.events.push(Event {
             event_id,
             original_turn_id: scope.turn_id.clone(),
@@ -570,6 +728,8 @@ impl State {
             resolution: Resolution::Pending,
             commit_binding: binding,
             commit_shas: Vec::new(),
+            context_id: Some(context_id),
+            origin,
         });
         if kind == EventKind::UserPrompt {
             session.stop_attempts = 0;
@@ -580,7 +740,7 @@ impl State {
 
     fn settled(scope: &Scope, event: &Event, entries: &[Entry]) -> bool {
         let resolved = match &event.resolution {
-            Resolution::NoNewContext { .. } => true,
+            Resolution::NoNewContext { .. } => no_new_context_allowed(event),
             Resolution::Records { records } => {
                 record_refs_valid(scope, event, records, entries).is_ok()
             }
@@ -602,6 +762,9 @@ impl State {
                     pending_user_prompt |= event.kind == EventKind::UserPrompt;
                 }
                 Resolution::CaptureIncomplete { .. } => incomplete.push(event.event_id.clone()),
+                Resolution::NoNewContext { .. } if !no_new_context_allowed(event) => {
+                    incomplete.push(event.event_id.clone())
+                }
                 Resolution::Records { records }
                     if record_refs_valid(scope, event, records, entries).is_err() =>
                 {
@@ -705,6 +868,182 @@ impl State {
                 return Err(Error::Capacity);
             }
             event.commit_shas.push(sha.into());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn fixture(scope: &Scope, kind: EventKind, context_id: Option<String>) -> State {
+        State {
+            sessions: vec![Session {
+                scope: scope.clone(),
+                events: vec![Event {
+                    event_id: "observed-event".into(),
+                    original_turn_id: scope.turn_id.clone(),
+                    kind,
+                    detail: "관측한 작업 사건".into(),
+                    opened_after_sequence: 0,
+                    opened_order: 1,
+                    resolution: Resolution::Pending,
+                    commit_binding: None,
+                    commit_shas: Vec::new(),
+                    context_id,
+                    origin: None,
+                }],
+                stop_attempts: 0,
+                closed: true,
+            }],
+            next_order: 1,
+        }
+    }
+
+    fn scope(directory: &tempfile::TempDir) -> Result<Scope, Error> {
+        Scope {
+            project_id: "upload-app".into(),
+            repository: directory.path().to_string_lossy().into_owned(),
+            work_id: "upload-429".into(),
+            session_id: "codex-session".into(),
+            turn_id: "turn-1".into(),
+        }
+        .canonical()
+    }
+
+    #[test]
+    fn legacy_no_new_context_contract_is_preserved() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let scope = scope(&directory)?;
+        for kind in [
+            EventKind::ToolFailure,
+            EventKind::Verification,
+            EventKind::Mutation,
+        ] {
+            let mut state = fixture(&scope, kind, None);
+            let reply = state.apply(
+                Request::Resolve {
+                    scope: scope.clone(),
+                    event_id: "observed-event".into(),
+                    resolution: Resolution::NoNewContext {
+                        reason: "구형 체크포인트의 기존 해소 상태".into(),
+                    },
+                },
+                &[],
+                &RedactionPolicy::default(),
+            )?;
+            assert_eq!(reply.decision, Decision::Allow);
+            let event = reply.events.first().ok_or("missing legacy event")?;
+            assert!(State::settled(&scope, event, &[]));
+            assert!(event.context_id.is_none());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_record_resolution_keeps_its_source_availability_contract() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let scope = scope(&directory)?;
+        let mut state = fixture(&scope, EventKind::ToolFailure, None);
+        let mut source = crate::ingest::source("journal", &scope.project_id, SourceKind::Journal);
+        source.available = false;
+        let mut record = Record::new(
+            "failure",
+            &scope.project_id,
+            "journal",
+            RecordKind::Attempt,
+            "업로드가 HTTP 429로 실패했다.",
+        );
+        record.association = Association::Explicit;
+        record.work_ids = vec![scope.work_id.clone()];
+        record.session_id = Some(scope.session_id.clone());
+        let reference = RecordRef {
+            source_id: record.source_id.clone(),
+            record_id: record.id.clone(),
+            revision: record.revision.clone(),
+            sequence: 2,
+        };
+        let entries = vec![
+            Entry {
+                sequence: 1,
+                captured_at: "2026-10-04T00:00:00Z".into(),
+                entity: Entity::Source(source),
+            },
+            Entry {
+                sequence: 2,
+                captured_at: "2026-10-04T00:00:01Z".into(),
+                entity: Entity::Record(record),
+            },
+        ];
+        let reply = state.apply(
+            Request::Resolve {
+                scope: scope.clone(),
+                event_id: "observed-event".into(),
+                resolution: Resolution::Records {
+                    records: vec![reference],
+                },
+            },
+            &entries,
+            &RedactionPolicy::default(),
+        )?;
+        assert_eq!(reply.decision, Decision::Allow);
+        assert!(State::settled(
+            &scope,
+            reply.events.first().ok_or("missing legacy event")?,
+            &entries,
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn persisted_native_no_new_context_is_incomplete_unsettled_and_repairable() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let scope = scope(&directory)?;
+        for kind in [
+            EventKind::ToolFailure,
+            EventKind::Verification,
+            EventKind::Mutation,
+        ] {
+            let mut state = fixture(&scope, kind, Some("native-context".into()));
+            state
+                .sessions
+                .first_mut()
+                .and_then(|session| session.events.first_mut())
+                .ok_or("missing native event")?
+                .resolution = Resolution::NoNewContext {
+                reason: "수정 전 구현이 허용한 해소 상태".into(),
+            };
+            let status = state.reply(&scope, &[]);
+            assert_eq!(status.decision, Decision::CaptureIncomplete);
+            assert_eq!(status.capture_incomplete_event_ids, vec!["observed-event"]);
+            assert!(!State::settled(
+                &scope,
+                status.events.first().ok_or("missing native event")?,
+                &[],
+            ));
+            let repaired = state.apply(
+                Request::Resolve {
+                    scope: scope.clone(),
+                    event_id: "observed-event".into(),
+                    resolution: Resolution::CaptureIncomplete {
+                        reason: "의미 레코드가 누락되어 추가 캡처가 필요하다.".into(),
+                    },
+                },
+                &[],
+                &RedactionPolicy::default(),
+            )?;
+            assert_eq!(repaired.decision, Decision::CaptureIncomplete);
+            assert!(matches!(
+                repaired
+                    .events
+                    .first()
+                    .ok_or("missing repaired event")?
+                    .resolution,
+                Resolution::CaptureIncomplete { .. }
+            ));
         }
         Ok(())
     }

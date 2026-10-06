@@ -22,7 +22,7 @@ Retained rows keep their precise source/record/revision evidence, latest same-en
 
 Earlier revisions of a retained record also stay when they contain evidence links to another record or source. These historical links propagate a later original deletion or source revocation even if the latest revision cites different evidence. Pure self-references do not force every old revision to stay.
 
-Old unreferenced tool output, progress/status, successful attempts, findings and unnecessary revisions can therefore disappear. Put a finding's actual importance into the typed model and evidence links. Do not relabel every log as a durable decision merely to bypass collection. Important failed output must be captured and linked; the collector cannot reconstruct a never-recorded cause.
+Old unreferenced tool output, progress/status, successful attempts, findings and unnecessary revisions can therefore disappear. Choose a derived claim's kind from its proposition, not from the source record's kind. Before handoff, check that important reusable context has a truthful durable root or an actual retention dependency path from one; `finding`/`change`, work membership, `context_id` and `related_to` alone do not provide that path. Preserve an independently meaningful decision, constraint or verification boundary only when the source supports it; do not invent kinds or links solely to retain a log. Important failed output must be captured and linked; the collector cannot reconstruct a never-recorded cause.
 
 ## Limits and automatic behavior
 

@@ -21,6 +21,7 @@ import time
 
 FORMAT_VERSION = 1
 PROTOCOL_VERSION = 1
+STORE_FORMAT_VERSION = 2
 
 
 class RuntimeError(Exception):
@@ -117,10 +118,13 @@ def handshake(executable):
     store = value.get("store_format", {})
     if not isinstance(capabilities, list) or "checkpoint" not in capabilities or not isinstance(store, dict):
         raise RuntimeError("The executable does not provide the required checkpoint capability.")
+    if type(store.get("current")) is not int or store["current"] != STORE_FORMAT_VERSION:
+        raise RuntimeError("The executable has an incompatible current store format.")
     for access in ("read", "write"):
         bounds = store.get(access, {})
         if (not isinstance(bounds, dict) or type(bounds.get("min")) is not int
-                or type(bounds.get("max")) is not int or not bounds["min"] <= 1 <= bounds["max"]):
+                or type(bounds.get("max")) is not int
+                or not bounds["min"] <= STORE_FORMAT_VERSION <= bounds["max"]):
             raise RuntimeError("The executable does not support the current store format.")
     reported = value.get("platform")
     allowed_os = {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}.get(platform.system(), platform.system().lower())

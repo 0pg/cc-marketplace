@@ -26,6 +26,35 @@ vocabulary!(Nature {
     Reported,
     Inferred
 });
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum Representation {
+    #[default]
+    Legacy,
+    Evidence,
+    Claim,
+}
+
+impl Representation {
+    pub(crate) fn is_legacy(&self) -> bool {
+        *self == Self::Legacy
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidencePurpose {
+    #[default]
+    Unspecified,
+    Origin,
+    Support,
+}
+
+impl EvidencePurpose {
+    fn is_unspecified(&self) -> bool {
+        *self == Self::Unspecified
+    }
+}
 vocabulary!(Availability {
     Available,
     Redacted,
@@ -223,6 +252,18 @@ pub struct Evidence {
     pub locator: String,
     pub availability: Availability,
     pub range: Option<TextRange>,
+    #[serde(default, skip_serializing_if = "EvidencePurpose::is_unspecified")]
+    pub purpose: EvidencePurpose,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<ByteSpan>,
+}
+
+/// Zero-based, half-open UTF-8 byte range in the retained evidence body.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ByteSpan {
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -316,6 +357,10 @@ pub struct Record {
     pub derived: bool,
     #[serde(default)]
     pub partial: bool,
+    #[serde(default, skip_serializing_if = "Representation::is_legacy")]
+    pub representation: Representation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
 }
 
 impl Record {
@@ -351,6 +396,8 @@ impl Record {
             alternatives: Vec::new(),
             derived: false,
             partial: false,
+            representation: Representation::Legacy,
+            context_id: None,
         }
     }
 }
@@ -606,6 +653,10 @@ pub struct Scope {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Filters {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub representations: Vec<Representation>,
     #[serde(default)]
     pub record_kinds: Vec<RecordKind>,
     #[serde(default)]

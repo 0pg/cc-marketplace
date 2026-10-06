@@ -155,6 +155,8 @@ pub async fn hook(
                     locator: format!("git-hook:{}", mapping.command),
                     availability: Availability::Available,
                     range: None,
+                    purpose: crate::model::EvidencePurpose::Unspecified,
+                    span: None,
                 };
                 let link = Relation {
                     id: format!("derived:{}:{}", mapping.new_sha, mapping.old_sha),
@@ -439,6 +441,8 @@ pub async fn capture_run(store: &mut Store, request: RunRequest<'_>) -> Result<V
                     locator: format!("execution:{}", request.execution),
                     availability: Availability::Available,
                     range: None,
+                    purpose: crate::model::EvidencePurpose::Unspecified,
+                    span: None,
                 }],
                 applies_to: Vec::new(),
             }))
@@ -475,6 +479,8 @@ async fn link_observation(
                 locator: format!("observation:{phase}:{}", state.id),
                 availability: Availability::Available,
                 range: None,
+                purpose: crate::model::EvidencePurpose::Unspecified,
+                span: None,
             }],
             applies_to: vec![file.path.clone()],
         })

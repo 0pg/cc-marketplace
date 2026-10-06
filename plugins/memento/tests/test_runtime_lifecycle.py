@@ -24,7 +24,7 @@ class RuntimeLifecycleTests(unittest.TestCase):
         shutil.copytree(PLUGIN / "skills/memento", self.plugin / "skills/memento", ignore=shutil.ignore_patterns("__pycache__", "bin"))
         shutil.copytree(PLUGIN / "core/scripts", self.plugin / "core/scripts")
         (self.plugin / "core/src").mkdir()
-        (self.plugin / "core/Cargo.toml").write_text('[package]\nname="memento"\nversion="0.2.0"\n')
+        (self.plugin / "core/Cargo.toml").write_text('[package]\nname="memento"\nversion="0.3.0"\n')
         (self.plugin / "core/Cargo.lock").write_text("lock fixture\n")
         (self.plugin / "core/src/main.rs").write_text("initial source\n")
         self.home = self.root / "stable runtime"
@@ -45,8 +45,8 @@ class RuntimeLifecycleTests(unittest.TestCase):
             "if os.environ.get('FAKE_BUILD_FAIL'): raise SystemExit(17)\n"
             "output=pathlib.Path(os.environ['CARGO_TARGET_DIR'])/'release/memento'\n"
             "output.parent.mkdir(parents=True,exist_ok=True)\n"
-            "version={'platform':{'os':{'Darwin':'macos','Linux':'linux','Windows':'windows'}.get(platform.system()),'arch':{'arm64':'aarch64','AMD64':'x86_64'}.get(platform.machine(),platform.machine())},'package_version':'0.2.0','build_identity':os.environ['MEMENTO_BUILD_ID'],'protocol_version':1,"
-            "'store_format':{'current':1,'read':{'min':1,'max':1},'write':{'min':1,'max':1}},'capabilities':['checkpoint']}\n"
+            "version={'platform':{'os':{'Darwin':'macos','Linux':'linux','Windows':'windows'}.get(platform.system()),'arch':{'arm64':'aarch64','AMD64':'x86_64'}.get(platform.machine(),platform.machine())},'package_version':'0.3.0','build_identity':os.environ['MEMENTO_BUILD_ID'],'protocol_version':1,"
+            "'store_format':{'current':2,'read':{'min':0,'max':2},'write':{'min':2,'max':2}},'capabilities':['checkpoint']}\n"
             f"program='#!{sys.executable}\\nimport json,sys\\nversion='+repr(version)+'\\nprint(json.dumps(version if sys.argv[1:2]==[\"version\"] else ({{\"valid\":True}} if sys.argv[1:2]==[\"semantic-config-check\"] else {{\"executed\":sys.argv[1:2]}})))\\n'\n"
             "output.write_text(program); output.chmod(0o755)\n"
             "print(json.dumps({'reason':'compiler-artifact','target':{'name':'memento','kind':['bin']},'executable':str(output)}))\n",

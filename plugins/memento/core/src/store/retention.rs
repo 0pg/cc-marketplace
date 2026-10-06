@@ -46,6 +46,79 @@ pub(super) async fn checkpoint(
     let mut meta = read_metadata(&rows)?;
     let read_only = request.read_only();
     let scope = request.scope().clone().canonical()?;
+    let observation = match &request {
+        capture::Request::Open {
+            event_id,
+            detail,
+            kind,
+            ..
+        } => Some((event_id, detail, *kind)),
+        capture::Request::PrepareCommit {
+            event_id, detail, ..
+        } => Some((event_id, detail, capture::EventKind::Commit)),
+        _ => None,
+    };
+    if let Some((event_id, detail, kind)) = observation {
+        let source = entries(&rows)?
+            .into_iter()
+            .filter_map(|entry| match entry.entity {
+                Entity::Source(source)
+                    if source.project_id == scope.project_id
+                        && source.id == capture::OBSERVATION_SOURCE =>
+                {
+                    Some((entry.sequence, source))
+                }
+                _ => None,
+            })
+            .max_by_key(|(sequence, _)| *sequence)
+            .map(|(_, source)| source);
+        if let Some(source) = source {
+            if !source.authorized || !source.available || source.kind != SourceKind::Codex {
+                return Err(Error::Invalid(
+                    "checkpoint observation source is unavailable or conflicting".into(),
+                ));
+            }
+        } else {
+            let mut source = crate::ingest::source(
+                capture::OBSERVATION_SOURCE,
+                &scope.project_id,
+                SourceKind::Codex,
+            );
+            source.name = "Memento bounded checkpoint observations".into();
+            source.gaps.push("Only explicitly observed checkpoint details are captured; this is not a complete transcript".into());
+            Store::append_one(db, policy, Entity::Source(source)).await?;
+        }
+        let context = capture::context_id(&scope, event_id);
+        let mut record = Record::new(
+            &context,
+            &scope.project_id,
+            capture::OBSERVATION_SOURCE,
+            RecordKind::ToolResult,
+            detail,
+        );
+        record.representation = Representation::Evidence;
+        record.context_id = Some(context);
+        record.association = Association::Explicit;
+        record.work_ids = vec![scope.work_id.clone()];
+        record.session_id = Some(scope.session_id.clone());
+        record.actor = Some(Actor {
+            kind: match kind {
+                capture::EventKind::UserPrompt => ActorKind::Human,
+                capture::EventKind::ToolFailure
+                | capture::EventKind::Verification
+                | capture::EventKind::Mutation => ActorKind::Tool,
+                _ => ActorKind::Agent,
+            },
+            name: None,
+        });
+        record.partial =
+            detail.contains("[prompt truncated;") || detail.contains("[capture detail truncated;");
+        if record.partial {
+            record.fidelity = Fidelity::SourceTruncated;
+        }
+        Store::append_one(db, policy, Entity::Record(record)).await?;
+        rows = StoredEntry::all().exec(&mut *db).await?;
+    }
     let all = entries(&rows)?;
     let mut commit_not_ready = false;
     if matches!(request, capture::Request::CheckCommit { .. }) {

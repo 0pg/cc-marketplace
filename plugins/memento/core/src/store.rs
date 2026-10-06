@@ -13,6 +13,7 @@ use crate::{
     security::{RedactionPolicy, hash},
 };
 
+pub(crate) mod claims;
 mod format;
 mod retention;
 
@@ -203,7 +204,11 @@ impl Store {
         let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
         format::fence(&mut transaction, &self.header).await?;
+        let is_claim = matches!(&entity, Entity::Record(record) if record.representation == Representation::Claim);
         let mut receipt = Self::append_one(&mut transaction, &self.policy, entity).await?;
+        if is_claim {
+            claims::validate_written(&mut transaction, &[receipt.sequence]).await?;
+        }
         let pinned = BTreeSet::from([receipt.sequence]);
         receipt.compaction = retention::enforce(&mut transaction, &pinned).await?;
         transaction.commit().await?;
@@ -376,15 +381,25 @@ impl Store {
         &mut self,
         entities: impl IntoIterator<Item = Entity>,
     ) -> Result<Vec<Receipt>> {
+        let entities = entities.into_iter().collect::<Vec<_>>();
+        claims::validate_projection(&entities, &self.policy)?;
         let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
         format::fence(&mut transaction, &self.header).await?;
         let mut receipts = Vec::new();
         let mut pinned = BTreeSet::new();
+        let mut claim_sequences = Vec::new();
         for entity in entities {
+            let is_claim = matches!(&entity, Entity::Record(record) if record.representation == Representation::Claim);
             let receipt = Self::append_one(&mut transaction, &self.policy, entity).await?;
+            if is_claim {
+                claim_sequences.push(receipt.sequence);
+            }
             pinned.insert(receipt.sequence);
             receipts.push(receipt);
+        }
+        if !claim_sequences.is_empty() {
+            claims::validate_written(&mut transaction, &claim_sequences).await?;
         }
         if let Some(last) = receipts.last_mut() {
             last.compaction = retention::enforce(&mut transaction, &pinned).await?;
@@ -491,6 +506,20 @@ impl Store {
             }
             if before == erased.len() {
                 break;
+            }
+        }
+        for mut row in StoredEntry::all().exec(&mut *db).await? {
+            if retention::is_metadata(&row) {
+                let mut metadata = retention::metadata(&row)?;
+                if metadata
+                    .capture
+                    .scrub(change.project_id(), revoked_source, &erased)
+                {
+                    row.update()
+                        .payload(serde_json::to_string(&metadata)?)
+                        .exec(&mut *db)
+                        .await?;
+                }
             }
         }
         for row in &mut rows {

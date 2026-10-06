@@ -45,6 +45,8 @@ fn evidence(record: &Record) -> Evidence {
             start_line: 1,
             end_line: 1,
         }),
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }
 }
 

@@ -26,9 +26,9 @@ import sys
 import time
 
 if sys.argv[1] == "version":
-    print(json.dumps({"protocol_version": 1, "package_version": "0.2.0",
+    print(json.dumps({"protocol_version": 1, "package_version": "0.3.0",
         "build_identity": "a" * 64, "platform": {"os": {"darwin": "macos", "win32": "windows"}.get(sys.platform, sys.platform), "arch": {"arm64": "aarch64", "AMD64": "x86_64"}.get(__import__("platform").machine(), __import__("platform").machine())},
-        "store_format": {"current": 1, "read": {"min": 1, "max": 1}, "write": {"min": 1, "max": 1}, "legacy": [0]},
+        "store_format": {"current": 2, "read": {"min": 0, "max": 2}, "write": {"min": 2, "max": 2}, "legacy": [0, 1]},
         "capabilities": ["checkpoint", "store-status", "migrate"]}))
     raise SystemExit(0)
 
@@ -172,7 +172,7 @@ class CodexHooks(unittest.TestCase):
         portable = json.loads((self.plugin / "plugin.json").read_text())
         self.assertNotIn("hooks", claude)
         self.assertEqual(legacy["hooks"], "./codex-hooks/hooks.json")
-        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.5.0"})
+        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.0"})
 
     def test_template_is_synchronous_and_contains_all_required_events(self):
         manifest = json.loads((self.plugin / "plugin.json").read_text())
@@ -471,28 +471,55 @@ class RealCodexHooks(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         return json.loads(result.stdout)
 
-    def save_and_resolve(self, event_id, record_id, kind, body):
-        receipt = self.cli("note", "--project", "project", "--work", "work", "--session", "session",
-                           "--input", "-", data={"id": record_id, "kind": kind, "body": body})["receipt"]
-        self.assertTrue(receipt["durable"])
-        read = self.cli("query", "--input", "-", data={
-            "operation": "read", "scope": {"project_id": "project", "work_ids": ["work"], "session_ids": ["session"]},
-            "target": {"kind": "record", "id": record_id},
-        })
-        record = read["items"][0]["entity"]["data"]
-        self.assertEqual(record["body"], body)
-        reference = {"source_id": record["source_id"], "record_id": record["id"],
-                     "revision": record["revision"], "sequence": receipt["sequence"]}
-        resolved = self.checkpoint("resolve", event_id=event_id, resolution={"kind": "records", "records": [reference]})
+    def save_and_resolve(self, event_id, record_id, kind, bodies):
+        event = next(value for value in self.checkpoint("status")["events"] if value["event_id"] == event_id)
+        native = event["origin"]
+        observation = self.cli("query", "--input", "-", data={
+            "operation": "read", "scope": {"project_id": "project", "source_ids": [native["source_id"]]},
+            "target": {"kind": "artifact", "record_id": native["record_id"], "revision": native["revision"]},
+        })["items"][0]["entity"]["data"]
+        self.assertEqual(observation["representation"], "evidence")
+        self.assertEqual(observation["context_id"], event["context_id"])
+        specs = [{"kind": kind, "body": bodies}] if isinstance(bodies, str) else bodies
+        references = []
+        for index, spec in enumerate(specs):
+            identifier = record_id if len(specs) == 1 else f"{record_id}:{index + 1}"
+            note = {"id": identifier, "kind": spec["kind"], "body": spec["body"],
+                    "representation": "claim", "derived": True, "fidelity": "summary_only",
+                    "nature": spec.get("nature", "reported"), "context_id": event["context_id"],
+                    "evidence": [{"source_id": native["source_id"], "record_id": native["record_id"],
+                                  "revision": native["revision"], "locator": f"checkpoint:{event_id}",
+                                  "availability": observation["availability"], "purpose": "origin",
+                                  "range": None,
+                                  "span": {"start": 0, "end": len(observation["body"].encode("utf-8"))}}]}
+            if spec["kind"] == "verification":
+                note["verification_outcome"] = spec.get("verification_outcome", "unknown")
+            receipt = self.cli("note", "--project", "project", "--work", "work", "--session", "session",
+                               "--input", "-", data=note)["receipt"]
+            self.assertTrue(receipt["durable"])
+            saved = self.cli("query", "--input", "-", data={
+                "operation": "read", "scope": {"project_id": "project", "work_ids": ["work"], "session_ids": ["session"]},
+                "target": {"kind": "record", "id": identifier},
+            })["items"][0]["entity"]["data"]
+            self.assertEqual(saved["body"], spec["body"])
+            self.assertEqual(saved["representation"], "claim")
+            self.assertEqual(saved["context_id"], event["context_id"])
+            self.assertEqual(saved["evidence"], note["evidence"])
+            references.append({"source_id": saved["source_id"], "record_id": saved["id"],
+                               "revision": saved["revision"], "sequence": receipt["sequence"]})
+        resolved = self.checkpoint("resolve", event_id=event_id, resolution={"kind": "records", "records": references})
         self.assertTrue(resolved["durable"])
+
 
     def test_real_request_receipt_verification_limits_and_stop_continuation(self):
         self.hook("UserPromptSubmit", prompt="Reduce upload failures without slowing normal requests.")
         edit = {"tool_name": "apply_patch", "tool_input": {}, "tool_use_id": "first edit"}
         self.assertEqual(self.hook("PreToolUse", **edit)["hookSpecificOutput"]["permissionDecision"], "deny")
         event = self.checkpoint("status")["events"][0]
-        self.save_and_resolve(event["event_id"], "request", "request",
-                              "Reduce upload failures; do not increase normal-request latency.")
+        self.save_and_resolve(event["event_id"], "request", "request", [
+            {"kind": "request", "body": "Reduce upload failures."},
+            {"kind": "constraint", "body": "Do not increase normal-request latency."},
+        ])
         self.assertEqual(self.hook("PreToolUse", **edit), {})
         result = self.hook("PostToolUse", tool_name="Bash", tool_input={"command": "cargo test"},
                            tool_use_id="verification", tool_response={"exit_code": 0,
@@ -505,9 +532,12 @@ class RealCodexHooks(unittest.TestCase):
         self.assertEqual(len(status["events"]), 2)
         pending = next(event for event in status["events"] if event["kind"] == "verification")
         self.assertEqual(pending["original_turn_id"], "turn")
-        self.save_and_resolve(pending["event_id"], "verification-limits", "verification",
-                              "40 tests passed, but normal-request latency rose 40%; the latency requirement remains unmet.")
+        self.save_and_resolve(pending["event_id"], "verification-limits", "verification", [
+            {"kind": "verification", "body": "40 tests passed.", "nature": "observed", "verification_outcome": "passed"},
+            {"kind": "verification", "body": "Normal-request latency increased 40%.", "nature": "observed", "verification_outcome": "failed"},
+        ])
         self.assertEqual(self.hook("Stop", turn_id="continuation"), {})
+
 
     def test_real_same_active_turn_correction_and_exact_retry(self):
         self.hook("UserPromptSubmit", prompt="First requirement")
@@ -542,12 +572,13 @@ class RealCodexHooks(unittest.TestCase):
         self.assertEqual(self.hook("PreToolUse", **commit)["hookSpecificOutput"]["permissionDecision"], "deny")
         prepared = self.checkpoint("prepare_commit", event_id="prepared-commit", detail="Commit the staged context capture.")
         self.assertTrue(prepared["durable"])
-        self.save_and_resolve("prepared-commit", "commit-context", "decision", "Preserve the context capture and verification limits.")
+        self.save_and_resolve("prepared-commit", "commit-context", "decision", "Commit the staged context capture.")
         self.assertEqual(self.hook("PreToolUse", **commit), {})
         (self.repository / "changed.rs").write_text("staged state changed\n")
         subprocess.run(["git", "-C", str(self.repository), "add", "changed.rs"], check=True)
         self.assertEqual(self.checkpoint("check_commit")["decision"], "block")
         self.assertEqual(self.hook("PreToolUse", **commit)["hookSpecificOutput"]["permissionDecision"], "deny")
+
 
 
 if __name__ == "__main__":

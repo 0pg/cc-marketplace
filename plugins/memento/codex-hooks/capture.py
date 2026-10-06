@@ -361,8 +361,14 @@ class Dispatcher:
             f"Additional pending IDs omitted: {reply.get('omitted_pending_event_ids', 0)}. "
             f"Checkpoint result: {reply.get('reason', reply['decision'])}. "
             "Inspect full checkpoint status when resolving all pending events. "
-            "Before the first change, record the request and constraints. Record corrections, decisions, "
-            "failed or rejected attempts, verification limits and handoff using accessible evidence. "
+            "Use each event's returned context_id and frozen origin; do not guess identities or offsets. "
+            "Read atomic-claims.md when capturing. Save accessible source text/output as evidence and "
+            "independently changeable semantic items as claims with exact origin references in one record batch. "
+            "Keep each claim's conditions, negation and scope together; attach supporting output separately. "
+            "Before the first change, record the request and constraints. For corrections, change only the "
+            "affected claim; separate proposals from actual approvals, failed executions and untested scope. "
+            "Compare saved claims with the accessible source for missing constraints, rejected alternatives "
+            "and verification limits. Do not treat self-reported coverage as completeness. "
             "Resolve each checkpoint with its exact persisted record/source/revision/sequence and durable receipt. "
             "Use no_new_context only when no meaningful new context exists; report capture_incomplete on failure."
         )
@@ -391,7 +397,7 @@ class Dispatcher:
                 "Prepare the runtime first with scripts/install_runtime.py --ensure; "
                 "hooks never build or download a runtime. "
                 f"Read {self.root / 'skills/memento/SKILL.md'} and use "
-                f"python3 {shlex.quote(str(self.root / 'codex-hooks/capture.py'))} configure "
+                f"python3 {shlex.quote(str(self.root / 'hooks/capture.py'))} configure "
                 f"--data-dir {shlex.quote(str(self.data))} "
                 "--repository ABS --store ABS --project-id ID --work-id ID. Hook trust must be reviewed in Codex.")
         if not self.select():

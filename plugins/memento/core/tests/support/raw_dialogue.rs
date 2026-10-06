@@ -137,6 +137,8 @@ pub fn evidence(record: &Record) -> Evidence {
         locator: format!("message:{}", record.id),
         availability: record.availability,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }
 }
 

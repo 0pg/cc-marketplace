@@ -12,7 +12,7 @@ pub fn information() -> Value {
             "current": store_format,
             "read": {"min": 0, "max": store_format},
             "write": {"min": store_format, "max": store_format},
-            "legacy": [0]
+            "legacy": [0, 1]
         },
         "capabilities": ["checkpoint", "store-status", "semantic-config-check", "migrate", "literal-search", "local-semantic"]
     })

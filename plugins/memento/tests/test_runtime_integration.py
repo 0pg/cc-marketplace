@@ -175,10 +175,29 @@ class RuntimeIntegrationTests(unittest.TestCase):
         request = {"operation": "status", "scope": self.scope()}
         pending = self.cli("checkpoint", request)
         self.assertTrue(pending["pending_user_prompt"])
-        receipt = self.note("correction", "feedback", "토큰 갱신은 변경하지 않는다.")
-        for event in pending["pending_event_ids"]:
+        for event in pending["events"]:
+            if event["event_id"] not in pending["pending_event_ids"]:
+                continue
+            native = event["origin"]
+            origin = self.cli("query", {
+                "operation": "read", "scope": {"project_id": PROJECT},
+                "target": {"kind": "artifact", "record_id": native["record_id"],
+                           "revision": native["revision"]},
+            })["items"][0]["entity"]["data"]
+            receipt = self.cli("note", {
+                "id": "correction", "revision": "v1", "kind": "constraint",
+                "body": "토큰 갱신은 변경하지 않는다.", "representation": "claim",
+                "derived": True, "fidelity": "summary_only", "nature": "reported",
+                "context_id": event["context_id"],
+                "evidence": [{"source_id": native["source_id"],
+                              "record_id": native["record_id"], "revision": native["revision"],
+                              "locator": f"checkpoint:{event['event_id']}",
+                              "availability": origin["availability"], "purpose": "origin",
+                              "span": {"start": 0, "end": len(origin["body"].encode("utf-8"))}}],
+            }, ("--work", WORK, "--session", "session-1"))["receipt"]
+            self.assertTrue(receipt["durable"])
             self.cli("checkpoint", {"operation": "resolve", "scope": self.scope(),
-                                    "event_id": event, "resolution": {"kind": "records", "records": [{
+                                    "event_id": event["event_id"], "resolution": {"kind": "records", "records": [{
                                         "source_id": "journal", "record_id": "correction",
                                         "revision": "v1", "sequence": receipt["sequence"],
                                     }]}})

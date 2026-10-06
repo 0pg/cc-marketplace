@@ -145,6 +145,34 @@ impl Fixture {
         record.work_ids = vec![self.scope.work_id.clone()];
         record.session_id = Some(self.scope.session_id.clone());
         record.association = Association::Explicit;
+        let status = store
+            .checkpoint(Request::Status {
+                scope: self.scope.clone(),
+            })
+            .await?;
+        let event = status
+            .events
+            .iter()
+            .find(|event| event.event_id == id)
+            .ok_or("missing commit event")?;
+        let origin = event.origin.as_ref().ok_or("missing commit observation")?;
+        record.representation = Representation::Claim;
+        record.context_id = event.context_id.clone();
+        record.derived = true;
+        record.fidelity = Fidelity::SummaryOnly;
+        record.evidence.push(Evidence {
+            source_id: origin.source_id.clone(),
+            record_id: Some(origin.record_id.clone()),
+            revision: origin.revision.clone(),
+            locator: "commit observation".into(),
+            availability: Availability::Available,
+            range: Some(TextRange {
+                start_line: 1,
+                end_line: 1,
+            }),
+            purpose: EvidencePurpose::Origin,
+            span: None,
+        });
         let revision = record.revision.clone();
         let receipt = store.append(Entity::Record(record)).await?;
         assert!(receipt.durable);

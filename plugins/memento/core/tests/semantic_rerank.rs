@@ -685,6 +685,8 @@ fn derived_text_with_inaccessible_evidence_does_not_reach_reranking() -> TestRes
         locator: "record:original".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     let data = corpus(&[
         original,
@@ -766,6 +768,8 @@ fn ordinary_words_ending_in_key_prefixes_keep_their_search_identity() -> TestRes
             locator: format!("fixture:{id}"),
             availability: Availability::Available,
             range: None,
+            purpose: memento::model::EvidencePurpose::Unspecified,
+            span: None,
         });
         let entity = Entity::Record(original.clone());
         assert_eq!(
@@ -821,6 +825,8 @@ fn standalone_provider_keys_and_literal_secrets_still_mask_every_text_surface() 
             locator: format!("fixture:{token}"),
             availability: Availability::Available,
             range: None,
+            purpose: memento::model::EvidencePurpose::Unspecified,
+            span: None,
         });
         let sanitized = policy.entity(&Entity::Record(original))?;
         let Entity::Record(sanitized) = sanitized else {

@@ -1,4 +1,4 @@
-//! The first format upgrade adds a header to the existing metadata row only.
+//! Known format upgrades change the existing metadata row only.
 //! SQLite's transaction journal is the rollback copy: no external plaintext
 //! backup is needed or retained, and no entity or compaction policy is rewritten.
 use std::{
@@ -9,7 +9,7 @@ use std::{
 
 use super::*;
 
-pub const CURRENT_FORMAT: u32 = 1;
+pub const CURRENT_FORMAT: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -54,7 +54,9 @@ impl StoreFormatStatus {
 pub enum StoreFormatError {
     #[error("invalid or unknown Memento store format: {0}")]
     Invalid(String),
-    #[error("unsupported Memento store format {version}; this runtime supports format 1")]
+    #[error(
+        "unsupported Memento store format {version}; this runtime supports formats 1 through 2"
+    )]
     Unsupported { version: u32 },
     #[error("Memento store identity or migration epoch changed; reopen with a compatible runtime")]
     Fenced,
@@ -106,12 +108,19 @@ impl Header {
         StoreFormatStatus {
             db_identity: Some(self.db_identity.clone()),
             migration_epoch: Some(self.migration_epoch),
-            ..StoreFormatStatus::absent(StoreFormatState::Compatible, Some(self.version))
+            ..StoreFormatStatus::absent(
+                if self.version == CURRENT_FORMAT {
+                    StoreFormatState::Compatible
+                } else {
+                    StoreFormatState::MigrationRequired
+                },
+                Some(self.version),
+            )
         }
     }
 
     fn validate(&self) -> Result<()> {
-        if self.version != CURRENT_FORMAT {
+        if !(1..=CURRENT_FORMAT).contains(&self.version) {
             return Err(StoreFormatError::Unsupported {
                 version: self.version,
             }
@@ -317,18 +326,36 @@ pub(super) async fn migrate(db: &mut toasty::Db, path: &Path) -> Result<Header> 
     let mut transaction = db.transaction().await?;
     let mut rows = StoredEntry::all().exec(&mut transaction).await?;
     let mut meta = validate_rows(&rows)?;
-    if let Some(header) = meta.store_format {
+    if let Some(header) = &meta.store_format
+        && header.version == CURRENT_FORMAT
+    {
         transaction.commit().await?;
-        return Ok(header);
+        return Ok(header.clone());
     }
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| StoreFormatError::Invalid(format!("clock before Unix epoch: {error}")))?
-        .as_nanos();
-    let header = Header {
-        version: CURRENT_FORMAT,
-        db_identity: hash(format!("{}:{nonce}:{}", path.display(), std::process::id()).as_bytes()),
-        migration_epoch: 1,
+    let header = match &meta.store_format {
+        Some(previous) => Header {
+            version: CURRENT_FORMAT,
+            db_identity: previous.db_identity.clone(),
+            migration_epoch: previous
+                .migration_epoch
+                .checked_add(1)
+                .ok_or_else(|| StoreFormatError::Invalid("migration epoch overflow".into()))?,
+        },
+        None => {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|error| {
+                    StoreFormatError::Invalid(format!("clock before Unix epoch: {error}"))
+                })?
+                .as_nanos();
+            Header {
+                version: CURRENT_FORMAT,
+                db_identity: hash(
+                    format!("{}:{nonce}:{}", path.display(), std::process::id()).as_bytes(),
+                ),
+                migration_epoch: 1,
+            }
+        }
     };
     meta.store_format = Some(header.clone());
     let metadata_bytes = serde_json::to_vec(&meta)?.len();
@@ -360,8 +387,8 @@ pub(super) async fn migrate(db: &mut toasty::Db, path: &Path) -> Result<Header> 
     transaction.commit().await?;
     tracing::info!(
         store_format = CURRENT_FORMAT,
-        migration_epoch = 1,
-        "Memento store format marked"
+        migration_epoch = header.migration_epoch,
+        "Memento store format upgraded"
     );
     Ok(header)
 }

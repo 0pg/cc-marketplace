@@ -135,6 +135,8 @@ async fn compaction_preserves_exact_evidence_and_latest_revision() -> TestResult
         locator: "record:output".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     store.append(Entity::Record(decision)).await?;
     for i in 0..8 {
@@ -190,6 +192,8 @@ async fn deletion_revocation_and_replay_contracts_survive_compaction() -> TestRe
         locator: "record:private".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     store
         .append_all([Entity::Record(original.clone()), Entity::Record(derived)])
@@ -284,6 +288,8 @@ async fn batch_admission_is_atomic_and_cannot_collect_its_own_writes() -> TestRe
         locator: "record:output".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     store
         .append_all([Entity::Record(output), Entity::Record(decision)])

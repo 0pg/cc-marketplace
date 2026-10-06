@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.5.0`은 core `0.2.0`, CLI protocol `1`, Store format `1`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.6.0`은 core `0.3.0`, CLI protocol `1`, Store format `2`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -52,15 +52,15 @@ python3 skills/memento/scripts/memento.py store-status --store /absolute/context
 python3 skills/memento/scripts/memento.py migrate --store /absolute/context.sqlite
 ```
 
-Runtime 준비는 DB를 검색하거나 변환하지 않습니다. `store-status`는 선택된 DB의 버전 없는 known legacy를 `migration_required`로 표시하고 파일을 변경하거나 생성하지 않습니다. 명시적 `migrate`와 실제 store를 여는 명령은 알려진 legacy 형식에 `store_format` header를 한 SQLite transaction으로 추가합니다. Entity 행을 다시 삽입하지 않아 ID·revision·sequence·근거·compaction·capture 상태를 유지합니다. SQL schema나 원문을 변환하지 않으므로 SQLite transaction journal로 rollback하며 외부 plaintext backup은 남기지 않습니다.
+Runtime 준비는 DB를 검색하거나 변환하지 않습니다. `store-status`는 선택된 DB의 버전 없는 known legacy를 `migration_required`로 표시하고 파일을 변경하거나 생성하지 않습니다. 명시적 `migrate`와 실제 store를 여는 명령은 알려진 버전 없는 legacy에는 `store_format` header를 추가하고 format 1은 format 2로 한 SQLite transaction 안에서 갱신합니다. Format 1→2는 같은 DB identity를 유지하고 migration epoch를 증가시킵니다. Entity 행을 다시 삽입하지 않아 ID·revision·sequence·근거·compaction·capture 상태를 유지합니다. SQL schema나 원문을 변환하지 않으므로 SQLite transaction journal로 rollback하며 외부 plaintext backup은 남기지 않습니다.
 
-Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다 identity/epoch를 검사합니다. 알 수 없는 schema/payload, 미래 형식, 용량 초과는 오류로 중단합니다. 실제 구버전 `0.3.0`·`0.4.0` 실행기는 새 metadata field를 거절합니다. Runtime 전환과 DB 복원은 별개이며 과거 snapshot으로 새 기록을 제거하는 자동 복원은 없습니다.
+Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다 identity/epoch를 검사합니다. 알 수 없는 schema/payload, 미래 형식, 용량 초과는 오류로 중단합니다. 실제 구버전 `0.3.0`·`0.4.0` 실행기는 새 metadata field를 거절하며, format 1 실행기도 format 2 저장소에 기록할 수 없습니다. Runtime 전환과 DB 복원은 별개이며 과거 snapshot으로 새 기록을 제거하는 자동 복원은 없습니다.
 
 스킬은 DB 경로와 project/work/session 식별자를 명시해 중요한 작업 전환을 기록합니다. 대화 파일 자동 검색·상주 수집기는 없으며 Git hook과 의미 검색 재정렬 모델은 선택적으로 설정합니다. 상세 입력·조회·오류 계약은 [interface](skills/memento/references/interface.md), 의미 검색은 [semantic](skills/memento/references/semantic.md)를 참조하세요.
 
 ## Codex 체크포인트 훅
 
-Memento 0.5.0은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
+Memento 0.6.0은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
 
 1. 플러그인을 설치·활성화하고 스킬 launcher 또는 선택적 setup 흐름으로 runtime을 준비합니다. 수동으로는 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행합니다.
 2. Codex의 hook review UI(CLI `/hooks`)에서 현재 정의를 검토하고 신뢰합니다. 설치기는 이 신뢰 설정을 변경하지 않습니다.
@@ -99,3 +99,13 @@ python3 -m unittest discover -s plugins/memento/tests
 Runtime lifecycle 테스트는 동시 첫 사용·중단 재시도·cache 교체·모델 선택 보존·owned artifact 정리·stable Git bridge를 검증합니다. 모델 실패 테스트는 제어된 worker/tool 응답을 사용하며 실제 구버전 DB 검증과 구분합니다. 구버전 Store 검증은 `bab2e08`(`0.3.0`)과 `c007979`(`0.4.0`)의 실제 실행기로 합성 raw 대화·정정·실패·근거·Git checkpoint를 기록해 전후 행을 비교했습니다. [검증 자료와 범위](https://github.com/0pg/0pg-mcp/tree/main/docs/agent-work-context/evaluations/runtime-upgrade)를 참조하세요. Process 종료 검증은 lock 대기 지점에서 수행했으며 SQLite 개별 write 사이에 crash를 주입한 검증은 아닙니다. Codex의 선택적 onboarding UI를 모든 클라이언트에서 자동 완료시킨다는 보장도 없습니다.
 
 배포 메타데이터: Claude Code는 `.claude-plugin/plugin.json`, Codex는 root `plugin.json`의 `extensions.com.openai`와 저장소의 `.agents/plugins/marketplace.json`을 사용합니다. `.codex-plugin/plugin.json`은 동일한 호환 메타데이터를 유지합니다. Codex 훅은 `codex-hooks/hooks.json`으로 선언해 Claude의 기본 `hooks/hooks.json` 자동 로드와 분리했습니다. [Claude Code 배포 문서](https://code.claude.com/docs/en/plugin-marketplaces), [Claude hook 로드 규칙](https://code.claude.com/docs/en/plugins-reference#hooks), [OpenAI 플러그인 패키징 문서](https://developers.openai.com/plugins/build/plugins)를 참조하세요.
+
+## 0.6.0 원자 명제 수집
+
+이 패키지는 머지된 [0pg-mcp `b0e9150d`](https://github.com/0pg/0pg-mcp/commit/b0e9150d6274904edc7a8ecdafe727e6d0347e77)의 Memento 코어·스킬·Codex 훅을 반영합니다.
+
+원문 `evidence`와 독립적으로 정정·승인·검증 가능한 `claim`을 구분하며 `context_id`, 정확한 `origin`/`support` revision과 UTF-8 범위를 검사합니다. 체크포인트는 이벤트에 연결된 의미 claim 저장 후 해결합니다. Crepe는 claim에서 근거로 향하는 의존성을 보존하며 공유 원문을 통해 무관한 형제 claim 전체를 보호하지 않습니다. 프로젝트 범위와 저장 한도는 유지합니다. 수집 시 [원자 명제 가이드](skills/memento/references/atomic-claims.md)를 읽으세요.
+
+Datalog와 구조 검사는 자연어 의미·원자성·누락 여부를 보증하지 않습니다. 마지막 모델 평가에서 S04-r1/r3의 독립 요청 결합 실패가 확인됐고, 이후 가이드 수정의 모델 추출 효과는 재평가하지 않았습니다. [상태 요약](https://github.com/0pg/0pg-mcp/blob/b0e9150d6274904edc7a8ecdafe727e6d0347e77/docs/agent-work-context/evaluations/atomic-capture-v1/pr-verification-summary.json)을 참조하세요. 위의 실제 Codex 설치 노출 확인은 0.5.0에서 수행한 과거 검증입니다.
+
+0.6.0 패키지 검증(2026-10-06): standalone core의 fmt·clippy 및 Rust259개, Python79개, 두 skill의 공식 validator가 통과했습니다. 실제 format 1 실행기로 만든 DB의 명시적/첫 쓰기 format 2 migration에서 public25행·capture session2개·ID/revision/sequence·중복 replay·비선택 DB 보존과 구버전 writer 거절을 확인했습니다. 이 검증은 모델 추출 평가나 새 0.6.0의 Codex host 설치·활성화 검증을 의미하지 않습니다.

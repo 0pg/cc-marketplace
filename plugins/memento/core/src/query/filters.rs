@@ -1,6 +1,16 @@
 use super::*;
 
 pub(super) fn validate(view: &View<'_>, query: &Query) -> Result<(), QueryError> {
+    if query
+        .filters
+        .context_id
+        .as_ref()
+        .is_some_and(|id| id.trim().is_empty() || id.chars().any(char::is_control))
+    {
+        return Err(QueryError::InvalidQuery(
+            "context_id must be nonempty without control characters".into(),
+        ));
+    }
     for time in [
         &query.filters.occurred_from,
         &query.filters.occurred_to,
@@ -51,6 +61,13 @@ pub(super) fn validate(view: &View<'_>, query: &Query) -> Result<(), QueryError>
 pub(super) fn record(view: &View<'_>, record: &Record, query: &Query) -> bool {
     let scope = &query.scope;
     let f = &query.filters;
+    if f.context_id
+        .as_ref()
+        .is_some_and(|id| record.context_id.as_ref() != Some(id))
+        || (!f.representations.is_empty() && !f.representations.contains(&record.representation))
+    {
+        return false;
+    }
     if !scope.work_ids.is_empty() && !record.work_ids.iter().any(|id| scope.work_ids.contains(id)) {
         return false;
     }
@@ -76,17 +93,18 @@ pub(super) fn record(view: &View<'_>, record: &Record, query: &Query) -> bool {
         return false;
     }
     if !typed(
-        record.kind == RecordKind::Decision,
+        record.kind == RecordKind::Decision && record.representation != Representation::Evidence,
         record.decision_status.unwrap_or(DecisionStatus::Unknown),
         &f.decision_statuses,
         &f.exclude_decision_statuses,
     ) || !typed(
-        record.kind == RecordKind::Attempt,
+        record.kind == RecordKind::Attempt && record.representation != Representation::Evidence,
         record.attempt_outcome.unwrap_or(AttemptOutcome::Unknown),
         &f.attempt_outcomes,
         &f.exclude_attempt_outcomes,
     ) || !typed(
-        record.kind == RecordKind::Verification,
+        record.kind == RecordKind::Verification
+            && record.representation != Representation::Evidence,
         record
             .verification_outcome
             .unwrap_or(VerificationOutcome::Unknown),

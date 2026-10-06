@@ -379,6 +379,8 @@ fn stale_summary_and_source_truncation_are_not_observed_full_originals() -> Test
         locator: "record:original".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     add(&mut data, Entity::Record(summary));
     add(
@@ -997,6 +999,8 @@ fn retained_original_revision_is_available_but_missing_original_is_not() -> Test
         locator: "record:original".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     add(&mut data, Entity::Record(summary));
     let mut query = Query::new(Operation::Read, "project");

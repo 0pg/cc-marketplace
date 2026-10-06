@@ -63,6 +63,33 @@ async fn context(
     record.work_ids = vec![scope.work_id.clone()];
     record.session_id = Some(scope.session_id.clone());
     record.association = Association::Explicit;
+    if let Some(event) = store
+        .checkpoint(Request::Status {
+            scope: scope.clone(),
+        })
+        .await?
+        .events
+        .last()
+    {
+        record.representation = Representation::Claim;
+        record.context_id = event.context_id.clone();
+        record.derived = true;
+        record.fidelity = Fidelity::SummaryOnly;
+        let origin = event.origin.as_ref().ok_or("missing observation")?;
+        record.evidence.push(Evidence {
+            source_id: origin.source_id.clone(),
+            record_id: Some(origin.record_id.clone()),
+            revision: origin.revision.clone(),
+            locator: "checkpoint observation".into(),
+            availability: Availability::Available,
+            range: Some(TextRange {
+                start_line: 1,
+                end_line: 1,
+            }),
+            purpose: EvidencePurpose::Origin,
+            span: None,
+        });
+    }
     let revision = record.revision.clone();
     let receipt = store.append(Entity::Record(record)).await?;
     assert!(receipt.durable);
@@ -110,7 +137,7 @@ async fn correction_capture_survives_reopen_and_a_new_continuation_turn() -> Tes
         &mut store,
         &continuation,
         "verified-with-limits",
-        RecordKind::Verification,
+        RecordKind::Constraint,
     )
     .await?;
     let resolved = store
@@ -573,6 +600,33 @@ async fn redacted_context_is_valid_and_hook_summary_keeps_complete_gate_decision
     record.work_ids = vec![upload.work_id.clone()];
     record.session_id = Some(upload.session_id.clone());
     record.association = Association::Explicit;
+    if let Some(event) = store
+        .checkpoint(Request::Status {
+            scope: upload.clone(),
+        })
+        .await?
+        .events
+        .last()
+    {
+        record.representation = Representation::Claim;
+        record.context_id = event.context_id.clone();
+        record.derived = true;
+        record.fidelity = Fidelity::SummaryOnly;
+        let origin = event.origin.as_ref().ok_or("missing observation")?;
+        record.evidence.push(Evidence {
+            source_id: origin.source_id.clone(),
+            record_id: Some(origin.record_id.clone()),
+            revision: origin.revision.clone(),
+            locator: "checkpoint observation".into(),
+            availability: Availability::Available,
+            range: Some(TextRange {
+                start_line: 1,
+                end_line: 1,
+            }),
+            purpose: EvidencePurpose::Origin,
+            span: None,
+        });
+    }
     let revision = record.revision.clone();
     let receipt = store.append(Entity::Record(record)).await?;
     store

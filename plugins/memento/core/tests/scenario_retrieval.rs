@@ -54,6 +54,8 @@ fn evidence(record: &Record) -> Evidence {
         locator: format!("record:{}", record.id),
         availability: record.availability,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }
 }
 
@@ -701,6 +703,8 @@ async fn sc14_twenty_mib_masked_log_middle_window_and_revocation_invalidate_page
         locator: "record:large-output".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }];
     store.append(Entity::Record(summary)).await?;
     let corpus = store.load().await?;

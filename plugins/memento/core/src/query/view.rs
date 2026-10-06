@@ -260,6 +260,9 @@ impl<'a> View<'a> {
         let mut warnings = Vec::new();
         match &mut entity {
             Entity::Record(r) => {
+                if r.representation == Representation::Evidence {
+                    warnings.push("source evidence; not an atomic semantic claim".into());
+                }
                 let evidence = self.evidence(&r.evidence);
                 let lost = evidence.len() != r.evidence.len()
                     || evidence
@@ -285,7 +288,10 @@ impl<'a> View<'a> {
                         }
                         .into(),
                     );
-                    if r.fidelity == Fidelity::SummaryOnly && r.nature == Nature::Observed {
+                    if r.representation != Representation::Claim
+                        && r.fidelity == Fidelity::SummaryOnly
+                        && r.nature == Nature::Observed
+                    {
                         r.nature = Nature::Reported;
                     }
                 }
@@ -330,6 +336,8 @@ impl<'a> View<'a> {
                         locator: format!("record:{}", r.id),
                         availability: r.availability,
                         range: None,
+                        purpose: EvidencePurpose::Unspecified,
+                        span: None,
                     });
                 }
             }
