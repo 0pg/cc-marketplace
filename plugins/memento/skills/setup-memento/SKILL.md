@@ -5,13 +5,13 @@ description: Prepare or diagnose this installed Memento plugin's local runtime a
 
 # Set up Memento
 
-Use this workflow when the user starts Memento's plugin setup or asks to prepare its runtime. From this installed skill's location, the plugin root is two directories above. Run the installed package's script with absolute paths:
+Use this workflow during project startup, after the installed plugin changes, or when the user starts Memento's plugin setup. Runtime checking and preparation do not require a separate update request. From this installed skill's location, the plugin root is two directories above. Run the installed package's script with absolute paths:
 
 ```sh
 python3 /absolute/installed-plugin/scripts/install_runtime.py --ensure
 ```
 
-This prepares the Rust executable and selected local embedding model, then validates them before activation. Fresh installations use E5. Updates preserve the recorded selection and custom semantic configuration. If an older installation's choice is unknown, ask whether to keep model setup skipped or prepare E5/MiniLM, then pass the chosen `--embedding-model`. Do not infer a choice from a missing configuration file.
+This idempotently checks the installed package's executable and model identity, prepares an update when needed, then validates it before activation. A current runtime is reused. Fresh installations use E5. Updates preserve the recorded selection and custom semantic configuration. If an older installation's choice is unknown, ask whether to keep model setup skipped or prepare E5/MiniLM, then pass the chosen `--embedding-model`. Do not infer a choice from a missing configuration file.
 
 Show the actual setup stage and result. If Cargo, uv, permissions, network access or disk space prevent setup, explain the concrete missing condition and keep the previous runtime. Do not silently install OS tools or modify Codex hook trust. Observe tool permissions for downloads and writes; the onboarding invitation does not bypass them. Use `runtime-status` through `skills/memento/scripts/memento.py` to inspect setup without starting an installation.
 

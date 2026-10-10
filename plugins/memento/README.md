@@ -9,7 +9,7 @@ claude plugin marketplace add 0pg/cc-marketplace
 claude plugin install memento@jhk-plugins
 ```
 
-설치 후 `/memento:memento`를 사용합니다.
+설치 후 프로젝트 작업에서 Memento 스킬을 선제적으로 적용합니다. 명시적으로 호출하려면 `/memento:memento`를 사용합니다.
 
 ## Codex 설치
 
@@ -18,11 +18,11 @@ codex plugin marketplace add 0pg/cc-marketplace
 codex plugin add memento@jhk-plugins
 ```
 
-설치 후 새 세션에서 `$memento:memento`를 사용합니다. Codex 데스크톱 앱에서도 등록된 `jhk Plugins` 마켓플레이스의 Memento를 설치할 수 있습니다. 로컬 체크아웃을 사용하려면 `codex plugin marketplace add /absolute/cc-marketplace`로 등록합니다.
+설치 후 새 세션의 프로젝트 작업에서 Memento 스킬을 선제적으로 적용합니다. 명시적으로 호출하려면 `$memento:memento`를 사용합니다. Codex 데스크톱 앱에서도 등록된 `jhk Plugins` 마켓플레이스의 Memento를 설치할 수 있습니다. 로컬 체크아웃을 사용하려면 `codex plugin marketplace add /absolute/cc-marketplace`로 등록합니다.
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.6.1`은 core `0.3.0`, CLI protocol `1`, Store format `2`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.6.2`는 core `0.3.0`, CLI protocol `1`, Store format `2`를 사용합니다. 에이전트는 프로젝트 작업 시작 시 별도 요청 없이 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행하고 설정된 작업 맥락을 조회합니다. 준비된 runtime은 재사용하고 실행기·모델 설정이 바뀌면 기존 모델 선택을 보존하여 갱신합니다. `skills/memento/scripts/memento.py` launcher의 실제 기록·조회 명령과 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -42,7 +42,7 @@ python3 scripts/install_runtime.py --binary /absolute/memento --embedding-model 
 
 Runtime은 `${CODEX_HOME:-~/.codex}/memento/runtime`, 또는 `MEMENTO_RUNTIME_HOME`에 둡니다. 플러그인 캐시가 교체되어도 실행기·model·config를 재사용합니다. 설치 잠금으로 동시 초기화를 조정하며 protocol·build identity·OS/architecture를 검사한 candidate만 활성화합니다. 관리 artifact는 active와 previous 각 1개, 진행 candidate 1개와 그 모델 참조로 제한하고 Memento 소유가 아닌 파일은 보존합니다. 실패한 업데이트는 기존 active와 DB를 유지하고 실패를 반환합니다.
 
-`runtime-status`, installer `--status`, help, version은 설치를 시작하거나 DB를 열지 않습니다. `store-status`도 runtime 준비를 시작하지 않으며 사용할 수 있는 호환 실행기로 선택된 DB를 읽기만 합니다. 준비 전 source-only 패키지의 help/version은 실행기 부재를 알릴 수 있습니다. 준비 이후 일반 기록·조회는 같은 검증된 artifact를 사용하며 변경된 source/model이 있을 때만 다시 준비합니다. `query`는 active 의미 검색 config를 사용하고 명시적인 `--semantic-config`가 우선합니다.
+`runtime-status`, installer `--status`, help, version은 설치를 시작하거나 DB를 열지 않습니다. `store-status`도 runtime 준비를 시작하지 않으며 사용할 수 있는 호환 실행기로 선택된 DB를 읽기만 합니다. 준비 전 source-only 패키지의 help/version은 실행기 부재를 알릴 수 있습니다. 준비 이후 일반 기록·조회는 같은 검증된 artifact를 사용합니다. source·bundled executable·managed model setup 변경은 준비 필요 상태로 표시하고 시작 시 ensure 또는 다음 실제 명령에서 갱신합니다. 버전 표기만 바뀌면 동일한 runtime을 다시 빌드하지 않습니다. 이 검사는 설치된 패키지를 대상으로 하며 새 marketplace 패키지 다운로드는 호스트의 플러그인 갱신 기능에 속합니다. `query`는 active 의미 검색 config를 사용하고 명시적인 `--semantic-config`가 우선합니다.
 
 ## 기존 데이터와 버전 확인
 
@@ -60,7 +60,7 @@ Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다
 
 ## Codex 체크포인트 훅
 
-Memento 0.6.1은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
+Memento 0.6.2는 프로젝트 작업 시작 시 스킬을 선제적으로 적용하도록 안내하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
 
 1. 플러그인을 설치·활성화하고 스킬 launcher 또는 선택적 setup 흐름으로 runtime을 준비합니다. 수동으로는 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행합니다.
 2. Codex의 hook review UI(CLI `/hooks`)에서 현재 정의를 검토하고 신뢰합니다. 설치기는 이 신뢰 설정을 변경하지 않습니다.
@@ -75,9 +75,9 @@ python3 /absolute/installed-plugin/codex-hooks/capture.py configure \
 
 store는 기존 저장소를 선택할 수 있으며 `--initialize-store`는 선택한 journal source 초기화에만 필요합니다. 사용자 literal masking 정책이 있으면 같은 `--policy /absolute/policy.json`을 사용합니다.
 
-시작·요청 훅은 스킬 경로와 scope를 안내하고, 지원되는 조사·변경 도구 실행 전에 미해결 사용자 요청을 검사합니다. 완료된 조사 결과는 다음 조사·변경 전에 기록 검토를 요구하며, 변경·검증·실패 관측은 기존대로 모아서 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 일반 편집마다 별도 의미 기록을 강제하지 않습니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
+시작·요청 훅은 스킬 경로·준비 명령·scope를 안내하고, 지원되는 조사·변경 도구 실행 전에 미해결 사용자 요청을 검사합니다. 완료된 조사 결과는 다음 조사·변경 전에 기록 검토를 요구하며, 변경·검증·실패 관측은 기존대로 모아서 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 일반 편집마다 별도 의미 기록을 강제하지 않습니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
 
-SessionStart는 준비된 실행기를 확인하거나 준비 안내를 제공하며 build/model download를 실행하지 않습니다. 새로 설치한 native Git hook은 cache/artifact 경로 대신 stable `<runtime-home>/git-memento` bridge를 사용합니다. 기존 hook은 `hooks-status`의 target 상태를 확인하세요. 이전 경로를 판독할 수 없는 managed hook은 `legacy_path_review_required`, 사라진 target은 `missing`으로 표시하므로 명시적으로 검토·재설치합니다. Runtime 준비가 Git gate를 켜거나 수정된 사용자 hook을 덮어쓰지는 않습니다.
+SessionStart는 준비된 실행기를 확인하고 설정된 작업의 `sources`와 재개용 `brief`를 이전 세션까지 조회해 출처를 가진 참고 근거로 제공합니다. 실행기가 없거나 오래됐으면 준비 명령을 안내합니다. 에이전트는 필요한 원문을 읽고 새 요청에 맞는 맥락을 보충합니다. 훅 자체는 build/model download를 실행하지 않으며 설치된 패키지의 단독 `install_runtime.py --ensure` 명령은 체크포인트 gate 중에도 실행할 수 있습니다. 새로 설치한 native Git hook은 cache/artifact 경로 대신 stable `<runtime-home>/git-memento` bridge를 사용합니다. 기존 hook은 `hooks-status`의 target 상태를 확인하세요. 이전 경로를 판독할 수 없는 managed hook은 `legacy_path_review_required`, 사라진 target은 `missing`으로 표시하므로 명시적으로 검토·재설치합니다. Runtime 준비가 Git gate를 켜거나 수정된 사용자 hook을 덮어쓰지는 않습니다.
 
 선택적 Git gate는 `hooks-install --enforce-checkpoints true`로 켭니다. `prepare_commit`과 새 의미 기록을 연결한 뒤 실제 parent HEAD·index tree가 맞아야 커밋할 수 있습니다. 부분 커밋 임시 index와 worktree도 구분합니다. Post-commit은 관측 가능한 직전 HEAD가 있으면 실제 SHA를 연결합니다. 훅을 우회하는 Git 경로와 임의 shell 프로그램·MCP 도구의 전체 변경은 강제 범위 밖입니다.
 
@@ -121,3 +121,11 @@ Datalog와 구조 검사는 자연어 의미·원자성·누락 여부를 보증
 업데이트할 때 어댑터와 해당 소스의 실행기를 함께 사용하고 변경된 훅 정의를 다시 검토합니다. 새 조사 이벤트를 저장한 DB를 구 실행기로 되돌려 읽는 호환성은 제공하지 않습니다. Marketplace 갱신은 기존 설치의 캐시·신뢰 설정·프로젝트 기록 설정을 변경하지 않습니다. 상세 범위와 수용 기준은 [1차 구현 스펙](https://github.com/0pg/0pg-mcp/blob/16bd3c695eb51b67e6bb120e244e09b6b292356c/docs/agent-work-context/investigation-capture-spec.md)을 참조하세요.
 
 0.6.1 패키지 검증(2026-10-06): standalone core의 fmt·clippy와 Rust 263개, Python 92개(일반 89개와 실제 runtime 통합 3개)가 통과했습니다. 공간 부족으로 중단된 빌드는 이번 작업의 빌드 캐시 정리 후 debug 정보와 incremental cache를 줄여 재실행했습니다. 실제 Desktop 훅 전달·신뢰 설정과 자연어 의미 품질은 이 패키지 검사 범위 밖입니다.
+
+## 0.6.2 작업 시작 시 준비와 맥락 조회
+
+[0pg-mcp `1846faaa`](https://github.com/0pg/0pg-mcp/commit/1846faaa32f5cda1638e43fffc342884ecbb997d)의 runtime 변경 감지·시작 시 맥락 조회·스킬 지침과 회귀 테스트를 반영합니다. 코어 버전·CLI protocol·Store format은 유지합니다.
+
+명시적인 Memento 요청 없이 프로젝트 작업을 시작할 때 runtime을 확인·갱신하고 이미 설정된 store/project/work의 맥락을 조회합니다. 준비 명령이 체크포인트 gate에 막히던 경로를 허용하며, 복합 명령이나 다른 설치기의 호출은 예외 처리하지 않습니다. 시작 훅의 근거 출력은 완전한 JSON 항목과 누락 표시를 유지하며, 조회 실패를 빈 기록으로 보고하지 않습니다. 새 marketplace 릴리스 다운로드·hook 신뢰·프로젝트 scope 설정은 이번 변경에 포함되지 않습니다.
+
+0.6.2 패키지 검증(2026-10-10): standalone core의 fmt·clippy와 Rust 263개, Python 106개(실제 core 기반 훅·runtime 통합 포함), 두 skill의 공식 validator가 통과했습니다. 실제 호스트 설치·hook 전달·신뢰 설정과 자연어 의미 품질은 이번 검증 범위 밖입니다.

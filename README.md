@@ -8,7 +8,7 @@ Claude Code 플러그인 마켓플레이스입니다. Memento는 Codex에서도 
 |---------|------|---------|------|
 | [claude-md-plugin](./plugins/claude-md-plugin) | 18.1.0 | documentation | CLAUDE.md Primary SSOT document-code sync plugin. /spec, /dev, /validate, /decompile, /bugfix, /impact, /inspect |
 | [project-init](./plugins/project-init) | 1.0.0 | development | Multi-language 프로젝트 초기 설정 플러그인 |
-| [memento](./plugins/memento) | 0.6.1 | development | Claude Code·Codex 작업 맥락 기록 및 근거 조회, Codex 체크포인트 훅 |
+| [memento](./plugins/memento) | 0.6.2 | development | Claude Code·Codex 작업 맥락 기록 및 근거 조회, Codex 체크포인트 훅 |
 
 ## 슬래시 커맨드
 
@@ -42,7 +42,7 @@ codex plugin marketplace add 0pg/cc-marketplace
 codex plugin add memento@jhk-plugins
 ```
 
-Memento는 첫 실제 명령에서 실행기를 준비합니다. [준비·업데이트 안내](./plugins/memento/README.md#자동-실행기-준비와-업데이트)를 참조하세요. 다른 Claude Code 플러그인은 설치 명령의 `memento`를 해당 이름으로 바꿉니다.
+Memento는 프로젝트 작업 시작 시 실행기를 확인·갱신하고 설정된 작업 맥락을 조회합니다. [준비·업데이트 안내](./plugins/memento/README.md#자동-실행기-준비와-업데이트)를 참조하세요. 다른 Claude Code 플러그인은 설치 명령의 `memento`를 해당 이름으로 바꿉니다.
 
 ## 버전 관리
 

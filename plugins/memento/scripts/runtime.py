@@ -187,6 +187,7 @@ def runtime_status(plugin):
 
 def ready_runtime(plugin, override=None):
     """Resolve a validated runtime quickly; never prepare or change a store."""
+    plugin = Path(plugin)
     home = runtime_home()
     state = _state(home)
     selected = override or os.environ.get("MEMENTO_BIN")
@@ -217,6 +218,15 @@ def ready_runtime(plugin, override=None):
     desired = source_digest(plugin)
     if desired is not None and state["active"].get("requested_source_digest") != desired:
         raise RuntimeError("The installed runtime requires an update for this plugin build.")
+    bundled = plugin / "skills/memento/bin/memento"
+    if (desired is None and bundled.is_file()
+            and hashlib.sha256(_regular(bundled).read_bytes()).hexdigest() != state["active"].get("binary_sha256")):
+        raise RuntimeError("The installed runtime requires an update for this plugin binary.")
+    selection = state["active"].get("embedding_selection")
+    # The stable Git bridge has no package assets; it validates the active files.
+    if selection in ("e5-small", "minilm") and (plugin / "core/scripts").is_dir():
+        if state["active"].get("model_digest") != _model_digest(plugin, selection):
+            raise RuntimeError("The installed semantic runtime requires an update for this plugin model setup.")
     config = active / "semantic-config.json"
     actual_config_digest = hashlib.sha256(config.read_bytes()).hexdigest() if config.is_file() else None
     if actual_config_digest != state["active"].get("semantic_config_sha256"):

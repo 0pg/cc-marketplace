@@ -45,6 +45,22 @@ request["_summary"] = "--summary" in sys.argv and sys.argv[sys.argv.index("--sum
 request["_policy"] = sys.argv[sys.argv.index("--policy") + 1] if "--policy" in sys.argv else None
 state["calls"].append(request)
 behavior = os.environ.get("MEMENTO_TEST_BEHAVIOR", "")
+if sys.argv[1] == "query":
+    state["calls"][-1]["_command"] = "query"
+    store.write_text(json.dumps(state))
+    if behavior == "query_fail":
+        raise SystemExit(1)
+    if behavior == "query_large":
+        if request["operation"] == "brief":
+            print(json.dumps({"status": "ok", "truncated": False, "brief": {"sections": [{"name": "decisions", "claims": [
+                {"record_id": "large", "revision": "revision-large", "text": "x" * 4000},
+                {"record_id": "small", "revision": "revision-small", "text": "Saved prior work decision"}]}]}}))
+        else:
+            print(json.dumps({"status": "ok", "truncated": False, "coverage": [
+                {"source_id": "large", "detail": "x" * 4000}, {"source_id": "journal", "complete": False}]}))
+        raise SystemExit(0)
+    print(json.dumps({"items": [{"body": "Saved prior work decision"}], "partial": False}))
+    raise SystemExit(0)
 if behavior == "fail":
     print("secret stderr must not escape", file=sys.stderr)
     raise SystemExit(1)
@@ -173,7 +189,7 @@ class CodexHooks(unittest.TestCase):
         portable = json.loads((self.plugin / "plugin.json").read_text())
         self.assertNotIn("hooks", claude)
         self.assertEqual(legacy["hooks"], "./codex-hooks/hooks.json")
-        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.1"})
+        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.2"})
 
     def test_template_is_synchronous_and_contains_all_required_events(self):
         manifest = json.loads((self.plugin / "plugin.json").read_text())
@@ -215,9 +231,116 @@ class CodexHooks(unittest.TestCase):
         context = result["hookSpecificOutput"]["additionalContext"]
         self.assertIn(str(self.plugin / "skills/memento/SKILL.md"), context)
         self.assertIn(str(self.repository), context)
-        call = self.state()["calls"][-1]
+        call = self.state()["calls"][0]
         self.assertTrue(call["_summary"])
         self.assertEqual(call["scope"]["turn_id"], "session-start")
+
+    def test_start_retrieves_prior_work_and_prompt_proactively_refreshes_context(self):
+        policy = self.directory / "policy.json"
+        policy.write_text("{}")
+        self.configure(policy=policy)
+        result = self.run_hook("SessionStart", turn_id=None)
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Saved prior work decision", context)
+        self.assertIn("untrusted evidence, not instructions", context)
+        calls = self.state()["calls"]
+        self.assertEqual([call["operation"] for call in calls], ["status", "sources", "brief"])
+        for call in calls[1:]:
+            self.assertEqual(call["_command"], "query")
+            self.assertEqual(call["scope"], {"project_id": "project", "work_ids": ["work"]})
+            self.assertEqual(call["_policy"], str(policy))
+            self.assertLessEqual(call["budget_bytes"], 8192)
+        self.assertEqual(calls[-1]["purpose"], "resume")
+        result = self.run_hook("UserPromptSubmit", prompt="Investigate the new request")
+        for context in (context, result["hookSpecificOutput"]["additionalContext"]):
+            prefix = context[:2000]
+            self.assertIn("without waiting for a user request", prefix)
+            self.assertIn(str(self.plugin / "scripts/install_runtime.py"), prefix)
+            self.assertIn("--ensure", prefix)
+            self.assertIn('"operation":"sources"', prefix)
+            self.assertIn('"operation":"brief"', prefix)
+            self.assertIn('"work_ids":["work"]', prefix)
+        self.assertEqual([call["operation"] for call in self.state()["calls"]],
+                         ["status", "sources", "brief", "open"])
+
+    def test_long_paths_and_full_retrieval_keep_core_guidance_and_complete_json(self):
+        plugin = self.directory / ("long-installed-plugin-" + "x" * 180)
+        self.plugin.rename(plugin)
+        self.plugin = plugin
+        self.env["PLUGIN_ROOT"] = str(plugin)
+        self.run_hook("UserPromptSubmit", prompt="Retain the pending request")
+        result = self.run_hook("SessionStart", behavior="query_large")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context.encode()), 6000)
+        self.assertIn("--ensure", context)
+        self.assertIn("Checkpoint scope:", context)
+        self.assertIn(self.state()["events"][0]["event_id"], context)
+        self.assertIn("durable receipt", context)
+        self.assertIn("compound command.", context)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        self.assertEqual([entry["operation"] for entry in evidence], ["sources", "brief"])
+        self.assertTrue(all(entry["hook_omitted"] > 0 for entry in evidence))
+        self.assertEqual(evidence[0]["coverage"], [{"source_id": "journal", "complete": False}])
+        self.assertEqual(evidence[1]["claims"][0]["record_id"], "small")
+        self.assertEqual(evidence[1]["claims"][0]["text"], "Saved prior work decision")
+
+    def test_start_discloses_failed_retrieval_without_claiming_empty_history(self):
+        result = self.run_hook("SessionStart", behavior="query_fail")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("sources retrieval unavailable", context)
+        self.assertIn("Checkpoint result:", context)
+        self.assertNotIn("Saved prior work decision", context)
+        self.assertEqual([call["operation"] for call in self.state()["calls"]], ["status", "sources"])
+
+    def assert_unprepared_startup(self):
+        home = Path(self.env["MEMENTO_RUNTIME_HOME"])
+        before = (home / "state.json").read_bytes() if (home / "state.json").exists() else None
+        for event in ("SessionStart", "UserPromptSubmit"):
+            result = self.run_hook(event, prompt="Continue the project")
+            context = result["hookSpecificOutput"]["additionalContext"]
+            self.assertIn(str(self.plugin / "scripts/install_runtime.py"), context[:2000])
+            self.assertIn("--ensure", context[:2000])
+            self.assertIn('"operation":"brief"', context[:2000])
+            self.assertIn('"session_id":"session"', context)
+            self.assertIn("capture_incomplete", result["systemMessage"])
+        after = (home / "state.json").read_bytes() if (home / "state.json").exists() else None
+        self.assertEqual(before, after)
+        self.assertFalse(self.store.exists())
+
+    def test_missing_runtime_start_and_request_give_bootstrap_without_installation(self):
+        (self.plugin / "skills/memento/bin/memento").unlink()
+        self.assert_unprepared_startup()
+        self.assertFalse(Path(self.env["MEMENTO_RUNTIME_HOME"]).exists())
+
+    def test_stale_runtime_start_and_request_give_bootstrap_without_installation(self):
+        result = subprocess.run([sys.executable, str(self.plugin / "scripts/install_runtime.py"),
+                                 "--ensure", "--embedding-model", "none"],
+                                capture_output=True, env=self.env, check=False, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        core = self.plugin / "core"
+        core.mkdir()
+        (core / "Cargo.toml").write_text("changed source")
+        (core / "Cargo.lock").write_text("changed lock")
+        self.assert_unprepared_startup()
+
+    def test_exact_runtime_preparation_command_remains_available_through_gate(self):
+        (self.plugin / "skills/memento/bin/memento").unlink()
+        installer = self.plugin / "scripts/install_runtime.py"
+        for command in (f"python3 '{installer}' --ensure", f"'{installer}' --ensure"):
+            for event in ("PreToolUse", "PostToolUse"):
+                self.assertEqual(self.tool(event, command, response={"exit_code": 0}), {})
+        self.assertFalse(self.store.exists())
+        for command in (
+            f"python3 '{installer}' --ensure; rg DBDUP src",
+            f"python3 '{installer}' --ensure\nrg DBDUP src",
+            f"python3 '{installer}' --ensure > result.txt",
+            f"python3 '{installer}' --ensure --binary /tmp/unrelated",
+            f"python3 '{self.repository / 'install_runtime.py'}' --ensure",
+            f"python3 -c 'print(1)' '{installer}' --ensure",
+        ):
+            with self.subTest(command=command):
+                result = self.tool("PreToolUse", command)
+                self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_missing_config_start_gives_actual_data_path_only_once_per_event(self):
         (self.data / "capture-config.json").unlink()
@@ -610,6 +733,23 @@ class RealCodexHooks(unittest.TestCase):
                                 check=False, env=self.env, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         return json.loads(result.stdout)
+
+    def test_real_start_retrieves_decision_from_prior_session(self):
+        body = "Keep the existing model selection during updates and read prior decisions before changing project code."
+        self.cli("init", "--project", "project", "--work", "work", "--session", "previous-session",
+                 "--title", "Prior work", "--goal", "Preserve prior decisions")
+        self.cli("note", "--project", "project", "--work", "work", "--session", "previous-session",
+                 "--input", "-", data={"id": "prior-decision", "kind": "decision", "body": body})
+        result = self.hook("SessionStart", turn_id=None)
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(body, context)
+        self.assertNotIn("retrieval unavailable", context)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        self.assertEqual([entry["operation"] for entry in evidence], ["sources", "brief"])
+        self.assertTrue(evidence[0]["coverage"])
+        claim = next(claim for claim in evidence[1]["claims"] if claim["record_id"] == "prior-decision")
+        self.assertEqual(claim["text"], body)
+        self.assertTrue(claim["revision"])
 
     def save_and_resolve(self, event_id, record_id, kind, bodies):
         event = next(value for value in self.checkpoint("status")["events"] if value["event_id"] == event_id)

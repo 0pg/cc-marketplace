@@ -1,6 +1,6 @@
 ---
 name: memento
-description: Record project requests, corrections, decisions, failures and verification at work transitions; retrieve prior context when resuming or explaining choices. Use before discarding experiments, committing or handing off project work.
+description: Use automatically at the start of project work to check and update the installed Memento runtime and retrieve relevant saved context, without waiting for an explicit request. Preserve requests, corrections, decisions, failures and verification at work transitions.
 ---
 
 # Memento
@@ -13,7 +13,11 @@ With active checkpoints, resolve the request before starting investigation. Afte
 
 ## Start and resume
 
-Use an explicitly selected store and stable project ID. Inspect `sources` before treating history as complete. Reuse the relevant work/session IDs; if the active work is unknown, list candidates instead of assigning everything to the latest task. Keep repository/worktree scope explicit.
+For project investigation, implementation, review or continuation, perform startup before ordinary investigation or edits, even when the user does not mention Memento. General conversation and requests only to inspect runtime/store/session status do not initiate this workflow.
+
+In a plugin installation, run `python3 /absolute/installed-plugin/scripts/install_runtime.py --ensure` at startup and after the installed package changes. Resolve that path from this skill's installed location (the plugin root is two directories above the skill directory). This idempotent check updates a missing or stale executable/model for the installed package and preserves the recorded model selection; do not wait for the user to request an update. A current runtime is reused. An explicit `MEMENTO_BIN` remains the user's executable choice. On failure, report the concrete error and the unavailable context; do not claim the old runtime is current. This prepares the installed package, not a newer marketplace release. Standalone skills do not have this helper; follow the interface's standalone installation path when updating one.
+
+Use the store and stable project ID already selected in project configuration or supplied by the hook. Do not ask again for a known scope. Inspect `sources`, then retrieve a bounded `brief` with purpose `resume` for the relevant work before acting. Consume a fresh hook-provided source/brief package directly instead of fetching it twice. Search for the current request's topic when the brief is insufficient, and read the primary records for decisions that affect the next action. Reuse relevant work/session IDs; if the active work is unknown, list candidates instead of assigning everything to the latest task. Retrieval should span prior sessions, not filter to the new session. Refresh relevant context after compaction, resumption or a change of work. Keep repository/worktree scope explicit. If no store/project mapping is available, state that retrieval could not run and obtain that scope instead of scanning unrelated stores or claiming there is no history.
 
 For a new project, initialize one journal source and write the request/constraints. This is an actual manual capture path: **the agent using this skill writes records at important transitions**. It does not install a daemon or automatically discover private transcript files. An explicitly supplied Codex JSONL export, text document, or portable journal can also be imported.
 
