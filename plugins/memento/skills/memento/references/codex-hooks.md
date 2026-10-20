@@ -101,6 +101,8 @@ Pass this JSON to the same `checkpoint --input FILE` command (`--input -` accept
 
 An investigation's `records` resolution requires at least one finding or decision claim linked to that event's context and exact observed source. A raw output or status record alone is insufficient. For a status-only request or investigation result with no new context, use `{"kind":"no_new_context","reason":"Progress request only; no new decision or constraint."}`. A failed capture can be disclosed with `{"kind":"capture_incomplete","reason":"Required output was unavailable; the gap remains."}`; this reports a gap and does not turn it into successful capture. Stop feedback permits bounded repair rather than endless retries. Structural receipt checks do not certify semantic completeness.
 
+`PreCompact` is advisory: pending checkpoints or capture gaps produce a warning without stopping the turn or compaction. It only inspects saved status and does not resolve events, consume Stop retries or generate missing semantic records. Automatic compaction can begin immediately after a tool result, before the agent can save its findings. Preserve the pending checkpoints and use `SessionStart` with source `compact` to retrieve them and resume capture after compaction.
+
 ## Commit boundary
 
 If the optional Git gate is desired, enable it explicitly for the selected repository:
@@ -140,7 +142,7 @@ For the initialization/retrieval/capture reliability change, completion requires
 | --- | --- |
 | Missing setup is visible and cannot silently pass an ordinary supported tool | Adapter tests for absent config, unmapped Git repository, missing store/project and malformed pre-tool input/config; executed setup repair and subsequent request capture gates remain possible. |
 | Every request and resume attempts relevant history retrieval | Adapter tests inspect actual `sources`/`brief` calls across sessions for consecutive prompts and `SessionStart` sources `resume`/`compact`; empty and failed results remain distinct. |
-| Important context persists before further work or handoff | Real CLI checkpoint tests validate exact record revisions, work/session scope, durable acknowledgements, request/investigation gates, and Stop/PreCompact pending obligations. |
+| Important context persists before further work or handoff | Real CLI checkpoint tests validate exact record revisions, work/session scope, durable acknowledgements, request/investigation gates, Stop enforcement, and pending-checkpoint preservation and recovery across non-blocking compaction. |
 | Long work re-enters the same workflow | Resume/compact, repeated-prompt, setup-recovery and running-command/original-completion tests; turn observation survives reopen and summary truncation, and the skill requires capture at transitions and retrieval after compaction. |
 | The installed artifact contains the current workflow | Installer tests compare shipped skill/metadata/references/hooks with source, replace stale guidance on update, and run durable write/read with the real CLI after moving the package outside the checkout. |
 

@@ -188,10 +188,10 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         return {"hook_event_name": event, "cwd": str(self.repository), "session_id": "session",
                 "turn_id": "turn", **fields}
 
-    def run_hook(self, event, behavior="", raw=None, **fields):
+    def run_hook(self, event, behavior="", raw=None, timeout=5, **fields):
         body = json.dumps(self.payload(event, **fields)).encode() if raw is None else raw
         result = subprocess.run([sys.executable, str(self.plugin / "codex-hooks/capture.py")],
-                                input=body, capture_output=True, check=False, timeout=5,
+                                input=body, capture_output=True, check=False, timeout=timeout,
                                 env={**self.env, "MEMENTO_TEST_BEHAVIOR": behavior})
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertLess(len(result.stdout), 16 * 1024)
@@ -820,14 +820,50 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         self.assertIn("capture_incomplete", stop["systemMessage"])
         self.assertNotIn("decision", stop)
 
-    def test_precompact_only_checks_existing_records_and_does_not_generate(self):
+    def test_precompact_warns_without_stopping_or_changing_pending_capture(self):
         self.run_hook("UserPromptSubmit", prompt="Do not lose this constraint")
-        result = self.run_hook("PreCompact")
-        self.assertFalse(result["continue"])
-        self.assertEqual(self.state()["calls"][-1]["operation"], "status")
-        self.assertEqual(len(self.state()["events"]), 1)
+        self.assertEqual(self.run_hook("Stop")["decision"], "block")
+        before = self.state()
+        for _ in range(3):
+            result = self.run_hook("PreCompact")
+            self.assertEqual(set(result), {"systemMessage"})
+            self.assertIn("capture_incomplete", result["systemMessage"])
+            after = self.state()
+            self.assertEqual(after["calls"][-1]["operation"], "status")
+            self.assertEqual(after["events"], before["events"])
+            self.assertEqual(after["attempts"], before["attempts"])
+        resumed = self.run_hook("SessionStart", source="compact", turn_id=None)
+        context = resumed["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(before["events"][0]["event_id"], context)
+        self.assertIn("Memento evidence JSON:", context)
+        self.assertEqual(self.state()["events"], before["events"])
+        self.assertEqual(self.state()["attempts"], before["attempts"])
         self.resolve_all()
         self.assertEqual(self.run_hook("PreCompact"), {})
+
+    def test_precompact_backend_errors_warn_without_stopping_or_resolving(self):
+        self.run_hook("UserPromptSubmit", prompt="Preserve the pending request")
+        before = self.state()
+        for behavior in ["fail", "nondurable", "oversize"]:
+            with self.subTest(behavior=behavior):
+                result = self.run_hook("PreCompact", behavior=behavior)
+                self.assertEqual(set(result), {"systemMessage"})
+                self.assertIn("capture_incomplete", result["systemMessage"])
+                self.assertNotIn("secret stderr", json.dumps(result))
+                self.assertEqual(self.state()["events"], before["events"])
+                self.assertEqual(self.state()["attempts"], before["attempts"])
+
+    def test_precompact_timeout_warns_without_stopping_or_resolving(self):
+        self.run_hook("UserPromptSubmit", prompt="Preserve capture through timeout")
+        before = self.state()
+        started = time.monotonic()
+        result = self.run_hook("PreCompact", behavior="timeout", timeout=12)
+        self.assertLess(time.monotonic() - started, 12)
+        self.assertEqual(set(result), {"systemMessage"})
+        self.assertIn("capture_incomplete", result["systemMessage"])
+        self.assertIn("timed out", result["systemMessage"])
+        self.assertEqual(self.state()["events"], before["events"])
+        self.assertEqual(self.state()["attempts"], before["attempts"])
 
     def test_acknowledged_capture_gap_warns_without_permanent_compaction_block(self):
         self.run_hook("UserPromptSubmit", prompt="request")
@@ -1217,6 +1253,33 @@ class RealCodexHooks(HookAssertions, unittest.TestCase):
             "kind": "no_new_context", "reason": "The working tree has no changes and no new investigation finding."})
         self.assertFalse(self.checkpoint("status")["pending_investigation"])
         self.assertEqual(self.hook("Stop"), {})
+
+    def test_real_precompact_preserves_pending_capture_for_compact_resume(self):
+        self.hook("PostToolUse", tool_name="mcp__logs__search", tool_use_id="before-compaction",
+                  tool_input={"filter": "incident"}, tool_response={"content": "An incident was reported."})
+        self.assertEqual(self.hook("Stop")["decision"], "block")
+        before = self.checkpoint("status")
+        self.assertEqual(len(before["pending_event_ids"]), 1)
+        self.assertEqual(before["stop_attempts"], 1)
+        result = self.hook("PreCompact")
+        self.assertEqual(set(result), {"systemMessage"})
+        self.assertIn("capture_incomplete", result["systemMessage"])
+        after = self.checkpoint("status")
+        self.assertEqual(after["events"], before["events"])
+        self.assertEqual(after["pending_event_ids"], before["pending_event_ids"])
+        self.assertEqual(after["stop_attempts"], before["stop_attempts"])
+        self.assertEqual(after["capture_incomplete_event_ids"], [])
+        resumed = self.hook("SessionStart", source="compact", turn_id=None)
+        context = resumed["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(before["pending_event_ids"][0], context)
+        self.assertIn("Memento evidence JSON:", context)
+        self.assertNotIn("retrieval unavailable", context)
+        after_resume = self.checkpoint("status")
+        self.assertEqual(after_resume["events"], before["events"])
+        self.assertEqual(after_resume["stop_attempts"], before["stop_attempts"])
+        self.checkpoint("resolve", event_id=before["pending_event_ids"][0], resolution={
+            "kind": "no_new_context", "reason": "The retained tool output adds no new project finding."})
+        self.assertEqual(self.hook("PreCompact"), {})
 
     def test_real_stop_continuation_recovery_preserves_bounded_retry_budget(self):
         self.hook("UserPromptSubmit", prompt="Verify the current patch")

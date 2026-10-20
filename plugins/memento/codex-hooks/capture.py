@@ -823,8 +823,9 @@ class Dispatcher:
         if event == "PreCompact":
             reply = self.call("status")
             if reply.get("pending_event_ids"):
-                return {"continue": False, "stopReason": "memento capture_incomplete: pending checkpoints "
-                        "must be saved before Codex compaction; this hook does not generate records."}
+                # A PreCompact veto ends the active turn before capture can resume.
+                return {"systemMessage": "memento capture_incomplete: pending checkpoints remain saved; "
+                        "resume capture after Codex compaction. This hook does not generate records."}
             if reply.get("capture_incomplete_event_ids") or reply.get("decision") == "capture_incomplete":
                 return {"systemMessage": "memento capture_incomplete: acknowledged capture gaps remain "
                         "before compaction; this hook does not generate missing records."}
