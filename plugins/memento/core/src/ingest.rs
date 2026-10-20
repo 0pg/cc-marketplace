@@ -216,6 +216,8 @@ pub async fn import_with_completeness(
             locator: imported.locator,
             availability: Availability::Available,
             range: None,
+            purpose: crate::model::EvidencePurpose::Unspecified,
+            span: None,
         });
         for reference in imported.references {
             record.evidence.push(Evidence {
@@ -225,6 +227,8 @@ pub async fn import_with_completeness(
                 locator: reference.locator,
                 availability: Availability::Missing,
                 range: None,
+                purpose: crate::model::EvidencePurpose::Unspecified,
+                span: None,
             });
         }
         if let Some(execution_id) = imported.execution_id.map(|id| format!("{source_id}:{id}")) {
@@ -366,6 +370,8 @@ pub async fn import_with_completeness(
                         locator: metadata.locator.clone(),
                         availability: Availability::Available,
                         range: None,
+                        purpose: crate::model::EvidencePurpose::Unspecified,
+                        span: None,
                     }],
                     applies_to: Vec::new(),
                 }));

@@ -88,6 +88,10 @@ pub struct BriefClaim {
     pub evidence: Vec<Evidence>,
     pub applies_to: Vec<String>,
     pub warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Representation::is_legacy")]
+    pub representation: Representation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

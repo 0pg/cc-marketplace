@@ -71,7 +71,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
         for name in ("scripts", "skills", "codex-hooks", "core"):
             shutil.copytree(PLUGIN / name, self.plugin / name,
                             ignore=shutil.ignore_patterns("__pycache__", "bin", "target"))
-        shutil.copy2(PLUGIN / "plugin.json", self.plugin / "plugin.json")
+        shutil.copytree(PLUGIN / ".codex-plugin", self.plugin / ".codex-plugin")
         self.runtime = self.root / "persistent runtime"
         self.data = self.root / "persistent plugin data"
         self.database = self.root / "selected project data/context.sqlite"
@@ -175,10 +175,22 @@ class RuntimeIntegrationTests(unittest.TestCase):
         request = {"operation": "status", "scope": self.scope()}
         pending = self.cli("checkpoint", request)
         self.assertTrue(pending["pending_user_prompt"])
-        receipt = self.note("correction", "feedback", "토큰 갱신은 변경하지 않는다.")
-        for event in pending["pending_event_ids"]:
+        for event in pending["events"]:
+            if event["event_id"] not in pending["pending_event_ids"]:
+                continue
+            origin = {key: value for key, value in event["origin"].items() if key != "sequence"}
+            origin.update(locator="checkpoint request", availability="available", purpose="origin",
+                          range={"start_line": 1, "end_line": 1})
+            receipt = self.cli("record", {"entity": "record", "data": {
+                "id": "correction", "project_id": PROJECT, "source_id": "journal", "revision": "v1",
+                "kind": "constraint", "nature": "reported", "fidelity": "summary_only",
+                "availability": "available", "title": "Token refresh constraint",
+                "body": "토큰 갱신은 변경하지 않는다.", "work_ids": [WORK],
+                "association": "explicit", "session_id": "session-1", "derived": True,
+                "representation": "claim", "context_id": event["context_id"], "evidence": [origin],
+            }})["receipts"][0]
             self.cli("checkpoint", {"operation": "resolve", "scope": self.scope(),
-                                    "event_id": event, "resolution": {"kind": "records", "records": [{
+                                    "event_id": event["event_id"], "resolution": {"kind": "records", "records": [{
                                         "source_id": "journal", "record_id": "correction",
                                         "revision": "v1", "sequence": receipt["sequence"],
                                     }]}})

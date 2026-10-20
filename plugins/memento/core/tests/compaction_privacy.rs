@@ -16,6 +16,8 @@ fn evidence(record: &Record) -> Evidence {
         locator: format!("record:{}", record.id),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }
 }
 

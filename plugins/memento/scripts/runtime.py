@@ -21,6 +21,7 @@ import time
 
 FORMAT_VERSION = 1
 PROTOCOL_VERSION = 1
+STORE_FORMAT_VERSION = 2
 
 
 class RuntimeError(Exception):
@@ -117,10 +118,13 @@ def handshake(executable):
     store = value.get("store_format", {})
     if not isinstance(capabilities, list) or "checkpoint" not in capabilities or not isinstance(store, dict):
         raise RuntimeError("The executable does not provide the required checkpoint capability.")
+    if type(store.get("current")) is not int or store["current"] != STORE_FORMAT_VERSION:
+        raise RuntimeError("The executable has an incompatible current store format.")
     for access in ("read", "write"):
         bounds = store.get(access, {})
         if (not isinstance(bounds, dict) or type(bounds.get("min")) is not int
-                or type(bounds.get("max")) is not int or not bounds["min"] <= 1 <= bounds["max"]):
+                or type(bounds.get("max")) is not int
+                or not bounds["min"] <= STORE_FORMAT_VERSION <= bounds["max"]):
             raise RuntimeError("The executable does not support the current store format.")
     reported = value.get("platform")
     allowed_os = {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}.get(platform.system(), platform.system().lower())
@@ -153,6 +157,8 @@ def source_digest(plugin):
 
 def _package_version(plugin):
     path = Path(plugin) / "plugin.json"
+    if not path.is_file():
+        path = Path(plugin) / ".codex-plugin/plugin.json"
     return _json(path).get("version") if path.is_file() else None
 
 
@@ -183,6 +189,7 @@ def runtime_status(plugin):
 
 def ready_runtime(plugin, override=None):
     """Resolve a validated runtime quickly; never prepare or change a store."""
+    plugin = Path(plugin)
     home = runtime_home()
     state = _state(home)
     selected = override or os.environ.get("MEMENTO_BIN")
@@ -213,6 +220,15 @@ def ready_runtime(plugin, override=None):
     desired = source_digest(plugin)
     if desired is not None and state["active"].get("requested_source_digest") != desired:
         raise RuntimeError("The installed runtime requires an update for this plugin build.")
+    bundled = plugin / "skills/memento/bin/memento"
+    if (desired is None and bundled.is_file()
+            and hashlib.sha256(_regular(bundled).read_bytes()).hexdigest() != state["active"].get("binary_sha256")):
+        raise RuntimeError("The installed runtime requires an update for this plugin binary.")
+    selection = state["active"].get("embedding_selection")
+    # The stable Git bridge has no package assets; it validates the active files.
+    if selection in ("e5-small", "minilm") and (plugin / "core/scripts").is_dir():
+        if state["active"].get("model_digest") != _model_digest(plugin, selection):
+            raise RuntimeError("The installed semantic runtime requires an update for this plugin model setup.")
     config = active / "semantic-config.json"
     actual_config_digest = hashlib.sha256(config.read_bytes()).hexdigest() if config.is_file() else None
     if actual_config_digest != state["active"].get("semantic_config_sha256"):

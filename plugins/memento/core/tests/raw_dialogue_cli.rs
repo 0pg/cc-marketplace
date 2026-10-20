@@ -145,6 +145,8 @@ fn raw01_upload_dialogue_keeps_mistake_correction_failed_alternative_and_verific
                 locator: format!("record:{id}"),
                 availability: Availability::Available,
                 range: None,
+                purpose: memento::model::EvidencePurpose::Unspecified,
+                span: None,
             });
         }
         let actual_evidence: Vec<Evidence> = serde_json::from_value(

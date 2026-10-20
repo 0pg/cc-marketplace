@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.5.0`은 core `0.2.0`, CLI protocol `1`, Store format `1`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.6.3`은 core `0.3.0`, CLI protocol `1`, Store format `2`을 사용합니다. 설치 후 스킬의 `skills/memento/scripts/memento.py` launcher로 실제 기록·조회 명령을 실행하면 누락되거나 갱신이 필요한 runtime을 준비한 뒤 원래 명령을 이어서 실행합니다. Codex가 제공하는 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -60,7 +60,7 @@ Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다
 
 ## Codex 체크포인트 훅
 
-Memento 0.5.0은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
+Memento 0.6.3은 Codex가 스킬 설명을 통해 기록·조회 기능을 선택하도록 하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
 
 1. 플러그인을 설치·활성화하고 스킬 launcher 또는 선택적 setup 흐름으로 runtime을 준비합니다. 수동으로는 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행합니다.
 2. Codex의 hook review UI(CLI `/hooks`)에서 현재 정의를 검토하고 신뢰합니다. 설치기는 이 신뢰 설정을 변경하지 않습니다.
@@ -75,7 +75,7 @@ python3 /absolute/installed-plugin/codex-hooks/capture.py configure \
 
 store는 기존 저장소를 선택할 수 있으며 `--initialize-store`는 선택한 journal source 초기화에만 필요합니다. 사용자 literal masking 정책이 있으면 같은 `--policy /absolute/policy.json`을 사용합니다.
 
-시작·요청 훅은 스킬 경로와 scope를 안내하고, 인지된 첫 변경 전에 미해결 사용자 요청을 검사합니다. 변경·검증·실패 관측은 모아서 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 일반 편집마다 별도 의미 기록을 강제하지 않습니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
+시작·요청 훅은 스킬 경로와 scope를 안내하고, 조사 전에 미해결 사용자 요청을 검사합니다. 조사 결과는 다음 도구 전에 새 판단·발견을 기록하거나 근거 있는 `no_new_context`로 해결합니다. 변경·검증·실패 관측은 의미 레코드로 기록한 뒤 exact source/record/revision/sequence로 의무를 해결합니다. `Stop`은 알려진 미완료 의무에 최대 두 번 보충 기회를 주며 지속 실패는 `capture_incomplete`로 고지합니다. 새 요청과 재개에서는 해당 작업의 기존 sources·brief를 조회합니다. 저장 의무는 용량 제한 안에서 관리하고 정확한 완료 레코드를 Datalog compaction에서 보호합니다.
 
 SessionStart는 준비된 실행기를 확인하거나 준비 안내를 제공하며 build/model download를 실행하지 않습니다. 새로 설치한 native Git hook은 cache/artifact 경로 대신 stable `<runtime-home>/git-memento` bridge를 사용합니다. 기존 hook은 `hooks-status`의 target 상태를 확인하세요. 이전 경로를 판독할 수 없는 managed hook은 `legacy_path_review_required`, 사라진 target은 `missing`으로 표시하므로 명시적으로 검토·재설치합니다. Runtime 준비가 Git gate를 켜거나 수정된 사용자 hook을 덮어쓰지는 않습니다.
 
@@ -98,4 +98,4 @@ python3 -m unittest discover -s plugins/memento/tests
 
 Runtime lifecycle 테스트는 동시 첫 사용·중단 재시도·cache 교체·모델 선택 보존·owned artifact 정리·stable Git bridge를 검증합니다. 모델 실패 테스트는 제어된 worker/tool 응답을 사용하며 실제 구버전 DB 검증과 구분합니다. 구버전 Store 검증은 `bab2e08`(`0.3.0`)과 `c007979`(`0.4.0`)의 실제 실행기로 합성 raw 대화·정정·실패·근거·Git checkpoint를 기록해 전후 행을 비교했습니다. [검증 자료와 범위](https://github.com/0pg/0pg-mcp/tree/main/docs/agent-work-context/evaluations/runtime-upgrade)를 참조하세요. Process 종료 검증은 lock 대기 지점에서 수행했으며 SQLite 개별 write 사이에 crash를 주입한 검증은 아닙니다. Codex의 선택적 onboarding UI를 모든 클라이언트에서 자동 완료시킨다는 보장도 없습니다.
 
-배포 메타데이터: Claude Code는 `.claude-plugin/plugin.json`, Codex는 root `plugin.json`의 `extensions.com.openai`와 저장소의 `.agents/plugins/marketplace.json`을 사용합니다. `.codex-plugin/plugin.json`은 동일한 호환 메타데이터를 유지합니다. Codex 훅은 `codex-hooks/hooks.json`으로 선언해 Claude의 기본 `hooks/hooks.json` 자동 로드와 분리했습니다. [Claude Code 배포 문서](https://code.claude.com/docs/en/plugin-marketplaces), [Claude hook 로드 규칙](https://code.claude.com/docs/en/plugins-reference#hooks), [OpenAI 플러그인 패키징 문서](https://developers.openai.com/plugins/build/plugins)를 참조하세요.
+배포 메타데이터: Claude Code는 `.claude-plugin/plugin.json`, Codex는 `.codex-plugin/plugin.json`과 저장소의 `.agents/plugins/marketplace.json`을 사용합니다. 현재 호스트의 훅 검색을 위해 root `plugin.json`은 배포하지 않습니다. Codex 훅은 `codex-hooks/hooks.json`으로 선언해 Claude의 기본 `hooks/hooks.json` 자동 로드와 분리했습니다. [Claude Code 배포 문서](https://code.claude.com/docs/en/plugin-marketplaces), [Claude hook 로드 규칙](https://code.claude.com/docs/en/plugins-reference#hooks), [OpenAI 플러그인 패키징 문서](https://developers.openai.com/plugins/build/plugins)를 참조하세요.

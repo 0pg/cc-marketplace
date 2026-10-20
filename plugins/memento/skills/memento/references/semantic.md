@@ -4,59 +4,59 @@ Use semantic search to retrieve candidate records when literal/token searches an
 
 ## Explicit setup
 
-The first real plugin launcher command prepares a missing runtime and the default E5 model for a known new installation. Use the optional Codex setup skill or run the installer explicitly to select a different model before first use. Source-only packages require Python 3.9+, Rust/Cargo 1.94+ and `uv` for supplied embeddings.
+Install memento from the repository root (requires Rust/Cargo 1.94+, Python 3.9+, and `uv`). The default embedding model is `e5-small`:
 
 ```sh
-python3 scripts/install_runtime.py --ensure
-python3 scripts/install_runtime.py --embedding-model minilm
-python3 scripts/install_runtime.py --embedding-model none
-python3 scripts/install_runtime.py --semantic-config /absolute/semantic-config.json
-python3 scripts/install_runtime.py --status
+python3 scripts/install_memento.py
+# Or select the other supplied embedding model:
+python3 scripts/install_memento.py --embedding-model minilm
 ```
 
 | Selection | Pinned model |
 | --- | --- |
-| `e5-small` (new-install default) | `intfloat/multilingual-e5-small` |
+| `e5-small` (default) | `intfloat/multilingual-e5-small` |
 | `minilm` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
 
-Updates preserve the recorded model/config selection. `none` skips model preparation and preserves an existing semantic configuration; it does not disable semantic search. A legacy binary without a recorded selection or config requires an explicit choice rather than an assumed E5 download. An explicit custom config is verified with local inference before activation.
+The installer prepares Python 3.12, installs the pinned dependencies and model weights, and checks the worker with a short public test query before replacing the installed skill. It writes `<skill-directory>/semantic-config.json` and bundles `scripts/local_embeddings.py`; neither path depends on the implementation checkout. Runtime and weights are cached in `<skills-directory>/.memento-semantic` by model and pinned setup. Reinstalling the same setup reuses them and repeats the inference check. Changing the selected model prepares a separate runtime; existing query cursors must be restarted.
 
-The shared runtime home is `${CODEX_HOME:-~/.codex}/memento/runtime`, or `MEMENTO_RUNTIME_HOME`. Python 3.12, pinned dependencies, weights and the worker are cached under its owned `models/` directories. Immutable artifacts carry the selected `semantic-config.json`; the launcher resolves it rather than depending on a plugin-cache path. Cache replacement on the same machine preserves it. Runtime/model changes retain at most the current and previous owned references; unrelated files are preserved. Custom configs remain bound to their explicitly supplied paths and behavior.
+The skill's `scripts/memento.py` launcher automatically supplies that configuration for `query`. Use `mode: semantic` in the search JSON as shown below; no manual path editing is needed. An explicit `--semantic-config` overrides the installed selection. Running the Rust executable directly requires `--semantic-config <skill-directory>/semantic-config.json`. Omitting `--embedding-model` selects `e5-small` on both install and update. Use `--embedding-model none` to skip model setup and preserve any existing configuration. The installer sets up embeddings alone; configure the optional reranker manually below.
 
-The launcher supplies the active config for `query`; explicit `--semantic-config` takes precedence. Read `runtime-status` for its actual path when invoking the Rust executable directly. Model/setup changes can invalidate query cursors; restart those queries. Embeddings alone are prepared automatically; configure the optional reranker below.
+### Plugin preparation
+
+Marketplace source-only plugins use a shared runtime outside the plugin cache. The first real launcher command or `scripts/install_runtime.py --ensure` prepares it for a known new installation, defaulting to E5; updates preserve the existing model/custom config selection. `none` retains an existing config, and ambiguous legacy selections require an explicit choice. Help/version/runtime status/store-status do not prepare software. See [the interface](interface.md) for the stable runtime home, prebuilt packages and status commands. This differs from the standalone repository installer above, which prepares its explicitly requested model before installation.
 
 ## Manual setup and optional reranking
 
-The Rust CLI runs an explicitly configured local executable. The supplied worker uses CPU inference, an installed model directory, offline library settings, and no work-text/vector cache. Initial preparation downloads public model weights and Python packages. With a ready runtime, search uses the local model and does not download weights or send the query to a model service. Use the supplied worker for this behavior; an arbitrary custom command has its own behavior.
+The Rust CLI runs an explicitly configured local executable. The supplied worker uses CPU inference, an installed model directory, offline library settings, and no work-text/vector cache. Installation downloads public model weights and Python packages; ordinary search never downloads a model or sends the query to a model service. Use the supplied worker for this behavior; an arbitrary custom command has its own behavior.
 
-Run these from the plugin root, choosing absolute runtime/model paths outside the repository:
+Run these from the repository root, choosing absolute runtime/model paths outside the repository:
 
 ```sh
 uv venv --python 3.12 /absolute/context-venv
-uv pip install --python /absolute/context-venv/bin/python -r core/scripts/semantic-requirements.txt
-/absolute/context-venv/bin/python core/scripts/setup_embeddings.py --model e5-small --output /absolute/context-model
-/absolute/context-venv/bin/python core/scripts/setup_embeddings.py --model qwen-reranker-0.6b --output /absolute/context-reranker
+uv pip install --python /absolute/context-venv/bin/python -r crates/memento/scripts/semantic-requirements.txt
+/absolute/context-venv/bin/python crates/memento/scripts/setup_embeddings.py --model e5-small --output /absolute/context-model
+/absolute/context-venv/bin/python crates/memento/scripts/setup_embeddings.py --model qwen-reranker-0.6b --output /absolute/context-reranker
 ```
 
-The setup script downloads the fixed revisions below and writes `work-context-model.json` with file SHA-256 hashes. Search checks those hashes, loads local safetensors, disables remote model code, and rejects token overflow rather than silently discarding part of a chunk. Together the weights occupy approximately 1.7 GB; Python/runtime memory and dependencies are additional. The first real command can perform setup; once prepared, ordinary retrieval reuses the runtime and does not repeat downloads.
+The setup script downloads the fixed revisions below and writes `work-context-model.json` with file SHA-256 hashes. Search checks those hashes, loads local safetensors, disables remote model code, and rejects token overflow rather than silently discarding part of a chunk. Together the weights occupy approximately 1.7 GB; Python/runtime memory and dependencies are additional. Installation is an explicit setup step, not something to repeat during retrieval.
 
 Create `/absolute/semantic-config.json`, replacing all executable/script/model paths:
 
 ```json
 {
-  "command": ["/absolute/context-venv/bin/python", "/absolute/repository/core/scripts/local_embeddings.py", "--model-dir", "/absolute/context-model"],
+  "command": ["/absolute/context-venv/bin/python", "/absolute/repository/crates/memento/scripts/local_embeddings.py", "--model-dir", "/absolute/context-model"],
   "model_id": "intfloat/multilingual-e5-small",
   "model_revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
   "min_score": 0,
   "rerank": {
-    "command": ["/absolute/context-venv/bin/python", "/absolute/repository/core/scripts/local_reranker.py", "--model-dir", "/absolute/context-reranker"],
+    "command": ["/absolute/context-venv/bin/python", "/absolute/repository/crates/memento/scripts/local_reranker.py", "--model-dir", "/absolute/context-reranker"],
     "model_id": "Qwen/Qwen3-Reranker-0.6B",
     "model_revision": "e61197ed45024b0ed8a2d74b80b4d909f1255473"
   }
 }
 ```
 
-With reranking enabled, `min_score` must be 0: the embedding pool and final ranking have no relevance cutoff. The API returns bounded candidates even for questions without an answer in the store. The seed threshold only controls an extra ranking pass, not whether an event is established. To use embeddings alone, omit `rerank` and the second model installation; the earlier independent E5-only test recovered 47.6% of required originals at k=3. The `minilm` setup option reproduces an earlier comparison. See the [upstream evaluation](https://github.com/0pg/0pg-mcp/blob/8d151993/docs/agent-work-context/p1-semantic-evaluation.md) for measured quality and limitations.
+With reranking enabled, `min_score` must be 0: the embedding pool and final ranking have no relevance cutoff. The API returns bounded candidates even for questions without an answer in the store. The seed threshold only controls an extra ranking pass, not whether an event is established. To use embeddings alone, omit `rerank` and the second model installation; the earlier independent E5-only test recovered 47.6% of required originals at k=3. The `minilm` setup option reproduces an earlier comparison. See the repository's `docs/agent-work-context/p1-semantic-evaluation.md` for measured quality and limitations.
 
 ## Query and read
 

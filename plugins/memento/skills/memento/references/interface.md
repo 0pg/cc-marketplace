@@ -4,31 +4,58 @@ Invoke the skill as `$memento`. It uses the `memento` Rust package and CLI; `MEM
 
 ## Setup and storage
 
-Install the plugin from `jhk-plugins` and use `python3 <installed-skill>/scripts/memento.py COMMAND ...`. The first real command calls the same preparation routine as the setup installer, then continues with the original command and its explicit scope. Codex may offer the optional `setup-memento` onboarding skill; skipping that conversation is supported. Installation alone is not an arbitrary post-install script or hook-trust operation.
-
-From the installed plugin directory, explicit preparation and inspection are available:
+Install or update from the implementation repository (Python 3.9+, Rust/Cargo 1.94+, and `uv` are required for the default installation):
 
 ```sh
-python3 scripts/install_runtime.py --ensure
-python3 scripts/install_runtime.py --status
-python3 scripts/install_runtime.py --binary /absolute/built/memento --embedding-model none
-python3 scripts/install_runtime.py --embedding-model minilm
-python3 skills/memento/scripts/memento.py runtime-status
+python3 scripts/install_memento.py
 ```
 
-Source-only packages require Python 3.9+, Rust/Cargo 1.94+ and `uv` for the supplied embedding models. A compatible `--binary` skips Cargo; `--embedding-model none` skips model setup. A known new installation defaults to E5. Updates preserve the existing E5/MiniLM/custom selection. `none` also preserves an existing semantic configuration; it does not disable or delete that configuration. If a legacy installation has a binary but no recorded model selection or config, preparation returns `selection_required`; choose E5, MiniLM or `none` explicitly. A newly generated prebuilt package includes a format-1 selection hint to avoid this ambiguity.
+The installer builds the locked release package and copies the skill plus its executable into `${CODEX_HOME:-~/.codex}/skills/memento`. The executable lives at `<skill-directory>/bin/memento`, so the installed skill works outside the implementation checkout without a PATH change or `MEMENTO_BIN`. Re-run the command to update; existing extra files are preserved. An existing development symlink to this checkout's skill is replaced with a standalone installation without changing the source directory. Builds and the direct candidate CLI check must succeed before the existing installation is replaced.
 
-The runtime directory is `${CODEX_HOME:-~/.codex}/memento/runtime`, overridden by `MEMENTO_RUNTIME_HOME`. State, verified executable artifacts, models and the stable Git bridge live here rather than in the replaceable plugin cache. `runtime-status` and installer `--status` inspect this location without preparing software or opening project stores. Help and version commands also never prepare; on an unprepared source-only package they can report that no executable is available. A prepared runtime is reused until source/model identity changes or validation fails.
+Optional install arguments:
 
-Preparation uses a process lock, validates protocol/capabilities, platform and build identity, and activates only a candidate that passes its checks and configured local inference. Memento retains at most the active and previous owned executable artifact and their model references, plus one preparation candidate. It prunes only Memento-owned directories and preserves unrelated files. The state distinguishes `not_installed`, `preparing`, `ready`, `failed`; binary existence alone is insufficient. Missing tools, offline dependency/model downloads, timeouts and failed inference surface errors; prerequisite tools are not silently installed.
+```sh
+python3 scripts/install_memento.py --skills-dir /absolute/skills
+python3 scripts/install_memento.py --binary /absolute/built/memento
+python3 scripts/install_memento.py --embedding-model e5-small
+python3 scripts/install_memento.py --embedding-model minilm
+python3 scripts/install_memento.py --embedding-model none
+```
 
-For `query`, the launcher supplies the active semantic config unless `--semantic-config` is explicit. `MEMENTO_BIN` selects a compatible explicit executable and still undergoes the version handshake. Use the launcher to preserve selection/update checks rather than guessing an artifact filename. Direct executable calls require the semantic-config flag for semantic search. The examples below abbreviate the launcher as `memento`.
+`--skills-dir` selects the parent containing `memento`; `--binary` installs an explicitly selected executable without running Cargo. `--embedding-model` defaults to `e5-small` on install and update; use `minilm` to select the other supplied model. The installer prepares the pinned model and Python 3.12 environment with `uv`, bundles the embedding worker, checks local inference, and creates `<skill-directory>/semantic-config.json`. Its runtime and weights live in `<skills-directory>/.memento-semantic`, outside the replaceable skill. The same pinned setup is reused on reinstall; a different model or dependency setup gets a separate runtime. Setup or inference failure leaves the existing skill and selected configuration intact. See [semantic setup](semantic.md) for models and manual configuration.
 
-Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trust the current definitions in Codex and configure explicit project/store/work scope separately. Runtime preparation does not change trust, global settings or enable Git hooks. SessionStart resolves prepared executables or gives setup guidance; it never builds or downloads a model. See [Codex hooks and checkpoints](codex-hooks.md).
+`--embedding-model none` skips model setup, preserves any existing semantic configuration, and does not require `uv`. Installation does not create a context store, enable Git hooks, or modify shell/Codex settings. The default build may fetch locked Cargo dependencies that are not already cached.
+
+### Codex plugin package
+
+To include the skill and Codex lifecycle hooks, build a package at an absolute path:
+
+```sh
+python3 scripts/install_memento.py --plugin-dir /absolute/memento-marketplace/plugins/memento
+```
+
+`--plugin-dir` and `--skills-dir` are mutually exclusive; the default remains the standalone skill installation. The package contains `.codex-plugin/plugin.json`, `hooks/`, and `skills/memento/` with its bundled executable. The installer derives the compatibility manifest from the repository's canonical `plugins/memento/plugin.json`, retaining its OpenAI metadata and declaring hooks at the compatibility manifest's top level. It removes the previously distributed root manifest during package updates: Codex CLI `0.163.0-alpha.10.2` selects that root manifest but discovers no plugin hooks from it, including when both manifests exist. Native `plugin/read` verifies the generated package's eight hooks. Existing unrelated package extras are preserved, and build, CLI smoke check, and requested embedding setup succeed before replacement. This command builds the package; it does not register a marketplace, enable a plugin, change global configuration, or trust hooks.
+
+The implementation-repository installer creates a prebuilt package and records its known model selection in `runtime-selection.json`. Plugin runtime preparation imports and verifies that compatible executable/configuration instead of rebuilding absent source. Marketplace source-only packages build their Rust core locally. Both use the plugin's shared preparation helper after installation.
+
+Project startup, the optional `setup-memento` onboarding skill and the first real plugin launcher command use the same `ensure_runtime()` routine. At project startup the agent runs the installed package's `install_runtime.py --ensure` without waiting for an explicit update request, then retrieves relevant saved context. A known new source-only installation defaults to E5; updates preserve its E5/MiniLM/custom selection. Legacy binary installations without a recorded model choice or config return `selection_required` until a choice is supplied. `none` skips model preparation while retaining an existing config. The runtime home is `${CODEX_HOME:-~/.codex}/memento/runtime`, or `MEMENTO_RUNTIME_HOME`. It is separate from project stores and Codex's hook-only `PLUGIN_DATA`.
+
+```sh
+python3 /absolute/installed-plugin/scripts/install_runtime.py --ensure
+python3 /absolute/installed-plugin/scripts/install_runtime.py --status
+python3 /absolute/installed-plugin/scripts/install_runtime.py --embedding-model none
+python3 /absolute/installed-plugin/skills/memento/scripts/memento.py runtime-status
+```
+
+Runtime status, store-status, session-status, help and version inspection never build or download software; unprepared source-only packages can report that no executable is available. Once prepared, commands reuse the verified artifact. Readiness detects changed source, bundled executable or managed model setup identity; the startup ensure step or next real command prepares the update. A plugin version label change alone does not rebuild an unchanged runtime. An explicit `MEMENTO_BIN` remains the selected executable. This checks the installed package; fetching a new marketplace package remains the host's plugin update operation. The setup requires existing prerequisite tools and surfaces offline/build/inference errors; it does not install OS tools. It retains the active and previous owned artifact/model references and one candidate, and preserves unrelated runtime files.
+
+See [Codex hooks and checkpoints](codex-hooks.md) for local marketplace registration, explicit project configuration, hook trust, checkpoint resolution, and the separate optional Git commit gate. Plugin installation does not itself run an arbitrary post-install script or grant hook trust. SessionStart never runs a build or model download.
+
+Run `python3 <skill-directory>/scripts/memento.py COMMAND ...`. In a standalone skill installation, it selects an explicit `MEMENTO_BIN`, the bundled executable, `memento` on PATH, or this checkout's release/debug build. In plugin mode it resolves the shared verified runtime; the first real command, including a query, can prepare a missing or outdated runtime. Subsequent commands reuse it. For `query`, it supplies the selected semantic configuration unless `--semantic-config` is explicit. Direct executable calls still require that flag for semantic search. The examples below abbreviate the launcher as `memento`.
 
 ### Version and selected-store compatibility
 
-The current release separates plugin version `0.5.0`, Rust core version `0.2.0`, CLI protocol `1`, runtime configuration format `1`, and store format `1`. Inspect them independently:
+The current release separates plugin version `0.6.2`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
 
 ```sh
 memento version
@@ -36,7 +63,7 @@ memento store-status --store /absolute/context.sqlite
 memento migrate --store /absolute/context.sqlite
 ```
 
-The plugin launcher treats `store-status` as passive too: it requires an available compatible executable but does not prepare software. `version` returns build identity, OS/architecture, capabilities and store read/write ranges without opening a DB. `store-status` neither creates a missing store nor marks a legacy one; it returns `missing`, `migration_required` (known unmarked format `0`) or `compatible`. Invalid schema/payload and future versions return compatibility errors instead of a success status. `migrate` only operates on the selected existing DB. Normal commands also mark a known legacy store when opening it; other stores are not scanned.
+The plugin launcher treats `store-status` as passive too: it requires an available compatible executable but does not prepare software. `version` returns build identity, OS/architecture, capabilities and store read/write ranges without opening a DB. `store-status` neither creates a missing store nor marks a legacy one; it returns `missing`, `migration_required` (known formats `0` and `1`) or `compatible`. Invalid schema/payload and future versions return compatibility errors instead of a success status. `migrate` only operates on the selected existing DB. Normal commands also upgrade a known legacy store when opening it; other stores are not scanned.
 
 Check a supplied semantic configuration without opening a store or running its worker/model:
 
@@ -46,9 +73,9 @@ memento semantic-config-check --semantic-config /absolute/semantic-config.json
 
 This passive command uses the Rust configuration schema to reject unknown fields, invalid types/ranges and an empty command, returning `{"valid": true}` only for a valid configuration. It requires an available compatible executable. Runtime preparation calls the checker through the candidate executable before activating a configured artifact; local inference is a separate check.
 
-The initial migration adds `store_format: {version, db_identity, migration_epoch}` to the existing reserved metadata row in one SQLite transaction. Existing entity rows, IDs, revisions, sequences, timestamps, evidence, compaction and capture state are preserved; the `0.3.0` release's absent capture field becomes an empty default. It does not export/reinsert records, change the SQL schema, compact history or increase a policy limit. If header growth exceeds the configured limit, the migration fails. SQLite's transaction journal supplies rollback; no external plaintext DB snapshot is retained.
+Migration from format `0` or `1` to `2` changes only the existing reserved metadata row in one SQLite transaction. Format `0` adds `store_format: {version, db_identity, migration_epoch}`; format `1` preserves `db_identity` and increments `migration_epoch`. Existing entity payloads, IDs, revisions, sequences, timestamps, evidence, policy, compaction and capture state are preserved; an absent legacy capture field becomes an empty default. It does not export/reinsert records, change the SQL schema, compact history or increase a policy limit. If metadata growth exceeds the configured limit, the migration fails. SQLite's transaction journal supplies rollback; no external plaintext DB snapshot is retained.
 
-Writers coordinate using the empty `<store>.memento-lock` sidecar and recheck identity/epoch inside each transaction. Already open readers recheck the header as well. Busy, malformed, fenced or future stores fail without being replaced. The actual `0.3.0` and `0.4.0` executables reject the new metadata field, so an old executable cannot write the marked store through those tested CLI paths. This is not a promise about arbitrary older binaries or direct SQL access.
+Writers coordinate using the empty `<store>.memento-lock` sidecar and recheck identity/epoch inside each transaction. Already open readers recheck the header as well. Busy, malformed, fenced or future stores fail without being replaced. The tested format `1` executable rejects the upgraded format `2` store, including writes from a handle opened before upgrade. The current plugin also rejects a format `1` executable during its runtime handshake before activation or selected-store access. These checks do not cover arbitrary older binaries or direct SQL access.
 
 Runtime preparation does not restore DB snapshots. A failed update preserves the previous active runtime and returns an error; it does not execute the original command with an unchecked older binary. Switching a runtime cannot remove records written after a migration. The compatibility gate must succeed before any chosen executable accesses the selected DB.
 
@@ -70,6 +97,23 @@ memento note --store /tmp/context.sqlite --project demo --work W1 --session S1 -
 `note` requires `id`, `kind`, `body`. Optional fields use the Record schema below; unprovided nature is `reported`, occurrence time is unknown, association is explicit only when `--work` is supplied. Receipt `sequence/entity_id/duplicate/durable` is the persistence result. Do not invent timestamps. Unknown fields are rejected. Query failures return structured `error.code` with a nonzero exit code.
 
 An automatic collection adds `compaction: {generation, removed_entries, remaining}` to the receipt. `record` arrays and each import batch commit atomically: their new entries are protected during admission and the entire batch fails if they cannot fit. A failed multi-command workflow can still have earlier successful receipts; report the actual saved portion.
+
+## Passive session recording status
+
+```sh
+memento session-status --store /absolute/context.sqlite --project demo --work W1 --session S1
+memento session-status --store /absolute/context.sqlite --project demo --work W1 --session S1 --limit 10
+```
+
+`session-status` requires an explicit store, project, work and session. `--limit` defaults to `20` and accepts `1`–`100`. It reads only the selected store; it does not discover or scan other stores. The launcher uses an already available compatible executable and never prepares or installs a runtime for this command. If none is available, inspect `runtime-status` separately.
+
+The selected SQLite database is opened read-only. The command does not create directories, a database or Memento lock files; migrate, change permissions, compact, revalidate source files, or resolve/save checkpoints. A missing store returns its missing status and an empty result. Known formats `0` and `1` can be read and report `migration_required`; this command leaves their format unchanged. Invalid or unknown formats return typed compatibility errors. A WAL-mode store or an existing SQLite `-wal`/`-journal` sidecar returns `store_busy` rather than attempting recovery or changing sidecars. Exceptional driver failures while inspecting a locked or unreadable store return `store_inspection_unavailable`. Retry after the writer has completed and the store is readable in rollback-journal mode. Concurrent external changes to SQLite journal mode are outside the supported inspection contract.
+
+The result identifies the selected `store` and `scope` (`project_id`, `work_id`, `session_id`), marks `read_only: true`, and includes `store_format`. The latest retained revision is selected per project/source/entity/id before work/session filtering; a newer reassignment therefore cannot expose an older matching revision. `record_count` counts matching record identities from authorized sources, excluding deleted records. `last_saved_at` is the capture time of the most recently saved matching record, or `null`; it is not the time the original event occurred. `records` contains up to the requested limit in newest-save order, with `sequence`, `source_id`, `source_available`, `record_id`, `revision`, `kind`, `association`, `title`, `representation`, `availability`, `fidelity`, `partial` and `captured_at`. Bodies are not returned. `omitted_records` reports how many matching summaries were left out. `association` preserves whether a work assignment is explicit, candidate or unassigned. `source_available` preserves the source's saved availability independently of the record's `availability`; authorized but unavailable sources can still have retained metadata. Unavailable/redacted records retain their labels, without reading their original files. A derived record's title is blank when its cited evidence source is unauthorized or the evidence is deleted.
+
+`checkpoint_state` distinguishes `not_observed` from `observed`. `checkpoints` reports each retained checkpoint group for the selected project/work/session with `repository`, `closed`, `stop_attempts`, `event_count`, `pending` and `capture_incomplete`. The obligation lists contain only `event_id`, `kind` and `reason`, after checking saved record references; event details and bodies are excluded. If that triple has checkpoints in more than one repository, every retained group is returned explicitly. Existing capture retention is bounded to 128 sessions and 128 events per group. The record schema does not carry repository scope, so this command has no repository filter for records.
+
+`compaction` reports the saved `generation` and `removed_entries`; earlier history may already have been removed. `limitations` describes the selected-store scope, saved source state, withheld derived titles and checkpoint interpretation limits. A group with no pending obligations is not proof that all relevant meanings were captured. No observed checkpoint is not proof that hooks were disabled, and stored observations do not prove hooks are active now.
 
 ## Query JSON
 
@@ -135,11 +179,39 @@ For optional local semantic search, see [model setup, query, and lifecycle](sema
 
 ## Full records and links
 
-`record --input FILE` accepts an Entity or array, encoded `{"entity":"record","data":{...}}`. Entity kinds: source/work/session/record/relation/code_state/commit. Prefer `note` for content, then use the returned/queryable record revision in links.
+`record --input FILE` accepts an Entity or array, encoded `{"entity":"record","data":{...}}`. Entity kinds: source/work/session/record/relation/code_state/commit. For new atomic capture, use a `record` batch for source evidence and its claims when the retained projection is known. `note` remains available for individual records; use actual returned/queryable revisions in links.
 
-Record fields beyond the minimal note: `title`, `occurred_at`, `source_order`, `actor`, `work_ids`, `association` (`explicit/candidate/unassigned`), `session_id`, `worktree_id`, `paths`, `code_refs`, `commit_shas`, `evidence`, `decision_status`, `attempt_outcome`, `verification_outcome`, `attempt_id`, `execution`, `applies_to`, `alternatives`, `derived`, `partial`, `fidelity`, `availability`. A revision may be supplied from the original source. `code_refs` carry `state_id/path/range`; evidence carries `source_id/record_id/revision/locator/availability/range`.
+Record fields beyond the minimal note: `title`, `occurred_at`, `source_order`, `actor`, `work_ids`, `association` (`explicit/candidate/unassigned`), `session_id`, `worktree_id`, `paths`, `code_refs`, `commit_shas`, `evidence`, `decision_status`, `attempt_outcome`, `verification_outcome`, `attempt_id`, `execution`, `applies_to`, `alternatives`, `derived`, `partial`, `fidelity`, `availability`, `representation`, `context_id`. A revision may be supplied from the original source. `code_refs` carry `state_id/path/range`; evidence carries `source_id/record_id/revision/locator/availability/range`, optional `purpose` (`unspecified/origin/support`) and optional `span` (`start/end` UTF-8 byte offsets, end exclusive).
+
+### Atomic source and claim batch
+
+New capture separates source `representation: evidence` from semantic `representation: claim`. `legacy` is the default for existing records, not a way to certify new compound bodies. A claim is derived and needs an exact available `origin` into evidence or legacy source text in the same project. An origin cannot target another claim; `support` may reference earlier claims. A normalized claim uses `fidelity: summary_only`; a literal atomic excerpt can use `original`. Read [atomic capture](atomic-claims.md) before splitting conditions, corrections or verification scope.
+
+After initializing the selected journal/work/session, `record --input FILE` accepts this batch. The context ID below is illustrative; for a pending checkpoint use the event's actual returned `context_id` and frozen origin instead of inventing them.
+
+```json
+[
+  {"entity":"record","data":{"id":"U1","project_id":"demo","source_id":"journal","revision":"v1","kind":"status","nature":"reported","fidelity":"original","availability":"available","title":"Public user request","body":"Retry at most 3 times.\nDo not change token refresh.","actor":{"kind":"human","name":"user"},"work_ids":["W1"],"association":"explicit","session_id":"S1","representation":"evidence","context_id":"capture-transition-1"}},
+  {"entity":"record","data":{"id":"C1","project_id":"demo","source_id":"journal","revision":"v1","kind":"constraint","nature":"reported","fidelity":"summary_only","availability":"available","title":"Retry bound","body":"Requests may be retried at most three times.","work_ids":["W1"],"association":"explicit","session_id":"S1","applies_to":["retry-limit"],"derived":true,"representation":"claim","context_id":"capture-transition-1","evidence":[{"source_id":"journal","record_id":"U1","revision":"v1","locator":"message:U1","availability":"available","purpose":"origin","span":{"start":0,"end":21}}]}},
+  {"entity":"record","data":{"id":"C2","project_id":"demo","source_id":"journal","revision":"v1","kind":"constraint","nature":"reported","fidelity":"summary_only","availability":"available","title":"Token refresh scope","body":"Token refresh must remain unchanged.","work_ids":["W1"],"association":"explicit","session_id":"S1","applies_to":["token-refresh"],"derived":true,"representation":"claim","context_id":"capture-transition-1","evidence":[{"source_id":"journal","record_id":"U1","revision":"v1","locator":"message:U1","availability":"available","purpose":"origin","span":{"start":22,"end":50}}]}}
+]
+```
+
+Measure spans against the saved body with `len(text.encode("utf-8"))`, not character counts. Every claim origin/support needs `span` or a one-based inclusive line `range`; whole-source references use the full retained range. When redaction can change the body, save/read the evidence first and measure the exact sanitized revision before admitting claims. Inspect durable receipts and read the exact saved revisions. Structural acceptance does not prove that all clauses were captured or that an inferred relationship is correct. Several claims may share one origin; changing one does not invalidate the others.
 
 Record kinds: request/constraint/finding/decision/attempt/tool_result/change/verification/feedback/status/git_event. Nature: observed/reported/inferred. Fidelity: original/summary_only/source_truncated. Availability: available/redacted/missing/deleted/unsupported. Decision status: proposed/accepted/superseded/rejected/unknown. Attempt: succeeded/failed/abandoned/running/unknown. Verification: passed/failed/running/skipped/unknown.
+
+### Typed execution metadata
+
+An execution is an object, not a copy of arbitrary native metadata. The typed `execution` object is normalized metadata, not the retained native original; keep exact public field evidence or exact field spans in a faithfully retained original container when a claim depends on those fields, as described in [atomic capture](atomic-claims.md). `environment` is an object with `os`, `toolchain`, `profile` and `dependencies`; preserve a native environment label such as `local-debug` in `environment.profile`. A supplied `code_state` label maps to `before_state` or `after_state` according to when that state was observed. Do not add an unsupported `code_state` field or infer that a later state was verified. If state-observation timing is unknown, leave `before_state` and `after_state` unset and disclose the timing gap. Preserve the supplied label through faithfully retained source evidence with accurate provenance; do not add it to the original message body, invent a state observation, or repurpose an unrelated execution field to hold it.
+
+This illustrative `execution` object shows all fields for a public command result whose source explicitly supplies its execution ID, command, completion, exit code, environment label and state observed at completion:
+
+```json
+{"id":"run-1","command":"cargo test parser","tool_name":null,"tool_input":null,"cwd":null,"started_at":null,"ended_at":null,"exit_code":0,"last_observed_state":"completed","observed_at":null,"liveness":"unknown","before_state":null,"after_state":"state-observed-1","scope":["parser tests"],"environment":{"os":null,"toolchain":null,"profile":"local-debug","dependencies":[]}}
+```
+
+Only `id`, `command` and `last_observed_state` are nonoptional strings. Do not invent an ID or command to fill this object; if either is unavailable, omit `execution`, preserve the supplied output and disclose the metadata gap. Preserve native execution IDs separately across retries. `tool_name` and `tool_input` are optional strings; serialize an accessible structured native input to a JSON string rather than supplying an object. `scope` and `dependencies` are string arrays. Optional fields use null or omission when the source does not supply them. Do not invent cwd, timestamps, toolchain, dependencies or current liveness; `liveness` is `running/stopped/unknown`, with `unknown` for historical results unless current liveness was actually observed. A missing completion/result uses `last_observed_state: "unknown"` and `exit_code: null`. Metadata preserves the observed execution scope; a separate verification claim still needs its own supported result and limitations.
 
 A relation example (replace revisions with actual receipts/query evidence):
 

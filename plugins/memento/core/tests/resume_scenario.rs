@@ -104,6 +104,8 @@ async fn sc01_resume_recovers_abandoned_attempt_and_degrades_only_missing_origin
                     locator: "record:E1".into(),
                     availability: Availability::Available,
                     range: None,
+                    purpose: memento::model::EvidencePurpose::Unspecified,
+                    span: None,
                 }],
                 applies_to: Vec::new(),
             }))

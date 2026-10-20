@@ -45,6 +45,8 @@ fn rec(id: &str, work: &str, kind: RecordKind, body: &str) -> Record {
         locator: format!("selected-journal.jsonl#{id}"),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     record
 }
@@ -84,6 +86,8 @@ fn link(id: &str, from: Target, to: Target, kind: RelationKind) -> Relation {
             locator: format!("selected-journal.jsonl#link-{id}"),
             availability: Availability::Available,
             range: None,
+            purpose: memento::model::EvidencePurpose::Unspecified,
+            span: None,
         }],
         applies_to: Vec::new(),
     }
@@ -751,6 +755,8 @@ fn document_only_research_preserves_historical_reason_and_missing_excerpt_bounda
             start_line: 1,
             end_line: 1,
         }),
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     for record in [request, document, decision] {
         add(&mut data, Entity::Record(record));
@@ -881,6 +887,8 @@ fn corrected_summary_and_reimported_summary_remain_one_reported_lineage() -> Tes
         locator: "old-session.jsonl#L10".into(),
         availability: Availability::Missing,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     let mut repeated = rec(
         "B16",
@@ -897,6 +905,8 @@ fn corrected_summary_and_reimported_summary_remain_one_reported_lineage() -> Tes
         locator: "selected-journal.jsonl#B15".into(),
         availability: Availability::Available,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     });
     let mut truncated = rec(
         "E15",

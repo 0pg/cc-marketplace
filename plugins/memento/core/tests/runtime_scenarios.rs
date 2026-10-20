@@ -709,6 +709,8 @@ async fn killed_cli_retains_durable_running_attempt_and_current_dirty_file() -> 
         locator: "execution:interrupted:partial-output".into(),
         availability: Availability::Missing,
         range: None,
+        purpose: memento::model::EvidencePurpose::Unspecified,
+        span: None,
     }];
     append_fixture(&mut summary_only, Entity::Record(summary));
     let limited = memento::query::execute(&summary_only, &resume_query)?;
@@ -900,6 +902,8 @@ async fn failed_post_commit_capture_recovers_results_and_only_retained_process()
             locator: "session-a:C11-decision".into(),
             availability: Availability::Available,
             range: None,
+            purpose: memento::model::EvidencePurpose::Unspecified,
+            span: None,
         }],
         applies_to: Vec::new(),
     });

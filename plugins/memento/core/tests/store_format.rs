@@ -6,7 +6,7 @@ use memento::{
     Error as StoreError, Store, ingest,
     model::{Entity, Record, RecordKind, SourceKind},
     security::RedactionPolicy,
-    store::StoreFormatState,
+    store::{CURRENT_FORMAT, StoreFormatState},
 };
 use serde_json::{Value, json};
 
@@ -98,7 +98,7 @@ async fn status_is_noncreating_nonmutating_and_identity_survives_reopen() -> Tes
     let before = std::fs::read(&path)?;
     let status = Store::inspect(&path).await?;
     assert_eq!(status.state, StoreFormatState::Compatible);
-    assert_eq!(status.format_version, Some(1));
+    assert_eq!(status.format_version, Some(CURRENT_FORMAT));
     assert_eq!(status.migration_epoch, Some(1));
     assert_eq!(std::fs::read(&path)?, before);
     let corpus = serde_json::to_value(store.load().await?)?;
@@ -233,7 +233,7 @@ async fn future_and_malformed_headers_are_rejected_without_changes() -> TestResu
     mutate_metadata(&path, |meta| {
         *meta
             .pointer_mut("/store_format/version")
-            .ok_or("missing version")? = json!(2);
+            .ok_or("missing version")? = json!(CURRENT_FORMAT + 1);
         Ok(())
     })
     .await?;
@@ -255,7 +255,7 @@ async fn future_and_malformed_headers_are_rejected_without_changes() -> TestResu
     mutate_metadata(&path, |meta| {
         *meta
             .pointer_mut("/store_format/version")
-            .ok_or("missing version")? = json!(1);
+            .ok_or("missing version")? = json!(CURRENT_FORMAT);
         *meta
             .pointer_mut("/store_format/db_identity")
             .ok_or("missing identity")? = json!("invalid");
@@ -357,6 +357,112 @@ async fn deliberate_header_removal_is_marked_once_without_entity_rewrites() -> T
         migrated
     );
     assert_eq!(std::fs::read_dir(directory.path())?.count(), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn format_one_upgrade_changes_only_header_and_preserves_identity() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("context.sqlite");
+    let mut writer = populated(&path).await?;
+    mutate_metadata(&path, |meta| {
+        *meta
+            .pointer_mut("/store_format/version")
+            .ok_or("missing version")? = json!(1);
+        *meta
+            .pointer_mut("/store_format/migration_epoch")
+            .ok_or("missing epoch")? = json!(41);
+        Ok(())
+    })
+    .await?;
+    let before = rows(&path).await?;
+    let bytes = std::fs::read(&path)?;
+    let status = Store::inspect(&path).await?;
+    assert_eq!(status.state, StoreFormatState::MigrationRequired);
+    assert_eq!(status.format_version, Some(1));
+    assert_eq!(status.target_format, CURRENT_FORMAT);
+    assert_eq!(std::fs::read(&path)?, bytes);
+
+    let upgraded = Store::migrate(&path, RedactionPolicy::default()).await?;
+    assert_eq!(upgraded.state, StoreFormatState::Compatible);
+    assert_eq!(upgraded.format_version, Some(CURRENT_FORMAT));
+    assert_eq!(upgraded.db_identity, status.db_identity);
+    assert_eq!(upgraded.migration_epoch, Some(42));
+    let after = rows(&path).await?;
+    assert_eq!(before.len(), after.len());
+    for (previous, current) in before.iter().zip(&after) {
+        if previous.get("entity_key") == Some(&json!(META)) {
+            let mut expected = previous.clone();
+            let mut payload: Value = serde_json::from_str(
+                previous
+                    .get("payload")
+                    .and_then(Value::as_str)
+                    .ok_or("missing metadata payload")?,
+            )?;
+            *payload
+                .pointer_mut("/store_format/version")
+                .ok_or("missing version")? = json!(CURRENT_FORMAT);
+            *payload
+                .pointer_mut("/store_format/migration_epoch")
+                .ok_or("missing epoch")? = json!(42);
+            *expected.get_mut("payload").ok_or("missing payload")? = payload;
+            let mut actual = current.clone();
+            let actual_payload: Value = serde_json::from_str(
+                current
+                    .get("payload")
+                    .and_then(Value::as_str)
+                    .ok_or("missing current metadata payload")?,
+            )?;
+            *actual.get_mut("payload").ok_or("missing current payload")? = actual_payload;
+            assert_eq!(expected, actual);
+        } else {
+            assert_eq!(previous, current);
+        }
+    }
+    let settled = std::fs::read(&path)?;
+    assert_eq!(
+        Store::migrate(&path, RedactionPolicy::default()).await?,
+        upgraded
+    );
+    assert_eq!(std::fs::read(&path)?, settled);
+    assert_eq!(
+        writer
+            .load()
+            .await
+            .err()
+            .ok_or("stale handle accepted")?
+            .code(),
+        "store_format_fenced"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn format_one_epoch_overflow_rolls_back_without_rewriting_any_row() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("context.sqlite");
+    drop(populated(&path).await?);
+    mutate_metadata(&path, |meta| {
+        *meta
+            .pointer_mut("/store_format/version")
+            .ok_or("missing version")? = json!(1);
+        *meta
+            .pointer_mut("/store_format/migration_epoch")
+            .ok_or("missing epoch")? = json!(u64::MAX);
+        Ok(())
+    })
+    .await?;
+    let before = rows(&path).await?;
+    assert_eq!(
+        Store::migrate(&path, RedactionPolicy::default())
+            .await
+            .err()
+            .ok_or("epoch overflow was accepted")?
+            .code(),
+        "store_format_invalid"
+    );
+    assert_eq!(rows(&path).await?, before);
+    assert_eq!(Store::inspect(&path).await?.format_version, Some(1));
     Ok(())
 }
 

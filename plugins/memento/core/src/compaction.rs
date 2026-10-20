@@ -12,7 +12,7 @@ use crate::model::*;
 
 mod datalog;
 
-const RULE_VERSION: &str = "crepe-fixed-point-v2";
+const RULE_VERSION: &str = "crepe-fixed-point-v3";
 const MAX_REASONS: usize = 200;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -222,19 +222,21 @@ fn root_rule(entity: &Entity) -> Option<&'static str> {
             Some("removal_tombstone")
         }
         Entity::Record(record)
-            if matches!(
-                record.kind,
-                RecordKind::Request
-                    | RecordKind::Constraint
-                    | RecordKind::Decision
-                    | RecordKind::Feedback
-                    | RecordKind::Verification
-            ) =>
+            if record.representation != Representation::Evidence
+                && matches!(
+                    record.kind,
+                    RecordKind::Request
+                        | RecordKind::Constraint
+                        | RecordKind::Decision
+                        | RecordKind::Feedback
+                        | RecordKind::Verification
+                ) =>
         {
             Some("durable_record_kind")
         }
         Entity::Record(record)
-            if record.kind == RecordKind::Attempt
+            if record.representation != Representation::Evidence
+                && record.kind == RecordKind::Attempt
                 && record.attempt_outcome != Some(AttemptOutcome::Succeeded) =>
         {
             Some("failed_or_unresolved_attempt")
@@ -460,15 +462,20 @@ impl<'a> Index<'a> {
             .iter()
             .filter_map(|evidence| {
                 let id = evidence.record_id.as_deref()?;
-                self.evidence.get(&(
+                let sequences = self.evidence.get(&(
                     project,
                     evidence.source_id.as_str(),
                     id,
                     evidence.revision.as_str(),
-                ))
+                ))?;
+                let rule = match evidence.purpose {
+                    EvidencePurpose::Unspecified => "exact_evidence_revision",
+                    EvidencePurpose::Origin => "origin_evidence_revision",
+                    EvidencePurpose::Support => "support_evidence_revision",
+                };
+                Some(sequences.iter().map(move |sequence| (*sequence, rule)))
             })
             .flatten()
-            .map(|sequence| (*sequence, "exact_evidence_revision"))
             .collect()
     }
 
@@ -677,6 +684,8 @@ mod tests {
                         locator: "external-locator".into(),
                         availability: Availability::Available,
                         range: None,
+                        purpose: EvidencePurpose::Unspecified,
+                        span: None,
                     });
                 }
                 entries.push(Entry {
