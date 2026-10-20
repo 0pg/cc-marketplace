@@ -102,6 +102,89 @@ async fn context(
 }
 
 #[tokio::test]
+async fn request_observation_is_turn_scoped_and_survives_resolution_and_reopen() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let database = dir.path().join("context.sqlite");
+    let original = scope(dir.path(), "upload-app", "turn-1");
+    let next = scope(dir.path(), "upload-app", "turn-2");
+    let mut store = Store::open(&database, RedactionPolicy::default()).await?;
+    source(&mut store, "upload-app").await?;
+    let before = store
+        .checkpoint(Request::Status {
+            scope: original.clone(),
+        })
+        .await?;
+    assert!(!before.current_turn_has_user_prompt);
+    open(&mut store, &original, "request", EventKind::UserPrompt).await?;
+    let resolved = store
+        .checkpoint(Request::Resolve {
+            scope: original.clone(),
+            event_id: "request".into(),
+            resolution: Resolution::NoNewContext {
+                reason: "Status request only; no new context.".into(),
+            },
+        })
+        .await?;
+    assert!(resolved.current_turn_has_user_prompt);
+    assert!(!resolved.pending_user_prompt);
+    drop(store);
+    let mut store = Store::open(&database, RedactionPolicy::default()).await?;
+    assert!(
+        store
+            .checkpoint(Request::Status { scope: original })
+            .await?
+            .summarize()
+            .current_turn_has_user_prompt
+    );
+    assert!(
+        !store
+            .checkpoint(Request::Status {
+                scope: next.clone(),
+            })
+            .await?
+            .current_turn_has_user_prompt
+    );
+    open(&mut store, &next, "read", EventKind::Investigation).await?;
+    assert!(
+        !store
+            .checkpoint(Request::Status { scope: next })
+            .await?
+            .current_turn_has_user_prompt
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn summarized_request_observation_does_not_depend_on_pending_id_sample() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let mut store = Store::open(
+        &dir.path().join("context.sqlite"),
+        RedactionPolicy::default(),
+    )
+    .await?;
+    let scope = scope(dir.path(), "upload-app", "turn-1");
+    source(&mut store, "upload-app").await?;
+    for index in 0..9 {
+        open(
+            &mut store,
+            &scope,
+            &format!("read-{index}"),
+            EventKind::Investigation,
+        )
+        .await?;
+    }
+    open(&mut store, &scope, "request", EventKind::UserPrompt).await?;
+    let summary = store
+        .checkpoint(Request::Status { scope })
+        .await?
+        .summarize();
+    assert!(summary.events.is_empty());
+    assert!(summary.current_turn_has_user_prompt);
+    assert!(!summary.pending_event_ids.iter().any(|id| id == "request"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn correction_capture_survives_reopen_and_a_new_continuation_turn() -> TestResult {
     let dir = tempfile::tempdir()?;
     let database = dir.path().join("context.sqlite");

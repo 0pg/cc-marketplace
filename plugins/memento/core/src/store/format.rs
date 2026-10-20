@@ -64,6 +64,10 @@ pub enum StoreFormatError {
     Missing,
     #[error("selected Memento store is busy; retry after the current operation completes")]
     Busy,
+    #[error(
+        "read-only Memento store inspection could not complete; the store may be locked or unreadable"
+    )]
+    InspectionUnavailable,
 }
 
 impl StoreFormatError {
@@ -74,6 +78,7 @@ impl StoreFormatError {
             Self::Fenced => "store_format_fenced",
             Self::Missing => "store_missing",
             Self::Busy => "store_busy",
+            Self::InspectionUnavailable => "store_inspection_unavailable",
         }
     }
 }
@@ -215,6 +220,10 @@ pub(super) async fn validate_schema(path: &Path) -> Result<()> {
     let rows = SchemaEntry::all().exec(&mut db).await.map_err(|error| {
         StoreFormatError::Invalid(format!("cannot inspect SQLite schema: {error}"))
     })?;
+    validate_schema_rows(&rows)
+}
+
+fn validate_schema_rows(rows: &[SchemaEntry]) -> Result<()> {
     let table = "CREATE TABLE \"stored_entries\" ( \"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"event_key\" TEXT NOT NULL, \"entity_key\" TEXT NOT NULL, \"captured_at\" TEXT NOT NULL, \"payload\" TEXT NOT NULL )";
     let index = "CREATE UNIQUE INDEX \"index_stored_entries_by_event_key\" ON \"stored_entries\" (\"event_key\")";
     if rows.len() != 3
@@ -294,32 +303,133 @@ fn validate_rows(rows: &[StoredEntry]) -> Result<retention::Metadata> {
     Ok(meta)
 }
 
-pub(super) async fn inspect(path: &Path) -> Result<StoreFormatStatus> {
+pub(super) struct PassiveSnapshot {
+    pub status: StoreFormatStatus,
+    pub entries: Vec<Entry>,
+    pub capture: capture::State,
+    pub compaction: CompactionState,
+}
+
+fn read_only_uri(path: &Path) -> Result<String> {
+    let path = path.canonicalize()?;
+    let path = path
+        .to_str()
+        .ok_or_else(|| StoreFormatError::Invalid("store path must be UTF-8".into()))?;
+    let mut uri = String::from("file:");
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'.' | b'_' | b'~') {
+            uri.push(char::from(byte));
+        } else {
+            use std::fmt::Write;
+            write!(&mut uri, "%{byte:02X}")
+                .map_err(|error| StoreFormatError::Invalid(error.to_string()))?;
+        }
+    }
+    uri.push_str("?mode=ro");
+    Ok(uri)
+}
+
+fn validate_passive_file(path: &Path, reject_sidecars: bool) -> Result<()> {
+    let mut file = File::open(path)?;
+    let mut header = [0; 20];
+    if file.read_exact(&mut header).is_err() || header.get(..16) != Some(b"SQLite format 3\0") {
+        return Err(StoreFormatError::Invalid("not a known SQLite database".into()).into());
+    }
+    if !reject_sidecars {
+        return Ok(());
+    }
+    // A read-only WAL connection can create or modify shared-memory sidecars.
+    // Do not silently ignore a WAL with immutable=1 or recover a hot journal.
+    if header.get(18) == Some(&2) || header.get(19) == Some(&2) {
+        return Err(StoreFormatError::Busy.into());
+    }
+    for suffix in ["-wal", "-journal"] {
+        let mut sidecar = path.as_os_str().to_owned();
+        sidecar.push(suffix);
+        if Path::new(&sidecar).try_exists()? {
+            return Err(StoreFormatError::Busy.into());
+        }
+    }
+    Ok(())
+}
+
+/// Read one validated SQLite snapshot without preparing a writable Store.
+/// Known legacy rows remain in their original format and need no migration.
+pub(super) async fn passive_snapshot(path: &Path) -> Result<PassiveSnapshot> {
+    let path = path.to_path_buf();
+    // The SQLite driver in Toasty 0.4 can panic while preparing a query against
+    // an exclusively locked database. Keep diagnostic failure a typed result.
+    tokio::spawn(async move { snapshot(&path, true).await })
+        .await
+        .map_err(|_| StoreFormatError::InspectionUnavailable)?
+}
+
+async fn snapshot(path: &Path, reject_sidecars: bool) -> Result<PassiveSnapshot> {
     match std::fs::metadata(path) {
         Ok(metadata) if metadata.len() == 0 => {
-            return Ok(StoreFormatStatus::absent(StoreFormatState::Missing, None));
+            return Ok(PassiveSnapshot {
+                status: StoreFormatStatus::absent(StoreFormatState::Missing, None),
+                entries: Vec::new(),
+                capture: capture::State::default(),
+                compaction: CompactionState::default(),
+            });
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(StoreFormatStatus::absent(StoreFormatState::Missing, None));
+            return Ok(PassiveSnapshot {
+                status: StoreFormatStatus::absent(StoreFormatState::Missing, None),
+                entries: Vec::new(),
+                capture: capture::State::default(),
+                compaction: CompactionState::default(),
+            });
         }
         Err(error) => return Err(error.into()),
         _ => {}
     }
-    // Opening for inspection neither creates a header nor changes permissions.
-    validate_schema(path).await?;
+    let path = path.canonicalize()?;
+    validate_passive_file(&path, reject_sidecars)?;
     let mut builder = toasty::Db::builder();
-    builder.models(toasty::models!(StoredEntry));
+    builder.models(toasty::models!(SchemaEntry, StoredEntry));
     let mut db = builder
-        .build(toasty_driver_sqlite::Sqlite::open(path))
+        .build(toasty_driver_sqlite::Sqlite::open(read_only_uri(&path)?))
         .await?;
-    let mut transaction = db.transaction().await?;
+    let mut transaction = db.transaction_builder().read_only(true).begin().await?;
+    let schema = SchemaEntry::all()
+        .exec(&mut transaction)
+        .await
+        .map_err(|error| {
+            StoreFormatError::Invalid(format!("cannot inspect SQLite schema: {error}"))
+        })?;
+    validate_schema_rows(&schema)?;
     let rows = StoredEntry::all().exec(&mut transaction).await?;
     let meta = validate_rows(&rows)?;
+    let mut entries = rows
+        .into_iter()
+        .filter(|row| !retention::is_metadata(row))
+        .map(|row| {
+            Ok(Entry {
+                sequence: row.id,
+                captured_at: row.captured_at,
+                entity: serde_json::from_str(&row.payload)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    entries.sort_by_key(|entry| entry.sequence);
     transaction.commit().await?;
-    Ok(meta.store_format.map_or_else(
-        || StoreFormatStatus::absent(StoreFormatState::MigrationRequired, Some(0)),
-        |header| header.status(),
-    ))
+    Ok(PassiveSnapshot {
+        status: meta.store_format.as_ref().map_or_else(
+            || StoreFormatStatus::absent(StoreFormatState::MigrationRequired, Some(0)),
+            |header| header.status(),
+        ),
+        entries,
+        capture: meta.capture,
+        compaction: meta.compaction,
+    })
+}
+
+pub(super) async fn inspect(path: &Path) -> Result<StoreFormatStatus> {
+    // Normal open/migrate also use format inspection. Preserve their existing
+    // ability to operate on WAL stores; only passive session queries reject WAL.
+    Ok(snapshot(path, false).await?.status)
 }
 
 pub(super) async fn migrate(db: &mut toasty::Db, path: &Path) -> Result<Header> {
@@ -409,4 +519,251 @@ pub(super) async fn fence(
         return Err(StoreFormatError::Fenced.into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::*;
+
+    type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+    async fn populated(path: &Path) -> Result<()> {
+        let mut store = Store::open(path, RedactionPolicy::default()).await?;
+        store
+            .append(Entity::Source(crate::ingest::source(
+                "journal",
+                "project",
+                SourceKind::Journal,
+            )))
+            .await?;
+        store
+            .append(Entity::Record(Record::new(
+                "finding",
+                "project",
+                "journal",
+                RecordKind::Finding,
+                "preserved result",
+            )))
+            .await?;
+        Ok(())
+    }
+
+    fn names(path: &Path) -> std::io::Result<Vec<std::ffi::OsString>> {
+        let mut names = std::fs::read_dir(path)?
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect::<std::io::Result<Vec<_>>>()?;
+        names.sort();
+        Ok(names)
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn passive_snapshot_reads_readonly_special_path_without_a_lock_sidecar() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("상태 #?% context.sqlite");
+        populated(&path).await?;
+        let mut lock = path.as_os_str().to_owned();
+        lock.push(".memento-lock");
+        std::fs::remove_file(Path::new(&lock))?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444))?;
+        let before = std::fs::read(&path)?;
+        let modified = std::fs::metadata(&path)?.modified()?;
+        let directory_before = names(directory.path())?;
+
+        let snapshot = passive_snapshot(&path).await?;
+        assert_eq!(snapshot.status.state, StoreFormatState::Compatible);
+        assert_eq!(snapshot.entries.len(), 2);
+        assert!(snapshot.entries.iter().any(|entry| {
+            matches!(&entry.entity, Entity::Record(record) if record.id == "finding")
+        }));
+        let mut builder = toasty::Db::builder();
+        builder.models(toasty::models!(StoredEntry));
+        let mut db = builder
+            .build(toasty_driver_sqlite::Sqlite::open(read_only_uri(&path)?))
+            .await?;
+        let mut row = StoredEntry::all()
+            .exec(&mut db)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or("missing fixture row")?;
+        assert!(
+            row.update()
+                .payload("changed".to_owned())
+                .exec(&mut db)
+                .await
+                .is_err()
+        );
+        drop(db);
+
+        assert_eq!(std::fs::read(&path)?, before);
+        assert_eq!(std::fs::metadata(&path)?.modified()?, modified);
+        assert_eq!(
+            std::fs::metadata(&path)?.permissions().mode() & 0o777,
+            0o444
+        );
+        assert_eq!(names(directory.path())?, directory_before);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn passive_snapshot_neither_creates_missing_store_nor_migrates_legacy_rows() -> TestResult
+    {
+        let directory = tempfile::tempdir()?;
+        let missing = directory.path().join("missing/context.sqlite");
+        let snapshot = passive_snapshot(&missing).await?;
+        assert_eq!(snapshot.status.state, StoreFormatState::Missing);
+        assert!(snapshot.entries.is_empty());
+        assert!(!directory.path().join("missing").exists());
+
+        let empty = directory.path().join("empty.sqlite");
+        std::fs::write(&empty, b"")?;
+        assert_eq!(
+            passive_snapshot(&empty).await?.status.state,
+            StoreFormatState::Missing
+        );
+        assert!(std::fs::read(&empty)?.is_empty());
+
+        let path = directory.path().join("legacy.sqlite");
+        populated(&path).await?;
+        let mut builder = toasty::Db::builder();
+        builder.models(toasty::models!(StoredEntry));
+        let mut db = builder
+            .build(toasty_driver_sqlite::Sqlite::open(&path))
+            .await?;
+        let mut row = StoredEntry::all()
+            .exec(&mut db)
+            .await?
+            .into_iter()
+            .find(retention::is_metadata)
+            .ok_or("missing metadata")?;
+        let mut metadata: serde_json::Value = serde_json::from_str(&row.payload)?;
+        metadata
+            .as_object_mut()
+            .ok_or("metadata not object")?
+            .remove("store_format");
+        row.update()
+            .payload(serde_json::to_string(&metadata)?)
+            .exec(&mut db)
+            .await?;
+        drop(db);
+        let before = std::fs::read(&path)?;
+        let directory_before = names(directory.path())?;
+        let snapshot = passive_snapshot(&path).await?;
+        assert_eq!(snapshot.status.state, StoreFormatState::MigrationRequired);
+        assert_eq!(snapshot.status.format_version, Some(0));
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(std::fs::read(&path)?, before);
+        assert_eq!(names(directory.path())?, directory_before);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn passive_snapshot_rejects_journals_and_wal_without_recovery() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("context.sqlite");
+        populated(&path).await?;
+        for suffix in ["-wal", "-journal"] {
+            let mut sidecar = path.as_os_str().to_owned();
+            sidecar.push(suffix);
+            let sidecar = Path::new(&sidecar);
+            std::fs::write(sidecar, b"untouched journal")?;
+            let before = std::fs::read(&path)?;
+            let directory_before = names(directory.path())?;
+            let error = passive_snapshot(&path)
+                .await
+                .err()
+                .ok_or("accepted sidecar")?;
+            assert_eq!(error.code(), "store_busy");
+            assert_eq!(std::fs::read(&path)?, before);
+            assert_eq!(std::fs::read(sidecar)?, b"untouched journal");
+            assert_eq!(names(directory.path())?, directory_before);
+            std::fs::remove_file(sidecar)?;
+        }
+        let mut bytes = std::fs::read(&path)?;
+        bytes
+            .get_mut(18..20)
+            .ok_or("missing SQLite header")?
+            .copy_from_slice(&[2, 2]);
+        std::fs::write(&path, &bytes)?;
+        let directory_before = names(directory.path())?;
+        let error = passive_snapshot(&path)
+            .await
+            .err()
+            .ok_or("accepted WAL mode")?;
+        assert_eq!(error.code(), "store_busy");
+        assert_eq!(std::fs::read(&path)?, bytes);
+        assert_eq!(names(directory.path())?, directory_before);
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn passive_snapshot_checks_sidecars_beside_the_canonical_store() -> TestResult {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("context.sqlite");
+        let alias = directory.path().join("alias.sqlite");
+        populated(&path).await?;
+        std::os::unix::fs::symlink(&path, &alias)?;
+        let mut sidecar = path.as_os_str().to_owned();
+        sidecar.push("-journal");
+        std::fs::write(Path::new(&sidecar), b"untouched journal")?;
+        let before = std::fs::read(&path)?;
+        let directory_before = names(directory.path())?;
+        let error = passive_snapshot(&alias)
+            .await
+            .err()
+            .ok_or("alias bypassed journal guard")?;
+        assert_eq!(error.code(), "store_busy");
+        assert_eq!(std::fs::read(&path)?, before);
+        assert_eq!(names(directory.path())?, directory_before);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn passive_snapshot_contains_driver_failure_under_an_exclusive_sqlite_lock() -> TestResult
+    {
+        use std::{
+            io::{BufRead, BufReader},
+            process::{Child, Command, Stdio},
+        };
+
+        struct ExclusiveLock(Child);
+        impl Drop for ExclusiveLock {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("context.sqlite");
+        populated(&path).await?;
+        let before = std::fs::read(&path)?;
+        let directory_before = names(directory.path())?;
+        let script = "import sqlite3,sys\nc=sqlite3.connect(sys.argv[1])\nc.execute('BEGIN EXCLUSIVE')\nprint('locked',flush=True)\nsys.stdin.readline()\nc.rollback()\nc.close()\n";
+        let mut lock = ExclusiveLock(
+            Command::new("python3")
+                .args(["-c", script])
+                .arg(&path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()?,
+        );
+        let output = lock.0.stdout.take().ok_or("missing lock handshake")?;
+        let mut ready = String::new();
+        BufReader::new(output).read_line(&mut ready)?;
+        assert_eq!(ready.trim(), "locked");
+        let error = passive_snapshot(&path)
+            .await
+            .err()
+            .ok_or("exclusive lock unexpectedly inspected")?;
+        assert_eq!(error.code(), "store_inspection_unavailable");
+        assert_eq!(std::fs::read(&path)?, before);
+        assert_eq!(names(directory.path())?, directory_before);
+        Ok(())
+    }
 }

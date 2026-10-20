@@ -2,11 +2,13 @@
 
 import copy
 import importlib.util
+import io
 import json
 import platform
 from pathlib import Path
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +22,65 @@ SPEC = importlib.util.spec_from_file_location(
 runtime = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = runtime
 SPEC.loader.exec_module(runtime)
+
+LAUNCHER_SPEC = importlib.util.spec_from_file_location(
+    "memento_passive_launcher", ROOT / "skills/memento/scripts/memento.py"
+)
+launcher = importlib.util.module_from_spec(LAUNCHER_SPEC)
+LAUNCHER_SPEC.loader.exec_module(launcher)
+
+
+class PassiveSessionLauncherTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="memento-passive-launcher-")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name).resolve()
+        self.plugin = self.root / "plugin"
+        self.store = self.root / "stores/context.sqlite"
+        self.arguments = [
+            "session-status", "--store", str(self.store),
+            "--project", "project", "--work", "work", "--session", "session",
+        ]
+
+    def test_session_status_uses_ready_runtime_without_preparation(self):
+        prepared = runtime.Runtime(self.root / "memento", None, {})
+        with (
+            patch.dict(sys.modules, {"runtime": runtime}),
+            patch.object(sys, "path", sys.path.copy()),
+            patch.object(launcher, "__file__", str(self.plugin / "skills/memento/scripts/memento.py")),
+            patch.object(sys, "argv", ["memento.py", *self.arguments]),
+            patch.object(runtime, "ready_runtime", return_value=prepared) as ready,
+            patch.object(runtime, "ensure_runtime", side_effect=AssertionError("prepared runtime")) as ensure,
+            patch.object(runtime, "git_bridge", return_value=self.root / "missing-bridge"),
+            patch.object(launcher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run,
+        ):
+            self.assertEqual(launcher.main(), 0)
+        ready.assert_called_once_with(self.plugin)
+        ensure.assert_not_called()
+        self.assertEqual(run.call_args.args[0], [str(prepared.executable), *self.arguments])
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_session_status_with_unprepared_runtime_reports_failure_without_changes(self):
+        home = self.root / "runtime"
+        errors = io.StringIO()
+        with (
+            patch.dict(sys.modules, {"runtime": runtime}),
+            patch.object(sys, "path", sys.path.copy()),
+            patch.object(launcher, "__file__", str(self.plugin / "skills/memento/scripts/memento.py")),
+            patch.object(sys, "argv", ["memento.py", *self.arguments]),
+            patch.dict(os.environ, {"MEMENTO_RUNTIME_HOME": str(home)}, clear=True),
+            patch.object(runtime, "ready_runtime", wraps=runtime.ready_runtime) as ready,
+            patch.object(runtime, "ensure_runtime", side_effect=AssertionError("prepared runtime")) as ensure,
+            patch.object(launcher.subprocess, "run") as run,
+            patch.object(sys, "stderr", errors),
+        ):
+            self.assertEqual(launcher.main(), 2)
+        ready.assert_called_once_with(self.plugin)
+        ensure.assert_not_called()
+        run.assert_not_called()
+        self.assertIn("Cannot run Memento:", errors.getvalue())
+        self.assertIn("The executable must be a regular executable file", errors.getvalue())
+        self.assertEqual(list(self.root.iterdir()), [])
 
 
 class RuntimeContractTests(unittest.TestCase):

@@ -162,12 +162,27 @@ async fn execute() -> Result<Value> {
     }
     if matches!(args.command.as_str(), "help" | "--help") {
         return Ok(
-            json!({"commands": ["version", "store-status", "semantic-config-check", "migrate", "init", "note", "record", "import", "sync", "query", "compact", "checkpoint", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record/checkpoint read JSON from --input FILE or stdin; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
+            json!({"commands": ["version", "store-status", "session-status", "semantic-config-check", "migrate", "init", "note", "record", "import", "sync", "query", "compact", "checkpoint", "observe", "git-sync", "hooks-install", "hooks-status", "hook", "run", "delete-record", "source-access"], "usage": "memento COMMAND --store /absolute/context.sqlite [options]; note/query/record/checkpoint read JSON from --input FILE or stdin; session-status requires --project ID --work ID --session ID [--limit 1..100]; compact previews, --apply true applies", "notes": "Explicitly select files and repositories. Query never executes historical commands. See skills/memento/references."}),
         );
     }
     let store_path = PathBuf::from(args.required("store")?);
     if args.command == "store-status" {
         return Ok(serde_json::to_value(Store::inspect(&store_path).await?)?);
+    }
+    if args.command == "session-status" {
+        let scope = memento::store::session_status::Scope {
+            project_id: args.required("project")?.into(),
+            work_id: args.required("work")?.into(),
+            session_id: args.required("session")?.into(),
+        };
+        let limit = args
+            .get("limit")
+            .unwrap_or("20")
+            .parse::<usize>()
+            .map_err(|_| Error::Invalid("--limit must be between 1 and 100".into()))?;
+        return Ok(serde_json::to_value(
+            Store::session_status(&store_path, scope, limit).await?,
+        )?);
     }
     let policy: RedactionPolicy = match args.get("policy") {
         Some(path) => serde_json::from_str(&std::fs::read_to_string(path)?)?,

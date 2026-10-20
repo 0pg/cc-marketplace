@@ -16,7 +16,7 @@ def main():
         if arguments[:1] == ["runtime-status"]:
             print(json.dumps(runtime_status(plugin), indent=2))
             return 0
-        passive = not arguments or arguments[:1] in (["help"], ["version"], ["--version"], ["store-status"], ["semantic-config-check"], ["--help"], ["-h"])
+        passive = not arguments or arguments[:1] in (["help"], ["version"], ["--version"], ["store-status"], ["session-status"], ["semantic-config-check"], ["--help"], ["-h"])
         explicit = None
         if "--semantic-config" in arguments:
             index = arguments.index("--semantic-config") + 1

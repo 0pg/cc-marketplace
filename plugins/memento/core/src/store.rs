@@ -16,6 +16,7 @@ use crate::{
 pub(crate) mod claims;
 mod format;
 mod retention;
+pub mod session_status;
 
 pub use format::{CURRENT_FORMAT, StoreFormatError, StoreFormatState, StoreFormatStatus};
 
@@ -177,6 +178,14 @@ impl Store {
     /// Inspect only the explicitly selected store without creating or upgrading it.
     pub async fn inspect(path: &Path) -> Result<StoreFormatStatus> {
         format::inspect(path).await
+    }
+
+    pub async fn session_status(
+        path: &Path,
+        scope: session_status::Scope,
+        limit: usize,
+    ) -> Result<session_status::Report> {
+        session_status::inspect(path, scope, limit).await
     }
 
     /// Mark a validated existing legacy store atomically; never creates a database.

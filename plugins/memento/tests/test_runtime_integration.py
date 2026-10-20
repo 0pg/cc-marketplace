@@ -71,7 +71,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
         for name in ("scripts", "skills", "codex-hooks", "core"):
             shutil.copytree(PLUGIN / name, self.plugin / name,
                             ignore=shutil.ignore_patterns("__pycache__", "bin", "target"))
-        shutil.copy2(PLUGIN / "plugin.json", self.plugin / "plugin.json")
+        shutil.copytree(PLUGIN / ".codex-plugin", self.plugin / ".codex-plugin")
         self.runtime = self.root / "persistent runtime"
         self.data = self.root / "persistent plugin data"
         self.database = self.root / "selected project data/context.sqlite"

@@ -157,6 +157,8 @@ def source_digest(plugin):
 
 def _package_version(plugin):
     path = Path(plugin) / "plugin.json"
+    if not path.is_file():
+        path = Path(plugin) / ".codex-plugin/plugin.json"
     return _json(path).get("version") if path.is_file() else None
 
 

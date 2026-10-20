@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.6.2`는 core `0.3.0`, CLI protocol `1`, Store format `2`를 사용합니다. 에이전트는 프로젝트 작업 시작 시 별도 요청 없이 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행하고 설정된 작업 맥락을 조회합니다. 준비된 runtime은 재사용하고 실행기·모델 설정이 바뀌면 기존 모델 선택을 보존하여 갱신합니다. `skills/memento/scripts/memento.py` launcher의 실제 기록·조회 명령과 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.6.3`은 core `0.3.0`, CLI protocol `1`, Store format `2`를 사용합니다. 에이전트는 프로젝트 작업 시작 시 별도 요청 없이 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행하고 설정된 작업 맥락을 조회합니다. 준비된 runtime은 재사용하고 실행기·모델 설정이 바뀌면 기존 모델 선택을 보존하여 갱신합니다. `skills/memento/scripts/memento.py` launcher의 실제 기록·조회 명령과 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -98,7 +98,7 @@ python3 -m unittest discover -s plugins/memento/tests
 
 Runtime lifecycle 테스트는 동시 첫 사용·중단 재시도·cache 교체·모델 선택 보존·owned artifact 정리·stable Git bridge를 검증합니다. 모델 실패 테스트는 제어된 worker/tool 응답을 사용하며 실제 구버전 DB 검증과 구분합니다. 구버전 Store 검증은 `bab2e08`(`0.3.0`)과 `c007979`(`0.4.0`)의 실제 실행기로 합성 raw 대화·정정·실패·근거·Git checkpoint를 기록해 전후 행을 비교했습니다. [검증 자료와 범위](https://github.com/0pg/0pg-mcp/tree/main/docs/agent-work-context/evaluations/runtime-upgrade)를 참조하세요. Process 종료 검증은 lock 대기 지점에서 수행했으며 SQLite 개별 write 사이에 crash를 주입한 검증은 아닙니다. Codex의 선택적 onboarding UI를 모든 클라이언트에서 자동 완료시킨다는 보장도 없습니다.
 
-배포 메타데이터: Claude Code는 `.claude-plugin/plugin.json`, Codex는 root `plugin.json`의 `extensions.com.openai`와 저장소의 `.agents/plugins/marketplace.json`을 사용합니다. `.codex-plugin/plugin.json`은 동일한 호환 메타데이터를 유지합니다. Codex 훅은 `codex-hooks/hooks.json`으로 선언해 Claude의 기본 `hooks/hooks.json` 자동 로드와 분리했습니다. [Claude Code 배포 문서](https://code.claude.com/docs/en/plugin-marketplaces), [Claude hook 로드 규칙](https://code.claude.com/docs/en/plugins-reference#hooks), [OpenAI 플러그인 패키징 문서](https://developers.openai.com/plugins/build/plugins)를 참조하세요.
+배포 메타데이터: Claude Code는 `.claude-plugin/plugin.json`, Codex는 `.codex-plugin/plugin.json`과 저장소의 `.agents/plugins/marketplace.json`을 사용합니다. 현재 호스트의 훅 검색을 위해 root `plugin.json`은 배포하지 않습니다. Codex 훅은 `codex-hooks/hooks.json`으로 선언해 Claude의 기본 `hooks/hooks.json` 자동 로드와 분리했습니다. [Claude Code 배포 문서](https://code.claude.com/docs/en/plugin-marketplaces), [Claude hook 로드 규칙](https://code.claude.com/docs/en/plugins-reference#hooks), [OpenAI 플러그인 패키징 문서](https://developers.openai.com/plugins/build/plugins)를 참조하세요.
 
 ## 0.6.0 원자 명제 수집
 
@@ -129,3 +129,7 @@ Datalog와 구조 검사는 자연어 의미·원자성·누락 여부를 보증
 명시적인 Memento 요청 없이 프로젝트 작업을 시작할 때 runtime을 확인·갱신하고 이미 설정된 store/project/work의 맥락을 조회합니다. 준비 명령이 체크포인트 gate에 막히던 경로를 허용하며, 복합 명령이나 다른 설치기의 호출은 예외 처리하지 않습니다. 시작 훅의 근거 출력은 완전한 JSON 항목과 누락 표시를 유지하며, 조회 실패를 빈 기록으로 보고하지 않습니다. 새 marketplace 릴리스 다운로드·hook 신뢰·프로젝트 scope 설정은 이번 변경에 포함되지 않습니다.
 
 0.6.2 패키지 검증(2026-10-10): standalone core의 fmt·clippy와 Rust 263개, Python 106개(실제 core 기반 훅·runtime 통합 포함), 두 skill의 공식 validator가 통과했습니다. 실제 호스트 설치·hook 전달·신뢰 설정과 자연어 의미 품질은 이번 검증 범위 밖입니다.
+
+## 0.6.3 세션 진단과 요청 복구
+
+[0pg-mcp `c9280128`](https://github.com/0pg/0pg-mcp/commit/c92801288926950d9058d8f676f62b359e59eb01)의 저장소를 변경하지 않는 `session-status` 조회, 초기 설정 복구 후 요청 체크포인트, Codex 호환 manifest 배포를 반영합니다. 조회는 선택한 store/project/work/session의 저장 상태만 확인하며 현재 훅 활성이나 의미 기록의 완전성을 증명하지 않습니다. 기존 모델 선택과 main의 배포 안내·회귀 테스트를 유지합니다.

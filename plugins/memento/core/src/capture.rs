@@ -169,6 +169,11 @@ pub enum Request {
         #[serde(default)]
         commit_binding: Option<IndexBinding>,
     },
+    RecoverRequest {
+        scope: Scope,
+        event_id: String,
+        detail: String,
+    },
     PrepareCommit {
         scope: Scope,
         event_id: String,
@@ -194,6 +199,7 @@ impl Request {
     pub(crate) fn scope(&self) -> &Scope {
         match self {
             Self::Open { scope, .. }
+            | Self::RecoverRequest { scope, .. }
             | Self::PrepareCommit { scope, .. }
             | Self::Status { scope }
             | Self::Resolve { scope, .. }
@@ -221,6 +227,8 @@ pub struct Reply {
     pub pending_event_ids: Vec<String>,
     pub pending_user_prompt: bool,
     #[serde(default)]
+    pub current_turn_has_user_prompt: bool,
+    #[serde(default)]
     pub pending_investigation: bool,
     pub capture_incomplete_event_ids: Vec<String>,
     #[serde(default)]
@@ -244,6 +252,24 @@ impl Reply {
         self.capture_incomplete_event_ids.truncate(8);
         self
     }
+}
+
+/// Persisted obligations only; this does not establish that live hooks are active.
+#[derive(Debug, Serialize)]
+pub struct PersistedSessionStatus {
+    pub repository: String,
+    pub closed: bool,
+    pub stop_attempts: u8,
+    pub event_count: usize,
+    pub pending: Vec<CheckpointIssue>,
+    pub capture_incomplete: Vec<CheckpointIssue>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CheckpointIssue {
+    pub event_id: String,
+    pub kind: EventKind,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -432,6 +458,63 @@ fn no_new_context_allowed(event: &Event) -> bool {
 }
 
 impl State {
+    pub(crate) fn persisted_session_status(
+        &self,
+        project: &str,
+        work: &str,
+        session: &str,
+        entries: &[Entry],
+    ) -> Vec<PersistedSessionStatus> {
+        let mut statuses = self
+            .sessions
+            .iter()
+            .filter(|saved| {
+                saved.scope.project_id == project
+                    && saved.scope.work_id == work
+                    && saved.scope.session_id == session
+            })
+            .map(|saved| {
+                let reply = self.reply(&saved.scope, entries);
+                let issue = |event: &Event| CheckpointIssue {
+                    event_id: event.event_id.clone(),
+                    kind: event.kind,
+                    reason: match &event.resolution {
+                        Resolution::Pending => "no saved resolution".into(),
+                        Resolution::CaptureIncomplete { reason } => reason.clone(),
+                        Resolution::NoNewContext { .. } => {
+                            "no_new_context is not valid for this event".into()
+                        }
+                        Resolution::Records { .. } => {
+                            "saved record references no longer satisfy this checkpoint".into()
+                        }
+                    },
+                };
+                PersistedSessionStatus {
+                    repository: saved.scope.repository.clone(),
+                    closed: saved.closed,
+                    stop_attempts: saved.stop_attempts,
+                    event_count: saved.events.len(),
+                    pending: saved
+                        .events
+                        .iter()
+                        .filter(|event| reply.pending_event_ids.contains(&event.event_id))
+                        .map(issue)
+                        .collect(),
+                    capture_incomplete: saved
+                        .events
+                        .iter()
+                        .filter(|event| {
+                            reply.capture_incomplete_event_ids.contains(&event.event_id)
+                        })
+                        .map(issue)
+                        .collect(),
+                }
+            })
+            .collect::<Vec<_>>();
+        statuses.sort_by(|a, b| a.repository.cmp(&b.repository));
+        statuses
+    }
+
     pub(crate) fn scrub(
         &mut self,
         project: &str,
@@ -511,7 +594,10 @@ impl State {
         if existing.is_none() {
             if !matches!(
                 request,
-                Request::Open { .. } | Request::PrepareCommit { .. } | Request::Stop { .. }
+                Request::Open { .. }
+                    | Request::RecoverRequest { .. }
+                    | Request::PrepareCommit { .. }
+                    | Request::Stop { .. }
             ) {
                 return Err(Error::Invalid("capture session is absent".into()).into());
             }
@@ -525,7 +611,7 @@ impl State {
         self.trim(entries)?;
         let order = if matches!(
             request,
-            Request::Open { .. } | Request::PrepareCommit { .. }
+            Request::Open { .. } | Request::RecoverRequest { .. } | Request::PrepareCommit { .. }
         ) {
             self.next_order = self
                 .next_order
@@ -562,6 +648,25 @@ impl State {
                         entries,
                     },
                 )?;
+            }
+            Request::RecoverRequest {
+                event_id, detail, ..
+            } => {
+                let stop_attempts = session.stop_attempts;
+                Self::open(
+                    session,
+                    &scope,
+                    event_id,
+                    EventKind::UserPrompt,
+                    policy.redact(&detail)?,
+                    None,
+                    CaptureSnapshot {
+                        frontier,
+                        order,
+                        entries,
+                    },
+                )?;
+                session.stop_attempts = stop_attempts;
             }
             Request::PrepareCommit {
                 event_id, detail, ..
@@ -758,6 +863,9 @@ impl State {
     fn reply(&self, scope: &Scope, entries: &[Entry]) -> Reply {
         let session = self.sessions.iter().find(|s| s.scope.same_session(scope));
         let events = session.map_or_else(Vec::new, |s| s.events.clone());
+        let current_turn_has_user_prompt = events.iter().any(|event| {
+            event.kind == EventKind::UserPrompt && event.original_turn_id == scope.turn_id
+        });
         let mut pending = Vec::new();
         let mut pending_user_prompt = false;
         let mut pending_investigation = false;
@@ -788,7 +896,7 @@ impl State {
         } else {
             Decision::Allow
         };
-        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, pending_investigation, capture_incomplete_event_ids: incomplete,
+        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, current_turn_has_user_prompt, pending_investigation, capture_incomplete_event_ids: incomplete,
             omitted_pending_event_ids: 0, omitted_capture_incomplete_event_ids: 0,
             stop_attempts: session.map_or(0, |s| s.stop_attempts), decision,
             reason: match decision { Decision::Allow => "all known capture obligations are resolved; semantic completeness is not proven", Decision::Block => "save scoped context records for pending events, then resolve their exact references", Decision::CaptureIncomplete => "capture is incomplete; report the unsaved gap and do not claim persistence" }.into(), durable: true }

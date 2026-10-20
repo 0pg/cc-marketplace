@@ -50,16 +50,34 @@ if sys.argv[1] == "query":
     store.write_text(json.dumps(state))
     if behavior == "query_fail":
         raise SystemExit(1)
+    if behavior == "query_error_status":
+        print(json.dumps({"status": "error", "error": "fixture unavailable"}))
+        raise SystemExit(0)
+    if behavior == "query_malformed":
+        print(json.dumps({"status": "ok"}))
+        raise SystemExit(0)
+    source = {"entity": {"entity": "source", "data": {"id": "journal", "project_id": request["scope"]["project_id"],
+              "kind": "journal", "authorized": True, "available": True}}}
+    if behavior in {"query_uninitialized", "query_observation_only"}:
+        if behavior == "query_observation_only":
+            source["entity"]["data"]["id"] = "memento-checkpoints"
+        print(json.dumps({"status": "no_matches", "items": [source] if behavior == "query_observation_only" else [],
+                          "brief": {"sections": [], "conflicts": []} if request["operation"] == "brief" else None}))
+        raise SystemExit(0)
+    if behavior == "query_empty":
+        print(json.dumps({"status": "no_matches", "items": [source] if request["operation"] == "sources" else [], "coverage": [], "freshness": [],
+                          "brief": {"sections": [], "conflicts": []} if request["operation"] == "brief" else None}))
+        raise SystemExit(0)
     if behavior == "query_large":
         if request["operation"] == "brief":
-            print(json.dumps({"status": "ok", "truncated": False, "brief": {"sections": [{"name": "decisions", "claims": [
+            print(json.dumps({"status": "ok", "truncated": False, "items": [], "brief": {"sections": [{"name": "decisions", "claims": [
                 {"record_id": "large", "revision": "revision-large", "text": "x" * 4000},
                 {"record_id": "small", "revision": "revision-small", "text": "Saved prior work decision"}]}]}}))
         else:
-            print(json.dumps({"status": "ok", "truncated": False, "coverage": [
+            print(json.dumps({"status": "ok", "truncated": False, "items": [source], "coverage": [
                 {"source_id": "large", "detail": "x" * 4000}, {"source_id": "journal", "complete": False}]}))
         raise SystemExit(0)
-    print(json.dumps({"items": [{"body": "Saved prior work decision"}], "partial": False}))
+    print(json.dumps({"status": "ok", "items": [source] if request["operation"] == "sources" else [{"body": "Saved prior work decision"}], "partial": False}))
     raise SystemExit(0)
 if behavior == "fail":
     print("secret stderr must not escape", file=sys.stderr)
@@ -74,13 +92,16 @@ base = {key: value for key, value in scope.items() if key != "turn_id"}
 key = json.dumps(base, sort_keys=True)
 operation = request["operation"]
 events = [event for event in state["events"] if event["base"] == base]
-if operation == "open":
+if operation in {"open", "recover_request"}:
     existing = next((event for event in events if event["event_id"] == request["event_id"]), None)
     if existing is None:
-        event = {"base": base, "event_id": request["event_id"], "kind": request["kind"],
+        kind = "user_prompt" if operation == "recover_request" else request["kind"]
+        event = {"base": base, "event_id": request["event_id"], "kind": kind,
                  "detail": request["detail"], "original_turn_id": scope["turn_id"], "resolution": None}
         state["events"].append(event)
         events.append(event)
+        if kind == "user_prompt" and operation == "open":
+            state["attempts"][key] = 0
 elif operation == "resolve":
     for event in events:
         if event["event_id"] == request["event_id"]:
@@ -106,34 +127,44 @@ reply = {"scope": scope, "events": [] if request["_summary"] else events,
          "pending_event_ids": [event["event_id"] for event in pending][:8] if request["_summary"] else [event["event_id"] for event in pending],
          "pending_user_prompt": any(event["kind"] == "user_prompt" for event in pending),
          "pending_investigation": any(event["kind"] == "investigation" for event in pending),
+         "current_turn_has_user_prompt": any(event["kind"] == "user_prompt" and event["original_turn_id"] == scope["turn_id"] for event in events),
          "capture_incomplete_event_ids": [event["event_id"] for event in incomplete][:8] if request["_summary"] else [event["event_id"] for event in incomplete],
          "omitted_pending_event_ids": max(len(pending) - 8, 0),
          "omitted_capture_incomplete_event_ids": max(len(incomplete) - 8, 0),
          "decision": decision, "durable": behavior != "nondurable"}
+if behavior == "missing_turn_status":
+    reply.pop("current_turn_has_user_prompt")
 print(json.dumps(reply))
 '''
 
 
-class CodexHooks(unittest.TestCase):
+class HookAssertions:
+    def assert_retrieval_allowed(self, reply):
+        output = reply.get("hookSpecificOutput", {})
+        self.assertNotIn("permissionDecision", output)
+        self.assertIn("Memento evidence JSON:", output.get("additionalContext", ""))
+
+
+class CodexHooks(HookAssertions, unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="memento-codex-hooks-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name).resolve()
         self.plugin = self.directory / "plugin with spaces"
-        shutil.copytree(TEMPLATE, self.plugin, ignore=shutil.ignore_patterns("target", "__pycache__", "*.pyc", ".memento-semantic", "bin"))
+        shutil.copytree(TEMPLATE, self.plugin, ignore=shutil.ignore_patterns("core", "target"))
         shutil.rmtree(self.plugin / "core", ignore_errors=True)
         self.data = self.directory / "plugin data"
         self.data.mkdir()
         self.repository = self.make_repository("project one")
         self.store = self.directory / "store.json"
         binary = self.plugin / "skills/memento/bin/memento"
-        binary.parent.mkdir(parents=True, exist_ok=True)
+        binary.parent.mkdir(parents=True)
         binary.write_text(FAKE_CLI)
         binary.chmod(0o755)
         (self.plugin / "skills/memento/SKILL.md").write_text("# Fake skill for adapter tests\n")
         self.env = {**os.environ, "PLUGIN_ROOT": str(self.plugin), "PLUGIN_DATA": str(self.data),
                     "MEMENTO_RUNTIME_HOME": str(self.directory / "runtime-cache")}
-        self.configure()
+        self.configure(initialize=True)
 
     def make_repository(self, name):
         repository = self.directory / name
@@ -171,6 +202,20 @@ class CodexHooks(unittest.TestCase):
         selected = store or self.store
         return json.loads(selected.read_text()) if selected.exists() else {"events": [], "calls": []}
 
+    def assert_no_backend_activity(self):
+        self.assertEqual(self.state()["calls"], [])
+        self.assertEqual(self.state()["events"], [])
+
+    def assert_recovery_request_gate(self):
+        denied = self.tool("PreToolUse", "rg context src")
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        event = self.state()["events"][-1]
+        self.assertEqual(event["kind"], "user_prompt")
+        self.assertIn("does not retain the original prompt text", event["detail"])
+        self.assertEqual(len(self.state()["events"]), 1)
+        self.resolve_all()
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "rg context src"))
+
     def resolve_all(self, kind="records"):
         state = self.state()
         for event in state["events"]:
@@ -182,18 +227,9 @@ class CodexHooks(unittest.TestCase):
                              tool_input={"command": command} if command is not None else {},
                              tool_response=response, **fields)
 
-    def test_codex_hooks_are_separate_from_claude_default_discovery(self):
-        self.assertFalse((self.plugin / "hooks/hooks.json").exists())
-        claude = json.loads((self.plugin / ".claude-plugin/plugin.json").read_text())
-        legacy = json.loads((self.plugin / ".codex-plugin/plugin.json").read_text())
-        portable = json.loads((self.plugin / "plugin.json").read_text())
-        self.assertNotIn("hooks", claude)
-        self.assertEqual(legacy["hooks"], "./codex-hooks/hooks.json")
-        self.assertEqual({claude["version"], legacy["version"], portable["version"]}, {"0.6.2"})
-
     def test_template_is_synchronous_and_contains_all_required_events(self):
-        manifest = json.loads((self.plugin / "plugin.json").read_text())
-        self.assertEqual(manifest["extensions"]["com.openai"]["hooks"], "./codex-hooks/hooks.json")
+        manifest = json.loads((self.plugin / ".codex-plugin/plugin.json").read_text())
+        self.assertEqual(manifest["hooks"], "./codex-hooks/hooks.json")
         config = json.loads((self.plugin / "codex-hooks/hooks.json").read_text())
         self.assertEqual(set(config["hooks"]), {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
                                                "Stop", "PreCompact", "Interrupt", "SessionEnd"})
@@ -206,6 +242,7 @@ class CodexHooks(unittest.TestCase):
                     self.assertFalse(hook.get("async", False))
 
     def test_configure_is_explicit_upsert_without_store_or_trust_changes(self):
+        self.store.unlink()
         result = self.configure(work="next work")
         self.assertFalse(self.store.exists())
         self.assertFalse(result["hook_trust_modified"])
@@ -261,7 +298,20 @@ class CodexHooks(unittest.TestCase):
             self.assertIn('"operation":"brief"', prefix)
             self.assertIn('"work_ids":["work"]', prefix)
         self.assertEqual([call["operation"] for call in self.state()["calls"]],
-                         ["status", "sources", "brief", "open"])
+                         ["status", "sources", "brief", "sources", "brief", "open"])
+        self.assertIn("Saved prior work decision", result["hookSpecificOutput"]["additionalContext"])
+        self.run_hook("UserPromptSubmit", prompt="A later request", turn_id="later")
+        self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:], ["sources", "brief", "open"])
+
+    def test_compact_and_resume_start_retrieve_across_sessions(self):
+        for source in ("compact", "resume"):
+            with self.subTest(source=source):
+                result = self.run_hook("SessionStart", source=source, turn_id=None)
+                self.assertIn("Saved prior work decision", result["hookSpecificOutput"]["additionalContext"])
+                calls = self.state()["calls"][-3:]
+                self.assertEqual([call["operation"] for call in calls], ["status", "sources", "brief"])
+                for call in calls[1:]:
+                    self.assertEqual(call["scope"], {"project_id": "project", "work_ids": ["work"]})
 
     def test_long_paths_and_full_retrieval_keep_core_guidance_and_complete_json(self):
         plugin = self.directory / ("long-installed-plugin-" + "x" * 180)
@@ -290,7 +340,35 @@ class CodexHooks(unittest.TestCase):
         self.assertIn("sources retrieval unavailable", context)
         self.assertIn("Checkpoint result:", context)
         self.assertNotIn("Saved prior work decision", context)
-        self.assertEqual([call["operation"] for call in self.state()["calls"]], ["status", "sources"])
+        self.assertEqual([call["operation"] for call in self.state()["calls"]], ["status", "sources", "brief"])
+
+    def test_prompt_distinguishes_empty_retrieval_from_failure(self):
+        for behavior, outcomes in (("query_empty", ["available", "empty"]), ("query_fail", ["unavailable"] * 2),
+                                   ("query_error_status", ["unavailable"] * 2), ("query_malformed", ["unavailable"] * 2)):
+            with self.subTest(behavior=behavior):
+                result = self.run_hook("UserPromptSubmit", prompt="Investigate current request", behavior=behavior)
+                context = result["hookSpecificOutput"]["additionalContext"]
+                evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+                self.assertEqual([entry["operation"] for entry in evidence], ["sources", "brief"])
+                self.assertEqual([entry["retrieval_status"] for entry in evidence], outcomes)
+                self.assertNotIn("Saved prior work decision", context)
+                self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:],
+                                 ["sources", "brief", "open"])
+                self.assertEqual(self.tool("PreToolUse", "rg context src")["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_allowed_pretool_retries_retrieval_and_denies_failure_until_repaired(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate current request", behavior="query_fail")
+        self.resolve_all()
+        for behavior in ("query_fail", "query_error_status", "query_malformed"):
+            result = self.tool("PreToolUse", "rg context src", behavior=behavior)
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+            self.assertIn("retrieval unavailable", result["hookSpecificOutput"]["permissionDecisionReason"])
+            self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:],
+                             ["status", "sources", "brief"])
+        recovered = self.tool("PreToolUse", "rg context src")
+        self.assert_retrieval_allowed(recovered)
+        self.assertIn("Saved prior work decision", recovered["hookSpecificOutput"]["additionalContext"])
+        self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:], ["status", "sources", "brief"])
 
     def assert_unprepared_startup(self):
         home = Path(self.env["MEMENTO_RUNTIME_HOME"])
@@ -305,7 +383,7 @@ class CodexHooks(unittest.TestCase):
             self.assertIn("capture_incomplete", result["systemMessage"])
         after = (home / "state.json").read_bytes() if (home / "state.json").exists() else None
         self.assertEqual(before, after)
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
 
     def test_missing_runtime_start_and_request_give_bootstrap_without_installation(self):
         (self.plugin / "skills/memento/bin/memento").unlink()
@@ -329,12 +407,18 @@ class CodexHooks(unittest.TestCase):
         for command in (f"python3 '{installer}' --ensure", f"'{installer}' --ensure"):
             for event in ("PreToolUse", "PostToolUse"):
                 self.assertEqual(self.tool(event, command, response={"exit_code": 0}), {})
-        self.assertFalse(self.store.exists())
+        for selection in ("e5-small", "minilm", "none"):
+            for event in ("PreToolUse", "PostToolUse"):
+                self.assertEqual(self.tool(event, f"python3 '{installer}' --ensure --embedding-model {selection}",
+                                           response={"exit_code": 0}), {})
+        self.assert_no_backend_activity()
         for command in (
             f"python3 '{installer}' --ensure; rg DBDUP src",
             f"python3 '{installer}' --ensure\nrg DBDUP src",
             f"python3 '{installer}' --ensure > result.txt",
             f"python3 '{installer}' --ensure --binary /tmp/unrelated",
+            f"python3 '{installer}' --ensure --embedding-model custom",
+            f"python3 '{installer}' --ensure --embedding-model none; rg DBDUP src",
             f"python3 '{self.repository / 'install_runtime.py'}' --ensure",
             f"python3 -c 'print(1)' '{installer}' --ensure",
         ):
@@ -342,26 +426,163 @@ class CodexHooks(unittest.TestCase):
                 result = self.tool("PreToolUse", command)
                 self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
-    def test_missing_config_start_gives_actual_data_path_only_once_per_event(self):
+    def test_missing_config_start_and_prompt_notice_and_tool_gate(self):
         (self.data / "capture-config.json").unlink()
-        result = self.run_hook("SessionStart")
-        self.assertIn(str(self.data / "capture-config.json"), result["hookSpecificOutput"]["additionalContext"])
-        self.assertIn(str(self.plugin / "codex-hooks/capture.py"), result["hookSpecificOutput"]["additionalContext"])
-        self.assertEqual(self.run_hook("UserPromptSubmit", prompt="unconfigured"), {})
-        self.assertFalse(self.store.exists())
+        for event in ("SessionStart", "UserPromptSubmit"):
+            result = self.run_hook(event, prompt="unconfigured")
+            context = result["hookSpecificOutput"]["additionalContext"]
+            for path in (self.data / "capture-config.json", self.plugin / "scripts/install_runtime.py", self.repository):
+                self.assertIn(str(path), context)
+            self.assertIn("have not run", context)
+            self.assertIn("capture_incomplete", result["systemMessage"])
+        result = self.tool("PreToolUse", "rg context src")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assert_no_backend_activity()
 
-    def test_unregistered_repository_and_unknown_events_do_not_invoke_backend(self):
+    def test_unregistered_repository_notices_and_gates_without_backend(self):
         other = self.make_repository("unregistered")
-        self.assertEqual(self.run_hook("UserPromptSubmit", cwd=str(other), prompt="other project"), {})
+        for event in ("SessionStart", "UserPromptSubmit"):
+            result = self.run_hook(event, cwd=str(other), prompt="other project")
+            self.assertIn(str(other), result["hookSpecificOutput"]["additionalContext"])
+            self.assertIn("no Memento project mapping", result["hookSpecificOutput"]["additionalContext"])
+        result = self.tool("PreToolUse", "rg context src", cwd=str(other))
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertEqual(self.run_hook("UnknownEvent"), {})
+        self.assert_no_backend_activity()
+
+    def test_non_git_conversation_tools_do_not_enter_project_workflow(self):
+        directory = self.directory / "non-project"
+        directory.mkdir()
+        (self.data / "capture-config.json").write_text("{")
+        for event in ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"):
+            self.assertEqual(self.run_hook(event, cwd=str(directory), prompt="What is the weather?",
+                                          tool_name="mcp__weather__forecast", tool_input={"city": "Seoul"},
+                                          tool_response={"forecast": "clear"}), {})
+        self.assert_no_backend_activity()
+
+    def test_missing_scope_bootstrap_and_configure_remain_available(self):
+        (self.data / "capture-config.json").unlink()
+        skill = self.plugin / "skills/memento/SKILL.md"
+        installer = self.plugin / "scripts/install_runtime.py"
+        configure = self.plugin / "codex-hooks/capture.py"
+        for command in (f"cat '{skill}'", f"python3 '{installer}' --ensure",
+                        f"python3 '{configure}' configure --data-dir '{self.data}' --repository '{self.repository}' "
+                        f"--store '{self.store}' --project-id project --work-id work"):
+            for event in ("PreToolUse", "PostToolUse"):
+                self.assertEqual(self.tool(event, command, response={"exit_code": 0}), {})
+        for command in (f"cat '{skill}'; rg context src", f"python3 '{configure}' configure; rg context src"):
+            self.assertEqual(self.tool("PreToolUse", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assert_no_backend_activity()
+
+    def test_missing_selected_store_requires_explicit_initialization(self):
+        self.store.unlink()
+        for event in ("SessionStart", "UserPromptSubmit"):
+            result = self.run_hook(event, prompt="start project")
+            context = result["hookSpecificOutput"]["additionalContext"]
+            self.assertIn(str(self.store), context)
+            self.assertIn("init --store", context)
+            self.assertIn("do not silently replace", context)
+        result = self.tool("PreToolUse", "rg context src")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        launcher = self.plugin / "skills/memento/scripts/memento.py"
+        self.assertEqual(self.tool("PreToolUse", f"python3 '{launcher}' init --store '{self.store}' --project project"), {})
         self.assertFalse(self.store.exists())
+        self.configure(initialize=True)
+        self.assert_recovery_request_gate()
+
+    def test_missing_config_repair_requires_current_request_before_ordinary_tools(self):
+        (self.data / "capture-config.json").unlink()
+        self.run_hook("UserPromptSubmit", prompt="Retain original request after setup")
+        self.configure()
+        self.assert_recovery_request_gate()
+
+    def test_runtime_repair_requires_current_request_before_ordinary_tools(self):
+        binary = self.plugin / "skills/memento/bin/memento"
+        binary.unlink()
+        self.run_hook("UserPromptSubmit", prompt="Retain original request after setup")
+        binary.write_text(FAKE_CLI)
+        binary.chmod(0o755)
+        prepared = subprocess.run([sys.executable, str(self.plugin / "scripts/install_runtime.py"),
+                                   "--ensure", "--embedding-model", "none"],
+                                  capture_output=True, env=self.env, check=False, timeout=5)
+        self.assertEqual(prepared.returncode, 0, prepared.stdout.decode())
+        self.assert_recovery_request_gate()
+
+    def test_missing_current_turn_runtime_status_requires_update(self):
+        denied = self.tool("PreToolUse", "rg context src", behavior="missing_turn_status")
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn(str(self.plugin / "scripts/install_runtime.py"), denied["hookSpecificOutput"]["permissionDecisionReason"])
+        self.assertEqual(self.state()["events"], [])
+
+    def test_pretool_configuration_and_session_errors_deny(self):
+        config = self.data / "capture-config.json"
+        config.write_text("{")
+        result = self.tool("PreToolUse", "rg context src")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("capture_incomplete", result["hookSpecificOutput"]["permissionDecisionReason"])
+        skill = self.plugin / "skills/memento/SKILL.md"
+        self.assertEqual(self.tool("PreToolUse", f"cat '{skill}'"), {})
+        self.assertEqual(self.tool("PreToolUse", f"python3 '{self.plugin / 'scripts/install_runtime.py'}' --ensure"), {})
+        self.assertEqual(self.tool("PreToolUse", f"python3 '{self.plugin / 'hooks/capture.py'}' configure"), {})
+        config.unlink()
+        self.configure()
+        for field in ("session_id", "turn_id"):
+            result = self.tool("PreToolUse", "rg context src", **{field: None})
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assert_no_backend_activity()
+
+    def test_exact_config_repair_executes_and_preserves_other_mappings(self):
+        other = self.make_repository("second project")
+        self.configure(repository=other, project="second", work="second-work")
+        config = self.data / "capture-config.json"
+        retained = config.read_text()
+        config.write_text("{")
+        repair = {"file_path": str(config), "content": retained}
+        for name in ("Read", "Edit", "Write"):
+            self.assertEqual(self.run_hook("PreToolUse", tool_name=name, tool_input=repair), {})
+        self.assertEqual(self.tool("PreToolUse", f"cat '{config}'"), {})
+        patch = f"*** Begin Patch\n*** Update File: {config}\n@@\n-{{\n+{retained.splitlines()[0]}\n*** End Patch"
+        self.assertEqual(self.run_hook("PreToolUse", tool_name="apply_patch", tool_input={"command": patch}), {})
+        # Execute the exact Write operation that the adapter allowed, then run the real configure command.
+        config.write_text(repair["content"])
+        self.assertEqual(self.run_hook("PostToolUse", tool_name="Write", tool_input=repair,
+                                      tool_response={"written": True}), {})
+        self.configure()
+        projects = json.loads(config.read_text())["projects"]
+        self.assertTrue(any(project["repository"] == str(other) and project["project_id"] == "second" for project in projects))
+        self.assertIn("Saved prior work decision", self.run_hook("UserPromptSubmit", prompt="Resume after repair")["hookSpecificOutput"]["additionalContext"])
+        self.resolve_all()
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "rg context src"))
+        self.run_hook("UserPromptSubmit", prompt="Keep subsequent project edits gated")
+        for bad_patch in (
+            patch.replace(str(config), str(self.repository / "config.json")),
+            patch.replace("*** End Patch", f"*** Update File: {self.repository / 'src.rs'}\n@@\n+x\n*** End Patch"),
+            patch.replace("@@", f"*** Move to: {self.repository / 'moved.json'}\n@@"),
+        ):
+            self.assertEqual(self.run_hook("PreToolUse", tool_name="apply_patch", tool_input={"command": bad_patch})[
+                "hookSpecificOutput"]["permissionDecision"], "deny")
+        for command in (f"cat '{config}'; rg context src", f"cat '{config}' '{self.repository / 'src.rs'}"):
+            self.assertEqual(self.tool("PreToolUse", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_no_explicit_sources_requires_setup_without_opening_prompt(self):
+        for behavior in ("query_uninitialized", "query_observation_only"):
+            with self.subTest(behavior=behavior):
+                notice = self.run_hook("UserPromptSubmit", prompt="Start selected project", behavior=behavior)
+                context = notice["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("init --store", context)
+                self.assertIn("not empty work history", context)
+                self.assertEqual(self.state()["events"], [])
+                self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:], ["sources", "brief", "status"])
+                denied = self.tool("PreToolUse", "rg context src", behavior=behavior)
+                self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+                self.assertIn("init --store", denied["hookSpecificOutput"]["permissionDecisionReason"])
 
     def test_correction_requires_new_request_record_before_next_change(self):
         self.run_hook("UserPromptSubmit", prompt="Keep everything local; add deterministic capture.")
         denied = self.tool("PreToolUse", name="apply_patch")
         self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
         self.resolve_all()
-        self.assertEqual(self.tool("PreToolUse", name="apply_patch"), {})
+        self.assert_retrieval_allowed(self.tool("PreToolUse", name="apply_patch"))
         self.run_hook("UserPromptSubmit", prompt="Correction: do not import raw transcripts.", turn_id="correction")
         self.assertEqual(self.tool("PreToolUse", "touch source.rs")["hookSpecificOutput"]["permissionDecision"], "deny")
 
@@ -381,7 +602,7 @@ class CodexHooks(unittest.TestCase):
                 self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
                 self.assertIn("--input -", reason)
         self.resolve_all()
-        self.assertEqual(self.tool("PreToolUse", "rg DBDUP src"), {})
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "rg DBDUP src"))
 
     def test_skill_reads_are_allowed_without_resolving_or_creating_checkpoints(self):
         references = self.plugin / "skills/memento/references"
@@ -432,7 +653,7 @@ class CodexHooks(unittest.TestCase):
     def test_missing_turn_is_incomplete_except_for_session_start(self):
         result = self.run_hook("UserPromptSubmit", prompt="request", turn_id=None)
         self.assertIn("capture_incomplete", result["systemMessage"])
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
 
     def test_mutations_batch_until_stop_without_per_patch_record_gate(self):
         self.run_hook("UserPromptSubmit", prompt="Implement capture.")
@@ -440,7 +661,7 @@ class CodexHooks(unittest.TestCase):
         result = self.tool("PostToolUse", name="apply_patch", response={"output": "changed source"})
         self.assertIn("additionalContext", result["hookSpecificOutput"])
         self.assertEqual(self.state()["events"][-1]["kind"], "mutation")
-        self.assertEqual(self.tool("PreToolUse", name="apply_patch", tool_id="next edit"), {})
+        self.assert_retrieval_allowed(self.tool("PreToolUse", name="apply_patch", tool_id="next edit"))
         self.assertEqual(self.run_hook("Stop")["decision"], "block")
 
     def test_many_checkpoints_show_bounded_ids_and_keep_full_prompt_gate(self):
@@ -493,10 +714,12 @@ class CodexHooks(unittest.TestCase):
         self.assertIn("transaction-1", self.state()["events"][-1]["detail"])
 
     def test_no_new_context_review_releases_next_investigation(self):
+        self.run_hook("UserPromptSubmit", prompt="Investigate current context")
+        self.resolve_all()
         self.tool("PostToolUse", "git status", response={"exit_code": 0, "output": "clean"})
         self.assertEqual(self.tool("PreToolUse", "rg DBDUP src")["hookSpecificOutput"]["permissionDecision"], "deny")
         self.resolve_all("no_new_context")
-        self.assertEqual(self.tool("PreToolUse", "rg DBDUP src"), {})
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "rg DBDUP src"))
 
     def test_mcp_result_session_metadata_does_not_mean_running_shell(self):
         self.run_hook("PostToolUse", tool_name="mcp__logs__search", tool_input={"transaction_id": "transaction-1"},
@@ -537,15 +760,30 @@ class CodexHooks(unittest.TestCase):
 
     def test_own_cli_failure_also_does_not_open_recursive_checkpoint(self):
         self.assertEqual(self.tool("PostToolUse", "memento checkpoint --input -", response={"exit_code": 1}), {})
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
 
     def test_running_exec_is_not_completion_and_native_retry_is_idempotent(self):
         self.assertEqual(self.tool("PostToolUse", "cargo test", response={"session_id": 23, "exit_code": None}), {})
         self.assertEqual(self.tool("PostToolUse", "rg DBDUP src", response={"session_id": 24, "exit_code": None}), {})
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
         for _ in range(2):
             self.tool("PostToolUse", "cargo test", response={"exit_code": 0})
         self.assertEqual(len(self.state()["events"]), 1)
+
+    def test_original_bash_completion_after_poll_retains_command_classification(self):
+        # Codex emits the original Bash PostToolUse when write_stdin finishes it.
+        for command, output, expected in (
+            ("cargo test", {"exit_code": 0, "output": "all tests passed"}, "verification"),
+            ("rg context src", {"exit_code": 0, "output": "context found"}, "investigation"),
+            ("cargo test", {"exit_code": 101, "output": "failed test"}, "tool_failure"),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(self.tool("PostToolUse", command, response={"session_id": 23, "exit_code": None},
+                                           tool_id=expected), {})
+                self.tool("PostToolUse", command, response=output, tool_id=expected)
+                self.assertEqual(self.state()["events"][-1]["kind"], expected)
+                self.assertIn(command, self.state()["events"][-1]["detail"])
+                self.assertIn(output["output"], self.state()["events"][-1]["detail"])
 
     def test_stop_continuations_preserve_original_turn_and_retry_budget(self):
         self.run_hook("UserPromptSubmit", prompt="Original request")
@@ -558,6 +796,29 @@ class CodexHooks(unittest.TestCase):
         result = self.run_hook("Stop", turn_id="continuation three")
         self.assertIn("capture_incomplete", result["systemMessage"])
         self.assertNotIn("decision", result)
+
+    def test_recovery_requests_do_not_reset_stop_retry_budget(self):
+        self.run_hook("UserPromptSubmit", prompt="Verify the current patch")
+        self.resolve_all()
+        self.tool("PostToolUse", "cargo test", response={"exit_code": 0, "output": "passed"})
+        stop = self.run_hook("Stop")
+        self.assertEqual(stop["decision"], "block")
+        for index in (1, 2):
+            turn = f"continuation-{index}"
+            self.run_hook("UserPromptSubmit", prompt=stop["reason"], turn_id=turn)
+            denied = self.tool("PreToolUse", "git status", turn_id=turn, tool_id=turn)
+            self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+            state = self.state()
+            self.assertEqual(list(state["attempts"].values()), [index])
+            self.assertEqual(state["calls"][-1]["operation"], "recover_request")
+            recovered = state["events"][-1]
+            self.assertEqual(recovered["kind"], "user_prompt")
+            recovered["resolution"] = {"kind": "no_new_context", "reason": "Stop continuation adds no new user request."}
+            self.store.write_text(json.dumps(state))
+            self.assert_retrieval_allowed(self.tool("PreToolUse", "git status", turn_id=turn, tool_id=f"retry-{turn}"))
+            stop = self.run_hook("Stop", turn_id=turn)
+        self.assertIn("capture_incomplete", stop["systemMessage"])
+        self.assertNotIn("decision", stop)
 
     def test_precompact_only_checks_existing_records_and_does_not_generate(self):
         self.run_hook("UserPromptSubmit", prompt="Do not lose this constraint")
@@ -582,7 +843,9 @@ class CodexHooks(unittest.TestCase):
         state = self.state()
         state["prepared_commit"] = True
         self.store.write_text(json.dumps(state))
-        self.assertEqual(self.tool("PreToolUse", f"git -C '{self.repository}' commit -m capture"), {})
+        self.run_hook("UserPromptSubmit", prompt="Commit selected changes")
+        self.resolve_all()
+        self.assert_retrieval_allowed(self.tool("PreToolUse", f"git -C '{self.repository}' commit -m capture"))
 
     def test_commit_cannot_check_one_repository_then_commit_another(self):
         other = self.make_repository("other repository")
@@ -592,7 +855,7 @@ class CodexHooks(unittest.TestCase):
         for command in commands:
             result = self.tool("PreToolUse", command)
             self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
 
     def test_recognized_commit_and_edit_gate_deny_when_backend_fails(self):
         for name, command in [("Bash", "git commit -m capture"), ("apply_patch", None)]:
@@ -603,8 +866,10 @@ class CodexHooks(unittest.TestCase):
             self.assertIn("capture_incomplete", output["permissionDecisionReason"])
 
     def test_compound_shell_is_outside_prefix_gate_coverage(self):
-        self.assertEqual(self.tool("PreToolUse", "git status;git commit -m x"), {})
-        self.assertEqual(self.state()["calls"][-1]["operation"], "status")
+        self.run_hook("UserPromptSubmit", prompt="Review selected commit")
+        self.resolve_all()
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "git status;git commit -m x"))
+        self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:], ["status", "sources", "brief"])
         self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
         self.assertEqual(self.tool("PreToolUse", "git status;git commit -m x")[
             "hookSpecificOutput"]["permissionDecision"], "deny")
@@ -632,7 +897,7 @@ class CodexHooks(unittest.TestCase):
     def test_bounded_raw_input_and_detail_do_not_create_transcript_spools(self):
         result = self.run_hook("UserPromptSubmit", raw=b"x" * (256 * 1024 + 1))
         self.assertIn("capture_incomplete", result["systemMessage"])
-        self.assertFalse(self.store.exists())
+        self.assert_no_backend_activity()
         self.tool("PostToolUse", "cargo test", response={"exit_code": 1, "output": "long output " * 5000})
         saved = self.state()["events"][0]["detail"]
         self.assertLessEqual(len(saved), 2048)
@@ -680,11 +945,11 @@ class CodexHooks(unittest.TestCase):
             config.write_text(contents)
             result = self.run_hook("SessionStart")
             self.assertIn("capture_incomplete", result["systemMessage"])
-            self.assertFalse(self.store.exists())
+            self.assert_no_backend_activity()
 
 
 @unittest.skipUnless(REAL_BINARY.is_file(), "Build memento or set MEMENTO_TEST_BIN to run actual Rust CLI scenarios")
-class RealCodexHooks(unittest.TestCase):
+class RealCodexHooks(HookAssertions, unittest.TestCase):
     """Real SQLite/CLI receipts; native callbacks are invoked as subprocesses."""
 
     def setUp(self):
@@ -695,9 +960,10 @@ class RealCodexHooks(unittest.TestCase):
         self.repository.mkdir()
         subprocess.run(["git", "init", "--quiet", str(self.repository)], check=True)
         self.plugin = self.directory / "plugin"
-        shutil.copytree(TEMPLATE, self.plugin, ignore=shutil.ignore_patterns("target", "__pycache__", "*.pyc", ".memento-semantic", "bin"))
+        shutil.copytree(TEMPLATE, self.plugin, ignore=shutil.ignore_patterns("core", "target"))
+        shutil.rmtree(self.plugin / "core", ignore_errors=True)
         self.binary = self.plugin / "skills/memento/bin/memento"
-        self.binary.parent.mkdir(parents=True, exist_ok=True)
+        self.binary.parent.mkdir(parents=True)
         shutil.copy2(REAL_BINARY, self.binary)
         (self.plugin / "skills/memento/SKILL.md").write_text("# Native callback test skill\n")
         self.store = self.directory / "context.sqlite"
@@ -750,8 +1016,63 @@ class RealCodexHooks(unittest.TestCase):
         claim = next(claim for claim in evidence[1]["claims"] if claim["record_id"] == "prior-decision")
         self.assertEqual(claim["text"], body)
         self.assertTrue(claim["revision"])
+        for event, fields in (("UserPromptSubmit", {"prompt": "Continue this work"}),
+                              ("SessionStart", {"source": "compact", "turn_id": None}),
+                              ("SessionStart", {"source": "resume", "turn_id": None})):
+            with self.subTest(event=event, fields=fields):
+                refreshed = self.hook(event, **fields)["hookSpecificOutput"]["additionalContext"]
+                self.assertIn(body, refreshed)
+                self.assertNotIn("retrieval unavailable", refreshed)
 
-    def save_and_resolve(self, event_id, record_id, kind, bodies):
+    def test_real_selected_missing_store_is_not_created_by_callbacks(self):
+        missing = self.directory / "selected-new-context.sqlite"
+        result = subprocess.run(
+            [sys.executable, str(self.plugin / "codex-hooks/capture.py"), "configure", "--data-dir", str(self.data),
+             "--repository", str(self.repository), "--store", str(missing), "--project-id", "project", "--work-id", "work"],
+            capture_output=True, check=False, env=self.env, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout.decode())
+        for event in ("SessionStart", "UserPromptSubmit"):
+            notice = self.hook(event, prompt="Start this selected work")
+            self.assertIn("capture_incomplete", notice["systemMessage"])
+            self.assertIn(str(missing), notice["hookSpecificOutput"]["additionalContext"])
+        denied = self.hook("PreToolUse", tool_name="Bash", tool_input={"command": "rg context src"})
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertFalse(missing.exists())
+        self.assertTrue(self.store.is_file())
+        self.store = missing
+        self.cli("init", "--project", "project")
+        denied = self.hook("PreToolUse", tool_name="Bash", tool_input={"command": "rg context src"})
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        event = self.checkpoint("status")["events"][0]
+        self.assertIn("does not retain the original prompt text", event["detail"])
+        original_request = "Start this selected work"
+        self.save_and_resolve(event["event_id"], "recovered-request", "request", original_request,
+                              original_body=original_request)
+        self.assert_retrieval_allowed(self.hook("PreToolUse", tool_name="Bash", tool_input={"command": "rg context src"}))
+
+    def test_real_unknown_project_requires_init_without_creating_observation_source(self):
+        result = subprocess.run(
+            [sys.executable, str(self.plugin / "codex-hooks/capture.py"), "configure", "--data-dir", str(self.data),
+             "--repository", str(self.repository), "--store", str(self.store), "--project-id", "selected-new-project", "--work-id", "work"],
+            capture_output=True, check=False, env=self.env, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout.decode())
+        for event in ("SessionStart", "UserPromptSubmit"):
+            notice = self.hook(event, prompt="Start the selected project")
+            self.assertIn("init --store", notice["hookSpecificOutput"]["additionalContext"])
+            self.assertIn("not empty work history", notice["hookSpecificOutput"]["additionalContext"])
+        denied = self.hook("PreToolUse", tool_name="Bash", tool_input={"command": "rg context src"})
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        scope = {**self.scope, "project_id": "selected-new-project"}
+        self.assertEqual(self.cli("checkpoint", "--input", "-", data={"operation": "status", "scope": scope})["events"], [])
+        unchanged = subprocess.run([str(self.binary), "query", "--store", str(self.store), "--input", "-"],
+                                   input=json.dumps({"operation": "sources", "scope": {"project_id": "selected-new-project"}}).encode(),
+                                   capture_output=True, check=False, timeout=5)
+        self.assertNotEqual(unchanged.returncode, 0)
+        self.assertEqual(json.loads(unchanged.stdout)["error"]["code"], "invalid_scope")
+
+    def save_and_resolve(self, event_id, record_id, kind, bodies, original_body=None):
         event = next(value for value in self.checkpoint("status")["events"] if value["event_id"] == event_id)
         native = event["origin"]
         observation = self.cli("query", "--input", "-", data={
@@ -760,6 +1081,17 @@ class RealCodexHooks(unittest.TestCase):
         })["items"][0]["entity"]["data"]
         self.assertEqual(observation["representation"], "evidence")
         self.assertEqual(observation["context_id"], event["context_id"])
+        original = None
+        if original_body is not None:
+            self.assertEqual(observation["actor"]["kind"], "agent")
+            self.cli("note", "--project", "project", "--work", "work", "--session", "session", "--input", "-",
+                     data={"id": f"{record_id}:original", "kind": "request", "body": original_body,
+                           "representation": "evidence", "nature": "reported", "context_id": event["context_id"]})
+            original = self.cli("query", "--input", "-", data={
+                "operation": "read", "scope": {"project_id": "project", "work_ids": ["work"], "session_ids": ["session"]},
+                "target": {"kind": "record", "id": f"{record_id}:original"},
+            })["items"][0]["entity"]["data"]
+            self.assertEqual(original["body"], original_body)
         specs = [{"kind": kind, "body": bodies}] if isinstance(bodies, str) else bodies
         references = []
         for index, spec in enumerate(specs):
@@ -772,6 +1104,12 @@ class RealCodexHooks(unittest.TestCase):
                                   "availability": observation["availability"], "purpose": "origin",
                                   "range": None,
                                   "span": {"start": 0, "end": len(observation["body"].encode("utf-8"))}}]}
+            if original is not None:
+                note["evidence"][0]["purpose"] = "support"
+                note["evidence"].insert(0, {"source_id": original["source_id"], "record_id": original["id"],
+                                            "revision": original["revision"], "locator": "accessible user request",
+                                            "availability": original["availability"], "purpose": "origin", "range": None,
+                                            "span": {"start": 0, "end": len(original["body"].encode("utf-8"))}})
             if spec["kind"] == "verification":
                 note["verification_outcome"] = spec.get("verification_outcome", "unknown")
             receipt = self.cli("note", "--project", "project", "--work", "work", "--session", "session",
@@ -799,7 +1137,7 @@ class RealCodexHooks(unittest.TestCase):
             {"kind": "request", "body": "Reduce upload failures."},
             {"kind": "constraint", "body": "Do not increase normal-request latency."},
         ])
-        self.assertEqual(self.hook("PreToolUse", **edit), {})
+        self.assert_retrieval_allowed(self.hook("PreToolUse", **edit))
         result = self.hook("PostToolUse", tool_name="Bash", tool_input={"command": "cargo test"},
                            tool_use_id="verification", tool_response={"exit_code": 0,
                            "output": "40 tests passed; normal-request latency increased 40%."})
@@ -835,7 +1173,7 @@ class RealCodexHooks(unittest.TestCase):
         self.save_and_resolve(request["event_id"], "incident-request", "request",
                               "Investigate how DBDUP affects message processing.")
         first = {**search, "tool_use_id": "initial-logs", "tool_response": {"content": "DBDUP was reported."}}
-        self.assertEqual(self.hook("PreToolUse", **search), {})
+        self.assert_retrieval_allowed(self.hook("PreToolUse", **search))
         self.hook("PostToolUse", **first)
         self.assertEqual(self.hook("PreToolUse", **search)["hookSpecificOutput"]["permissionDecision"], "deny")
         initial = self.checkpoint("status")["events"][-1]
@@ -844,7 +1182,7 @@ class RealCodexHooks(unittest.TestCase):
                               "The initial interpretation was that DBDUP stops message processing.")
         second = {**search, "tool_use_id": "follow-up-logs", "tool_response": {
             "content": "The duplicate message is replaced with the existing msgid and processing continues."}}
-        self.assertEqual(self.hook("PreToolUse", **search), {})
+        self.assert_retrieval_allowed(self.hook("PreToolUse", **search))
         self.hook("PostToolUse", **second)
         revised = self.checkpoint("status")["events"][-1]
         self.assertEqual(self.hook("PreToolUse", tool_name="Read", tool_input={"file_path": "src.rs"})[
@@ -871,7 +1209,7 @@ class RealCodexHooks(unittest.TestCase):
         self.checkpoint("resolve", event_id=request["event_id"], resolution={
             "kind": "no_new_context", "reason": "This is only a status question without new work context."})
         read = {"tool_name": "Bash", "tool_input": {"command": "git status"}, "tool_use_id": "status"}
-        self.assertEqual(self.hook("PreToolUse", **read), {})
+        self.assert_retrieval_allowed(self.hook("PreToolUse", **read))
         self.hook("PostToolUse", **read, tool_response={"exit_code": 0, "output": "working tree clean"})
         investigation = self.checkpoint("status")["events"][-1]
         self.assertTrue(self.checkpoint("status")["pending_investigation"])
@@ -879,6 +1217,29 @@ class RealCodexHooks(unittest.TestCase):
             "kind": "no_new_context", "reason": "The working tree has no changes and no new investigation finding."})
         self.assertFalse(self.checkpoint("status")["pending_investigation"])
         self.assertEqual(self.hook("Stop"), {})
+
+    def test_real_stop_continuation_recovery_preserves_bounded_retry_budget(self):
+        self.hook("UserPromptSubmit", prompt="Verify the current patch")
+        original = self.checkpoint("status")["events"][0]
+        self.save_and_resolve(original["event_id"], "verify-request", "request", "Verify the current patch.")
+        self.hook("PostToolUse", tool_name="Bash", tool_input={"command": "cargo test"},
+                  tool_use_id="verification", tool_response={"exit_code": 0, "output": "passed"})
+        stop = self.hook("Stop")
+        self.assertEqual(stop["decision"], "block")
+        for index in (1, 2):
+            turn = f"continuation-{index}"
+            self.hook("UserPromptSubmit", prompt=stop["reason"], turn_id=turn)
+            denied = self.hook("PreToolUse", turn_id=turn, tool_name="Bash", tool_input={"command": "git status"})
+            self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+            status = self.checkpoint("status")
+            self.assertEqual(status["stop_attempts"], index)
+            recovered = next(event for event in status["events"] if event["original_turn_id"] == turn)
+            self.checkpoint("resolve", event_id=recovered["event_id"], resolution={
+                "kind": "no_new_context", "reason": "The Stop continuation adds no new user request; the original request was saved."})
+            self.assert_retrieval_allowed(self.hook("PreToolUse", turn_id=turn, tool_name="Bash", tool_input={"command": "git status"}))
+            stop = self.hook("Stop", turn_id=turn)
+        self.assertIn("capture_incomplete", stop["systemMessage"])
+        self.assertNotIn("decision", stop)
 
     def test_real_custom_policy_masks_checkpoint_detail_before_persistence(self):
         policy = self.directory / "policy.json"
@@ -916,10 +1277,13 @@ class RealCodexHooks(unittest.TestCase):
         self.assertEqual(status["decision"], "block")
         commit = {"tool_name": "Bash", "tool_input": {"command": "git commit -m capture"}}
         self.assertEqual(self.hook("PreToolUse", **commit)["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.hook("UserPromptSubmit", prompt="Commit selected context changes")
+        request = self.checkpoint("status")["events"][0]
+        self.save_and_resolve(request["event_id"], "commit-request", "request", "Commit selected context changes.")
         prepared = self.checkpoint("prepare_commit", event_id="prepared-commit", detail="Commit the staged context capture.")
         self.assertTrue(prepared["durable"])
         self.save_and_resolve("prepared-commit", "commit-context", "decision", "Commit the staged context capture.")
-        self.assertEqual(self.hook("PreToolUse", **commit), {})
+        self.assert_retrieval_allowed(self.hook("PreToolUse", **commit))
         (self.repository / "changed.rs").write_text("staged state changed\n")
         subprocess.run(["git", "-C", str(self.repository), "add", "changed.rs"], check=True)
         self.assertEqual(self.checkpoint("check_commit")["decision"], "block")

@@ -53,6 +53,9 @@ pub(super) async fn checkpoint(
             kind,
             ..
         } => Some((event_id, detail, *kind)),
+        capture::Request::RecoverRequest {
+            event_id, detail, ..
+        } => Some((event_id, detail, capture::EventKind::UserPrompt)),
         capture::Request::PrepareCommit {
             event_id, detail, ..
         } => Some((event_id, detail, capture::EventKind::Commit)),
@@ -103,6 +106,9 @@ pub(super) async fn checkpoint(
         record.session_id = Some(scope.session_id.clone());
         record.actor = Some(Actor {
             kind: match kind {
+                _ if matches!(&request, capture::Request::RecoverRequest { .. }) => {
+                    ActorKind::Agent
+                }
                 capture::EventKind::UserPrompt => ActorKind::Human,
                 capture::EventKind::ToolFailure
                 | capture::EventKind::Investigation
