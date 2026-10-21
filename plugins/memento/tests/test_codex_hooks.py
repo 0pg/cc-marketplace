@@ -68,6 +68,33 @@ if sys.argv[1] == "query":
         print(json.dumps({"status": "no_matches", "items": [source] if request["operation"] == "sources" else [], "coverage": [], "freshness": [],
                           "brief": {"sections": [], "conflicts": []} if request["operation"] == "brief" else None}))
         raise SystemExit(0)
+    if behavior == "query_focus_order" and request["operation"] == "brief":
+        claims = [
+            {"record_id": "old-goal", "revision": "v1", "text": "Old work goal. " * 70},
+            {"record_id": "old-decision", "revision": "v1", "text": "Approved dashboard colors. " * 40},
+            {"record_id": "gc-condition", "revision": "v1", "text": "Collect completed GC cycles. " * 30},
+            {"record_id": "gc-state", "revision": "v1", "text": "The current collector is active. " * 20},
+        ]
+        print(json.dumps({"status": "ok", "truncated": False,
+            "items": [{"entity": {"entity": "record", "data": {"id": record_id, "revision": "v1"}}}
+                      for record_id in ("gc-condition", "gc-state", "old-decision")],
+            "brief": {"sections": [{"name": name, "claims": [claim]} for name, claim in
+                      zip(("goals", "decisions", "findings", "state"), claims)]}}))
+        raise SystemExit(0)
+    if behavior == "query_brief_budget" and request["operation"] == "brief":
+        print(json.dumps({"status": "partial", "truncated": True, "next_cursor": "opaque-" * 90,
+            "items": [], "brief": {"sections": [{"name": "decisions", "claims": [{
+                "record_id": "retained-decision", "revision": "v1", "text": "Keep the model selection. " * 32}]}]}}))
+        raise SystemExit(0)
+    if behavior in {"query_paged", "query_paged_long_cursor"}:
+        cursor = "z" * 6000 if behavior == "query_paged_long_cursor" else "opaque-page-cursor"
+        print(json.dumps({"status": "partial", "truncated": True, "next_cursor": cursor,
+            "items": [source] if request["operation"] == "sources" else [],
+            "coverage": [{"source_id": "large", "detail": "x" * 4000}],
+            "brief": {"sections": [{"name": "process", "claims": [
+                {"record_id": "gc-evidence", "revision": "v1", "text": "GC collection interval"}]}]}
+                if request["operation"] == "brief" else None}))
+        raise SystemExit(0)
     if behavior == "query_large":
         if request["operation"] == "brief":
             print(json.dumps({"status": "ok", "truncated": False, "items": [], "brief": {"sections": [{"name": "decisions", "claims": [
@@ -97,7 +124,8 @@ if operation in {"open", "recover_request"}:
     if existing is None:
         kind = "user_prompt" if operation == "recover_request" else request["kind"]
         event = {"base": base, "event_id": request["event_id"], "kind": kind,
-                 "detail": request["detail"], "original_turn_id": scope["turn_id"], "resolution": None}
+                 "detail": request["detail"], "original_turn_id": scope["turn_id"], "resolution": None,
+                 "recovery": operation == "recover_request"}
         state["events"].append(event)
         events.append(event)
         if kind == "user_prompt" and operation == "open":
@@ -132,6 +160,11 @@ reply = {"scope": scope, "events": [] if request["_summary"] else events,
          "omitted_pending_event_ids": max(len(pending) - 8, 0),
          "omitted_capture_incomplete_event_ids": max(len(incomplete) - 8, 0),
          "decision": decision, "durable": behavior != "nondurable"}
+focus_event = next((event for event in reversed(events) if event["kind"] == "user_prompt"
+                   and event["original_turn_id"] == scope["turn_id"] and not event.get("recovery")), None)
+focus = focus_event["detail"].encode() if focus_event else b""
+reply["request_focus"] = focus[:1024].decode(errors="ignore") or None
+reply["request_focus_truncated"] = len(focus) > 1024
 if behavior == "missing_turn_status":
     reply.pop("current_turn_has_user_prompt")
 print(json.dumps(reply))
@@ -303,11 +336,107 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         self.run_hook("UserPromptSubmit", prompt="A later request", turn_id="later")
         self.assertEqual([call["operation"] for call in self.state()["calls"]][-3:], ["sources", "brief", "open"])
 
+    def test_prompt_focus_is_reused_without_becoming_a_text_filter(self):
+        prompt = "What is the GC collection interval?"
+        self.run_hook("UserPromptSubmit", prompt=prompt)
+        query = self.state()["calls"][-2]
+        self.assertEqual(query["operation"], "brief")
+        self.assertEqual(query["focus"], prompt)
+        self.assertNotIn("query", query)
+        self.resolve_all("no_new_context")
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "git status"))
+        self.assertEqual(self.state()["calls"][-1]["focus"], prompt)
+
+    def test_focus_is_utf8_bounded_and_recovery_notice_is_not_focus(self):
+        prompt = "가" * 400
+        result = self.run_hook("UserPromptSubmit", prompt=prompt)
+        query = self.state()["calls"][-2]
+        self.assertLessEqual(len(query["focus"].encode()), 1024)
+        self.assertEqual(query["focus"], "가" * 341)
+        evidence = json.loads(result["hookSpecificOutput"]["additionalContext"].split("Memento evidence JSON: ", 1)[1])
+        self.assertTrue(next(item for item in evidence if item["operation"] == "brief")["focus_truncated"])
+        self.resolve_all("no_new_context")
+        denied = self.tool("PreToolUse", "git status", turn_id="recovery")
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.resolve_all("no_new_context")
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "git status", turn_id="recovery"))
+        self.assertNotIn("focus", self.state()["calls"][-1])
+
+    def test_paged_retrieval_preserves_exact_query_and_hook_omission_counts(self):
+        prompt = "GC collection interval"
+        result = self.run_hook("UserPromptSubmit", prompt=prompt, behavior="query_paged")
+        evidence = json.loads(result["hookSpecificOutput"]["additionalContext"].split("Memento evidence JSON: ", 1)[1])
+        brief = next(item for item in evidence if item["operation"] == "brief")
+        self.assertTrue(brief["query_truncated"])
+        self.assertEqual(brief["next_cursor"], "opaque-page-cursor")
+        self.assertEqual(brief["query"], {"operation": "brief", "scope": {"project_id": "project", "work_ids": ["work"]},
+                                        "limit": 4, "budget_bytes": 8192, "purpose": "resume", "focus": prompt})
+        self.assertEqual(brief["hook_omitted"], sum(brief["hook_omitted_by_field"].values()))
+        self.assertGreater(brief["hook_omitted_by_field"]["coverage"], 0)
+        self.assertIn("unchanged query", brief["follow_up"])
+        self.assertEqual(brief["claims"][0]["record_id"], "gc-evidence")
+
+    def test_oversize_continuation_discloses_scoped_retry_without_changing_focus(self):
+        result = self.run_hook("UserPromptSubmit", prompt="가" * 400, behavior="query_paged_long_cursor")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context.encode()), 6000)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        brief = next(item for item in evidence if item["operation"] == "brief")
+        self.assertTrue(brief["query_truncated"])
+        self.assertTrue(brief["focus_truncated"])
+        self.assertTrue(brief["next_cursor_omitted"])
+        self.assertNotIn("query", brief)
+        self.assertEqual(brief["query_scope"], {"project_id": "project", "work_ids": ["work"]})
+        self.assertEqual(brief["focus"], "가" * 341)
+        self.assertIn("rerun the original scoped query", brief["follow_up"])
+
+    def test_focused_projection_uses_rendered_item_rank_before_section_order(self):
+        result = self.run_hook("UserPromptSubmit", prompt="GC collection conditions", behavior="query_focus_order")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context.encode()), 6000)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        brief = next(item for item in evidence if item["operation"] == "brief")
+        self.assertEqual([claim["record_id"] for claim in brief["claims"][:2]], ["gc-condition", "gc-state"])
+        self.assertEqual(brief["claims"][0]["text"], "Collect completed GC cycles. " * 30)
+        self.assertEqual(brief["claims"][1]["text"], "The current collector is active. " * 20)
+        self.assertGreater(brief["hook_omitted_by_field"]["claims"], 0)
+
+    def test_small_sources_donate_budget_to_complete_prior_decision(self):
+        result = self.run_hook("UserPromptSubmit", prompt="Continue this work.", behavior="query_brief_budget")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context.encode()), 6000)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        brief = next(item for item in evidence if item["operation"] == "brief")
+        self.assertEqual(brief["claims"][0]["record_id"], "retained-decision")
+        self.assertEqual(brief["claims"][0]["text"], "Keep the model selection. " * 32)
+        self.assertEqual(brief["query"]["focus"], "Continue this work.")
+        self.assertEqual(brief["next_cursor"], "opaque-" * 90)
+        self.assertEqual(brief["hook_omitted"], 0)
+
+    def test_pretool_gate_keeps_configured_store_without_startup(self):
+        self.run_hook("UserPromptSubmit", prompt="Review the current GC collection conditions.")
+        result = self.tool("PreToolUse", "git status")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        context = result["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn(f"Store: {self.store}.", context)
+        self.assertNotIn("without waiting for a user request", context)
+
+    def test_explanation_review_is_explicit_and_changed_request_stays_gated(self):
+        self.run_hook("UserPromptSubmit", prompt="GC has not been deprecated, correct?")
+        self.assertEqual(self.tool("PreToolUse", "git status")["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.resolve_all("no_new_context")
+        self.assert_retrieval_allowed(self.tool("PreToolUse", "git status"))
+        self.run_hook("UserPromptSubmit", prompt="Change the GC collection interval.", turn_id="change")
+        self.assertEqual(self.tool("PreToolUse", "git status", turn_id="change")[
+            "hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIsNone(self.state()["events"][-1]["resolution"])
+
     def test_compact_and_resume_start_retrieve_across_sessions(self):
         for source in ("compact", "resume"):
             with self.subTest(source=source):
                 result = self.run_hook("SessionStart", source=source, turn_id=None)
                 self.assertIn("Saved prior work decision", result["hookSpecificOutput"]["additionalContext"])
+                self.assertIn(str(self.store), result["hookSpecificOutput"]["additionalContext"])
                 calls = self.state()["calls"][-3:]
                 self.assertEqual([call["operation"] for call in calls], ["status", "sources", "brief"])
                 for call in calls[1:]:
@@ -431,7 +560,8 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         for event in ("SessionStart", "UserPromptSubmit"):
             result = self.run_hook(event, prompt="unconfigured")
             context = result["hookSpecificOutput"]["additionalContext"]
-            for path in (self.data / "capture-config.json", self.plugin / "scripts/install_runtime.py", self.repository):
+            for path in (self.data / "capture-config.json", self.plugin / "scripts/install_runtime.py",
+                         self.plugin / "codex-hooks/capture.py", self.repository):
                 self.assertIn(str(path), context)
             self.assertIn("have not run", context)
             self.assertIn("capture_incomplete", result["systemMessage"])
@@ -523,7 +653,7 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         skill = self.plugin / "skills/memento/SKILL.md"
         self.assertEqual(self.tool("PreToolUse", f"cat '{skill}'"), {})
         self.assertEqual(self.tool("PreToolUse", f"python3 '{self.plugin / 'scripts/install_runtime.py'}' --ensure"), {})
-        self.assertEqual(self.tool("PreToolUse", f"python3 '{self.plugin / 'hooks/capture.py'}' configure"), {})
+        self.assertEqual(self.tool("PreToolUse", f"python3 '{self.plugin / 'codex-hooks/capture.py'}' configure"), {})
         config.unlink()
         self.configure()
         for field in ("session_id", "turn_id"):
@@ -616,6 +746,9 @@ class CodexHooks(HookAssertions, unittest.TestCase):
         for name, tool_input in [
             ("Bash", {"command": f"cat '{skill}'"}),
             ("Bash", {"command": f"sed -n '1,200p' '{reference}'"}),
+            ("Bash", {"command": f"rg -n 'GC feature|checkpoint' '{skill}' '{reference}'"}),
+            ("Bash", {"command": f"rg -i -e 'GC feature' -- '{reference}'"}),
+            ("Bash", {"command": f"rg --regexp='GC feature' '{reference}'"}),
             ("Read", {"file_path": str(setup)}),
             ("mcp__filesystem__read_file", {"path": str(reference)}),
         ]:
@@ -625,6 +758,41 @@ class CodexHooks(HookAssertions, unittest.TestCase):
                                                   tool_response={"content": "instructions"}), {})
         self.assertEqual(len(self.state()["calls"]), calls)
         self.assertIsNone(self.state()["events"][0]["resolution"])
+
+    def test_rg_instruction_exemption_rejects_other_targets_and_execution(self):
+        references = self.plugin / "skills/memento/references"
+        references.mkdir(exist_ok=True)
+        reference = references / "interface.md"
+        reference.write_text("# GC instructions")
+        outside = self.repository / "outside.md"
+        outside.write_text("Project evidence")
+        escaped = references / "escaped.md"
+        escaped.symlink_to(outside)
+        directory = references / "directory.md"
+        directory.mkdir()
+        skill = self.plugin / "skills/memento/SKILL.md"
+        skill.unlink()
+        skill.symlink_to(outside)
+        self.run_hook("UserPromptSubmit", prompt="Review GC evidence.")
+        commands = [
+            f"rg GC '{reference}' '{outside}'",
+            f"rg GC '{references}'",
+            f"rg GC '{directory}'",
+            f"rg GC '{escaped}'",
+            f"rg GC '{skill}'",
+            f"rg --pre cat GC '{reference}'",
+            f"rg --pre-glob '*.md' GC '{reference}'",
+            f"rg -f '{outside}' '{reference}'",
+            f"rg GC '{reference}'; cat '{outside}'",
+            f"rg GC '{reference}' > '{outside}'",
+            f"rg $(echo GC) '{reference}'",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(self.tool("PreToolUse", command)["hookSpecificOutput"]["permissionDecision"], "deny")
+                result = self.tool("PostToolUse", command, response={"exit_code": 0, "output": "result"})
+                self.assertIn("additionalContext", result["hookSpecificOutput"])
+                self.assertEqual(self.state()["events"][-1]["kind"], "investigation")
 
     def test_bootstrap_does_not_allow_writes_unrelated_reads_or_compound_commands(self):
         self.run_hook("UserPromptSubmit", prompt="Investigate the incident.")
@@ -1035,6 +1203,30 @@ class RealCodexHooks(HookAssertions, unittest.TestCase):
                                 check=False, env=self.env, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         return json.loads(result.stdout)
+
+    def test_real_focused_hook_retains_collection_conditions_and_current_state(self):
+        rows = [
+            ("old-dashboard", "decision", "Approved unrelated dashboard layout. " * 10, "2026-01-01T00:00:00Z"),
+            ("gc-first", "finding", "GC collection conditions require an enabled collector.", "2026-02-01T00:00:00Z"),
+            ("gc-second", "finding", "GC collection conditions require a completed cycle.", "2026-02-02T00:00:00Z"),
+            ("gc-current", "status", "Current GC collection conditions review is open.", "2026-10-20T00:00:00Z"),
+        ]
+        for record_id, kind, body, occurred_at in rows:
+            self.cli("note", "--project", "project", "--work", "work", "--session", "prior",
+                     "--input", "-", data={"id": record_id, "kind": kind, "body": body,
+                                           "occurred_at": occurred_at})
+        result = self.hook("UserPromptSubmit", prompt="GC collection conditions and current status")
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context.encode()), 6000)
+        evidence = json.loads(context.split("Memento evidence JSON: ", 1)[1])
+        brief = next(item for item in evidence if item["operation"] == "brief")
+        retained = {claim["record_id"]: claim for claim in brief["claims"]}
+        for record_id, _, body, _ in rows[1:]:
+            self.assertIn(record_id, retained)
+            self.assertEqual(retained[record_id]["text"], body)
+        ids = [claim["record_id"] for claim in brief["claims"]]
+        if "old-dashboard" in ids:
+            self.assertLess(ids.index("gc-current"), ids.index("old-dashboard"))
 
     def test_real_start_retrieves_decision_from_prior_session(self):
         body = "Keep the existing model selection during updates and read prior decisions before changing project code."

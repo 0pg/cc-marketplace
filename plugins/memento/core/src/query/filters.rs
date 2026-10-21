@@ -1,6 +1,15 @@
 use super::*;
 
 pub(super) fn validate(view: &View<'_>, query: &Query) -> Result<(), QueryError> {
+    if let Some(focus) = &query.focus
+        && (query.operation != Operation::Brief
+            || focus.trim().is_empty()
+            || focus.len() > 4096
+            || focus.contains('\0'))
+    {
+        return Err(QueryError::InvalidQuery("focus requires a brief query and nonempty text of at most 4096 UTF-8 bytes without NUL".into()));
+    }
+
     if query
         .filters
         .context_id
@@ -125,32 +134,46 @@ pub(super) fn record(view: &View<'_>, record: &Record, query: &Query) -> bool {
     {
         return false;
     }
-    let works: Vec<_> = view
-        .entities()
-        .filter_map(|e| match e {
-            Entity::Work(w) if record.work_ids.contains(&w.id) => Some(w.status),
-            _ => None,
-        })
-        .collect();
-    let works = if works.is_empty() {
-        vec![WorkStatus::Unknown]
-    } else {
-        works
-    };
-    if !many(&works, &f.work_statuses, &f.exclude_work_statuses) {
-        return false;
+    if !f.work_statuses.is_empty() || !f.exclude_work_statuses.is_empty() {
+        let mut works: Vec<_> = view
+            .selected
+            .values()
+            .filter_map(|entry| match &entry.entity {
+                Entity::Work(work)
+                    if record.work_ids.contains(&work.id) && view.visible(&entry.entity) =>
+                {
+                    Some(work.status)
+                }
+                _ => None,
+            })
+            .collect();
+        if works.is_empty() {
+            works.push(WorkStatus::Unknown);
+        }
+        if !many(&works, &f.work_statuses, &f.exclude_work_statuses) {
+            return false;
+        }
     }
-    let session = view
-        .entities()
-        .find_map(|e| match e {
-            Entity::Session(s) if record.session_id.as_deref() == Some(s.id.as_str()) => {
-                Some(s.status)
-            }
-            _ => None,
-        })
-        .unwrap_or(SessionStatus::Unknown);
-    if !accept(&session, &f.session_statuses, &f.exclude_session_statuses) {
-        return false;
+    if !f.session_statuses.is_empty() || !f.exclude_session_statuses.is_empty() {
+        let session = record
+            .session_id
+            .as_deref()
+            .and_then(|id| {
+                view.selected
+                    .values()
+                    .find_map(|entry| match &entry.entity {
+                        Entity::Session(session)
+                            if session.id == id && view.visible(&entry.entity) =>
+                        {
+                            Some(session.status)
+                        }
+                        _ => None,
+                    })
+            })
+            .unwrap_or(SessionStatus::Unknown);
+        if !accept(&session, &f.session_statuses, &f.exclude_session_statuses) {
+            return false;
+        }
     }
     time(record.occurred_at.as_deref(), f)
 }

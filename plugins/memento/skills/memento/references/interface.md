@@ -24,11 +24,11 @@ Preparation uses a process lock, validates protocol/capabilities, platform and b
 
 For `query`, the launcher supplies the active semantic config unless `--semantic-config` is explicit. `MEMENTO_BIN` selects a compatible explicit executable and still undergoes the version handshake. Use the launcher to preserve selection/update checks rather than guessing an artifact filename. Direct executable calls require the semantic-config flag for semantic search. The examples below abbreviate the launcher as `memento`.
 
-Codex hooks use `codex-hooks/hooks.json` via root `plugin.json`. Review and trust the current definitions in Codex and configure explicit project/store/work scope separately. Runtime preparation does not change trust, global settings or enable Git hooks. SessionStart checks readiness and retrieves `sources` plus a bounded `brief` for the configured work across prior sessions, or gives actionable setup guidance; the callback itself never builds or downloads a model. See [Codex hooks and checkpoints](codex-hooks.md).
+Codex hooks use `codex-hooks/hooks.json` via `.codex-plugin/plugin.json`. Review and trust the current definitions in Codex and configure explicit project/store/work scope separately. Runtime preparation does not change trust, global settings or enable Git hooks. SessionStart checks readiness and retrieves `sources` plus a bounded `brief` for the configured work across prior sessions, or gives actionable setup guidance; the callback itself never builds or downloads a model. See [Codex hooks and checkpoints](codex-hooks.md).
 
 ### Version and selected-store compatibility
 
-The current release separates plugin version `0.6.4`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
+The current release separates plugin version `0.7.0`, Rust core version `0.3.0`, CLI protocol `1`, runtime configuration format `1`, and store format `2`. Inspect them independently:
 
 ```sh
 memento version
@@ -70,6 +70,68 @@ memento note --store /tmp/context.sqlite --project demo --work W1 --session S1 -
 `note` requires `id`, `kind`, `body`. Optional fields use the Record schema below; unprovided nature is `reported`, occurrence time is unknown, association is explicit only when `--work` is supplied. Receipt `sequence/entity_id/duplicate/durable` is the persistence result. Do not invent timestamps. Unknown fields are rejected. Query failures return structured `error.code` with a nonzero exit code.
 
 An automatic collection adds `compaction: {generation, removed_entries, remaining}` to the receipt. `record` arrays and each import batch commit atomically: their new entries are protected during admission and the entire batch fails if they cannot fit. A failed multi-command workflow can still have earlier successful receipts; report the actual saved portion.
+
+## Atomic record and checkpoint capture
+
+The existing Entity and Entity-array forms of `record` remain supported. To save a batch, validate its retained evidence, and resolve one checkpoint in a single transaction, pass a `records`/`resolve` envelope:
+
+```json
+{
+  "records": [
+    {
+      "entity": "record",
+      "data": {
+        "id": "request-claim-1",
+        "project_id": "demo",
+        "source_id": "journal",
+        "revision": "v1",
+        "kind": "request",
+        "nature": "reported",
+        "title": "Retry limit",
+        "body": "Retry at most three times.",
+        "work_ids": ["W1"],
+        "session_id": "S1",
+        "association": "explicit",
+        "representation": "claim",
+        "derived": true,
+        "fidelity": "summary_only",
+        "availability": "available",
+        "context_id": "<context-id-from-status>",
+        "evidence": [{
+          "source_id": "memento-checkpoints",
+          "record_id": "<record-id-from-status>",
+          "revision": "<revision-from-status>",
+          "locator": "checkpoint",
+          "purpose": "origin",
+          "availability": "available",
+          "range": {"start_line": 1, "end_line": 1}
+        }]
+      }
+    }
+  ],
+  "resolve": {
+    "scope": {
+      "project_id": "demo",
+      "repository": "/absolute/repository",
+      "work_id": "W1",
+      "session_id": "S1",
+      "turn_id": "T1"
+    },
+    "event_id": "<event-id-from-status>",
+    "records": [{"source_id": "journal", "record_id": "request-claim-1"}]
+  }
+}
+```
+
+Obtain the event, context, and frozen origin identities from full checkpoint status; the angle-bracket values above are placeholders. Adapt the claim and its range to the actual observed request. Each resolution selection must identify one record in this batch and project. Existing work/session/context, record-kind, origin, revision, accessibility, and sequence checks remain in force.
+
+A successful response contains durable `receipts`, the selected normalized saved `records` (plain Record objects), and a bounded `checkpoint` reply. Inspect those returned bodies and evidence references directly; a second read is unnecessary when they provide the complete retained projection. Structural validation does not establish semantic completeness.
+
+Evidence validation, resolution, or capacity failure rolls back both new records and checkpoint changes. Retrying the same successful payload reuses its durable record identities and resolution. A different write cannot replace a resolved event. Other pending events can leave the overall checkpoint decision blocked even after this event was resolved.
+
+For a genuinely unchanged explanation based on retained evidence, use a reasoned `no_new_context` resolution instead of manufacturing a claim. New requirements, corrections, decisions, investigation findings, or verification outcomes still require their applicable capture path. A truncated origin requires an honest partial claim; if resolving a checkpoint needs a complete claim, retain the accessible complete source and link the frozen observation as support.
+
+Record input errors are structured. `record_index` is zero-based, `field_path` is a JSON pointer, and `record_id` is present only when known. Schema diagnostics identify a missing title; claim diagnostics identify the evidence position and available origin state, with a corrective hint. Unknown nested leaves remain at the known container path rather than guessing. Failed batches remain atomic.
 
 ## Passive session recording status
 
@@ -135,6 +197,14 @@ For a text search hit, pass the returned body `match_ranges[].range` into `read.
 Use one-based inclusive `range`; `context_lines` expands it, or requests neighboring records when no text range is supplied. A record's `revision` identifies its source revision; `rendered_revision` identifies the entire retained/masked text projection, even in a partial read. Never substitute a changed current document for the revision originally cited. `response_truncated` can continue; `source_truncated` means the source never retained the missing text.
 
 `trace.direction`: `incoming`, `outgoing`, `both`; `relations` is an optional list of relation kinds. `compare.from/to` each accept `occurred_at`, `session_last_records`, and/or `code_state_id`. Code-only points cannot reconstruct historical requirements. `since_checkpoint` is an opaque token returned only after the final page; do not synthesize it. Keep occurrence and capture timestamps distinct.
+
+### Question-focused briefs
+
+`brief` accepts optional `focus` text of at most 4096 UTF-8 bytes. It ranks authorized, rendered records by matching focus terms and recent capture sequence; it does not broaden scope or turn similarity into evidence. Without focus, record-kind priority is retained and newer captures of the same kind precede older ones. Existing `query.text` remains an explicit filter.
+
+Automatic hooks bound focus to 1024 UTF-8 bytes and disclose truncation. The checkpoint reply's `request_focus` comes only from the current turn's retained human prompt; recovery notices are excluded. A hook's `query_truncated` describes CLI response pagination, while `hook_omitted` counts complete entries excluded by the hook budget. Use the supplied continuation query/cursor unchanged; a budget fallback instead supplies an explicit scoped retry hint.
+
+When a derived record's evidence is outside `scope.source_ids`, `evidence_out_of_scope` identifies only an authorized source that can be added for an explicit retry. Actual deletion and unavailable/restricted evidence have separate diagnostics. Hidden source identity is not disclosed, and the body-withholding and access policies remain enforced.
 
 ## Code movement between retained states
 

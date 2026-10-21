@@ -42,6 +42,15 @@ pub(super) async fn checkpoint(
     request: capture::Request,
     policy: &RedactionPolicy,
 ) -> Result<capture::Reply> {
+    checkpoint_pinned(db, request, policy, &BTreeSet::new()).await
+}
+
+pub(super) async fn checkpoint_pinned(
+    db: &mut toasty::Transaction<'_>,
+    request: capture::Request,
+    policy: &RedactionPolicy,
+    pinned: &BTreeSet<u64>,
+) -> Result<capture::Reply> {
     let mut rows = StoredEntry::all().exec(&mut *db).await?;
     let mut meta = read_metadata(&rows)?;
     let read_only = request.read_only();
@@ -144,7 +153,7 @@ pub(super) async fn checkpoint(
     }
     if !read_only {
         save_metadata(db, &mut rows, &meta).await?;
-        enforce(db, &BTreeSet::new()).await?;
+        enforce(db, pinned).await?;
     }
     Ok(reply)
 }

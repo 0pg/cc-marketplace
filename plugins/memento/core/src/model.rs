@@ -727,6 +727,8 @@ pub struct Query {
     #[serde(default)]
     pub filters: Filters,
     pub query: Option<TextQuery>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<String>,
     pub target: Option<Target>,
     pub direction: Option<Direction>,
     #[serde(default)]
@@ -756,6 +758,7 @@ impl Query {
             },
             filters: Filters::default(),
             query: None,
+            focus: None,
             target: None,
             direction: None,
             relations: Vec::new(),

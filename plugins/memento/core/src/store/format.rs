@@ -90,6 +90,7 @@ impl Error {
             Self::Capacity { .. } => "store_capacity_exceeded",
             Self::Io(_) => "io_error",
             Self::Json(_) => "invalid_json",
+            Self::RecordInput(error) => error.code,
             Self::Database(_) => "database_error",
             Self::Redaction(_) => "invalid_redaction",
             Self::Invalid(_) => "invalid_input",

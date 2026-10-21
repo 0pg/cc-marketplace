@@ -7,7 +7,7 @@ use std::{
 
 use memento::{
     Error, Result, Store, adapters::ImportFormat, capture, compaction, ingest, model::*, query,
-    runtime, security::RedactionPolicy, semantic,
+    record_input, runtime, security::RedactionPolicy, semantic,
 };
 use serde_json::{Value, json};
 
@@ -28,6 +28,7 @@ async fn main() -> ExitCode {
         Err(error) => {
             let output = match error {
                 Error::Query(error) => json!({"error": error}),
+                Error::RecordInput(error) => json!({"error": error}),
                 Error::Capture(error) => {
                     let code = match &error {
                         capture::Error::Invalid(_) => "invalid_capture_checkpoint",
@@ -55,6 +56,13 @@ fn write_json(value: &Value) -> Result<()> {
     serde_json::to_writer(&mut stdout, value)?;
     writeln!(stdout)?;
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordEnvelope {
+    records: Value,
+    resolve: memento::store::ResolveRecords,
 }
 
 struct Args {
@@ -326,13 +334,27 @@ async fn execute() -> Result<Value> {
             Ok(json!({"receipt": store.append(Entity::Record(record)).await?}))
         }
         "record" => {
-            let value: Value = serde_json::from_str(&args.input()?)?;
-            let entities: Vec<Entity> = if value.is_array() {
-                serde_json::from_value(value)?
+            let value = record_input::parse_value(&args.input()?)?;
+            if value.as_object().is_some_and(|object| {
+                object.contains_key("records") || object.contains_key("resolve")
+            }) {
+                let envelope: RecordEnvelope = serde_json::from_value(value)?;
+                let entities = record_input::parse_records_value(envelope.records).map_err(
+                    |error| match error {
+                        Error::RecordInput(mut diagnostic) => {
+                            diagnostic.prepend_path("/records");
+                            Error::RecordInput(diagnostic)
+                        }
+                        other => other,
+                    },
+                )?;
+                Ok(serde_json::to_value(
+                    store.append_and_resolve(entities, envelope.resolve).await?,
+                )?)
             } else {
-                vec![serde_json::from_value(value)?]
-            };
-            Ok(json!({"receipts": store.append_all(entities).await?}))
+                let entities = record_input::parse_records_value(value)?;
+                Ok(json!({"receipts": store.append_all(entities).await?}))
+            }
         }
         "import" => {
             let format = match args.required("format")? {

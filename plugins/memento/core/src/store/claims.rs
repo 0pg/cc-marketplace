@@ -1,17 +1,18 @@
 //! Structural attribution checks. These do not establish semantic entailment.
 use super::*;
+use crate::record_input::Diagnostic;
 
 /// If a batch source changes during redaction, the selected text must retain its
 /// coordinates and content. Otherwise callers must project or read it first.
 pub(super) fn validate_projection(entities: &[Entity], policy: &RedactionPolicy) -> Result<()> {
-    for entity in entities {
+    for (record_index, entity) in entities.iter().enumerate() {
         let Entity::Record(claim) = entity else {
             continue;
         };
         if claim.representation != Representation::Claim {
             continue;
         }
-        for reference in &claim.evidence {
+        for (evidence_index, reference) in claim.evidence.iter().enumerate() {
             for source in entities.iter().filter_map(|entity| match entity {
                 Entity::Record(record)
                     if record.project_id == claim.project_id
@@ -28,7 +29,15 @@ pub(super) fn validate_projection(entities: &[Entity], policy: &RedactionPolicy)
                     && selected_text(reference, &source.body)
                         != selected_text(reference, &projected)
                 {
-                    return Err(Error::Invalid("redaction changed selected evidence text or coordinates; project or persist/read the source before choosing evidence ranges".into()));
+                    return Err(Diagnostic::claim(
+                        claim,
+                        &format!("/data/evidence/{evidence_index}"),
+                        "redaction changed selected evidence text or coordinates",
+                        "Project or persist/read the source before choosing evidence ranges.",
+                    )
+                    .with_evidence(evidence_index, reference)
+                    .with_record_index(record_index)
+                    .into());
                 }
             }
         }
@@ -89,26 +98,45 @@ pub(crate) fn validate_record(record: &Record, entries: &[Entry]) -> Result<()> 
     {
         return Ok(());
     }
+    let invalid = |path: &str, message: &str, hint: &str| -> Error {
+        Diagnostic::claim(record, path, message, hint).into()
+    };
     if record.body.trim().is_empty()
         || !record.derived
         || !record.context_id.as_ref().is_some_and(|id| {
             !id.trim().is_empty() && id.len() <= 1024 && !id.chars().any(char::is_control)
         })
     {
-        return Err(Error::Invalid(
-            "claims require nonempty body/context_id and derived=true".into(),
+        return Err(invalid(
+            "/data",
+            "claims require nonempty body/context_id and derived=true",
+            "Provide nonempty body/context_id and set derived=true on this claim.",
         ));
     }
     if !source_accessible(&record.project_id, &record.source_id, entries) {
-        return Err(Error::Invalid(
-            "claim source is absent, unavailable or unauthorized".into(),
+        return Err(invalid(
+            "/data/source_id",
+            "claim source is absent, unavailable or unauthorized",
+            "Use an available authorized source in the claim project; do not bypass source access controls.",
         ));
     }
     let mut origins = 0;
-    for reference in &record.evidence {
+    for (evidence_index, reference) in record.evidence.iter().enumerate() {
+        let invalid_evidence = |field: &str, message: &str, hint: &str| -> Error {
+            Diagnostic::claim(
+                record,
+                &format!("/data/evidence/{evidence_index}{field}"),
+                message,
+                hint,
+            )
+            .with_evidence(evidence_index, reference)
+            .into()
+        };
         if reference.purpose == EvidencePurpose::Unspecified {
-            return Err(Error::Invalid(
-                "claim evidence requires origin or support purpose".into(),
+            return Err(invalid_evidence(
+                "/purpose",
+                "claim evidence requires origin or support purpose",
+                "Set purpose to origin or support for this evidence reference.",
             ));
         }
         if !matches!(
@@ -116,19 +144,26 @@ pub(crate) fn validate_record(record: &Record, entries: &[Entry]) -> Result<()> 
             Availability::Available | Availability::Redacted
         ) {
             if !record.partial {
-                return Err(Error::Invalid(
-                    "unavailable claim evidence requires partial=true".into(),
-                ));
+                return Err(Diagnostic::claim(
+                    record, "/data/partial",
+                    "unavailable claim evidence requires partial=true",
+                    "Set partial=true if retaining this unavailable evidence, or reference available complete evidence.",
+                ).with_evidence(evidence_index, reference).into());
             }
             continue;
         }
-        let id = reference
-            .record_id
-            .as_ref()
-            .ok_or_else(|| Error::Invalid("available claim evidence requires record_id".into()))?;
+        let id = reference.record_id.as_ref().ok_or_else(|| {
+            invalid_evidence(
+                "/record_id",
+                "available claim evidence requires record_id",
+                "Add the retained evidence record ID to this reference.",
+            )
+        })?;
         if !source_accessible(&record.project_id, &reference.source_id, entries) {
-            return Err(Error::Invalid(
-                "claim evidence source is absent, unavailable or unauthorized".into(),
+            return Err(invalid_evidence(
+                "/source_id",
+                "claim evidence source is absent, unavailable or unauthorized",
+                "Use accessible evidence from an authorized source; do not expand access permissions.",
             ));
         }
         let exact = entries
@@ -149,10 +184,12 @@ pub(crate) fn validate_record(record: &Record, entries: &[Entry]) -> Result<()> 
             .iter()
             .max_by_key(|(sequence, _)| *sequence)
             .map(|(_, target)| *target)
-            .ok_or_else(|| Error::Invalid("exact claim evidence revision is absent".into()))?;
+            .ok_or_else(|| invalid_evidence("/revision", "exact claim evidence revision is absent", "Use the exact source_id, record_id and revision returned by reading the retained evidence."))?;
         if exact.iter().any(|(_, other)| other.body != target.body) {
-            return Err(Error::Invalid(
-                "claim evidence revision identifies conflicting bodies".into(),
+            return Err(invalid_evidence(
+                "/revision",
+                "claim evidence revision identifies conflicting bodies",
+                "Use a distinct revision identity for different retained bodies.",
             ));
         }
         if !matches!(
@@ -160,41 +197,59 @@ pub(crate) fn validate_record(record: &Record, entries: &[Entry]) -> Result<()> 
             Availability::Available | Availability::Redacted
         ) || target.body.trim().is_empty()
         {
-            return Err(Error::Invalid(
-                "claim evidence revision is inaccessible".into(),
+            return Err(invalid_evidence(
+                "/revision",
+                "claim evidence revision is inaccessible",
+                "Reference an accessible retained evidence revision or explicitly mark the evidence unavailable and the claim partial.",
             ));
         }
         if target.source_id == record.source_id
             && target.id == record.id
             && target.revision == record.revision
         {
-            return Err(Error::Invalid(
-                "claim cannot cite itself as evidence".into(),
+            return Err(invalid_evidence(
+                "/record_id",
+                "claim cannot cite itself as evidence",
+                "Reference independently retained evidence instead of the claim itself.",
             ));
         }
-        validate_range(reference, &target.body)?;
+        validate_range(reference, &target.body).map_err(|(field, message)| {
+            invalid_evidence(
+                field,
+                message,
+                "Choose a valid line range or UTF-8 byte span in the retained evidence body.",
+            )
+        })?;
         if reference.purpose == EvidencePurpose::Origin {
             if target.representation == Representation::Claim {
-                return Err(Error::Invalid(
-                    "claim origin must be evidence or legacy content".into(),
+                return Err(invalid_evidence(
+                    "/purpose",
+                    "claim origin must be evidence or legacy content",
+                    "Reference an evidence or legacy source record as origin; an earlier claim can be support.",
                 ));
             }
             if (target.partial || target.fidelity == Fidelity::SourceTruncated) && !record.partial {
-                return Err(Error::Invalid(
-                    "truncated origin requires partial=true".into(),
-                ));
+                return Err(Diagnostic::claim(
+                    record, "/data/partial",
+                    "truncated origin requires partial=true",
+                    "The referenced origin has partial=true or fidelity=source_truncated. Set this claim's partial=true, or retain/read a complete original and replace this origin reference with its exact revision and range.",
+                ).with_evidence(evidence_index, reference).into());
             }
             if target.fidelity != Fidelity::Original && record.fidelity == Fidelity::Original {
-                return Err(Error::Invalid(
-                    "claim cannot present a summarized/truncated origin as original".into(),
+                return Err(invalid_evidence(
+                    "/revision",
+                    "claim cannot present a summarized/truncated origin as original",
+                    "Set the claim fidelity to match the retained origin or reference a complete original evidence revision.",
                 ));
             }
             origins += 1;
         }
     }
     if origins == 0 {
-        return Err(Error::Invalid(
-            "claims require at least one accessible exact origin".into(),
+        return Err(invalid(
+            "/data/evidence",
+            "claims require at least one accessible exact origin",
+            "Add an accessible evidence/legacy origin with its exact revision and a valid range or span.",
         ));
     }
     Ok(())
@@ -213,19 +268,21 @@ fn source_accessible(project: &str, id: &str, entries: &[Entry]) -> bool {
         .is_some_and(|(_, source)| source.authorized && source.available)
 }
 
-fn validate_range(reference: &Evidence, body: &str) -> Result<()> {
+fn validate_range(
+    reference: &Evidence,
+    body: &str,
+) -> std::result::Result<(), (&'static str, &'static str)> {
     if reference.range.is_none() && reference.span.is_none() {
-        return Err(Error::Invalid(
-            "claim evidence requires a line range or byte span".into(),
-        ));
+        return Err(("", "claim evidence requires a line range or byte span"));
     }
     if let Some(range) = &reference.range
         && (range.start_line == 0
             || range.end_line < range.start_line
             || range.end_line > body.lines().count())
     {
-        return Err(Error::Invalid(
-            "claim evidence line range is outside retained body".into(),
+        return Err((
+            "/range",
+            "claim evidence line range is outside retained body",
         ));
     }
     if let Some(span) = &reference.span {
@@ -234,17 +291,14 @@ fn validate_range(reference: &Evidence, body: &str) -> Result<()> {
             || !body.is_char_boundary(span.start)
             || !body.is_char_boundary(span.end)
         {
-            return Err(Error::Invalid(
-                "claim evidence span must be a nonempty UTF-8 byte range".into(),
+            return Err((
+                "/span",
+                "claim evidence span must be a nonempty UTF-8 byte range",
             ));
         }
         if let Some(range) = &reference.range {
-            let start = body
-                .get(..span.start)
-                .ok_or_else(|| Error::Invalid("invalid span".into()))?;
-            let end = body
-                .get(..span.end)
-                .ok_or_else(|| Error::Invalid("invalid span".into()))?;
+            let start = body.get(..span.start).ok_or(("/span", "invalid span"))?;
+            let end = body.get(..span.end).ok_or(("/span", "invalid span"))?;
             let start_line = start.bytes().filter(|byte| *byte == b'\n').count() + 1;
             let end_line = end
                 .strip_suffix('\n')
@@ -254,9 +308,7 @@ fn validate_range(reference: &Evidence, body: &str) -> Result<()> {
                 .count()
                 + 1;
             if start_line < range.start_line || end_line > range.end_line {
-                return Err(Error::Invalid(
-                    "claim evidence span is outside its line range".into(),
-                ));
+                return Err(("/span", "claim evidence span is outside its line range"));
             }
         }
     }

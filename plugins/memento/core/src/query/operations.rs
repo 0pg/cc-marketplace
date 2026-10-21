@@ -194,9 +194,25 @@ pub(super) fn select(
                     }));
                 }
                 // The actual source text is the claim. The pure engine does not invent a rationale.
-                rows.sort_by_key(|i| match &i.entity {
-                    Entity::Record(r) => priority(r.kind),
-                    _ => 10,
+                let terms = query.focus.as_deref().map(focus_terms).unwrap_or_default();
+                rows.sort_by(|a, b| {
+                    let seq = |item: &QueryItem| {
+                        view.selected
+                            .get(&item.entity.key())
+                            .map_or(0, |entry| entry.sequence)
+                    };
+                    let kind = |item: &QueryItem| match &item.entity {
+                        Entity::Record(record) => priority(record.kind),
+                        _ => 10,
+                    };
+                    if terms.is_empty() {
+                        kind(a).cmp(&kind(b)).then_with(|| seq(b).cmp(&seq(a)))
+                    } else {
+                        focus_score(b, &terms)
+                            .cmp(&focus_score(a, &terms))
+                            .then_with(|| seq(b).cmp(&seq(a)))
+                            .then_with(|| kind(a).cmp(&kind(b)))
+                    }
                 });
             }
             Ok(rows)
@@ -927,6 +943,28 @@ pub(super) fn brief(view: &View<'_>, query: &Query, items: &[QueryItem]) -> Brie
         .cloned()
         .collect();
     Brief { purpose: query.purpose.unwrap_or(BriefPurpose::Resume), sections: sections.into_iter().map(|((_, name), claims)| BriefSection { name, claims }).collect(), conflicts, notes: vec!["claims retain their observed/reported/inferred provenance; no absent rationale is reconstructed".into(), "completion reports, verification, and integration are distinct facts".into()] }
+}
+
+fn focus_terms(focus: &str) -> std::collections::BTreeSet<String> {
+    let text = focus.to_lowercase();
+    let ascii = text.split(|c: char| !c.is_ascii_alphanumeric());
+    let other = text.split(|c: char| !c.is_alphanumeric() || c.is_ascii());
+    ascii
+        .chain(other)
+        .filter(|term| term.chars().count() >= 2)
+        .map(str::to_owned)
+        .collect()
+}
+
+fn focus_score(item: &QueryItem, terms: &std::collections::BTreeSet<String>) -> usize {
+    let Entity::Record(record) = &item.entity else {
+        return 0;
+    };
+    let text = format!("{} {}", record.title, record.body).to_lowercase();
+    terms
+        .iter()
+        .filter(|term| text.contains(term.as_str()))
+        .count()
 }
 
 fn priority(kind: RecordKind) -> u8 {

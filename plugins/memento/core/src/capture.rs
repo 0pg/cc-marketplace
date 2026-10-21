@@ -228,6 +228,10 @@ pub struct Reply {
     pub pending_user_prompt: bool,
     #[serde(default)]
     pub current_turn_has_user_prompt: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_focus: Option<String>,
+    #[serde(default)]
+    pub request_focus_truncated: bool,
     #[serde(default)]
     pub pending_investigation: bool,
     pub capture_incomplete_event_ids: Vec<String>,
@@ -860,12 +864,71 @@ impl State {
         resolved && (event.kind != EventKind::Commit || !event.commit_shas.is_empty())
     }
 
+    fn request_focus(scope: &Scope, events: &[Event], entries: &[Entry]) -> (Option<String>, bool) {
+        let available = entries
+            .iter()
+            .rev()
+            .find_map(|entry| match &entry.entity {
+                Entity::Source(source)
+                    if source.project_id == scope.project_id && source.id == OBSERVATION_SOURCE =>
+                {
+                    Some(source.authorized && source.available)
+                }
+                _ => None,
+            })
+            .unwrap_or(false);
+        if !available {
+            return (None, false);
+        }
+        let record = events
+            .iter()
+            .rev()
+            .filter(|event| {
+                event.kind == EventKind::UserPrompt && event.original_turn_id == scope.turn_id
+            })
+            .filter_map(|event| event.origin.as_ref())
+            .find_map(|origin| {
+                entries.iter().find_map(|entry| match &entry.entity {
+                    Entity::Record(record)
+                        if entry.sequence == origin.sequence
+                            && record.project_id == scope.project_id
+                            && record.source_id == origin.source_id
+                            && record.id == origin.record_id
+                            && record.revision == origin.revision
+                            && matches!(
+                                record.availability,
+                                Availability::Available | Availability::Redacted
+                            )
+                            && record
+                                .actor
+                                .as_ref()
+                                .is_some_and(|actor| actor.kind == ActorKind::Human) =>
+                    {
+                        Some(record)
+                    }
+                    _ => None,
+                })
+            });
+        let Some(record) = record.filter(|record| !record.body.trim().is_empty()) else {
+            return (None, false);
+        };
+        let mut end = record.body.len().min(1024);
+        while !record.body.is_char_boundary(end) {
+            end = end.saturating_sub(1);
+        }
+        (
+            record.body.get(..end).map(str::to_owned),
+            end < record.body.len() || record.partial,
+        )
+    }
+
     fn reply(&self, scope: &Scope, entries: &[Entry]) -> Reply {
         let session = self.sessions.iter().find(|s| s.scope.same_session(scope));
         let events = session.map_or_else(Vec::new, |s| s.events.clone());
         let current_turn_has_user_prompt = events.iter().any(|event| {
             event.kind == EventKind::UserPrompt && event.original_turn_id == scope.turn_id
         });
+        let (request_focus, request_focus_truncated) = Self::request_focus(scope, &events, entries);
         let mut pending = Vec::new();
         let mut pending_user_prompt = false;
         let mut pending_investigation = false;
@@ -896,7 +959,7 @@ impl State {
         } else {
             Decision::Allow
         };
-        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, current_turn_has_user_prompt, pending_investigation, capture_incomplete_event_ids: incomplete,
+        Reply { scope: scope.clone(), events, pending_event_ids: pending, pending_user_prompt, current_turn_has_user_prompt, request_focus, request_focus_truncated, pending_investigation, capture_incomplete_event_ids: incomplete,
             omitted_pending_event_ids: 0, omitted_capture_incomplete_event_ids: 0,
             stop_attempts: session.map_or(0, |s| s.stop_attempts), decision,
             reason: match decision { Decision::Allow => "all known capture obligations are resolved; semantic completeness is not proven", Decision::Block => "save scoped context records for pending events, then resolve their exact references", Decision::CaptureIncomplete => "capture is incomplete; report the unsaved gap and do not claim persistence" }.into(), durable: true }

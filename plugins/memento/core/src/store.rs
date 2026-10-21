@@ -35,6 +35,8 @@ pub enum Error {
     #[error(transparent)]
     Query(#[from] crate::query::QueryError),
     #[error(transparent)]
+    RecordInput(Box<crate::record_input::Diagnostic>),
+    #[error(transparent)]
     Compaction(#[from] compaction::Error),
     #[error(transparent)]
     Capture(#[from] capture::Error),
@@ -87,6 +89,29 @@ pub struct CompactionNotice {
     pub generation: u64,
     pub removed_entries: usize,
     pub remaining: compaction::Usage,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(deny_unknown_fields)]
+pub struct RecordSelection {
+    pub source_id: String,
+    pub record_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveRecords {
+    pub scope: capture::Scope,
+    pub event_id: String,
+    pub records: Vec<RecordSelection>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecordBatch {
+    pub receipts: Vec<Receipt>,
+    pub records: Vec<Record>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkpoint: Option<capture::Reply>,
 }
 
 impl Store {
@@ -390,19 +415,86 @@ impl Store {
         &mut self,
         entities: impl IntoIterator<Item = Entity>,
     ) -> Result<Vec<Receipt>> {
-        let entities = entities.into_iter().collect::<Vec<_>>();
+        Ok(self
+            .write_batch(entities.into_iter().collect(), None)
+            .await?
+            .receipts)
+    }
+
+    /// Admission, evidence validation and checkpoint resolution share one commit.
+    pub async fn append_and_resolve(
+        &mut self,
+        entities: Vec<Entity>,
+        resolve: ResolveRecords,
+    ) -> Result<RecordBatch> {
+        self.write_batch(entities, Some(resolve)).await
+    }
+
+    async fn write_batch(
+        &mut self,
+        entities: Vec<Entity>,
+        resolve: Option<ResolveRecords>,
+    ) -> Result<RecordBatch> {
         claims::validate_projection(&entities, &self.policy)?;
+        let requested: BTreeSet<_> = resolve.as_ref().map_or_else(BTreeSet::new, |resolve| {
+            resolve.records.iter().cloned().collect()
+        });
+        if resolve
+            .as_ref()
+            .is_some_and(|resolve| requested.is_empty() || requested.len() != resolve.records.len())
+        {
+            return Err(Error::Invalid(
+                "resolve.records must be nonempty and distinct".into(),
+            ));
+        }
         let _guard = format::lock(&self.path, false).await?;
         let mut transaction = self.db.transaction().await?;
         format::fence(&mut transaction, &self.header).await?;
         let mut receipts = Vec::new();
         let mut pinned = BTreeSet::new();
         let mut claim_sequences = Vec::new();
+        let mut selected = BTreeMap::new();
         for entity in entities {
+            let selection = match (&entity, &resolve) {
+                (Entity::Record(record), Some(resolve))
+                    if record.project_id == resolve.scope.project_id =>
+                {
+                    let key = RecordSelection {
+                        source_id: record.source_id.clone(),
+                        record_id: record.id.clone(),
+                    };
+                    requested.contains(&key).then_some(key)
+                }
+                _ => None,
+            };
             let is_claim = matches!(&entity, Entity::Record(record) if record.representation == Representation::Claim);
             let receipt = Self::append_one(&mut transaction, &self.policy, entity).await?;
             if is_claim {
                 claim_sequences.push(receipt.sequence);
+            }
+            if let Some(key) = selection {
+                let rows = StoredEntry::filter(StoredEntry::fields().id().eq(receipt.sequence))
+                    .exec(&mut transaction)
+                    .await?;
+                let row = rows
+                    .first()
+                    .ok_or_else(|| Error::Invalid("saved capture record is absent".into()))?;
+                let Entity::Record(record) = serde_json::from_str(&row.payload)? else {
+                    return Err(Error::Invalid(
+                        "capture selection must identify a record".into(),
+                    ));
+                };
+                let reference = capture::RecordRef {
+                    source_id: record.source_id.clone(),
+                    record_id: record.id.clone(),
+                    revision: record.revision.clone(),
+                    sequence: receipt.sequence,
+                };
+                if selected.insert(key, (reference, record)).is_some() {
+                    return Err(Error::Invalid(
+                        "capture selection has multiple batch revisions".into(),
+                    ));
+                }
             }
             pinned.insert(receipt.sequence);
             receipts.push(receipt);
@@ -410,11 +502,43 @@ impl Store {
         if !claim_sequences.is_empty() {
             claims::validate_written(&mut transaction, &claim_sequences).await?;
         }
-        if let Some(last) = receipts.last_mut() {
-            last.compaction = retention::enforce(&mut transaction, &pinned).await?;
-        }
+        let checkpoint = if let Some(resolve) = resolve {
+            if selected.len() != requested.len() {
+                return Err(Error::Invalid(
+                    "resolve.records must identify records in this batch and project".into(),
+                ));
+            }
+            Some(
+                retention::checkpoint_pinned(
+                    &mut transaction,
+                    capture::Request::Resolve {
+                        scope: resolve.scope,
+                        event_id: resolve.event_id,
+                        resolution: capture::Resolution::Records {
+                            records: selected
+                                .values()
+                                .map(|(reference, _)| reference.clone())
+                                .collect(),
+                        },
+                    },
+                    &self.policy,
+                    &pinned,
+                )
+                .await?
+                .summarize(),
+            )
+        } else {
+            if let Some(last) = receipts.last_mut() {
+                last.compaction = retention::enforce(&mut transaction, &pinned).await?;
+            }
+            None
+        };
         transaction.commit().await?;
-        Ok(receipts)
+        Ok(RecordBatch {
+            receipts,
+            records: selected.into_values().map(|(_, record)| record).collect(),
+            checkpoint,
+        })
     }
 
     pub async fn load(&mut self) -> Result<Corpus> {

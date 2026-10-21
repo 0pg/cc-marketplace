@@ -22,7 +22,7 @@ codex plugin add memento@jhk-plugins
 
 ## 자동 실행기 준비와 업데이트
 
-Memento `0.6.3`은 core `0.3.0`, CLI protocol `1`, Store format `2`를 사용합니다. 에이전트는 프로젝트 작업 시작 시 별도 요청 없이 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행하고 설정된 작업 맥락을 조회합니다. 준비된 runtime은 재사용하고 실행기·모델 설정이 바뀌면 기존 모델 선택을 보존하여 갱신합니다. `skills/memento/scripts/memento.py` launcher의 실제 기록·조회 명령과 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
+Memento `0.7.0`은 core `0.3.0`, CLI protocol `1`, Store format `2`를 사용합니다. 에이전트는 프로젝트 작업 시작 시 별도 요청 없이 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행하고 설정된 작업 맥락을 조회합니다. 준비된 runtime은 재사용하고 실행기·모델 설정이 바뀌면 기존 모델 선택을 보존하여 갱신합니다. `skills/memento/scripts/memento.py` launcher의 실제 기록·조회 명령과 선택적 `setup-memento` 설정 대화도 같은 준비 루틴을 사용합니다. 설치 자체가 post-install script를 실행하거나 hook 신뢰를 부여하는 것은 아닙니다.
 
 소스 패키지에는 Python 3.9+, Rust/Cargo 1.94+, 기본 모델 준비에는 `uv`가 필요합니다. 설치된 플러그인 디렉터리에서 수동 준비와 상태 확인도 가능합니다.
 
@@ -60,7 +60,7 @@ Store별 빈 `.memento-lock` sidecar로 writer를 조정하고 transaction마다
 
 ## Codex 체크포인트 훅
 
-Memento 0.6.2는 프로젝트 작업 시작 시 스킬을 선제적으로 적용하도록 안내하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
+Memento는 프로젝트 작업 시작 시 스킬을 선제적으로 적용하도록 안내하고, trusted command hook으로 이벤트와 실제 저장 여부를 검사합니다. 자동 선택과 자연어 중요 내용의 완전성을 보장하지는 않습니다.
 
 1. 플러그인을 설치·활성화하고 스킬 launcher 또는 선택적 setup 흐름으로 runtime을 준비합니다. 수동으로는 설치된 패키지의 `scripts/install_runtime.py --ensure`를 실행합니다.
 2. Codex의 hook review UI(CLI `/hooks`)에서 현재 정의를 검토하고 신뢰합니다. 설치기는 이 신뢰 설정을 변경하지 않습니다.
@@ -133,3 +133,17 @@ Datalog와 구조 검사는 자연어 의미·원자성·누락 여부를 보증
 ## 0.6.3 세션 진단과 요청 복구
 
 [0pg-mcp `c9280128`](https://github.com/0pg/0pg-mcp/commit/c92801288926950d9058d8f676f62b359e59eb01)의 저장소를 변경하지 않는 `session-status` 조회, 초기 설정 복구 후 요청 체크포인트, Codex 호환 manifest 배포를 반영합니다. 조회는 선택한 store/project/work/session의 저장 상태만 확인하며 현재 훅 활성이나 의미 기록의 완전성을 증명하지 않습니다. 기존 모델 선택과 main의 배포 안내·회귀 테스트를 유지합니다.
+
+## 0.7.0 기록 비용과 조회 진단 개선
+
+[0pg-mcp `3429c573`](https://github.com/0pg/0pg-mcp/commit/3429c5738d99a286f052ffaee12f95a9d01fe5a7)의 개선을 반영합니다. 이전 0.6.4의 pending compaction advisory도 보존하며 코어 버전 `0.3.0`·CLI protocol `1`·Store format `2`를 유지합니다.
+
+- 변화 없는 재설명은 사유가 있는 `no_new_context`로 기존 기록을 재사용하고, 새로운 요구사항·결정·검증은 기록합니다. 필요한 저장은 정규화된 내용과 근거를 검증하고 해당 checkpoint를 같은 transaction에서 해제하는 단일 `record` envelope로 처리합니다. 실패 시 함께 rollback합니다.
+- 근거가 조회 범위 밖인 경우, 실제 삭제, 접근 불가를 구분하며 권한을 넓히지 않고 재조회 방법을 안내합니다.
+- 배치 오류에 record ID·배열 위치·필드/근거 경로·수정 hint를 제공하고 잘린 origin의 `partial` 조건을 명시합니다.
+- 확인된 설치 안내 파일만 대상으로 하는 안전한 `rg` 읽기는 조사 checkpoint를 만들지 않습니다. 프로젝트 혼합·복합명령·경로 탈출은 면제하지 않습니다.
+- `brief`의 질문 focus·최근 상태 순서를 자동 주입까지 보존하고, 같은 출력 예산 안에서 완전 항목·필드별 생략·원래 query/cursor를 안내합니다. 기본 조회의 반복 상태필터 계산도 줄였습니다.
+
+동일한 합성 seed의 baseline/candidate CLI 재생에서 저장·검증·해제 workflow는 3→1회(audit 포함 4→2회), 조건과 원문에 도달하는 추가 조회는 3→2회였습니다. 수정 재시도는 1→1회로 같았고 native hook 내부 호출 수는 측정하지 않았습니다. 이는 모든 대화의 최소 호출 수나 자연어 의미 기록의 완전성을 보장하는 측정이 아닙니다. 재생 도구와 검사 코드는 `tests/evaluate_memento_feedback.py` 및 `tests/test_evaluate_memento_feedback.py`에 포함합니다.
+
+0.7.0 패키지 검증(2026-10-21): standalone core의 fmt·clippy와 Rust 테스트 307개, Python 테스트 142개가 통과했습니다. Python 검사는 실제 core 기반 훅 13개와 runtime 통합 3개를 포함하며 skip은 없었습니다. 실제 Desktop의 훅 전달·신뢰 설정과 자연어 의미 품질은 이번 패키지 검사 범위 밖입니다.

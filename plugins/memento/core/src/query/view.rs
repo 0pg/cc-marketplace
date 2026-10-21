@@ -1,5 +1,29 @@
 use super::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum EvidenceLoss {
+    OutOfScope(String),
+    Deleted,
+    Inaccessible,
+}
+
+impl EvidenceLoss {
+    fn warning(self) -> String {
+        match self {
+            Self::OutOfScope(source_id) => format!(
+                "evidence_out_of_scope: derived content withheld because evidence is outside the query scope; add {} to scope.source_ids and retry the same query",
+                serde_json::json!(source_id)
+            ),
+            Self::Deleted => {
+                "evidence_deleted: derived content unavailable after evidence removal".into()
+            }
+            Self::Inaccessible => {
+                "evidence_inaccessible: derived content withheld because required evidence is unavailable or access is restricted".into()
+            }
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct Cursor {
@@ -153,10 +177,12 @@ impl<'a> View<'a> {
     }
 
     pub fn records(&self) -> impl Iterator<Item = &'a Record> + '_ {
-        self.entities().filter_map(|e| match e {
-            Entity::Record(r) => Some(r),
-            _ => None,
-        })
+        self.selected
+            .values()
+            .filter_map(|entry| match &entry.entity {
+                Entity::Record(record) if self.visible(&entry.entity) => Some(record),
+                _ => None,
+            })
     }
 
     pub fn relations(&self) -> impl Iterator<Item = &'a Relation> + '_ {
@@ -255,6 +281,42 @@ impl<'a> View<'a> {
             .collect()
     }
 
+    fn evidence_losses(
+        &self,
+        original: &[Evidence],
+        retained: &[Evidence],
+    ) -> BTreeSet<EvidenceLoss> {
+        let mut losses = BTreeSet::new();
+        for reference in original {
+            if self.authorized(&reference.source_id) {
+                continue;
+            }
+            // Only identify sources whose metadata is already accessible in this project.
+            // An absent source and an unauthorized source must remain indistinguishable.
+            let accessible = self.latest.values().any(|entry| {
+                matches!(
+                    &entry.entity,
+                    Entity::Source(source)
+                        if source.project_id == self.project_id
+                            && source.id == reference.source_id
+                            && source.authorized
+                )
+            });
+            losses.insert(if accessible {
+                EvidenceLoss::OutOfScope(reference.source_id.clone())
+            } else {
+                EvidenceLoss::Inaccessible
+            });
+        }
+        if retained
+            .iter()
+            .any(|reference| reference.availability == Availability::Deleted)
+        {
+            losses.insert(EvidenceLoss::Deleted);
+        }
+        losses
+    }
+
     pub fn item(&self, entity: &Entity) -> QueryItem {
         let mut entity = entity.clone();
         let mut warnings = Vec::new();
@@ -268,13 +330,23 @@ impl<'a> View<'a> {
                     || evidence
                         .iter()
                         .any(|e| e.availability == Availability::Deleted);
+                let losses = if r.derived && lost {
+                    self.evidence_losses(&r.evidence, &evidence)
+                } else {
+                    BTreeSet::new()
+                };
                 let stale = evidence.iter().any(|e| {
                     e.availability == Availability::Missing
                         || e.record_id.as_ref().is_some_and(|id| {
-                            self.records().any(|current| {
-                                current.source_id == e.source_id
-                                    && &current.id == id
-                                    && current.revision != e.revision
+                            let key =
+                                Entity::scoped_key(&self.project_id, &e.source_id, "record", id);
+                            self.selected.get(&key).is_some_and(|entry| {
+                                matches!(
+                                    &entry.entity,
+                                    Entity::Record(current)
+                                        if self.visible(&entry.entity)
+                                            && current.revision != e.revision
+                                )
                             })
                         })
                 });
@@ -314,7 +386,7 @@ impl<'a> View<'a> {
                     r.title.clear();
                     r.alternatives.clear();
                     r.execution = None;
-                    warnings.push("derived content unavailable after evidence removal".into());
+                    warnings.extend(losses.into_iter().map(EvidenceLoss::warning));
                 }
                 if matches!(
                     r.availability,
